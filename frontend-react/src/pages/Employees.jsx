@@ -24,8 +24,9 @@ function emptyEmployeeForm() {
 }
 
 function Employees() {
-  const { principal, hasRole } = useSession();
+  const { principal, hasRole, hasPermission } = useSession();
   const isSuperAdmin = hasRole("SUPER_ADMIN");
+  const canReadTrainingResults = hasPermission("training.results.read");
   const [employees, setEmployees] = useState([]);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -34,6 +35,10 @@ function Employees() {
   const [error, setError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState(() => emptyEmployeeForm());
+  const [onboardingTarget, setOnboardingTarget] = useState(null);
+  const [onboardingDetail, setOnboardingDetail] = useState(null);
+  const [onboardingDetailLoading, setOnboardingDetailLoading] = useState(false);
+  const [onboardingDetailError, setOnboardingDetailError] = useState("");
 
   const loadEmployees = useCallback(async () => {
     setLoading(true);
@@ -105,6 +110,32 @@ function Employees() {
     } catch (err) {
       setError(err.response?.data?.detail || "No fue posible cambiar el rol.");
     }
+  }
+
+  async function openOnboardingDetail(employee) {
+    if (!employee?.onboarding?.course_id || onboardingDetailLoading) return;
+    setOnboardingTarget(employee);
+    setOnboardingDetail(null);
+    setOnboardingDetailError("");
+    setOnboardingDetailLoading(true);
+    try {
+      const { data } = await api.get(
+        `/training/courses/${employee.onboarding.course_id}/assignments/${employee.id}`,
+      );
+      setOnboardingDetail(data);
+    } catch (err) {
+      setOnboardingDetailError(
+        err.response?.data?.detail || "No fue posible cargar el detalle del onboarding.",
+      );
+    } finally {
+      setOnboardingDetailLoading(false);
+    }
+  }
+
+  function closeOnboardingDetail() {
+    setOnboardingTarget(null);
+    setOnboardingDetail(null);
+    setOnboardingDetailError("");
   }
 
   return (
@@ -252,6 +283,15 @@ function Employees() {
                               <span style={{ width: `${Math.max(0, Math.min(100, Number(employee.onboarding.progress_percent || 0)))}%` }} />
                             </div>
                             <small>{Number(employee.onboarding.progress_percent || 0)}% completado</small>
+                            {canReadTrainingResults && (
+                              <button
+                                className="btn btn-ghost btn-sm employee-onboarding-detail-button"
+                                type="button"
+                                onClick={() => openOnboardingDetail(employee)}
+                              >
+                                Ver detalle
+                              </button>
+                            )}
                           </div>
                         )}
                         {employee.hire_date && <small>Ingreso: {employee.hire_date}</small>}
@@ -280,6 +320,66 @@ function Employees() {
           </div>
         )}
       </section>
+
+      {onboardingTarget && (
+        <div className="modal-overlay" role="presentation" onMouseDown={closeOnboardingDetail}>
+          <section
+            className="modal employee-onboarding-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="employee-onboarding-modal-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <span className="eyebrow">Seguimiento de onboarding</span>
+                <h2 id="employee-onboarding-modal-title">
+                  {[onboardingTarget.first_name, onboardingTarget.last_name].filter(Boolean).join(" ") || onboardingTarget.email}
+                </h2>
+                <p>{onboardingTarget.onboarding?.course_title || "Onboarding ASIATI"}</p>
+              </div>
+              <button className="btn-close" type="button" aria-label="Cerrar detalle de onboarding" onClick={closeOnboardingDetail}>×</button>
+            </div>
+
+            {onboardingDetailLoading ? (
+              <div className="page-loading"><span /> Cargando progreso…</div>
+            ) : onboardingDetailError ? (
+              <div className="alert" role="alert">{onboardingDetailError}</div>
+            ) : onboardingDetail?.course ? (
+              <div className="employee-onboarding-detail">
+                <div className="employee-onboarding-summary">
+                  <div>
+                    <span>Progreso total</span>
+                    <strong>{Number(onboardingDetail.course.progress_percent || 0)}%</strong>
+                  </div>
+                  <div>
+                    <span>Actividades</span>
+                    <strong>
+                      {onboardingDetail.course.completed_lessons || 0}/{onboardingDetail.course.lesson_count || 0}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Estado</span>
+                    <strong>{onboardingTarget.onboarding_status === "COMPLETED" ? "Completado" : onboardingTarget.onboarding_status === "IN_PROGRESS" ? "En progreso" : "Pendiente"}</strong>
+                  </div>
+                </div>
+
+                <div className="employee-onboarding-module-list">
+                  {(onboardingDetail.course.modules || []).map((module) => (
+                    <article className="employee-onboarding-module" key={module.id}>
+                      <div>
+                        <strong>{module.title}</strong>
+                        <small>{module.completed_lessons || 0}/{module.lesson_count || 0} actividades</small>
+                      </div>
+                      <span>{Number(module.progress_percent || 0)}%</span>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </section>
+        </div>
+      )}
 
       {formOpen && (
         <div className="modal-overlay" role="presentation" onMouseDown={() => setFormOpen(false)}>
