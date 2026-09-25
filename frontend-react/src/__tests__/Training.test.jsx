@@ -446,6 +446,98 @@ describe("Training platform", () => {
     expect(screen.getByText("Confirmaré la aprobación de mi líder.")).toBeInTheDocument();
   });
 
+  it("renders module 6 culture video in portrait format", async () => {
+    useSession.mockReturnValue({
+      principal: {
+        profile: { id: "employee-6", first_name: "Ana" },
+      },
+      hasPermission: (permission) => [
+        "training.read",
+        "training.consume",
+      ].includes(permission),
+    });
+
+    const cultureAssignment = {
+      ...assignment,
+      id: "assignment-6",
+      course: {
+        ...assignment.course,
+        id: "course-6",
+        title: "Onboarding ASIATI",
+        module_count: 1,
+        lesson_count: 1,
+        completed_lessons: 0,
+        estimated_minutes: 1,
+        remaining_minutes: 1,
+        next_lesson_id: "culture-video",
+      },
+    };
+    const cultureDetail = {
+      assignment_id: "assignment-6",
+      assignment_status: "ASSIGNED",
+      course: {
+        ...employeeDetail.course,
+        id: "course-6",
+        title: "Onboarding ASIATI",
+        lesson_count: 1,
+        completed_lessons: 0,
+        estimated_minutes: 1,
+        remaining_minutes: 1,
+        next_lesson_id: "culture-video",
+        modules: [
+          {
+            id: "module-6",
+            title: "Módulo 6 · Cultura interna",
+            description: "Cultura ASIATI.",
+            position: 6,
+            lesson_count: 1,
+            content_item_count: 1,
+            completed_lessons: 0,
+            progress_percent: 0,
+            is_complete: false,
+            estimated_minutes: 1,
+            remaining_minutes: 1,
+            has_unknown_duration: false,
+            has_unknown_remaining_duration: false,
+            lessons: [
+              {
+                id: "culture-video",
+                title: "Cultura interna",
+                description: "Contenido cultural.",
+                video_url: "https://drive.google.com/file/d/1HuAXb7anjLZWPik9RjuJiUmqLTqQQybj/view?usp=drivesdk",
+                duration_seconds: 29,
+                content_type: "VIDEO",
+                external_url: null,
+                estimated_minutes: 1,
+                is_optional: false,
+                position: 1,
+                completed: false,
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    api.get.mockImplementation((url) => {
+      if (url === "/training/me") {
+        return Promise.resolve({ data: { items: [cultureAssignment] } });
+      }
+      if (url === "/training/me/courses/course-6") {
+        return Promise.resolve({ data: cultureDetail });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+
+    const { container } = renderPage();
+
+    expect(await screen.findByTitle("Video: Cultura interna")).toHaveAttribute(
+      "src",
+      "https://drive.google.com/file/d/1HuAXb7anjLZWPik9RjuJiUmqLTqQQybj/preview",
+    );
+    expect(container.querySelector(".training-journey-video.is-portrait")).toBeInTheDocument();
+  });
+
   it("restores and saves onboarding checklist progress", async () => {
     useSession.mockReturnValue({
       principal: {
