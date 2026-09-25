@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_permission
-from app.domains.candidates import presenter, service
+from app.domains.candidates import presenter, repository as candidates_repository, service
 from app.domains.candidates.exceptions import (
     CandidateNotFound,
     InvalidApplicationStatus,
@@ -111,7 +111,29 @@ def get_job_candidates(
     except JobNotFound:
         raise HTTPException(status_code=404, detail="Vacante no encontrada.")
 
-    return [presenter.candidate_to_dict(candidate) for candidate in items]
+    links = candidates_repository.list_job_candidate_links(
+        db,
+        job_id=job_id,
+        candidate_ids=[candidate.id for candidate in items],
+    )
+    payload = []
+    for candidate in items:
+        item = presenter.candidate_to_dict(candidate)
+        link = links.get(candidate.id)
+        if link is not None:
+            item.update(
+                {
+                    "application_status": link.application_status,
+                    "status_changed_at": (
+                        link.status_changed_at.isoformat()
+                        if link.status_changed_at else None
+                    ),
+                    "employee_id": link.employee_id,
+                    "hired_at": link.hired_at.isoformat() if link.hired_at else None,
+                }
+            )
+        payload.append(item)
+    return payload
 
 
 @assign_router.put("/{job_id}/candidates/{candidate_id}/status")
