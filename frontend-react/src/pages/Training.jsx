@@ -46,6 +46,21 @@ function lessonTypeIcon(type) {
 }
 
 
+function isTeamModule(module) {
+  return String(module?.title || "").includes("Conoce al equipo");
+}
+
+
+function teamInitials(name) {
+  return String(name || "")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+}
+
+
 function recommendedSession(lessons, nextLessonId) {
   const requiredPending = lessons.filter(
     (lesson) => !lesson.is_optional && !lesson.completed,
@@ -1490,19 +1505,25 @@ function Training() {
                             </i>
                           </button>
                           {(expandedModuleIds.includes(module.id) || activeModuleId === module.id) && (
-                            <div className="training-journey-lessons">
+                            <div className={`training-journey-lessons ${isTeamModule(module) ? "training-team-grid" : ""}`}>
                               {module.lessons?.map((lesson) => (
                                 <button
                                   key={lesson.id}
                                   type="button"
-                                  className={`training-journey-lesson-button ${lesson.id === activeLessonId ? "active" : ""} ${lesson.completed ? "is-complete" : ""}`}
+                                  className={`training-journey-lesson-button ${isTeamModule(module) ? "training-team-card" : ""} ${lesson.id === activeLessonId ? "active" : ""} ${lesson.completed ? "is-complete" : ""}`}
                                   onClick={() => setActiveLessonId(lesson.id)}
                                 >
-                                  <span>{lesson.completed ? "✓" : lessonTypeIcon(lesson.content_type)}</span>
+                                  <span className={isTeamModule(module) ? "training-team-avatar" : ""}>
+                                    {lesson.completed
+                                      ? "✓"
+                                      : isTeamModule(module)
+                                        ? teamInitials(lesson.title)
+                                        : lessonTypeIcon(lesson.content_type)}
+                                  </span>
                                   <div>
                                     <strong>{lesson.title}</strong>
                                     <small>
-                                      {lessonTypeLabel(lesson.content_type)}
+                                      {isTeamModule(module) ? "Conoce al equipo" : lessonTypeLabel(lesson.content_type)}
                                       {lesson.estimated_minutes
                                         ? ` · ~${lesson.estimated_minutes} min`
                                         : " · duración por confirmar"}
@@ -1554,7 +1575,7 @@ function Training() {
                           )}
 
                           {activeJourneyLesson.video_url && (
-                            <div className="training-video training-journey-video">
+                            <div className={`training-video training-journey-video ${isTeamModule(activeJourneyLesson.module) ? "is-portrait" : ""}`}>
                               {isDirectVideo(activeJourneyLesson.video_url) ? (
                                 <video controls preload="metadata">
                                   <source src={activeJourneyLesson.video_url} />
