@@ -1248,6 +1248,18 @@ def test_asiati_onboarding_template_repairs_existing_draft_without_duplicate(db)
     assert [lesson["title"] for lesson in module_three["lessons"]] == [
         member[0] for member in service.ASIATI_ONBOARDING_MODULE_3_TEAM
     ]
+    module_four = next(
+        module
+        for module in payload["modules"]
+        if module["title"] == service.ASIATI_ONBOARDING_MODULE_4_TITLE
+    )
+    assert [lesson["title"] for lesson in module_four["lessons"]] == [
+        service.ASIATI_ONBOARDING_MODULE_4_VIDEO_TITLE,
+        service.ASIATI_ONBOARDING_MODULE_4_CHECKLIST_TITLE,
+    ]
+    assert module_four["lessons"][0]["video_url"] == service.ASIATI_ONBOARDING_MODULE_4_VIDEO_URL
+    assert module_four["lessons"][0]["duration_seconds"] == 105
+    assert module_four["lessons"][1]["checklist_items"] == service.ASIATI_ONBOARDING_MODULE_4_CHECKLIST_ITEMS
 
 
 def test_asiati_onboarding_template_scaffolds_short_journey(db):
@@ -1264,6 +1276,7 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
         "Módulo 1 · Bienvenida a ASIATI",
         "Módulo 2 · Conoce ASIATI",
         "Módulo 3 · Conoce al equipo",
+        "Módulo 4 · Permisos y vacaciones",
         "Así trabajamos",
         "Tu cargo en ASIATI",
     ]
@@ -1314,7 +1327,8 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
     assert "Módulo 2 · ASIATI" not in video_titles
     assert "Módulo 3 · ASIATI" not in video_titles
     assert "Módulos 1–3 · Introducción corporativa" not in video_titles
-    assert "Módulo 4 · Permisos y vacaciones" in video_titles
+    assert "Permisos y vacaciones" in video_titles
+    assert "Módulo 4 · Permisos y vacaciones" not in video_titles
     assert "Módulo 5 · Recorrido de sede" in video_titles
     assert "Módulo 6 · Cultura interna" in video_titles
     assert "Módulo 7 · Lo que esperamos de ti" in video_titles
@@ -1375,6 +1389,32 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
         assert lesson["content_type"] == "VIDEO"
         assert lesson["duration_known"] is True
         assert lesson["is_optional"] is False
+
+    module_four = next(
+        module
+        for module in payload["modules"]
+        if module["title"] == service.ASIATI_ONBOARDING_MODULE_4_TITLE
+    )
+    assert module_four["lesson_count"] == 2
+    module_four_video = next(
+        lesson
+        for lesson in module_four["lessons"]
+        if lesson["title"] == service.ASIATI_ONBOARDING_MODULE_4_VIDEO_TITLE
+    )
+    assert module_four_video["video_url"] == service.ASIATI_ONBOARDING_MODULE_4_VIDEO_URL
+    assert module_four_video["duration_seconds"] == 105
+    assert module_four_video["estimated_minutes"] == 2
+    assert module_four_video["duration_known"] is True
+    assert module_four_video["is_optional"] is False
+
+    module_four_checklist = next(
+        lesson
+        for lesson in module_four["lessons"]
+        if lesson["title"] == service.ASIATI_ONBOARDING_MODULE_4_CHECKLIST_TITLE
+    )
+    assert module_four_checklist["content_type"] == "CHECKLIST"
+    assert module_four_checklist["checklist_items"] == service.ASIATI_ONBOARDING_MODULE_4_CHECKLIST_ITEMS
+    assert module_four_checklist["is_optional"] is False
 
 
 def test_onboarding_quality_report_flags_heavy_or_incomplete_content(db):
