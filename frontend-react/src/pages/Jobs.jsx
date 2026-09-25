@@ -1069,7 +1069,7 @@ function Jobs() {
                             className="btn btn-primary btn-sm"
                             onClick={() => openHireModal(c)}
                           >
-                            Contratar
+                            Contratar candidato
                           </button>
                         )}
                         <Link className="btn btn-secondary btn-sm" to={`/candidates/${c.candidate_id}?job_id=${viewJob.job_id}`}>Ver candidato</Link>
