@@ -1177,6 +1177,133 @@ def _ensure_asiati_module_4(
     return require_course(db, course.id)
 
 
+ASIATI_ONBOARDING_MODULE_5_TITLE = "Módulo 5 · Contenido corporativo"
+ASIATI_ONBOARDING_MODULE_5_VIDEO_TITLE = "Módulo 5"
+ASIATI_ONBOARDING_MODULE_5_VIDEO_URL = (
+    "https://drive.google.com/file/d/"
+    "1xITvIp8VAg4bkwIt0BFQX4UH2rYZ-CBu/view?usp=drivesdk"
+)
+ASIATI_ONBOARDING_MODULE_5_DESCRIPTION = (
+    "Continúa tu ruta con el quinto contenido corporativo de ASIATI. "
+    "La temática se mantiene neutra hasta validar el material fuente completo."
+)
+ASIATI_ONBOARDING_MODULE_5_VIDEO_DESCRIPTION = (
+    "Contenido corporativo correspondiente al Módulo 5 de la inducción ASIATI."
+)
+
+
+def _ensure_asiati_module_5(
+    db: Session,
+    *,
+    course: TrainingCourse,
+) -> TrainingCourse:
+    module_five = next(
+        (
+            module
+            for module in course.modules
+            if module.title == ASIATI_ONBOARDING_MODULE_5_TITLE
+        ),
+        None,
+    )
+    if module_five is None:
+        module_five = add_module(
+            db,
+            course_id=course.id,
+            title=ASIATI_ONBOARDING_MODULE_5_TITLE,
+            description=ASIATI_ONBOARDING_MODULE_5_DESCRIPTION,
+        )
+        course = require_course(db, course.id)
+        module_five = next(
+            module
+            for module in course.modules
+            if module.id == module_five.id
+        )
+
+        # Insert module 5 directly after module 4.
+        for module in course.modules:
+            if module.id != module_five.id and module.position >= 5:
+                module.position += 1
+        module_five.position = 5
+        db.commit()
+        course = require_course(db, course.id)
+        module_five = next(
+            module
+            for module in course.modules
+            if module.id == module_five.id
+        )
+
+    changed = False
+    if module_five.description != ASIATI_ONBOARDING_MODULE_5_DESCRIPTION:
+        module_five.description = ASIATI_ONBOARDING_MODULE_5_DESCRIPTION
+        changed = True
+
+    video = next(
+        (
+            lesson
+            for lesson in module_five.lessons
+            if lesson.title in {
+                ASIATI_ONBOARDING_MODULE_5_VIDEO_TITLE,
+                "Módulo 5 · Recorrido de sede",
+            }
+        ),
+        None,
+    )
+    if video is None:
+        # Reuse the previous placeholder when repairing an existing draft so
+        # employee progress stays attached to the same lesson record.
+        for module in course.modules:
+            if module.id == module_five.id:
+                continue
+            video = next(
+                (
+                    lesson
+                    for lesson in module.lessons
+                    if lesson.title == "Módulo 5 · Recorrido de sede"
+                ),
+                None,
+            )
+            if video is not None:
+                video.module_id = module_five.id
+                video.module = module_five
+                changed = True
+                break
+
+    if video is None:
+        add_lesson(
+            db,
+            module_id=module_five.id,
+            title=ASIATI_ONBOARDING_MODULE_5_VIDEO_TITLE,
+            description=ASIATI_ONBOARDING_MODULE_5_VIDEO_DESCRIPTION,
+            video_url=ASIATI_ONBOARDING_MODULE_5_VIDEO_URL,
+            duration_seconds=None,
+            content_type="VIDEO",
+            estimated_minutes=None,
+            is_optional=False,
+        )
+    else:
+        desired_values = {
+            "title": ASIATI_ONBOARDING_MODULE_5_VIDEO_TITLE,
+            "description": ASIATI_ONBOARDING_MODULE_5_VIDEO_DESCRIPTION,
+            "duration_seconds": None,
+            "content_type": "VIDEO",
+            "external_url": None,
+            "estimated_minutes": None,
+            "checklist_items": [],
+            "is_optional": False,
+            "position": 1,
+        }
+        if not video.video_storage_key:
+            desired_values["video_url"] = ASIATI_ONBOARDING_MODULE_5_VIDEO_URL
+        for field, value in desired_values.items():
+            if getattr(video, field) != value:
+                setattr(video, field, value)
+                changed = True
+
+    if changed:
+        db.commit()
+    return require_course(db, course.id)
+
+
 def _ensure_asiati_corporate_video_lessons(
     db: Session,
     *,
@@ -1198,12 +1325,6 @@ def _ensure_asiati_corporate_video_lessons(
     }
 
     for title, description, url, duration_seconds in [
-        (
-            "Módulo 5 · Recorrido de sede",
-            "Recorrido breve para ubicarte dentro de la sede.",
-            "https://drive.google.com/file/d/1jOQ2KO7Yu4wa6MhWv0mpcZloVu83sSty/view?usp=drivesdk",
-            160,
-        ),
         (
             "Módulo 6 · Cultura interna",
             "Conoce aspectos clave de la cultura interna de ASIATI.",
@@ -1385,6 +1506,10 @@ def create_asiati_onboarding_template(
             db,
             course=refreshed,
         )
+        refreshed = _ensure_asiati_module_5(
+            db,
+            course=refreshed,
+        )
         _ensure_asiati_corporate_video_lessons(db, course=refreshed)
         _ensure_asiati_role_checklist(
             db,
@@ -1540,12 +1665,30 @@ def create_asiati_onboarding_template(
         is_optional=False,
     )
 
+    module_five = add_module(
+        db,
+        course_id=course.id,
+        title=ASIATI_ONBOARDING_MODULE_5_TITLE,
+        description=ASIATI_ONBOARDING_MODULE_5_DESCRIPTION,
+    )
+    add_lesson(
+        db,
+        module_id=module_five.id,
+        title=ASIATI_ONBOARDING_MODULE_5_VIDEO_TITLE,
+        description=ASIATI_ONBOARDING_MODULE_5_VIDEO_DESCRIPTION,
+        video_url=ASIATI_ONBOARDING_MODULE_5_VIDEO_URL,
+        duration_seconds=None,
+        content_type="VIDEO",
+        estimated_minutes=None,
+        is_optional=False,
+    )
+
     add_module(
         db,
         course_id=course.id,
         title="Así trabajamos",
         description=(
-            "Espacio temporal para los módulos 5–7 mientras terminamos de "
+            "Espacio temporal para los módulos 6–7 mientras terminamos de "
             "configurar sus contenidos definitivos."
         ),
     )
@@ -1593,6 +1736,10 @@ def create_asiati_onboarding_template(
         course=normalized_course,
     )
     normalized_course = _ensure_asiati_module_4(
+        db,
+        course=normalized_course,
+    )
+    normalized_course = _ensure_asiati_module_5(
         db,
         course=normalized_course,
     )
