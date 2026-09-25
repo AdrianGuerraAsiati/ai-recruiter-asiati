@@ -103,6 +103,21 @@ def list_job_candidates(
     )
 
 
+def list_job_candidate_links(
+    db: Session,
+    *,
+    job_id: str,
+    candidate_ids: list[str],
+    owner_sub: str,
+):
+    require_job(db, job_id, owner_sub)
+    return candidates_repository.list_job_candidate_links(
+        db,
+        job_id=job_id,
+        candidate_ids=candidate_ids,
+    )
+
+
 def assign_candidates(
     db: Session,
     job_id: str,
