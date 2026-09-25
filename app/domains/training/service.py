@@ -679,6 +679,113 @@ def _ensure_asiati_module_1(
     return require_course(db, course.id)
 
 
+ASIATI_ONBOARDING_MODULE_2_TITLE = "Módulo 2 · Conoce ASIATI"
+ASIATI_ONBOARDING_MODULE_2_LESSON_TITLE = "Quiénes somos y qué hacemos"
+ASIATI_ONBOARDING_MODULE_2_VIDEO_URL = (
+    "https://drive.google.com/file/d/"
+    "1zPS0k293LFvAQK4yrXVtOLoP5X-g9i7t/view?usp=drivesdk"
+)
+ASIATI_ONBOARDING_MODULE_2_DURATION_SECONDS = 38
+ASIATI_ONBOARDING_MODULE_2_DESCRIPTION = (
+    "Conoce el alcance de ASIATI, cómo conectamos operación, logística y "
+    "tecnología, y la presencia que construimos como compañía."
+)
+ASIATI_ONBOARDING_MODULE_2_LESSON_DESCRIPTION = (
+    "Un recorrido breve por ASIATI: nuestra operación, alcance y las marcas "
+    "que hacen parte del ecosistema."
+)
+
+
+def _ensure_asiati_module_2(
+    db: Session,
+    *,
+    course: TrainingCourse,
+) -> TrainingCourse:
+    module = next(
+        (
+            item
+            for item in course.modules
+            if item.title in {"Conoce ASIATI", ASIATI_ONBOARDING_MODULE_2_TITLE}
+        ),
+        None,
+    )
+    if module is None:
+        module = add_module(
+            db,
+            course_id=course.id,
+            title=ASIATI_ONBOARDING_MODULE_2_TITLE,
+            description=ASIATI_ONBOARDING_MODULE_2_DESCRIPTION,
+        )
+        course = require_course(db, course.id)
+
+    changed = False
+    if module.title != ASIATI_ONBOARDING_MODULE_2_TITLE:
+        module.title = ASIATI_ONBOARDING_MODULE_2_TITLE
+        changed = True
+    if module.description != ASIATI_ONBOARDING_MODULE_2_DESCRIPTION:
+        module.description = ASIATI_ONBOARDING_MODULE_2_DESCRIPTION
+        changed = True
+
+    lesson = next(
+        (
+            item
+            for item in module.lessons
+            if item.title in {"Módulo 2 · ASIATI", ASIATI_ONBOARDING_MODULE_2_LESSON_TITLE}
+        ),
+        None,
+    )
+    if lesson is None:
+        add_lesson(
+            db,
+            module_id=module.id,
+            title=ASIATI_ONBOARDING_MODULE_2_LESSON_TITLE,
+            description=ASIATI_ONBOARDING_MODULE_2_LESSON_DESCRIPTION,
+            video_url=ASIATI_ONBOARDING_MODULE_2_VIDEO_URL,
+            duration_seconds=ASIATI_ONBOARDING_MODULE_2_DURATION_SECONDS,
+            content_type="VIDEO",
+            estimated_minutes=1,
+            is_optional=False,
+        )
+        course = require_course(db, course.id)
+        module = next(
+            item
+            for item in course.modules
+            if item.id == module.id
+        )
+    else:
+        desired_values = {
+            "title": ASIATI_ONBOARDING_MODULE_2_LESSON_TITLE,
+            "description": ASIATI_ONBOARDING_MODULE_2_LESSON_DESCRIPTION,
+            "duration_seconds": ASIATI_ONBOARDING_MODULE_2_DURATION_SECONDS,
+            "content_type": "VIDEO",
+            "external_url": None,
+            "estimated_minutes": 1,
+            "checklist_items": [],
+            "is_optional": False,
+        }
+        if not lesson.video_storage_key:
+            desired_values["video_url"] = ASIATI_ONBOARDING_MODULE_2_VIDEO_URL
+        for field, value in desired_values.items():
+            if getattr(lesson, field) != value:
+                setattr(lesson, field, value)
+                changed = True
+
+    # Las presentaciones y el sitio corporativo enriquecen el módulo, pero no
+    # deben bloquear el progreso. El video es la actividad obligatoria.
+    for resource in module.lessons:
+        if resource.title in {
+            "Presentación ASIATI I",
+            "Presentación ASIATI II",
+            "Página oficial de ASIATI Corp",
+        } and not resource.is_optional:
+            resource.is_optional = True
+            changed = True
+
+    if changed:
+        db.commit()
+    return require_course(db, course.id)
+
+
 def _ensure_asiati_corporate_video_lessons(
     db: Session,
     *,
@@ -689,7 +796,10 @@ def _ensure_asiati_corporate_video_lessons(
         for module in course.modules
     }
 
-    asiati_module = modules_by_title.get("Conoce ASIATI")
+    asiati_module = (
+        modules_by_title.get(ASIATI_ONBOARDING_MODULE_2_TITLE)
+        or modules_by_title.get("Conoce ASIATI")
+    )
     work_module = modules_by_title.get("Así trabajamos")
     if asiati_module is None or work_module is None:
         return
@@ -700,13 +810,9 @@ def _ensure_asiati_corporate_video_lessons(
         for lesson in module.lessons
     }
 
-    # Modules 2–3 remain placeholders until their source videos are wired in.
-    # Module 1 is already backed by the approved standalone welcome video.
+    # Module 3 remains a placeholder until its team videos are wired in.
+    # Modules 1 and 2 already use their approved standalone sources.
     for title, description in [
-        (
-            "Módulo 2 · ASIATI",
-            "Segunda parte de la inducción corporativa. Video individual pendiente de configuración.",
-        ),
         (
             "Módulo 3 · ASIATI",
             "Tercera parte de la inducción corporativa. Video individual pendiente de configuración.",
@@ -908,6 +1014,10 @@ def create_asiati_onboarding_template(
             db,
             course=require_course(db, existing.id),
         )
+        refreshed = _ensure_asiati_module_2(
+            db,
+            course=refreshed,
+        )
         _ensure_asiati_corporate_video_lessons(db, course=refreshed)
         _ensure_asiati_role_checklist(
             db,
@@ -947,12 +1057,23 @@ def create_asiati_onboarding_template(
     asiati = add_module(
         db,
         course_id=course.id,
-        title="Conoce ASIATI",
-        description="Contexto corporativo, propósito y presencia oficial.",
+        title=ASIATI_ONBOARDING_MODULE_2_TITLE,
+        description=ASIATI_ONBOARDING_MODULE_2_DESCRIPTION,
+    )
+    add_lesson(
+        db,
+        module_id=asiati.id,
+        title=ASIATI_ONBOARDING_MODULE_2_LESSON_TITLE,
+        description=ASIATI_ONBOARDING_MODULE_2_LESSON_DESCRIPTION,
+        video_url=ASIATI_ONBOARDING_MODULE_2_VIDEO_URL,
+        duration_seconds=ASIATI_ONBOARDING_MODULE_2_DURATION_SECONDS,
+        content_type="VIDEO",
+        estimated_minutes=1,
+        is_optional=False,
     )
     for title, url, minutes, optional in [
-        ("Presentación ASIATI I", "https://canva.link/ub9ggivhfxawuoh", 5, False),
-        ("Presentación ASIATI II", "https://canva.link/kma1whh1rya59td", 5, False),
+        ("Presentación ASIATI I", "https://canva.link/ub9ggivhfxawuoh", 5, True),
+        ("Presentación ASIATI II", "https://canva.link/kma1whh1rya59td", 5, True),
         ("Página oficial de ASIATI Corp", "https://www.asiaticorp.com/", 3, True),
     ]:
         add_lesson(
@@ -1052,6 +1173,10 @@ def create_asiati_onboarding_template(
     normalized_course = _ensure_asiati_module_1(
         db,
         course=require_course(db, course.id),
+    )
+    normalized_course = _ensure_asiati_module_2(
+        db,
+        course=normalized_course,
     )
     _ensure_asiati_corporate_video_lessons(db, course=normalized_course)
     _ensure_asiati_role_checklist(
