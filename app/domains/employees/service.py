@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.access_control import EMPLOYEE, assign_role, normalize_email
 from app.infrastructure.auth.cognito import get_admin_cognito_client
-from app.models import UserProfile, UserRole
+from app.models import TrainingAssignment, TrainingCourse, UserProfile, UserRole
 
 
 class EmployeeNotFound(Exception):
@@ -53,6 +53,34 @@ def roles_for_profile(db: Session, profile_id: str) -> list[str]:
 
 
 def employee_payload(db: Session, profile: UserProfile) -> dict:
+    onboarding_assignment = (
+        db.query(TrainingAssignment)
+        .join(
+            TrainingCourse,
+            TrainingAssignment.course_id == TrainingCourse.id,
+        )
+        .filter(
+            TrainingAssignment.employee_id == profile.id,
+            TrainingCourse.is_onboarding.is_(True),
+        )
+        .order_by(TrainingAssignment.assigned_at.desc())
+        .first()
+    )
+    onboarding = None
+    if onboarding_assignment is not None:
+        # Local import avoids coupling the employee module to training at import time.
+        from app.domains.training import service as training_service
+
+        assignment = training_service.assignment_payload(db, onboarding_assignment)
+        onboarding = {
+            "assignment_id": assignment["id"],
+            "course_id": assignment["course"]["id"],
+            "course_title": assignment["course"]["title"],
+            "progress_percent": assignment["course"]["progress_percent"],
+            "assigned_at": assignment["assigned_at"],
+            "completed_at": assignment["completed_at"],
+        }
+
     return {
         "id": profile.id,
         "cognito_sub": profile.cognito_sub,
@@ -71,6 +99,7 @@ def employee_payload(db: Session, profile: UserProfile) -> dict:
             profile.onboarding_completed_at.isoformat()
             if profile.onboarding_completed_at else None
         ),
+        "onboarding": onboarding,
         "status": profile.status,
         "roles": roles_for_profile(db, profile.id),
         "created_at": profile.created_at.isoformat() if profile.created_at else None,
