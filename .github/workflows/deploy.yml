@@ -1,0 +1,296 @@
+name: CI/CD — Tests & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-2
+  AWS_ACCOUNT_ID: "890876258895"
+  ECR_BACKEND_REPO: ai-recruiter-api
+  ECR_FRONTEND_REPO: ai-recruiter-frontend
+  INSTANCE_NAME: ai-recruiter-micro-prod
+  RUNTIME_CONFIG_SECRET: /ai-recruiter/prod/runtime-config
+  PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-xdist
+      - run: |
+          python -m py_compile app/main.py
+          python -m py_compile app/evaluation.py
+      - env:
+          DATABASE_URL: "sqlite:///:memory:"
+        run: python -m pytest app/tests/ -n 2 --dist=loadfile -v --tb=short
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend-react/package-lock.json
+      - working-directory: frontend-react
+        run: npm ci
+      - working-directory: frontend-react
+        run: npm run lint
+      - working-directory: frontend-react
+        run: npm test
+      - working-directory: frontend-react
+        env:
+          VITE_API_URL: /api
+        run: npm run build
+
+  deploy:
+    needs: [backend-tests, frontend-tests]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::890876258895:role/AiRecruiterGithubDeployRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Load runtime configuration
+        run: |
+          set -euo pipefail
+          ACTUAL=$(aws sts get-caller-identity --query Account --output text)
+          [ "$ACTUAL" = "$AWS_ACCOUNT_ID" ]
+          RUNTIME_JSON=$(aws secretsmanager get-secret-value --secret-id "$RUNTIME_CONFIG_SECRET" --query SecretString --output text)
+          for KEY in S3_BUCKET KNOWLEDGE_BASE_ID DATA_SOURCE_ID COGNITO_USER_POOL_ID COGNITO_CLIENT_ID; do
+            VALUE=$(echo "$RUNTIME_JSON" | jq -r --arg key "$KEY" '.[$key]')
+            test -n "$VALUE" && test "$VALUE" != "null"
+            echo "$KEY=$VALUE" >> "$GITHUB_ENV"
+          done
+          echo "AWS_TARGET_ACCOUNT_OK=$ACTUAL"
+
+      - name: Login ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build backend SHA image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          set -euo pipefail
+          docker build -t "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}" .
+          docker push "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}"
+
+      - name: Build frontend SHA image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          set -euo pipefail
+          docker build -t "$ECR_REGISTRY/$ECR_FRONTEND_REPO:${{ github.sha }}" ./frontend-react
+          docker push "$ECR_REGISTRY/$ECR_FRONTEND_REPO:${{ github.sha }}"
+
+      - name: Provision candidate import infrastructure
+        run: |
+          set -euo pipefail
+          RuntimeRoleArn="arn:aws:iam::$AWS_ACCOUNT_ID:role/AiRecruiterBedrockRuntimeRole"
+          aws cloudformation deploy \
+            --stack-name ai-recruiter-candidate-import \
+            --template-file infra/candidate-import.yml \
+            --parameter-overrides RuntimeRoleArn="$RuntimeRoleArn" \
+            --no-fail-on-empty-changeset
+          STACK_JSON=$(aws cloudformation describe-stacks --stack-name ai-recruiter-candidate-import)
+          IMPORT_STAGING_BUCKET=$(echo "$STACK_JSON" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey=="ImportStagingBucket") | .OutputValue')
+          IMPORT_QUEUE_URL=$(echo "$STACK_JSON" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey=="ImportQueueUrl") | .OutputValue')
+          test -n "$IMPORT_STAGING_BUCKET"
+          test -n "$IMPORT_QUEUE_URL"
+          echo "IMPORT_STAGING_BUCKET=$IMPORT_STAGING_BUCKET" >> "$GITHUB_ENV"
+          echo "IMPORT_QUEUE_URL=$IMPORT_QUEUE_URL" >> "$GITHUB_ENV"
+
+      - name: Provision training content infrastructure
+        run: |
+          set -euo pipefail
+          RuntimeRoleArn="arn:aws:iam::$AWS_ACCOUNT_ID:role/AiRecruiterBedrockRuntimeRole"
+          aws cloudformation deploy \
+            --stack-name ai-recruiter-training-content \
+            --template-file infra/training-content.yml \
+            --parameter-overrides RuntimeRoleArn="$RuntimeRoleArn" \
+            --no-fail-on-empty-changeset
+          STACK_JSON=$(aws cloudformation describe-stacks --stack-name ai-recruiter-training-content)
+          TRAINING_CONTENT_BUCKET=$(echo "$STACK_JSON" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey=="TrainingContentBucket") | .OutputValue')
+          test -n "$TRAINING_CONTENT_BUCKET"
+          test "$TRAINING_CONTENT_BUCKET" != "null"
+          echo "TRAINING_CONTENT_BUCKET=$TRAINING_CONTENT_BUCKET" >> "$GITHUB_ENV"
+
+      - name: Acquire certified Lightsail SSH credentials
+        run: |
+          set -euo pipefail
+          ACCESS_JSON=$(aws lightsail get-instance-access-details --instance-name "$INSTANCE_NAME" --protocol ssh --region "$AWS_REGION")
+          KEY_FILE=/tmp/lightsail-key
+          CERT_FILE="${KEY_FILE}-cert.pub"
+          echo "$ACCESS_JSON" | jq -er '.accessDetails.privateKey' > "$KEY_FILE"
+          echo "$ACCESS_JSON" | jq -er '.accessDetails.certKey' > "$CERT_FILE"
+          chmod 600 "$KEY_FILE"
+          chmod 600 "$CERT_FILE"
+          SSH_USER=$(echo "$ACCESS_JSON" | jq -er '.accessDetails.username')
+          INSTANCE_IP=$(echo "$ACCESS_JSON" | jq -er '.accessDetails.ipAddress')
+          echo "LIGHTSAIL_KEY_FILE=$KEY_FILE" >> "$GITHUB_ENV"
+          echo "LIGHTSAIL_CERT_FILE=$CERT_FILE" >> "$GITHUB_ENV"
+          echo "LIGHTSAIL_SSH_USER=$SSH_USER" >> "$GITHUB_ENV"
+          echo "INSTANCE_IP=$INSTANCE_IP" >> "$GITHUB_ENV"
+
+      - name: Verify existing Roles Anywhere identity
+        run: |
+          set -euo pipefail
+          SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+          ssh "${SSH[@]}" "$LIGHTSAIL_SSH_USER@$INSTANCE_IP" 'set -euo pipefail; for f in /opt/ai-recruiter/aws/config /usr/local/bin/aws_signing_helper /opt/ai-recruiter/rolesanywhere/client.crt /opt/ai-recruiter/rolesanywhere/client.key; do test -f "$f"; done; AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws sts get-caller-identity --profile ai-recruiter-bedrock >/tmp/ai-recruiter-sts.json; test "$(jq -r .Account /tmp/ai-recruiter-sts.json)" = "890876258895"; echo ROLES_ANYWHERE_OK'
+
+      - name: Migrate and backfill production database
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          set -euo pipefail
+          SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+          ssh "${SSH[@]}" "$LIGHTSAIL_SSH_USER@$INSTANCE_IP" bash -s <<REMOTE_PREFLIGHT
+            set -euo pipefail
+            export AWS_DEFAULT_REGION="$AWS_REGION"
+            AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws ecr get-login-password --region "$AWS_REGION" --profile ai-recruiter-bedrock | sudo docker login --username AWS --password-stdin "$ECR_REGISTRY"
+            echo DOCKER_DISK_BEFORE
+            sudo docker system df
+            sudo docker container prune -f
+            sudo docker image prune -a -f
+            sudo docker builder prune -a -f
+            echo DOCKER_DISK_AFTER
+            sudo docker system df
+            sudo docker pull "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}"
+            DATABASE_URL_VALUE=\$(sudo docker inspect ai-recruiter-api --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^DATABASE_URL=//p' | head -1)
+            test -n "\$DATABASE_URL_VALUE"
+            sudo docker run --rm --network ai-recruiter --add-host=host.docker.internal:host-gateway \
+              -e "DATABASE_URL=\$DATABASE_URL_VALUE" \
+              "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}" \
+              python -m app.scripts.migrate_candidate_import
+            sudo docker run --rm --network ai-recruiter --add-host=host.docker.internal:host-gateway \
+              -e "DATABASE_URL=\$DATABASE_URL_VALUE" \
+              -e "AWS_REGION=$AWS_REGION" \
+              -e "AWS_PROFILE=ai-recruiter-bedrock" \
+              -e "IMPORT_STAGING_BUCKET=$IMPORT_STAGING_BUCKET" \
+              -e "IMPORT_QUEUE_URL=$IMPORT_QUEUE_URL" \
+              -e "S3_BUCKET=$S3_BUCKET" \
+              -e "KNOWLEDGE_BASE_ID=$KNOWLEDGE_BASE_ID" \
+              -e "DATA_SOURCE_ID=$DATA_SOURCE_ID" \
+              -v /opt/ai-recruiter/aws/config:/root/.aws/config:ro \
+              -v /usr/local/bin/aws_signing_helper:/usr/local/bin/aws_signing_helper:ro \
+              -v /opt/ai-recruiter/rolesanywhere/client.crt:/run/rolesanywhere/client.crt:ro \
+              -v /opt/ai-recruiter/rolesanywhere/client.key:/run/rolesanywhere/client.key:ro \
+              "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}" \
+              python -m app.scripts.backfill_candidate_identities
+          REMOTE_PREFLIGHT
+
+      - name: Deploy API worker and frontend via SSH
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          set -euo pipefail
+          SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+          scp "${SSH[@]}" scripts/deploy-api.sh "$LIGHTSAIL_SSH_USER@$INSTANCE_IP:/tmp/ai-recruiter-deploy-api.sh"
+          scp "${SSH[@]}" scripts/deploy-worker.sh "$LIGHTSAIL_SSH_USER@$INSTANCE_IP:/tmp/ai-recruiter-deploy-worker.sh"
+          ssh "${SSH[@]}" "$LIGHTSAIL_SSH_USER@$INSTANCE_IP" bash -s <<REMOTE_DEPLOY
+            set -euo pipefail
+            export AWS_DEFAULT_REGION="$AWS_REGION"
+            AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws ecr get-login-password --region "$AWS_REGION" --profile ai-recruiter-bedrock | sudo docker login --username AWS --password-stdin "$ECR_REGISTRY"
+            sudo docker pull "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}"
+            sudo docker pull "$ECR_REGISTRY/$ECR_FRONTEND_REPO:${{ github.sha }}"
+            chmod +x /tmp/ai-recruiter-deploy-api.sh /tmp/ai-recruiter-deploy-worker.sh
+            AWS_ACCOUNT_ID="$AWS_ACCOUNT_ID" ECR_TAG="${{ github.sha }}" IMPORT_STAGING_BUCKET="$IMPORT_STAGING_BUCKET" IMPORT_QUEUE_URL="$IMPORT_QUEUE_URL" TRAINING_CONTENT_BUCKET="$TRAINING_CONTENT_BUCKET" IMPORT_EVALUATION_CONCURRENCY="1" S3_BUCKET="$S3_BUCKET" KNOWLEDGE_BASE_ID="$KNOWLEDGE_BASE_ID" DATA_SOURCE_ID="$DATA_SOURCE_ID" COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID" COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" ALLOW_PUBLIC_REGISTRATION="false" RBAC_BOOTSTRAP_ADMIN_EMAILS="talentohumano@asiati.com.co" RBAC_BOOTSTRAP_SUPER_ADMIN_EMAILS="natali.garzon@asiati.com.co" sudo -H -E /tmp/ai-recruiter-deploy-api.sh
+            API_STATUS=\$(sudo docker inspect ai-recruiter-api --format '{{.State.Status}}')
+            API_IMAGE=\$(sudo docker inspect ai-recruiter-api --format '{{.Config.Image}}')
+            test "\$API_STATUS" = running
+            echo "\$API_IMAGE" | grep -q ':${{ github.sha }}$'
+            echo "BACKEND_IMAGE_OK=\$API_IMAGE"
+            AWS_ACCOUNT_ID="$AWS_ACCOUNT_ID" ECR_TAG="${{ github.sha }}" IMPORT_STAGING_BUCKET="$IMPORT_STAGING_BUCKET" IMPORT_QUEUE_URL="$IMPORT_QUEUE_URL" IMPORT_EVALUATION_CONCURRENCY="1" S3_BUCKET="$S3_BUCKET" KNOWLEDGE_BASE_ID="$KNOWLEDGE_BASE_ID" DATA_SOURCE_ID="$DATA_SOURCE_ID" COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID" COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" sudo -H -E /tmp/ai-recruiter-deploy-worker.sh
+            WORKER_STATUS=\$(sudo docker inspect ai-recruiter-worker --format '{{.State.Status}}')
+            test "\$WORKER_STATUS" = running
+            echo '━━━ Deploy Frontend ━━━'
+            sudo docker stop ai-recruiter-web 2>/dev/null || true
+            sudo docker rm ai-recruiter-web 2>/dev/null || true
+            sudo docker run -d --name ai-recruiter-web --network ai-recruiter --restart unless-stopped -p 80:80 "$ECR_REGISTRY/$ECR_FRONTEND_REPO:${{ github.sha }}"
+            FRONTEND_IMAGE=\$(sudo docker inspect ai-recruiter-web --format '{{.Config.Image}}')
+            echo "\$FRONTEND_IMAGE" | grep -q ':${{ github.sha }}$'
+            echo "FRONTEND_IMAGE_OK=\$FRONTEND_IMAGE"
+            FRONTEND_HTML=""
+            FRONTEND_READY=false
+            for i in \$(seq 1 10); do
+              FRONTEND_HTML=\$(curl -fS http://127.0.0.1/ 2>/dev/null || echo FAIL)
+              if echo "\$FRONTEND_HTML" | grep -q "root"; then FRONTEND_READY=true; break; fi
+              sleep 1
+            done
+            test "\$FRONTEND_READY" = true
+            echo "\$FRONTEND_HTML" | grep -q "root"
+            echo DEPLOYMENT_FRONTEND_OK
+            sudo docker image prune -f
+          REMOTE_DEPLOY
+
+      - name: Verify public health
+        run: |
+          set -euo pipefail
+          BASE_URL="${PUBLIC_BASE_URL:-}"
+          if [ -z "$BASE_URL" ]; then BASE_URL="http://$INSTANCE_IP"; fi
+          CODE=000
+          for i in $(seq 1 10); do
+            CODE=$(curl -sf -o /dev/null -w '%{http_code}' "$BASE_URL/api/health" || echo 000)
+            [ "$CODE" = 200 ] && break
+            sleep 3
+          done
+          [ "$CODE" = 200 ]
+          echo "PUBLIC_HEALTH_OK HTTP $CODE"
+
+      - name: Verify public frontend
+        run: |
+          set -euo pipefail
+          DIRECT_HTML=$(curl -fS "http://$INSTANCE_IP/")
+          DIRECT_FRONTEND_BUNDLE=$(echo "$DIRECT_HTML" | grep -oE 'assets/index-[^"]+\.js' | head -1)
+          echo "DIRECT_FRONTEND_BUNDLE=$DIRECT_FRONTEND_BUNDLE"
+          test -n "$DIRECT_FRONTEND_BUNDLE"
+          BASE_URL="${PUBLIC_BASE_URL:-}"
+          if [ -z "$BASE_URL" ]; then BASE_URL="http://$INSTANCE_IP"; fi
+          PUBLIC_HTML=$(curl -fS "$BASE_URL/")
+          echo "$PUBLIC_HTML" | grep -q root
+          PUBLIC_FRONTEND_BUNDLE=$(echo "$PUBLIC_HTML" | grep -oE 'assets/index-[^"]+\.js' | head -1)
+          echo "PUBLIC_FRONTEND_BUNDLE=$PUBLIC_FRONTEND_BUNDLE"
+          test "$DIRECT_FRONTEND_BUNDLE" = "$PUBLIC_FRONTEND_BUNDLE"
+          echo PUBLIC_FRONTEND_OK
+
+      - name: Promote validated SHA images to latest
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          set -euo pipefail
+          docker pull "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}"
+          docker tag "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}" "$ECR_REGISTRY/$ECR_BACKEND_REPO:latest"
+          docker push "$ECR_REGISTRY/$ECR_BACKEND_REPO:latest"
+          docker pull "$ECR_REGISTRY/$ECR_FRONTEND_REPO:${{ github.sha }}"
+          docker tag "$ECR_REGISTRY/$ECR_FRONTEND_REPO:${{ github.sha }}" "$ECR_REGISTRY/$ECR_FRONTEND_REPO:latest"
+          docker push "$ECR_REGISTRY/$ECR_FRONTEND_REPO:latest"
+          echo DEPLOYMENT_OK
+
+      - name: Cleanup temporary SSH credentials
+        if: always()
+        run: rm -f /tmp/lightsail-key /tmp/lightsail-key-cert.pub
