@@ -446,8 +446,11 @@ function Jobs() {
           : candidate
       )));
       const progress = Number(data?.onboarding_assignment?.course?.progress_percent || 0);
+      const employeeAction = data?.employee_created
+        ? "Acceso creado"
+        : "Empleado existente reutilizado";
       setSuccessMessage(
-        `${hireTarget.name || "Candidato"} fue contratado. Acceso creado y onboarding asignado (${progress}%).`,
+        `${hireTarget.name || "Candidato"} fue contratado. ${employeeAction} y onboarding asignado (${progress}%).`,
       );
       setHireTarget(null);
       setTimeout(() => setSuccessMessage(""), 6000);
