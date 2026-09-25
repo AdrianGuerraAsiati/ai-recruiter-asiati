@@ -332,6 +332,120 @@ describe("Training platform", () => {
     expect(await screen.findByTitle("Video: Valentina")).toBeInTheDocument();
   });
 
+  it("renders module 4 permissions video in portrait and exposes its checklist", async () => {
+    useSession.mockReturnValue({
+      principal: {
+        profile: { id: "employee-4", first_name: "Ana" },
+      },
+      hasPermission: (permission) => [
+        "training.read",
+        "training.consume",
+      ].includes(permission),
+    });
+
+    const moduleFourAssignment = {
+      ...assignment,
+      id: "assignment-4",
+      course: {
+        ...assignment.course,
+        id: "course-4",
+        title: "Onboarding ASIATI",
+        module_count: 1,
+        lesson_count: 2,
+        completed_lessons: 0,
+        estimated_minutes: 3,
+        remaining_minutes: 3,
+        next_lesson_id: "permissions-video",
+      },
+    };
+    const moduleFourDetail = {
+      assignment_id: "assignment-4",
+      assignment_status: "ASSIGNED",
+      course: {
+        ...employeeDetail.course,
+        id: "course-4",
+        title: "Onboarding ASIATI",
+        lesson_count: 2,
+        completed_lessons: 0,
+        estimated_minutes: 3,
+        remaining_minutes: 3,
+        next_lesson_id: "permissions-video",
+        modules: [
+          {
+            id: "module-4",
+            title: "Módulo 4 · Permisos y vacaciones",
+            description: "Aprende el flujo interno.",
+            position: 4,
+            lesson_count: 2,
+            content_item_count: 2,
+            completed_lessons: 0,
+            progress_percent: 0,
+            is_complete: false,
+            estimated_minutes: 3,
+            remaining_minutes: 3,
+            has_unknown_duration: false,
+            has_unknown_remaining_duration: false,
+            lessons: [
+              {
+                id: "permissions-video",
+                title: "Permisos y vacaciones",
+                description: "Procedimiento corporativo.",
+                video_url: "https://drive.google.com/file/d/13wZ5Dmv7x19DuRJt_5K55OpQ3nMb6K4x/view?usp=drivesdk",
+                duration_seconds: 105,
+                content_type: "VIDEO",
+                external_url: null,
+                estimated_minutes: 2,
+                is_optional: false,
+                position: 1,
+                completed: false,
+              },
+              {
+                id: "permissions-checklist",
+                title: "Antes de enviar tu solicitud",
+                description: "Confirma los puntos clave.",
+                video_url: null,
+                duration_seconds: null,
+                content_type: "CHECKLIST",
+                checklist_items: [
+                  "Identifiqué el formato.",
+                  "Confirmaré la aprobación de mi líder.",
+                ],
+                checklist_completed_items: [],
+                external_url: null,
+                estimated_minutes: 1,
+                is_optional: false,
+                position: 2,
+                completed: false,
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    api.get.mockImplementation((url) => {
+      if (url === "/training/me") {
+        return Promise.resolve({ data: { items: [moduleFourAssignment] } });
+      }
+      if (url === "/training/me/courses/course-4") {
+        return Promise.resolve({ data: moduleFourDetail });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+
+    const { container } = renderPage();
+
+    expect(await screen.findByTitle("Video: Permisos y vacaciones")).toHaveAttribute(
+      "src",
+      "https://drive.google.com/file/d/13wZ5Dmv7x19DuRJt_5K55OpQ3nMb6K4x/preview",
+    );
+    expect(container.querySelector(".training-journey-video.is-portrait")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Antes de enviar tu solicitud/i }));
+    expect(await screen.findByText("Identifiqué el formato.")).toBeInTheDocument();
+    expect(screen.getByText("Confirmaré la aprobación de mi líder.")).toBeInTheDocument();
+  });
+
   it("restores and saves onboarding checklist progress", async () => {
     useSession.mockReturnValue({
       principal: {
