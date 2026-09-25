@@ -1269,6 +1269,15 @@ def test_asiati_onboarding_template_repairs_existing_draft_without_duplicate(db)
     assert module_five["lessons"][0]["title"] == service.ASIATI_ONBOARDING_MODULE_5_VIDEO_TITLE
     assert module_five["lessons"][0]["video_url"] == service.ASIATI_ONBOARDING_MODULE_5_VIDEO_URL
     assert module_five["lessons"][0]["duration_seconds"] is None
+    module_six = next(
+        module
+        for module in payload["modules"]
+        if module["title"] == service.ASIATI_ONBOARDING_MODULE_6_TITLE
+    )
+    assert len(module_six["lessons"]) == 1
+    assert module_six["lessons"][0]["title"] == service.ASIATI_ONBOARDING_MODULE_6_VIDEO_TITLE
+    assert module_six["lessons"][0]["video_url"] == service.ASIATI_ONBOARDING_MODULE_6_VIDEO_URL
+    assert module_six["lessons"][0]["duration_seconds"] == 29
 
 
 def test_asiati_onboarding_template_scaffolds_short_journey(db):
@@ -1287,6 +1296,7 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
         "Módulo 3 · Conoce al equipo",
         "Módulo 4 · Permisos y vacaciones",
         "Módulo 5 · Contenido corporativo",
+        "Módulo 6 · Cultura interna",
         "Así trabajamos",
         "Tu cargo en ASIATI",
     ]
@@ -1341,7 +1351,8 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
     assert "Módulo 4 · Permisos y vacaciones" not in video_titles
     assert "Módulo 5" in video_titles
     assert "Módulo 5 · Recorrido de sede" not in video_titles
-    assert "Módulo 6 · Cultura interna" in video_titles
+    assert "Cultura interna" in video_titles
+    assert "Módulo 6 · Cultura interna" not in video_titles
     assert "Módulo 7 · Lo que esperamos de ti" in video_titles
 
     welcome_lesson = next(
@@ -1439,6 +1450,22 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
     assert module_five_video["estimated_minutes"] is None
     assert module_five_video["duration_known"] is False
     assert module_five_video["is_optional"] is False
+
+    module_six = next(
+        module
+        for module in payload["modules"]
+        if module["title"] == service.ASIATI_ONBOARDING_MODULE_6_TITLE
+    )
+    assert module_six["lesson_count"] == 1
+    assert module_six["content_item_count"] == 1
+    module_six_video = module_six["lessons"][0]
+    assert module_six_video["title"] == service.ASIATI_ONBOARDING_MODULE_6_VIDEO_TITLE
+    assert module_six_video["video_url"] == service.ASIATI_ONBOARDING_MODULE_6_VIDEO_URL
+    assert module_six_video["duration_seconds"] == 29
+    assert module_six_video["estimated_minutes"] == 1
+    assert module_six_video["duration_known"] is True
+    assert module_six_video["is_optional"] is False
+
     assert module_four_checklist["checklist_items"] == service.ASIATI_ONBOARDING_MODULE_4_CHECKLIST_ITEMS
     assert module_four_checklist["is_optional"] is False
 
