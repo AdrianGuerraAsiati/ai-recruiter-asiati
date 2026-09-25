@@ -32,4 +32,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          mkdir -p /tmp/repo-cleanup
+          cd /tmp/repo-cleanup
+          git init
           git push "https://x-access-token:${GH_TOKEN}@github.com/AdrianGuerraAsiati/ai-recruiter-asiati.git" --delete migration-main
