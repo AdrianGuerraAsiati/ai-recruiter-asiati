@@ -15,7 +15,12 @@ vi.mock("../api/client", () => ({
   },
 }));
 
+vi.mock("../context/SessionContext", () => ({
+  useSession: vi.fn(),
+}));
+
 import api from "../api/client";
+import { useSession } from "../context/SessionContext";
 
 const JOBS = [
   { job_id: "job-1", title: "Backend Developer", description: "Python APIs REST", candidate_count: 2, created_at: "2026-09-01T10:00:00Z" },
@@ -48,6 +53,9 @@ function renderJobs() {
 describe("Jobs page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useSession.mockReturnValue({
+      hasPermission: (permission) => permission === "employees.create",
+    });
     api.get.mockImplementation((url) => {
       if (url === "/jobs/page") return Promise.resolve({ data: jobsPage() });
       if (url === "/jobs/job-1/candidates") return Promise.resolve({ data: CANDIDATES });
@@ -365,6 +373,19 @@ describe("Jobs page", () => {
       expect(dialog).toBeInTheDocument();
       expect(dialog).toHaveAttribute("aria-modal", "true");
     });
+  });
+
+  it("hides Contratar candidato without employees.create permission", async () => {
+    useSession.mockReturnValue({
+      hasPermission: () => false,
+    });
+
+    renderJobs();
+    await screen.findByText("Backend Developer");
+    fireEvent.click(screen.getAllByText("Ver")[0]);
+
+    await screen.findByText("Ana Pérez");
+    expect(screen.queryByRole("button", { name: /Contratar candidato/i })).not.toBeInTheDocument();
   });
 
   it("hires a candidate and assigns onboarding from the vacancy", async () => {

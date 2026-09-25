@@ -146,6 +146,57 @@ def test_hire_is_idempotent_for_same_application(db):
     assert link.application_status == "HIRED"
 
 
+def test_same_candidate_hired_for_two_jobs_reuses_employee_and_onboarding(db):
+    first_job, candidate, first_link = _application(db)
+    second_job = Job(
+        title="Platform Engineer",
+        description="Cloud",
+        owner_sub="admin-sub",
+    )
+    db.add(second_job)
+    db.flush()
+    second_link = JobCandidate(
+        job_id=second_job.id,
+        candidate_id=candidate.id,
+        application_status="OFFER",
+    )
+    db.add(second_link)
+    db.commit()
+    db.refresh(second_job)
+    db.refresh(second_link)
+
+    cognito = FakeCognito()
+    first = _hire(
+        db,
+        cognito=cognito,
+        job=first_job,
+        candidate=candidate,
+    )
+    second = hiring_service.hire_candidate(
+        db,
+        owner_sub="admin-sub",
+        job_id=second_job.id,
+        candidate_id=candidate.id,
+        created_by_sub="admin-sub",
+        department="Tecnología",
+        cognito_client=cognito,
+    )
+
+    db.refresh(first_link)
+    db.refresh(second_link)
+
+    assert first["employee"]["id"] == second["employee"]["id"]
+    assert first["onboarding_assignment"]["id"] == second["onboarding_assignment"]["id"]
+    assert first_link.employee_id == second_link.employee_id == first["employee"]["id"]
+    assert first_link.application_status == "HIRED"
+    assert second_link.application_status == "HIRED"
+    assert first_link.hired_at is not None
+    assert second_link.hired_at is not None
+    assert db.query(UserProfile).count() == 1
+    assert db.query(TrainingAssignment).count() == 1
+    assert cognito.created == ["ana@example.com"]
+
+
 def test_hired_employee_onboarding_moves_pending_to_in_progress_to_completed(db):
     job, candidate, _ = _application(db)
     result = _hire(

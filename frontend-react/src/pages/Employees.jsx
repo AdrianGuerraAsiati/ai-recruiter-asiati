@@ -61,7 +61,13 @@ function Employees() {
     const admins = employees.filter((employee) =>
       employee.roles?.some((role) => role === "ADMIN" || role === "SUPER_ADMIN")
     ).length;
-    return { active, admins };
+    const onboardingActive = employees.filter((employee) =>
+      ["PENDING", "IN_PROGRESS"].includes(employee.onboarding_status)
+    ).length;
+    const onboardingCompleted = employees.filter(
+      (employee) => employee.onboarding_status === "COMPLETED"
+    ).length;
+    return { active, admins, onboardingActive, onboardingCompleted };
   }, [employees]);
 
   async function createEmployee(event) {
@@ -131,6 +137,16 @@ function Employees() {
           <span className="metric-label">Administrativos</span>
           <strong className="metric-value">{stats.admins}</strong>
           <small>ADMIN o SUPER_ADMIN</small>
+        </article>
+        <article className="metric-card">
+          <span className="metric-label">Onboarding activos</span>
+          <strong className="metric-value">{stats.onboardingActive}</strong>
+          <small>Pendientes o en progreso</small>
+        </article>
+        <article className="metric-card">
+          <span className="metric-label">Onboarding completados</span>
+          <strong className="metric-value">{stats.onboardingCompleted}</strong>
+          <small>Ruta finalizada</small>
         </article>
       </section>
 

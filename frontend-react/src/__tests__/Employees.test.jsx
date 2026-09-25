@@ -49,6 +49,12 @@ describe("Employees administration", () => {
             department: "Ventas",
             hire_date: "2026-09-24",
             onboarding_status: "IN_PROGRESS",
+            onboarding: {
+              assignment_id: "assignment-1",
+              course_id: "course-1",
+              course_title: "Onboarding ASIATI",
+              progress_percent: 42,
+            },
             status: "ACTIVE",
             roles: ["EMPLOYEE"],
           },
@@ -63,6 +69,9 @@ describe("Employees administration", () => {
     expect(await screen.findByText("Ana Pérez")).toBeInTheDocument();
     expect(screen.getByText("employee@asiati.com.co")).toBeInTheDocument();
     expect(screen.getByText("En progreso")).toBeInTheDocument();
+    expect(screen.getByText("42% completado")).toBeInTheDocument();
+    expect(screen.getByText("Onboarding activos")).toBeInTheDocument();
+    expect(screen.getByText("Onboarding completados")).toBeInTheDocument();
     expect(screen.getByText("Ingreso: 2026-09-24")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /crear empleado/i }));

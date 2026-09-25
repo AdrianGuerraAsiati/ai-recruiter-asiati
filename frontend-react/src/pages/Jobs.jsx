@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import api from "../api/client";
+import { useSession } from "../context/SessionContext";
 import "./Jobs.css";
 import "./JobsPagination.css";
 
@@ -132,6 +133,8 @@ async function loadAllJobCandidates(jobId) {
 }
 
 function Jobs() {
+  const { hasPermission } = useSession();
+  const canHireCandidate = hasPermission("employees.create");
   const [searchParams, setSearchParams] = useSearchParams();
   const page = positiveInteger(searchParams.get("page"), 1);
   const requestedPageSize = positiveInteger(searchParams.get("page_size"), 12);
@@ -1063,7 +1066,7 @@ function Jobs() {
                         )}
                       </div>
                       <div className="job-detail-candidate-actions">
-                        {c.application_status !== "HIRED" && (
+                        {canHireCandidate && c.application_status !== "HIRED" && (
                           <button
                             type="button"
                             className="btn btn-primary btn-sm"
