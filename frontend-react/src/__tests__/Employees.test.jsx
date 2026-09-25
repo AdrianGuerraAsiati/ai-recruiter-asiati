@@ -36,6 +36,7 @@ describe("Employees administration", () => {
     vi.clearAllMocks();
     useSession.mockReturnValue({
       hasRole: (role) => role === "ADMIN",
+      hasPermission: (permission) => permission === "training.results.read",
     });
     api.get.mockResolvedValue({
       data: {
@@ -80,6 +81,84 @@ describe("Employees administration", () => {
     expect(screen.queryByLabelText("Rol inicial")).not.toBeInTheDocument();
   });
 
+  it("opens detailed onboarding progress for HR", async () => {
+    const employeeResponse = {
+      items: [
+        {
+          id: "employee-1",
+          email: "employee@asiati.com.co",
+          first_name: "Ana",
+          last_name: "Pérez",
+          job_title: "Comercial",
+          department: "Ventas",
+          hire_date: "2026-09-24",
+          onboarding_status: "IN_PROGRESS",
+          onboarding: {
+            assignment_id: "assignment-1",
+            course_id: "course-1",
+            course_title: "Onboarding ASIATI",
+            progress_percent: 42,
+          },
+          status: "ACTIVE",
+          roles: ["EMPLOYEE"],
+        },
+      ],
+    };
+    api.get.mockImplementation((url) => {
+      if (url === "/employees") {
+        return Promise.resolve({ data: employeeResponse });
+      }
+      if (url === "/training/courses/course-1/assignments/employee-1") {
+        return Promise.resolve({
+          data: {
+            assignment_id: "assignment-1",
+            assignment_status: "ASSIGNED",
+            course: {
+              id: "course-1",
+              title: "Onboarding ASIATI",
+              progress_percent: 42,
+              completed_lessons: 8,
+              lesson_count: 19,
+              modules: [
+                {
+                  id: "module-1",
+                  title: "Módulo 1 · Bienvenida a ASIATI",
+                  completed_lessons: 1,
+                  lesson_count: 1,
+                  progress_percent: 100,
+                },
+                {
+                  id: "module-2",
+                  title: "Módulo 2 · Conoce ASIATI",
+                  completed_lessons: 0,
+                  lesson_count: 1,
+                  progress_percent: 0,
+                },
+              ],
+            },
+          },
+        });
+      }
+      return Promise.resolve({ data: {} });
+    });
+
+    renderPage();
+
+    await screen.findByText("Ana Pérez");
+    fireEvent.click(screen.getByRole("button", { name: "Ver detalle" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Ana Pérez" }),
+    ).toBeInTheDocument();
+    expect(api.get).toHaveBeenCalledWith(
+      "/training/courses/course-1/assignments/employee-1",
+    );
+    expect(screen.getByText("8/19")).toBeInTheDocument();
+    expect(screen.getByText("Módulo 1 · Bienvenida a ASIATI")).toBeInTheDocument();
+    expect(screen.getByText("Módulo 2 · Conoce ASIATI")).toBeInTheDocument();
+    expect(screen.getByText("100%")).toBeInTheDocument();
+  });
+
   it("creates employees as EMPLOYEE from an admin session", async () => {
     api.post.mockResolvedValueOnce({ data: { id: "new-employee" } });
     renderPage();
@@ -106,6 +185,7 @@ describe("Employees administration", () => {
   it("shows role controls to SUPER_ADMIN", async () => {
     useSession.mockReturnValue({
       hasRole: (role) => role === "SUPER_ADMIN",
+      hasPermission: (permission) => permission === "training.results.read",
     });
 
     renderPage();
