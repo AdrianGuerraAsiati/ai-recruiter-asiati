@@ -1,6 +1,7 @@
 """End-to-end service coverage for candidate hiring into onboarding."""
 
 import pytest
+from botocore.exceptions import ClientError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -37,6 +38,20 @@ class FakeCognito:
 
     def admin_delete_user(self, *, UserPoolId, Username):
         return {}
+
+
+class ExistingCognitoUser(FakeCognito):
+    def admin_create_user(self, *, UserPoolId, Username, UserAttributes, DesiredDeliveryMediums):
+        self.created.append(Username)
+        raise ClientError(
+            {
+                "Error": {
+                    "Code": "UsernameExistsException",
+                    "Message": "User already exists",
+                }
+            },
+            "AdminCreateUser",
+        )
 
 
 @pytest.fixture()
@@ -126,6 +141,37 @@ def test_hire_creates_employee_marks_application_and_assigns_onboarding(db):
     assert assignment.course.title == "Onboarding ASIATI"
     assert result["onboarding_assignment"]["course"]["progress_percent"] == 0
     assert cognito.created == ["ana@example.com"]
+
+
+def test_hire_materializes_existing_cognito_user_and_continues_onboarding(db):
+    job, candidate, link = _application(db, email="existing@example.com")
+    cognito = ExistingCognitoUser()
+
+    result = _hire(
+        db,
+        cognito=cognito,
+        job=job,
+        candidate=candidate,
+    )
+
+    db.refresh(link)
+    employee = db.query(UserProfile).one()
+    assignment = db.query(TrainingAssignment).one()
+
+    assert result["employee_created"] is False
+    assert result["application_status"] == "HIRED"
+    assert link.employee_id == employee.id
+    assert employee.cognito_sub == "sub-existing@example.com"
+    assert employee.email == "existing@example.com"
+    assert employee.first_name == "Ana"
+    assert employee.last_name == "Pérez"
+    assert employee.job_title == "Backend Developer"
+    assert employee.department == "Tecnología"
+    assert employee.onboarding_status == "PENDING"
+    assert assignment.employee_id == employee.id
+    assert db.query(UserProfile).count() == 1
+    assert db.query(TrainingAssignment).count() == 1
+    assert cognito.created == ["existing@example.com"]
 
 
 def test_hire_is_idempotent_for_same_application(db):
