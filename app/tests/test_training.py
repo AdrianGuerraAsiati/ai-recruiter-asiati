@@ -1240,6 +1240,14 @@ def test_asiati_onboarding_template_repairs_existing_draft_without_duplicate(db)
         and lesson["video_url"] == service.ASIATI_ONBOARDING_MODULE_2_VIDEO_URL
         for lesson in module_two["lessons"]
     )
+    module_three = next(
+        module
+        for module in payload["modules"]
+        if module["title"] == "Módulo 3 · Conoce al equipo"
+    )
+    assert [lesson["title"] for lesson in module_three["lessons"]] == [
+        member[0] for member in service.ASIATI_ONBOARDING_MODULE_3_TEAM
+    ]
 
 
 def test_asiati_onboarding_template_scaffolds_short_journey(db):
@@ -1255,7 +1263,7 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
     assert [module["title"] for module in payload["modules"]] == [
         "Módulo 1 · Bienvenida a ASIATI",
         "Módulo 2 · Conoce ASIATI",
-        "Nuestro ecosistema",
+        "Módulo 3 · Conoce al equipo",
         "Así trabajamos",
         "Tu cargo en ASIATI",
     ]
@@ -1304,25 +1312,12 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
     assert "Módulo 1 · ASIATI" not in video_titles
     assert "Quiénes somos y qué hacemos" in video_titles
     assert "Módulo 2 · ASIATI" not in video_titles
-    assert "Módulo 3 · ASIATI" in video_titles
+    assert "Módulo 3 · ASIATI" not in video_titles
     assert "Módulos 1–3 · Introducción corporativa" not in video_titles
     assert "Módulo 4 · Permisos y vacaciones" in video_titles
     assert "Módulo 5 · Recorrido de sede" in video_titles
     assert "Módulo 6 · Cultura interna" in video_titles
     assert "Módulo 7 · Lo que esperamos de ti" in video_titles
-
-    split_lessons = [
-        lesson
-        for module in payload["modules"]
-        for lesson in module["lessons"]
-        if lesson["title"] in {
-            "Módulo 3 · ASIATI",
-        }
-    ]
-    assert len(split_lessons) == 1
-    assert all(lesson["video_url"] is None for lesson in split_lessons)
-    assert all(lesson["estimated_minutes"] is None for lesson in split_lessons)
-    assert all(lesson["duration_known"] is False for lesson in split_lessons)
 
     welcome_lesson = next(
         lesson
@@ -1354,8 +1349,32 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
     assert all(
         lesson["is_optional"] is True
         for lesson in module_two["lessons"]
-        if lesson["content_type"] == "RESOURCE"
+        if lesson["content_type"] in {"ARTICLE", "RESOURCE"}
+        and lesson["title"] != "Quiénes somos y qué hacemos"
     )
+
+    module_three = next(
+        module
+        for module in payload["modules"]
+        if module["title"] == "Módulo 3 · Conoce al equipo"
+    )
+    expected_team = service.ASIATI_ONBOARDING_MODULE_3_TEAM
+    assert module_three["lesson_count"] == len(expected_team) == 12
+    assert module_three["content_item_count"] == 12
+    assert [lesson["title"] for lesson in module_three["lessons"]] == [
+        member[0] for member in expected_team
+    ]
+    expected_by_name = {
+        name: (url, duration)
+        for name, url, duration in expected_team
+    }
+    for lesson in module_three["lessons"]:
+        expected_url, expected_duration = expected_by_name[lesson["title"]]
+        assert lesson["video_url"] == expected_url
+        assert lesson["duration_seconds"] == expected_duration
+        assert lesson["content_type"] == "VIDEO"
+        assert lesson["duration_known"] is True
+        assert lesson["is_optional"] is False
 
 
 def test_onboarding_quality_report_flags_heavy_or_incomplete_content(db):
