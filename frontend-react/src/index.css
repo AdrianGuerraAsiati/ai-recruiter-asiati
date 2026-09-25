@@ -2707,6 +2707,56 @@ select { appearance: none; padding-right: 42px; background-image: linear-gradien
   font-size: .62rem;
 }
 
+.training-team-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding-left: 0;
+}
+
+.training-team-card {
+  min-height: 72px;
+  align-items: center;
+  padding: 10px;
+  border-color: var(--border);
+  background: var(--surface-soft);
+}
+
+.training-team-card.active {
+  box-shadow: inset 3px 0 0 var(--blue);
+  background: var(--surface);
+}
+
+.training-team-card > .training-team-avatar {
+  flex-basis: 34px;
+  width: 34px;
+  height: 34px;
+  background: var(--surface);
+  color: var(--blue);
+  font-size: .66rem;
+  letter-spacing: .02em;
+}
+
+.training-team-card.is-complete > .training-team-avatar {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.training-journey-video.is-portrait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.training-journey-video.is-portrait .training-drive-player {
+  width: min(100%, 420px);
+  aspect-ratio: 9 / 16;
+}
+
+.training-journey-video.is-portrait .training-drive-fallback {
+  align-self: center;
+}
+
 .training-journey-focus {
   min-height: 360px;
   padding: 22px;
@@ -2849,6 +2899,10 @@ select { appearance: none; padding-right: 42px; background-image: linear-gradien
   }
 
   .training-journey-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .training-team-grid {
     grid-template-columns: 1fr;
   }
 

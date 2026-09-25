@@ -52,7 +52,7 @@ def test_deploy_script_validates_dynamic_account_and_runtime_role(deploy_sh_cont
 
 
 def test_workflow_uses_current_account_github_oidc_role(deploy_yml_content):
-    assert "aws-actions/configure-aws-credentials@v5" in deploy_yml_content
+    assert "aws-actions/configure-aws-credentials@v6" in deploy_yml_content
     assert "arn:aws:iam::890876258895:role/AiRecruiterGithubDeployRole" in deploy_yml_content
     assert 'AWS_ACCOUNT_ID: "890876258895"' in deploy_yml_content
     assert "aws sts get-caller-identity" in deploy_yml_content

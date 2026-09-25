@@ -224,6 +224,114 @@ describe("Training platform", () => {
     );
   });
 
+  it("presents module 3 as a team-card grid with portrait video playback", async () => {
+    useSession.mockReturnValue({
+      principal: {
+        profile: { id: "employee-team", first_name: "Ana" },
+      },
+      hasPermission: (permission) => [
+        "training.read",
+        "training.consume",
+      ].includes(permission),
+    });
+
+    const teamAssignment = {
+      ...assignment,
+      id: "assignment-team",
+      course: {
+        ...assignment.course,
+        id: "course-team",
+        title: "Onboarding ASIATI",
+        module_count: 1,
+        lesson_count: 2,
+        completed_lessons: 0,
+        estimated_minutes: 2,
+        remaining_minutes: 2,
+        next_lesson_id: "team-jersson",
+      },
+    };
+    const teamDetail = {
+      assignment_id: "assignment-team",
+      assignment_status: "ASSIGNED",
+      course: {
+        ...employeeDetail.course,
+        id: "course-team",
+        title: "Onboarding ASIATI",
+        lesson_count: 2,
+        completed_lessons: 0,
+        estimated_minutes: 2,
+        remaining_minutes: 2,
+        next_lesson_id: "team-jersson",
+        modules: [
+          {
+            id: "module-team",
+            title: "Módulo 3 · Conoce al equipo",
+            description: "Conoce a las personas de ASIATI.",
+            position: 3,
+            lesson_count: 2,
+            content_item_count: 2,
+            completed_lessons: 0,
+            progress_percent: 0,
+            is_complete: false,
+            estimated_minutes: 2,
+            remaining_minutes: 2,
+            has_unknown_duration: false,
+            has_unknown_remaining_duration: false,
+            lessons: [
+              {
+                id: "team-jersson",
+                title: "Jersson",
+                description: "Conoce a Jersson.",
+                video_url: "https://drive.google.com/file/d/1BQ38kuCqmh_XSXfATXlzhz0vSAqLsX6j/view?usp=drivesdk",
+                duration_seconds: 37,
+                content_type: "VIDEO",
+                external_url: null,
+                estimated_minutes: 1,
+                is_optional: false,
+                position: 1,
+                completed: false,
+              },
+              {
+                id: "team-valentina",
+                title: "Valentina",
+                description: "Conoce a Valentina.",
+                video_url: "https://drive.google.com/file/d/166XnHlEoAV3rpQKAwhHj0wHUYxts0DOk/view?usp=drivesdk",
+                duration_seconds: 37,
+                content_type: "VIDEO",
+                external_url: null,
+                estimated_minutes: 1,
+                is_optional: false,
+                position: 2,
+                completed: false,
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    api.get.mockImplementation((url) => {
+      if (url === "/training/me") {
+        return Promise.resolve({ data: { items: [teamAssignment] } });
+      }
+      if (url === "/training/me/courses/course-team") {
+        return Promise.resolve({ data: teamDetail });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+
+    const { container } = renderPage();
+
+    expect((await screen.findAllByText("Módulo 3 · Conoce al equipo")).length).toBeGreaterThan(0);
+    expect(container.querySelector(".training-team-grid")).toBeInTheDocument();
+    expect(container.querySelectorAll(".training-team-card")).toHaveLength(2);
+    expect(await screen.findByTitle("Video: Jersson")).toBeInTheDocument();
+    expect(container.querySelector(".training-journey-video.is-portrait")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Valentina/i }));
+    expect(await screen.findByTitle("Video: Valentina")).toBeInTheDocument();
+  });
+
   it("restores and saves onboarding checklist progress", async () => {
     useSession.mockReturnValue({
       principal: {
