@@ -3353,3 +3353,77 @@ select { appearance: none; padding-right: 42px; background-image: linear-gradien
   color: var(--ink-faint);
   font-size: .66rem;
 }
+
+
+.employee-onboarding-detail-button {
+  margin-top: 5px;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.employee-onboarding-modal {
+  width: min(680px, calc(100vw - 32px));
+}
+
+.employee-onboarding-detail {
+  display: grid;
+  gap: 16px;
+}
+
+.employee-onboarding-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.employee-onboarding-summary > div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.employee-onboarding-summary span {
+  color: var(--ink-faint);
+  font-size: .7rem;
+}
+
+.employee-onboarding-summary strong {
+  font-size: 1.05rem;
+}
+
+.employee-onboarding-module-list {
+  display: grid;
+  gap: 8px;
+}
+
+.employee-onboarding-module {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.employee-onboarding-module > div {
+  display: grid;
+  gap: 2px;
+}
+
+.employee-onboarding-module small {
+  color: var(--ink-faint);
+}
+
+.employee-onboarding-module > span {
+  font-weight: 800;
+}
+
+@media (max-width: 620px) {
+  .employee-onboarding-summary {
+    grid-template-columns: 1fr;
+  }
+}
