@@ -69,7 +69,7 @@ describe("Employees administration", () => {
 
     expect(await screen.findByText("Ana Pérez")).toBeInTheDocument();
     expect(screen.getByText("employee@asiati.com.co")).toBeInTheDocument();
-    expect(screen.getByText("En progreso")).toBeInTheDocument();
+    expect(screen.getByText("En progreso", { selector: "span" })).toBeInTheDocument();
     expect(screen.getByText("42% completado")).toBeInTheDocument();
     expect(screen.getByText("Onboarding activos")).toBeInTheDocument();
     expect(screen.getByText("Onboarding completados")).toBeInTheDocument();
