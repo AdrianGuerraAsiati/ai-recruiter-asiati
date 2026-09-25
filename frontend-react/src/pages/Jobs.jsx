@@ -1097,7 +1097,7 @@ function Jobs() {
             <div className="modal-header">
               <div>
                 <span className="eyebrow">Contratación</span>
-                <h2 id="job-hire-title">Contratar y asignar onboarding</h2>
+                <h2 id="job-hire-title">Contratar y crear empleado</h2>
                 <p>Se creará o reutilizará el acceso del empleado y se asignará automáticamente el onboarding ASIATI.</p>
               </div>
               <button className="btn-close" type="button" aria-label="Cerrar" disabled={hiring} onClick={() => { setHireTarget(null); setHireError(""); }}>×</button>
