@@ -279,6 +279,25 @@ def list_candidates_for_job(
     return items, total
 
 
+def list_job_candidate_links(
+    db: Session,
+    *,
+    job_id: str,
+    candidate_ids: list[str],
+) -> dict[str, JobCandidate]:
+    if not candidate_ids:
+        return {}
+    links = (
+        db.query(JobCandidate)
+        .filter(
+            JobCandidate.job_id == job_id,
+            JobCandidate.candidate_id.in_(candidate_ids),
+        )
+        .all()
+    )
+    return {link.candidate_id: link for link in links}
+
+
 def assign_candidates_to_job(
     db: Session,
     job_id: str,

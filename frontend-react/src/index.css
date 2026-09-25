@@ -3325,3 +3325,31 @@ select { appearance: none; padding-right: 42px; background-image: linear-gradien
   }
 }
 
+
+
+.employee-onboarding-progress {
+  width: 120px;
+  margin-top: 7px;
+}
+
+.employee-onboarding-progress-track {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+}
+
+.employee-onboarding-progress-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: currentColor;
+}
+
+.employee-onboarding-progress small {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink-faint);
+  font-size: .66rem;
+}

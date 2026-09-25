@@ -674,3 +674,68 @@
     max-width: 100%;
   }
 }
+
+/* =====================================================
+   JOBS — Hire to onboarding
+   ===================================================== */
+.job-detail-candidate-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.job-candidate-hired {
+  margin-top: 4px;
+  color: var(--success);
+  font-weight: 700;
+}
+
+.job-hire-modal {
+  width: min(620px, calc(100vw - 32px));
+}
+
+.job-hire-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.job-hire-candidate {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+.job-hire-candidate span {
+  color: var(--ink-soft);
+  font-size: .78rem;
+}
+
+.job-hire-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.job-hire-form .form-group small {
+  display: block;
+  margin-top: 5px;
+  color: var(--ink-faint);
+  font-size: .72rem;
+}
+
+@media (max-width: 720px) {
+  .job-detail-candidate-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .job-hire-grid {
+    grid-template-columns: 1fr;
+  }
+}

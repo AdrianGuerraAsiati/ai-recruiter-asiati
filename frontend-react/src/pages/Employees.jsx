@@ -230,6 +230,14 @@ function Employees() {
                                 ? "Pendiente"
                                 : "No requerido"}
                         </span>
+                        {employee.onboarding && (
+                          <div className="employee-onboarding-progress">
+                            <div className="employee-onboarding-progress-track" aria-hidden="true">
+                              <span style={{ width: `${Math.max(0, Math.min(100, Number(employee.onboarding.progress_percent || 0)))}%` }} />
+                            </div>
+                            <small>{Number(employee.onboarding.progress_percent || 0)}% completado</small>
+                          </div>
+                        )}
                         {employee.hire_date && <small>Ingreso: {employee.hire_date}</small>}
                       </td>
                       <td>

@@ -166,9 +166,16 @@ class JobCandidate(Base):
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )
+    employee_id = Column(
+        Text,
+        ForeignKey("user_profiles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    hired_at = Column(DateTime(timezone=True), nullable=True)
 
     job = relationship("Job", back_populates="candidates")
     candidate = relationship("Candidate", back_populates="jobs")
+    employee = relationship("UserProfile", foreign_keys=[employee_id])
 
 
 class Evaluation(Base):

@@ -2068,6 +2068,65 @@ def create_asiati_onboarding_template(
     return require_course(db, course.id)
 
 
+ASIATI_ONBOARDING_REQUIRED_MODULE_TITLES = {
+    "Módulo 1 · Bienvenida a ASIATI",
+    "Módulo 2 · Conoce ASIATI",
+    "Módulo 3 · Conoce al equipo",
+    "Módulo 4 · Permisos y vacaciones",
+    "Módulo 5 · Contenido corporativo",
+    "Módulo 6 · Cultura interna",
+    "Módulo 7 · Lo que esperamos de ti",
+}
+
+
+def _is_current_asiati_onboarding(course: TrainingCourse) -> bool:
+    module_titles = {module.title for module in course.modules}
+    return (
+        course.title == "Onboarding ASIATI"
+        and bool(course.is_onboarding)
+        and ASIATI_ONBOARDING_REQUIRED_MODULE_TITLES.issubset(module_titles)
+        and course.quiz is not None
+        and len(course.quiz.questions) >= 5
+    )
+
+
+def ensure_published_asiati_onboarding(
+    db: Session,
+    *,
+    created_by_sub: str,
+) -> TrainingCourse:
+    """Return the current published ASIATI onboarding, publishing the preset when needed."""
+
+    published = (
+        db.query(TrainingCourse)
+        .filter(
+            TrainingCourse.title == "Onboarding ASIATI",
+            TrainingCourse.is_onboarding.is_(True),
+            TrainingCourse.status == "PUBLISHED",
+        )
+        .order_by(TrainingCourse.created_at.desc())
+        .all()
+    )
+    current = next(
+        (course for course in published if _is_current_asiati_onboarding(course)),
+        None,
+    )
+    if current is not None:
+        return current
+
+    course = create_asiati_onboarding_template(
+        db,
+        created_by_sub=created_by_sub,
+    )
+    if course.status == "DRAFT":
+        course = update_course(
+            db,
+            course.id,
+            status="PUBLISHED",
+        )
+    return course
+
+
 def update_course(
     db: Session,
     course_id: str,
@@ -2258,17 +2317,41 @@ def _sync_employee_onboarding(db: Session, employee_id: str) -> UserProfile:
     if not assignments:
         return employee
 
-    if employee.onboarding_started_at is None:
-        employee.onboarding_started_at = datetime.now(timezone.utc)
-
     if all(assignment.status == "COMPLETED" for assignment in assignments):
         employee.onboarding_status = "COMPLETED"
+        if employee.onboarding_started_at is None:
+            employee.onboarding_started_at = datetime.now(timezone.utc)
         if employee.onboarding_completed_at is None:
             employee.onboarding_completed_at = datetime.now(timezone.utc)
-    else:
-        employee.onboarding_status = "IN_PROGRESS"
-        employee.onboarding_completed_at = None
+        return employee
 
+    assignment_ids = [assignment.id for assignment in assignments]
+    has_lesson_activity = (
+        db.query(TrainingLessonProgress.id)
+        .filter(TrainingLessonProgress.assignment_id.in_(assignment_ids))
+        .first()
+        is not None
+    )
+    has_quiz_activity = (
+        db.query(TrainingQuizAttempt.id)
+        .filter(TrainingQuizAttempt.assignment_id.in_(assignment_ids))
+        .first()
+        is not None
+    )
+    has_started = (
+        employee.onboarding_started_at is not None
+        or has_lesson_activity
+        or has_quiz_activity
+    )
+
+    if has_started:
+        employee.onboarding_status = "IN_PROGRESS"
+        if employee.onboarding_started_at is None:
+            employee.onboarding_started_at = datetime.now(timezone.utc)
+    else:
+        employee.onboarding_status = "PENDING"
+
+    employee.onboarding_completed_at = None
     return employee
 
 

@@ -623,7 +623,7 @@ def _published_onboarding_course(db, *, with_quiz=False):
     return course, lesson, question
 
 
-def test_onboarding_assignment_moves_employee_to_in_progress(db):
+def test_onboarding_assignment_stays_pending_until_employee_activity(db):
     employee = _employee(db)
     assert employee.onboarding_status == "PENDING"
     course, _, _ = _published_onboarding_course(db)
@@ -636,8 +636,8 @@ def test_onboarding_assignment_moves_employee_to_in_progress(db):
     )
 
     db.refresh(employee)
-    assert employee.onboarding_status == "IN_PROGRESS"
-    assert employee.onboarding_started_at is not None
+    assert employee.onboarding_status == "PENDING"
+    assert employee.onboarding_started_at is None
     assert employee.onboarding_completed_at is None
 
 

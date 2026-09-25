@@ -326,7 +326,13 @@ def test_alembic_head_builds_current_postgres_schema():
         }
         assert "details" in training_progress_columns
 
+        job_candidate_columns = {
+            column["name"]
+            for column in inspector.get_columns("job_candidates")
+        }
+        assert {"employee_id", "hired_at"}.issubset(job_candidate_columns)
+
         assert admin_score_grants == 0
-        assert revision == "024"
+        assert revision == "025"
     finally:
         engine.dispose()

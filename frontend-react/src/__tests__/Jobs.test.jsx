@@ -366,4 +366,51 @@ describe("Jobs page", () => {
       expect(dialog).toHaveAttribute("aria-modal", "true");
     });
   });
+
+  it("hires a candidate and assigns onboarding from the vacancy", async () => {
+    api.post.mockResolvedValueOnce({
+      data: {
+        hired_at: "2026-09-25T18:00:00Z",
+        employee: { id: "employee-1" },
+        onboarding_assignment: {
+          id: "assignment-1",
+          course: { id: "course-1", progress_percent: 0 },
+        },
+      },
+    });
+
+    renderJobs();
+    await screen.findByText("Backend Developer");
+    fireEvent.click(screen.getAllByText("Ver")[0]);
+
+    await screen.findByText("Ana Pérez");
+    fireEvent.click(screen.getAllByRole("button", { name: /Contratar candidato/i })[0]);
+
+    expect(await screen.findByRole("heading", { name: "Contratar y crear empleado" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Nombre")).toHaveValue("Ana");
+    expect(screen.getByLabelText("Apellido")).toHaveValue("Pérez");
+    expect(screen.getByLabelText("Correo de acceso")).toHaveValue("ana@test.com");
+    expect(screen.getByLabelText("Cargo")).toHaveValue("Backend Developer");
+
+    fireEvent.change(screen.getByLabelText("Área"), {
+      target: { value: "Tecnología" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar contratación" }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        "/jobs/job-1/candidates/c-1/hire",
+        expect.objectContaining({
+          email: "ana@test.com",
+          first_name: "Ana",
+          last_name: "Pérez",
+          job_title: "Backend Developer",
+          department: "Tecnología",
+        }),
+      );
+    });
+    expect(
+      await screen.findByText(/Ana Pérez fue contratado\. Acceso creado y onboarding asignado \(0%\)\./i),
+    ).toBeInTheDocument();
+  });
 });

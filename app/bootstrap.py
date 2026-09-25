@@ -17,6 +17,7 @@ from app.domains.evaluations.router import router as evaluations_router
 from app.domains.employee_scores.router import router as employee_scores_router
 from app.domains.employees.router import router as employees_router
 from app.domains.indeed.router import router as indeed_router
+from app.domains.hiring.router import router as hiring_router
 from app.domains.jobs.router import router as jobs_router
 from app.domains.ranking.router import router as ranking_router
 from app.domains.training.router import router as training_router
@@ -49,6 +50,7 @@ def create_app() -> FastAPI:
     app.include_router(evaluations_router)
     app.include_router(employee_scores_router)
     app.include_router(employees_router)
+    app.include_router(hiring_router)
     app.include_router(ranking_router)
     app.include_router(training_router)
     app.include_router(candidate_imports_router)
