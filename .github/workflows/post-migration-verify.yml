@@ -1,0 +1,35 @@
+name: Post-migration OIDC verification
+
+on:
+  push:
+    branches:
+      - feat/employee-auto-onboarding
+    paths:
+      - ".github/workflows/post-migration-verify.yml"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify corporate GitHub OIDC against AWS
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::890876258895:role/AiRecruiterGithubDeployRole
+          aws-region: us-east-2
+
+      - name: Confirm AWS identity
+        run: |
+          set -euo pipefail
+          test "$(aws sts get-caller-identity --query Account --output text)" = "890876258895"
+          echo CORPORATE_OIDC_OK
+
+      - name: Remove temporary migration branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git push "https://x-access-token:${GH_TOKEN}@github.com/AdrianGuerraAsiati/ai-recruiter-asiati.git" --delete migration-main
