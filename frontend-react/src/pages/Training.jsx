@@ -52,7 +52,7 @@ function isTeamModule(module) {
 
 
 function isPortraitOnboardingModule(module) {
-  return /^Módulo [1-7] ·/.test(String(module?.title || ""));
+  return /^Módulo [1-4] ·/.test(String(module?.title || ""));
 }
 
 
