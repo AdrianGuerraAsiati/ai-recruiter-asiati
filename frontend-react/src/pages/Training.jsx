@@ -51,6 +51,11 @@ function isTeamModule(module) {
 }
 
 
+function isPortraitOnboardingModule(module) {
+  return /^Módulo [1-7] ·/.test(String(module?.title || ""));
+}
+
+
 function teamInitials(name) {
   return String(name || "")
     .trim()
@@ -1575,7 +1580,7 @@ function Training() {
                           )}
 
                           {activeJourneyLesson.video_url && (
-                            <div className={`training-video training-journey-video ${isTeamModule(activeJourneyLesson.module) ? "is-portrait" : ""}`}>
+                            <div className={`training-video training-journey-video ${isPortraitOnboardingModule(activeJourneyLesson.module) ? "is-portrait" : ""}`}>
                               {isDirectVideo(activeJourneyLesson.video_url) ? (
                                 <video controls preload="metadata">
                                   <source src={activeJourneyLesson.video_url} />
