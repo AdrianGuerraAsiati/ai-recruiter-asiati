@@ -42,6 +42,20 @@ function indeedLifecycle(status) {
   return status?.status?.globalStatus?.lifecycleStatus || status?.status?.lifecycleStatus || null;
 }
 
+function splitCandidateName(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  return {
+    first_name: parts[0] || "",
+    last_name: parts.slice(1).join(" "),
+  };
+}
+
+function todayInputValue() {
+  const now = new Date();
+  const local = new Date(now.getTime() - (now.getTimezoneOffset() * 60_000));
+  return local.toISOString().slice(0, 10);
+}
+
 function proposalList(values) {
   return (Array.isArray(values) ? values : [])
     .map((item) => String(item || "").trim())
@@ -158,6 +172,17 @@ function Jobs() {
   const [jobCandidates, setJobCandidates] = useState([]);
   const [jobCandidatesLoading, setJobCandidatesLoading] = useState(false);
   const [jobCandidatesError, setJobCandidatesError] = useState("");
+  const [hireTarget, setHireTarget] = useState(null);
+  const [hireForm, setHireForm] = useState({
+    email: "",
+    first_name: "",
+    last_name: "",
+    job_title: "",
+    department: "",
+    hire_date: todayInputValue(),
+  });
+  const [hiring, setHiring] = useState(false);
+  const [hireError, setHireError] = useState("");
 
   const [indeedIntegration, setIndeedIntegration] = useState(null);
   const [indeedJobStatus, setIndeedJobStatus] = useState(null);
@@ -238,14 +263,14 @@ function Jobs() {
   }, []);
 
   useEffect(() => {
-    const modalOpen = !!(viewJob || deleteJobTarget);
+    const modalOpen = !!(viewJob || deleteJobTarget || hireTarget);
     if (modalOpen) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
     }
     return () => { document.body.style.overflow = ""; };
-  }, [viewJob, deleteJobTarget]);
+  }, [viewJob, deleteJobTarget, hireTarget]);
 
   const closeJobDetails = useCallback(() => {
     detailsRequestRef.current += 1;
@@ -259,7 +284,10 @@ function Jobs() {
   useEffect(() => {
     function handleEscape(e) {
       if (e.key !== "Escape") return;
-      if (deleteJobTarget && !deletingJob) {
+      if (hireTarget && !hiring) {
+        setHireTarget(null);
+        setHireError("");
+      } else if (deleteJobTarget && !deletingJob) {
         setDeleteJobTarget(null);
         setDeleteError("");
       } else if (viewJob) {
@@ -268,7 +296,7 @@ function Jobs() {
     }
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [closeJobDetails, deleteJobTarget, deletingJob, viewJob]);
+  }, [closeJobDetails, deleteJobTarget, deletingJob, hireTarget, hiring, viewJob]);
 
   async function refreshIndeedJobStatus(job = viewJob, requestId = null) {
     if (!job || !indeedIntegration?.enabled || !indeedIntegration?.configured) return;
@@ -369,6 +397,64 @@ function Jobs() {
       setIndeedError(requestError.response?.data?.detail || "No fue posible sincronizar candidatos de Indeed.");
     } finally {
       setIndeedBusy("");
+    }
+  }
+
+  function openHireModal(candidate) {
+    const names = splitCandidateName(candidate?.name);
+    setHireTarget(candidate);
+    setHireForm({
+      email: candidate?.email || "",
+      first_name: names.first_name,
+      last_name: names.last_name,
+      job_title: viewJob?.title || "",
+      department: "",
+      hire_date: todayInputValue(),
+    });
+    setHireError("");
+  }
+
+  async function confirmHire(event) {
+    event.preventDefault();
+    if (!viewJob || !hireTarget || hiring) return;
+
+    setHiring(true);
+    setHireError("");
+    try {
+      const { data } = await api.post(
+        `/jobs/${viewJob.job_id}/candidates/${hireTarget.candidate_id}/hire`,
+        {
+          email: hireForm.email || null,
+          first_name: hireForm.first_name || null,
+          last_name: hireForm.last_name || null,
+          job_title: hireForm.job_title || null,
+          department: hireForm.department || null,
+          hire_date: hireForm.hire_date || null,
+        },
+      );
+      setJobCandidates((current) => current.map((candidate) => (
+        candidate.candidate_id === hireTarget.candidate_id
+          ? {
+              ...candidate,
+              application_status: "HIRED",
+              employee_id: data?.employee?.id || candidate.employee_id,
+              hired_at: data?.hired_at || candidate.hired_at,
+            }
+          : candidate
+      )));
+      const progress = Number(data?.onboarding_assignment?.course?.progress_percent || 0);
+      setSuccessMessage(
+        `${hireTarget.name || "Candidato"} fue contratado. Acceso creado y onboarding asignado (${progress}%).`,
+      );
+      setHireTarget(null);
+      setTimeout(() => setSuccessMessage(""), 6000);
+    } catch (requestError) {
+      setHireError(
+        requestError.response?.data?.detail
+        || "No fue posible completar la contratación y el onboarding.",
+      );
+    } finally {
+      setHiring(false);
     }
   }
 
@@ -968,8 +1054,26 @@ function Jobs() {
                   {jobCandidates.map((c) => (
                     <div className="job-detail-candidate-row" key={c.candidate_id}>
                       <div className="job-detail-candidate-avatar" aria-hidden="true">{(c.name || "?").charAt(0).toUpperCase()}</div>
-                      <div className="job-detail-candidate-info"><strong>{c.name || "Sin nombre"}</strong><span>{c.email || "Sin correo registrado"}</span><small>{c.filename || "CV sin nombre"}</small></div>
-                      <Link className="btn btn-secondary btn-sm" to={`/candidates/${c.candidate_id}`}>Ver candidato</Link>
+                      <div className="job-detail-candidate-info">
+                        <strong>{c.name || "Sin nombre"}</strong>
+                        <span>{c.email || "Sin correo registrado"}</span>
+                        <small>{c.filename || "CV sin nombre"}</small>
+                        {c.application_status === "HIRED" && (
+                          <small className="job-candidate-hired">✓ Contratado · onboarding asignado</small>
+                        )}
+                      </div>
+                      <div className="job-detail-candidate-actions">
+                        {c.application_status !== "HIRED" && (
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            onClick={() => openHireModal(c)}
+                          >
+                            Contratar
+                          </button>
+                        )}
+                        <Link className="btn btn-secondary btn-sm" to={`/candidates/${c.candidate_id}?job_id=${viewJob.job_id}`}>Ver candidato</Link>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -978,6 +1082,70 @@ function Jobs() {
 
             <div className="modal-footer"><button type="button" className="btn btn-ghost" onClick={closeJobDetails}>Cerrar</button><Link className="btn btn-primary" to={`/candidates?job_id=${viewJob.job_id}`}>Agregar candidatos</Link></div>
           </div>
+        </div>
+      )}
+
+      {hireTarget && (
+        <div className="modal-overlay" onMouseDown={() => { if (!hiring) { setHireTarget(null); setHireError(""); } }}>
+          <section
+            className="modal job-hire-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="job-hire-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <span className="eyebrow">Contratación</span>
+                <h2 id="job-hire-title">Contratar y asignar onboarding</h2>
+                <p>Se creará o reutilizará el acceso del empleado y se asignará automáticamente el onboarding ASIATI.</p>
+              </div>
+              <button className="btn-close" type="button" aria-label="Cerrar" disabled={hiring} onClick={() => { setHireTarget(null); setHireError(""); }}>×</button>
+            </div>
+
+            <form className="job-hire-form" onSubmit={confirmHire}>
+              <div className="job-hire-candidate">
+                <strong>{hireTarget.name || "Candidato"}</strong>
+                <span>{viewJob?.title || "Vacante"}</span>
+              </div>
+              {hireError && <div className="alert" role="alert">{hireError}</div>}
+              <div className="job-hire-grid">
+                <div className="form-group">
+                  <label htmlFor="hire-first-name">Nombre</label>
+                  <input id="hire-first-name" value={hireForm.first_name} onChange={(event) => setHireForm({ ...hireForm, first_name: event.target.value })} required />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="hire-last-name">Apellido</label>
+                  <input id="hire-last-name" value={hireForm.last_name} onChange={(event) => setHireForm({ ...hireForm, last_name: event.target.value })} required />
+                </div>
+              </div>
+              <div className="form-group">
+                <label htmlFor="hire-email">Correo de acceso</label>
+                <input id="hire-email" type="email" value={hireForm.email} onChange={(event) => setHireForm({ ...hireForm, email: event.target.value })} required />
+                <small>La invitación de Cognito se enviará a este correo.</small>
+              </div>
+              <div className="job-hire-grid">
+                <div className="form-group">
+                  <label htmlFor="hire-job-title">Cargo</label>
+                  <input id="hire-job-title" value={hireForm.job_title} onChange={(event) => setHireForm({ ...hireForm, job_title: event.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="hire-department">Área</label>
+                  <input id="hire-department" value={hireForm.department} onChange={(event) => setHireForm({ ...hireForm, department: event.target.value })} />
+                </div>
+              </div>
+              <div className="form-group">
+                <label htmlFor="hire-date">Fecha de ingreso</label>
+                <input id="hire-date" type="date" value={hireForm.hire_date} onChange={(event) => setHireForm({ ...hireForm, hire_date: event.target.value })} required />
+              </div>
+              <div className="form-actions">
+                <button className="btn btn-secondary" type="button" disabled={hiring} onClick={() => { setHireTarget(null); setHireError(""); }}>Cancelar</button>
+                <button className="btn btn-primary" type="submit" disabled={hiring}>
+                  {hiring ? "Contratando…" : "Confirmar contratación"}
+                </button>
+              </div>
+            </form>
+          </section>
         </div>
       )}
 
