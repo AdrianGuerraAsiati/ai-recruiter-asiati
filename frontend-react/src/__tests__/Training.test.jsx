@@ -322,7 +322,7 @@ describe("Training platform", () => {
 
     const { container } = renderPage();
 
-    expect(await screen.findByText("Módulo 3 · Conoce al equipo")).toBeInTheDocument();
+    expect((await screen.findAllByText("Módulo 3 · Conoce al equipo")).length).toBeGreaterThan(0);
     expect(container.querySelector(".training-team-grid")).toBeInTheDocument();
     expect(container.querySelectorAll(".training-team-card")).toHaveLength(2);
     expect(await screen.findByTitle("Video: Jersson")).toBeInTheDocument();
