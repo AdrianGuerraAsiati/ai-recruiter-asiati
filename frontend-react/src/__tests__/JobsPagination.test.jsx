@@ -15,6 +15,12 @@ vi.mock("../api/client", () => ({
   },
 }));
 
+vi.mock("../context/SessionContext", () => ({
+  useSession: () => ({
+    hasPermission: (permission) => permission === "employees.create",
+  }),
+}));
+
 import api from "../api/client";
 
 const PAGE = {
