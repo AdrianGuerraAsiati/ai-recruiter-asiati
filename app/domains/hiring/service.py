@@ -134,31 +134,36 @@ def hire_candidate(
                 .one_or_none()
             )
             if employee is None:
-                raise
-    else:
-        if employee.status != "ACTIVE":
-            raise HiringConflictError(
-                "Ya existe un usuario deshabilitado con este correo."
-            )
-        changed = False
-        for field, value in {
-            "first_name": resolved_first,
-            "last_name": resolved_last,
-            "job_title": resolved_job_title,
-            "department": resolved_department,
-            "hire_date": resolved_hire_date,
-        }.items():
-            if value is not None and not getattr(employee, field):
-                setattr(employee, field, value)
-                changed = True
-        if changed:
-            db.commit()
-            db.refresh(employee)
-        _ensure_employee_role(
-            db,
-            employee,
-            assigned_by_sub=created_by_sub,
+                employee = employees_service.ensure_existing_cognito_profile(
+                    db,
+                    email=resolved_email,
+                    created_by_sub=created_by_sub,
+                    cognito_client=cognito_client,
+                )
+    if employee.status != "ACTIVE":
+        raise HiringConflictError(
+            "Ya existe un usuario deshabilitado con este correo."
         )
+
+    changed = False
+    for field, value in {
+        "first_name": resolved_first,
+        "last_name": resolved_last,
+        "job_title": resolved_job_title,
+        "department": resolved_department,
+        "hire_date": resolved_hire_date,
+    }.items():
+        if value is not None and not getattr(employee, field):
+            setattr(employee, field, value)
+            changed = True
+    if changed:
+        db.commit()
+        db.refresh(employee)
+    _ensure_employee_role(
+        db,
+        employee,
+        assigned_by_sub=created_by_sub,
+    )
 
     course = training_service.ensure_published_asiati_onboarding(
         db,

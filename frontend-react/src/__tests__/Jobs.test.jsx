@@ -392,6 +392,7 @@ describe("Jobs page", () => {
     api.post.mockResolvedValueOnce({
       data: {
         hired_at: "2026-09-25T18:00:00Z",
+        employee_created: true,
         employee: { id: "employee-1" },
         onboarding_assignment: {
           id: "assignment-1",
@@ -432,6 +433,33 @@ describe("Jobs page", () => {
     });
     expect(
       await screen.findByText(/Ana Pérez fue contratado\. Acceso creado y onboarding asignado \(0%\)\./i),
+    ).toBeInTheDocument();
+  });
+
+  it("reports when an existing employee is reused during hiring", async () => {
+    api.post.mockResolvedValueOnce({
+      data: {
+        hired_at: "2026-09-25T18:00:00Z",
+        employee_created: false,
+        employee: { id: "employee-1" },
+        onboarding_assignment: {
+          id: "assignment-1",
+          course: { id: "course-1", progress_percent: 35 },
+        },
+      },
+    });
+
+    renderJobs();
+    await screen.findByText("Backend Developer");
+    fireEvent.click(screen.getAllByText("Ver")[0]);
+    await screen.findByText("Ana Pérez");
+    fireEvent.click(screen.getAllByRole("button", { name: /Contratar candidato/i })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar contratación" }));
+
+    expect(
+      await screen.findByText(
+        /Ana Pérez fue contratado\. Empleado existente reutilizado y onboarding asignado \(35%\)\./i,
+      ),
     ).toBeInTheDocument();
   });
 });
