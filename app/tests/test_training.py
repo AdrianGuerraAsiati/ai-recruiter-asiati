@@ -1260,6 +1260,15 @@ def test_asiati_onboarding_template_repairs_existing_draft_without_duplicate(db)
     assert module_four["lessons"][0]["video_url"] == service.ASIATI_ONBOARDING_MODULE_4_VIDEO_URL
     assert module_four["lessons"][0]["duration_seconds"] == 105
     assert module_four["lessons"][1]["checklist_items"] == service.ASIATI_ONBOARDING_MODULE_4_CHECKLIST_ITEMS
+    module_five = next(
+        module
+        for module in payload["modules"]
+        if module["title"] == service.ASIATI_ONBOARDING_MODULE_5_TITLE
+    )
+    assert len(module_five["lessons"]) == 1
+    assert module_five["lessons"][0]["title"] == service.ASIATI_ONBOARDING_MODULE_5_VIDEO_TITLE
+    assert module_five["lessons"][0]["video_url"] == service.ASIATI_ONBOARDING_MODULE_5_VIDEO_URL
+    assert module_five["lessons"][0]["duration_seconds"] is None
 
 
 def test_asiati_onboarding_template_scaffolds_short_journey(db):
@@ -1277,6 +1286,7 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
         "Módulo 2 · Conoce ASIATI",
         "Módulo 3 · Conoce al equipo",
         "Módulo 4 · Permisos y vacaciones",
+        "Módulo 5 · Contenido corporativo",
         "Así trabajamos",
         "Tu cargo en ASIATI",
     ]
@@ -1329,7 +1339,8 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
     assert "Módulos 1–3 · Introducción corporativa" not in video_titles
     assert "Permisos y vacaciones" in video_titles
     assert "Módulo 4 · Permisos y vacaciones" not in video_titles
-    assert "Módulo 5 · Recorrido de sede" in video_titles
+    assert "Módulo 5" in video_titles
+    assert "Módulo 5 · Recorrido de sede" not in video_titles
     assert "Módulo 6 · Cultura interna" in video_titles
     assert "Módulo 7 · Lo que esperamos de ti" in video_titles
 
@@ -1413,6 +1424,21 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
         if lesson["title"] == service.ASIATI_ONBOARDING_MODULE_4_CHECKLIST_TITLE
     )
     assert module_four_checklist["content_type"] == "CHECKLIST"
+
+    module_five = next(
+        module
+        for module in payload["modules"]
+        if module["title"] == service.ASIATI_ONBOARDING_MODULE_5_TITLE
+    )
+    assert module_five["lesson_count"] == 1
+    assert module_five["content_item_count"] == 1
+    module_five_video = module_five["lessons"][0]
+    assert module_five_video["title"] == service.ASIATI_ONBOARDING_MODULE_5_VIDEO_TITLE
+    assert module_five_video["video_url"] == service.ASIATI_ONBOARDING_MODULE_5_VIDEO_URL
+    assert module_five_video["duration_seconds"] is None
+    assert module_five_video["estimated_minutes"] is None
+    assert module_five_video["duration_known"] is False
+    assert module_five_video["is_optional"] is False
     assert module_four_checklist["checklist_items"] == service.ASIATI_ONBOARDING_MODULE_4_CHECKLIST_ITEMS
     assert module_four_checklist["is_optional"] is False
 
