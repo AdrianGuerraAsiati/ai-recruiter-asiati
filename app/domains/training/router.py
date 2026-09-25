@@ -228,6 +228,23 @@ def assign_course(
         _translate(exc)
 
 
+@router.get("/courses/{course_id}/assignments/{employee_id}")
+def get_assignment_progress(
+    course_id: str,
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("training.results.read")),
+):
+    try:
+        return service.get_my_course(
+            db,
+            employee_id=employee_id,
+            course_id=course_id,
+        )
+    except Exception as exc:
+        _translate(exc)
+
+
 @router.get("/courses/{course_id}/assignments")
 def list_assignments(
     course_id: str,
