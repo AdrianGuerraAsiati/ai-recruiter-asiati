@@ -69,7 +69,7 @@ describe("Employees administration", () => {
 
     expect(await screen.findByText("Ana Pérez")).toBeInTheDocument();
     expect(screen.getByText("employee@asiati.com.co")).toBeInTheDocument();
-    expect(screen.getByText("En progreso")).toBeInTheDocument();
+    expect(screen.getByText("En progreso", { selector: "span" })).toBeInTheDocument();
     expect(screen.getByText("42% completado")).toBeInTheDocument();
     expect(screen.getByText("Onboarding activos")).toBeInTheDocument();
     expect(screen.getByText("Onboarding completados")).toBeInTheDocument();
@@ -79,6 +79,26 @@ describe("Employees administration", () => {
 
     expect(screen.getByRole("heading", { name: "Crear empleado" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Rol inicial")).not.toBeInTheDocument();
+  });
+
+  it("filters the directory by onboarding status", async () => {
+    renderPage();
+    await screen.findByText("Ana Pérez");
+
+    fireEvent.change(screen.getByLabelText("Filtrar por onboarding"), {
+      target: { value: "IN_PROGRESS" },
+    });
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith(
+        "/employees",
+        {
+          params: {
+            onboarding_status: "IN_PROGRESS",
+          },
+        },
+      );
+    });
   });
 
   it("opens detailed onboarding progress for HR", async () => {

@@ -103,6 +103,21 @@ def _profile(db, *, email: str, role: str) -> UserProfile:
     return profile
 
 
+def test_list_employees_filters_by_onboarding_status(db):
+    pending = _profile(db, email="pending@asiati.com.co", role=EMPLOYEE)
+    completed = _profile(db, email="completed@asiati.com.co", role=EMPLOYEE)
+    pending.onboarding_status = "PENDING"
+    completed.onboarding_status = "COMPLETED"
+    db.commit()
+
+    items = service.list_employees(
+        db,
+        onboarding_status="COMPLETED",
+    )
+
+    assert [item.email for item in items] == ["completed@asiati.com.co"]
+
+
 def test_create_employee_provisions_cognito_and_employee_role(db):
     cognito = FakeCognitoClient()
 
