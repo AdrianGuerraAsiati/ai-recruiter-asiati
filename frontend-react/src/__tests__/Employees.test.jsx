@@ -81,6 +81,26 @@ describe("Employees administration", () => {
     expect(screen.queryByLabelText("Rol inicial")).not.toBeInTheDocument();
   });
 
+  it("filters the directory by onboarding status", async () => {
+    renderPage();
+    await screen.findByText("Ana Pérez");
+
+    fireEvent.change(screen.getByLabelText("Filtrar por onboarding"), {
+      target: { value: "IN_PROGRESS" },
+    });
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith(
+        "/employees",
+        {
+          params: {
+            onboarding_status: "IN_PROGRESS",
+          },
+        },
+      );
+    });
+  });
+
   it("opens detailed onboarding progress for HR", async () => {
     const employeeResponse = {
       items: [
