@@ -2069,13 +2069,13 @@ def create_asiati_onboarding_template(
 
 
 ASIATI_ONBOARDING_REQUIRED_MODULE_TITLES = {
-    ASIATI_ONBOARDING_MODULE_1_TITLE,
-    ASIATI_ONBOARDING_MODULE_2_TITLE,
-    ASIATI_ONBOARDING_MODULE_3_TITLE,
-    ASIATI_ONBOARDING_MODULE_4_TITLE,
-    ASIATI_ONBOARDING_MODULE_5_TITLE,
-    ASIATI_ONBOARDING_MODULE_6_TITLE,
-    ASIATI_ONBOARDING_MODULE_7_TITLE,
+    "Módulo 1 · Bienvenida a ASIATI",
+    "Módulo 2 · Conoce ASIATI",
+    "Módulo 3 · Conoce al equipo",
+    "Módulo 4 · Permisos y vacaciones",
+    "Módulo 5 · Contenido corporativo",
+    "Módulo 6 · Cultura interna",
+    "Módulo 7 · Lo que esperamos de ti",
 }
 
 
