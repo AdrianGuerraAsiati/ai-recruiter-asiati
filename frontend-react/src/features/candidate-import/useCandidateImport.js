@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { getApiErrorMessage } from "../../utils/errors";
+
 import * as candidateImportApi from "./api.js";
 
 const TERMINAL_STATUSES = new Set([
@@ -26,10 +28,11 @@ function phaseForBatch(batch) {
 }
 
 function publicError(error) {
-  return (
-    error?.response?.data?.detail ||
-    "No fue posible continuar la importación."
-  );
+  return getApiErrorMessage(error, {
+    action: "procesar la importación de candidatos",
+    resource: "CV y archivos ZIP",
+    fallback: "La importación se detuvo antes de completarse. Revisa los archivos seleccionados y vuelve a iniciar el proceso.",
+  });
 }
 
 export function useCandidateImport(jobId = null) {

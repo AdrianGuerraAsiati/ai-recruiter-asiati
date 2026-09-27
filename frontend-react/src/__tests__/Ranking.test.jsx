@@ -704,7 +704,7 @@ describe("Ranking page", () => {
     await confirmRecalculation();
     await waitFor(() => {
       expect(screen.queryByText("Ranking recalculado correctamente.")).not.toBeInTheDocument();
-      expect(screen.getByText(/El ranking se procesó, pero no fue posible cargar los resultados/i)).toBeInTheDocument();
+      expect(screen.getByText(/El recálculo terminó, pero la consulta posterior no devolvió la nueva versión del ranking/i)).toBeInTheDocument();
     });
   });
 

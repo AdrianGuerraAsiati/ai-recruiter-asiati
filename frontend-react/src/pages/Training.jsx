@@ -3,6 +3,7 @@ import React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import api from "../api/client";
+import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
 
 
@@ -200,7 +201,11 @@ function Training() {
         return myItems[0]?.id || "";
       });
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible cargar la capacitación.");
+      setError(getApiErrorMessage(err, {
+        action: "cargar la capacitación",
+        resource: "cursos y asignaciones",
+        fallback: "No se pudo completar la vista de capacitación. Recarga la página para consultar nuevamente cursos, asignaciones y progreso.",
+      }));
     } finally {
       setLoading(false);
     }
@@ -226,7 +231,11 @@ function Training() {
           : [],
       );
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible cargar el curso.");
+      setError(getApiErrorMessage(err, {
+        action: "cargar el curso",
+        resource: "contenido de capacitación",
+        fallback: "El catálogo cargó, pero este curso no. Vuelve al listado y ábrelo nuevamente para confirmar que siga disponible.",
+      }));
     } finally {
       setDetailLoading(false);
     }
@@ -328,7 +337,11 @@ function Training() {
         setEmployeeQuiz(null);
       }
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible abrir el curso.");
+      setError(getApiErrorMessage(err, {
+        action: "abrir tu curso asignado",
+        resource: "capacitación asignada",
+        fallback: "El curso está asignado, pero su contenido no se pudo abrir. Recarga la capacitación antes de continuar.",
+      }));
     } finally {
       setDetailLoading(false);
     }
@@ -372,7 +385,11 @@ function Training() {
       );
       setPreviewData(data);
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible generar la vista previa.");
+      setError(getApiErrorMessage(err, {
+        action: "generar la vista previa del contenido",
+        resource: "contenido de capacitación",
+        fallback: "No se generó una vista previa temporal. El contenido original no cambió; vuelve a intentarlo desde la lección.",
+      }));
     } finally {
       setPreviewLoading(false);
     }
@@ -412,7 +429,11 @@ function Training() {
       await loadHome();
       setSelectedCourseId(data.id);
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible crear el curso.");
+      setError(getApiErrorMessage(err, {
+        action: "crear el curso",
+        resource: "capacitación",
+        fallback: "El curso no se creó. Revisa título, descripción y configuración antes de volver a guardarlo.",
+      }));
     } finally {
       setSaving(false);
     }
@@ -427,7 +448,11 @@ function Training() {
       setSelectedCourseId(data.id);
       setSelectedCourse(data);
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible crear la ruta ASIATI.");
+      setError(getApiErrorMessage(err, {
+        action: "crear la ruta de onboarding ASIATI",
+        resource: "onboarding",
+        fallback: "La ruta predeterminada no se creó. Verifica que no exista ya otra ruta equivalente antes de reintentar.",
+      }));
     } finally {
       setCreatingPreset(false);
     }
@@ -444,7 +469,11 @@ function Training() {
       setSelectedCourse(data);
       await loadHome();
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible publicar el curso.");
+      setError(getApiErrorMessage(err, {
+        action: "publicar el curso",
+        resource: "capacitación",
+        fallback: "El curso conserva su estado anterior y no quedó publicado. Revisa que tenga contenido válido antes de volver a publicarlo.",
+      }));
     } finally {
       setSaving(false);
     }
@@ -474,7 +503,11 @@ function Training() {
       });
       await loadHome();
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible agregar el módulo.");
+      setError(getApiErrorMessage(err, {
+        action: "agregar el módulo",
+        resource: "curso",
+        fallback: "El módulo no se agregó al curso. Revisa su título y vuelve a guardar la estructura.",
+      }));
     } finally {
       setSaving(false);
     }
@@ -557,7 +590,11 @@ function Training() {
       }));
       await loadHome();
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible agregar la lección.");
+      setError(getApiErrorMessage(err, {
+        action: "agregar la lección",
+        resource: "módulo",
+        fallback: "La lección no se creó. Revisa el tipo de contenido y los campos obligatorios antes de reintentar.",
+      }));
     } finally {
       setSaving(false);
     }
@@ -615,7 +652,11 @@ function Training() {
     } catch (err) {
       setError(
         err.response?.data?.detail
-          || "No fue posible subir el video. Intenta nuevamente.",
+          || getApiErrorMessage(err, {
+            action: "subir el video",
+            resource: "lección",
+            fallback: "El video no quedó asociado a la lección. Conserva el archivo local y vuelve a iniciar la carga.",
+          }),
       );
     } finally {
       setUploadingLessonId("");
@@ -634,7 +675,11 @@ function Training() {
       setAssignEmployeeId("");
       await loadAdminCourse(selectedCourseId);
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible asignar el curso.");
+      setError(getApiErrorMessage(err, {
+        action: "asignar el curso al empleado",
+        resource: "asignación de capacitación",
+        fallback: "El curso no quedó asignado. Actualiza la lista de empleados y confirma que el perfil siga activo.",
+      }));
     } finally {
       setSaving(false);
     }
@@ -655,7 +700,11 @@ function Training() {
       ]);
       if (nextRequiredId) setActiveLessonId(nextRequiredId);
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible guardar el avance.");
+      setError(getApiErrorMessage(err, {
+        action: "guardar el avance de la lección",
+        resource: "tu progreso",
+        fallback: "Este avance no quedó registrado. Mantén la lección abierta y vuelve a marcarla cuando haya conexión.",
+      }));
     } finally {
       setSaving(false);
     }
@@ -688,8 +737,11 @@ function Training() {
       if (willComplete && nextId) setActiveLessonId(nextId);
     } catch (err) {
       setError(
-        err.response?.data?.detail ||
-        "No fue posible guardar el avance del checklist.",
+        getApiErrorMessage(err, {
+        action: "guardar el checklist",
+        resource: "tu progreso",
+        fallback: "Los cambios del checklist no quedaron confirmados. Revisa nuevamente los ítems antes de continuar.",
+      }),
       );
     } finally {
       setChecklistSavingLessonId("");
@@ -708,7 +760,11 @@ function Training() {
       });
       await loadAdminCourse(selectedCourseId);
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible crear la evaluación.");
+      setError(getApiErrorMessage(err, {
+        action: "crear la evaluación",
+        resource: "curso",
+        fallback: "La evaluación no se creó. Revisa el puntaje mínimo y la configuración del curso antes de reintentar.",
+      }));
     } finally {
       setSaving(false);
     }
@@ -742,7 +798,11 @@ function Training() {
       });
       await loadAdminCourse(selectedCourseId);
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible agregar la pregunta.");
+      setError(getApiErrorMessage(err, {
+        action: "agregar la pregunta",
+        resource: "evaluación",
+        fallback: "La pregunta no se guardó. Revisa enunciado, opciones y respuesta correcta antes de volver a enviarla.",
+      }));
     } finally {
       setSaving(false);
     }
@@ -766,7 +826,11 @@ function Training() {
       ]);
       setQuizResult(data);
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible enviar la evaluación.");
+      setError(getApiErrorMessage(err, {
+        action: "enviar la evaluación",
+        resource: "evaluación",
+        fallback: "El intento no quedó registrado. No cierres el curso hasta volver a enviar tus respuestas.",
+      }));
     } finally {
       setSaving(false);
     }

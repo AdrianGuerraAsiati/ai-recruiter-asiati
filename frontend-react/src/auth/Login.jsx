@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api, { setAccessToken } from "../api/client";
 import BrandMark from "../components/BrandMark";
+import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
 
 function AuthBrand() {
@@ -31,11 +32,14 @@ function Login() {
       await refreshSession();
       navigate("/dashboard");
     } catch (err) {
-      setError(
-        Array.isArray(err.response?.data?.detail)
-          ? err.response.data.detail.map((item) => item.msg).join(", ")
-          : err.response?.data?.detail || "Correo o contraseña incorrectos.",
-      );
+      setError(getApiErrorMessage(err, {
+        action: "iniciar sesión",
+        resource: "tu cuenta",
+        fallback: "El correo o la contraseña no coinciden con una cuenta activa. Verifica ambos datos antes de reintentar.",
+        statusMessages: {
+          401: "El correo o la contraseña no coinciden con una cuenta activa. Verifica ambos datos antes de reintentar.",
+        },
+      }));
     } finally {
       setLoading(false);
     }

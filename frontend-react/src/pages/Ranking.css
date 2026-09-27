@@ -368,6 +368,8 @@
 .ranking-candidate-card {
   position: relative;
   overflow: hidden;
+  animation: ranking-card-enter .42s cubic-bezier(.22, .8, .2, 1) both;
+  animation-delay: var(--ranking-delay, 0ms);
 }
 
 .ranking-candidate-card::before {
@@ -412,6 +414,7 @@
   height: 6px;
   border-radius: 50%;
   background: currentColor;
+  animation: ranking-marker-pulse 1.8s ease-in-out infinite;
 }
 
 .ranking-candidate-header {
@@ -433,6 +436,8 @@
 
 .ranking-candidate-score-value {
   line-height: 1;
+  animation: ranking-score-pop .48s cubic-bezier(.22, .8, .2, 1) both;
+  animation-delay: calc(var(--ranking-delay, 0ms) + 90ms);
 }
 
 .ranking-candidate-score-max {
@@ -445,6 +450,12 @@
 .ranking-score-track {
   height: 6px;
   margin-top: 10px;
+}
+
+.ranking-score-fill {
+  transform-origin: left center;
+  animation: ranking-score-grow .72s cubic-bezier(.22, .8, .2, 1) both;
+  animation-delay: calc(var(--ranking-delay, 0ms) + 120ms);
 }
 
 .ranking-chips-section {
@@ -787,3 +798,69 @@
   }
 }
 
+
+
+/* Motion: ranking updates */
+@keyframes ranking-card-enter {
+  from { opacity: 0; transform: translateY(10px) scale(.992); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes ranking-score-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes ranking-score-pop {
+  0% { opacity: 0; transform: translateY(5px) scale(.92); }
+  65% { transform: translateY(-1px) scale(1.04); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes ranking-marker-pulse {
+  0%, 100% { opacity: .65; box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 24%, transparent); }
+  50% { opacity: 1; box-shadow: 0 0 0 6px transparent; }
+}
+
+.ranking-skeleton-card {
+  overflow: hidden;
+  animation: ranking-skeleton-enter .28s ease-out both;
+}
+
+.ranking-skeleton-line {
+  position: relative;
+  overflow: hidden;
+  animation: none;
+}
+
+.ranking-skeleton-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-110%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, white 55%, transparent), transparent);
+  animation: ranking-shimmer 1.25s ease-in-out infinite;
+}
+
+@keyframes ranking-skeleton-enter {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ranking-shimmer {
+  to { transform: translateX(110%); }
+}
+
+
+.ranking-feedback {
+  animation: ranking-feedback-enter .28s ease-out both;
+}
+
+.ranking-metric-value {
+  animation: ranking-score-pop .42s cubic-bezier(.22, .8, .2, 1) both;
+}
+
+@keyframes ranking-feedback-enter {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}

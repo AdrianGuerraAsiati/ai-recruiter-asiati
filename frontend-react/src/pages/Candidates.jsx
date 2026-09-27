@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import api from "../api/client";
+import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
 import CandidateImportModal from "../features/candidate-import/CandidateImportModal.jsx";
 
@@ -49,8 +50,12 @@ function Candidates() {
       setTotal(responseTotal);
       setPages(responsePages);
       setJobs(Array.isArray(jobsData) ? jobsData : jobsData.jobs || []);
-    } catch {
-      setLoadError("No fue posible cargar los candidatos y las vacantes.");
+    } catch (error) {
+      setLoadError(getApiErrorMessage(error, {
+        action: "cargar candidatos y vacantes",
+        resource: "reclutamiento",
+        fallback: "No se pudo completar el directorio porque candidatos o vacantes no respondieron. Recarga la página antes de asignar perfiles.",
+      }));
     }
   }, [page]);
 
@@ -84,7 +89,7 @@ function Candidates() {
     const jobId = selectedJob[candidateId];
 
     if (!jobId) {
-      alert("Seleccione una vacante");
+      alert("Selecciona una vacante antes de continuar. Esta acción necesita saber contra qué cargo debe evaluarse o asignarse el candidato.");
       return;
     }
 
@@ -101,8 +106,11 @@ function Candidates() {
       });
     } catch (error) {
       alert(
-        error.response?.data?.detail ||
-          "No fue posible evaluar el candidato.",
+        getApiErrorMessage(error, {
+          action: "evaluar el candidato",
+          resource: "evaluación",
+          fallback: "La evaluación no se guardó. El candidato conserva su resultado anterior; vuelve a evaluarlo cuando el servicio esté disponible.",
+        }),
       );
     } finally {
       setLoading(false);
@@ -112,7 +120,7 @@ function Candidates() {
   async function assignCandidate(candidateId) {
     const jobId = selectedJob[candidateId];
     if (!jobId) {
-      alert("Seleccione una vacante");
+      alert("Selecciona una vacante antes de continuar. Esta acción necesita saber contra qué cargo debe evaluarse o asignarse el candidato.");
       return;
     }
 
@@ -125,8 +133,11 @@ function Candidates() {
       await loadData(page);
     } catch (error) {
       alert(
-        error.response?.data?.detail ||
-          "No fue posible asignar el candidato.",
+        getApiErrorMessage(error, {
+          action: "asignar el candidato a la vacante",
+          resource: "postulación",
+          fallback: "El candidato no quedó asignado a la vacante. Actualiza el listado y confirma que la vacante siga activa.",
+        }),
       );
     } finally {
       setLoading(false);
@@ -151,8 +162,11 @@ function Candidates() {
     } catch (error) {
       viewer.close();
       alert(
-        error.response?.data?.detail ||
-          "No fue posible abrir el CV",
+        getApiErrorMessage(error, {
+          action: "abrir el CV",
+          resource: "archivo del candidato",
+          fallback: "El CV no devolvió un enlace de visualización válido. Vuelve a abrirlo desde el perfil del candidato.",
+        }),
       );
     }
   }
@@ -184,8 +198,11 @@ function Candidates() {
       await loadData(page);
     } catch (error) {
       window.alert(
-        error.response?.data?.detail ||
-          "No fue posible actualizar el veto del candidato.",
+        getApiErrorMessage(error, {
+          action: "actualizar el veto del candidato",
+          resource: "restricciones",
+          fallback: "La restricción del candidato no cambió. Recarga su perfil antes de repetir la acción.",
+        }),
       );
     } finally {
       setRestrictionSaving(false);

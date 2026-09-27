@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/client";
+import { getApiErrorMessage } from "../utils/errors";
 import BrandMark from "../components/BrandMark";
 
 function Register() {
@@ -25,7 +26,11 @@ function Register() {
       await api.post("/auth/register", { email, password });
       navigate("/login", { replace: true });
     } catch (err) {
-      setError(err.response?.data?.detail || err.response?.data?.error || "No fue posible crear la cuenta.");
+      setError(getApiErrorMessage(err, {
+        action: "crear la cuenta",
+        resource: "registro",
+        fallback: "La cuenta no se creó. Revisa los datos ingresados y vuelve a enviarlos.",
+      }));
     } finally {
       setLoading(false);
     }

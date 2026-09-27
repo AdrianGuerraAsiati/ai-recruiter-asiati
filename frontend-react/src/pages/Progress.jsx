@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import api from "../api/client";
+import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
 
 
@@ -19,7 +20,11 @@ function Progress() {
         const { data } = await api.get("/training/me");
         setAssignments(Array.isArray(data?.items) ? data.items : []);
       } catch (err) {
-        setError(err.response?.data?.detail || "No fue posible cargar tu progreso.");
+        setError(getApiErrorMessage(err, {
+          action: "cargar tu progreso de capacitación",
+          resource: "tu progreso",
+          fallback: "Tu progreso no se actualizó. Recarga la página para volver a consultar tus cursos y evaluaciones.",
+        }));
       } finally {
         setLoading(false);
       }

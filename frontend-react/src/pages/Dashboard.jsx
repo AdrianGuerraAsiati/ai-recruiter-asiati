@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../api/client";
+import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
 
 function getGreeting(date = new Date()) {
@@ -55,8 +56,12 @@ function Dashboard() {
           const { data } = await api.get("/training/me");
           setTrainingAssignments(Array.isArray(data?.items) ? data.items : []);
         }
-      } catch {
-        setLoadError("No fue posible cargar el resumen.");
+      } catch (error) {
+        setLoadError(getApiErrorMessage(error, {
+          action: "cargar los indicadores del inicio",
+          resource: "resumen del workspace",
+          fallback: "El inicio no pudo combinar vacantes, candidatos y métricas internas. Recarga la página para volver a consultar los indicadores.",
+        }));
       } finally {
         setLoading(false);
       }

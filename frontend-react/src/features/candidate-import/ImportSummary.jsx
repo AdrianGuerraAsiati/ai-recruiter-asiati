@@ -24,7 +24,7 @@ export default function ImportSummary({ batch }) {
       ? "Importación completada con novedades"
       : "Importación completada";
   const message = failed
-    ? batch.last_error_message || "No fue posible completar el procesamiento de los candidatos."
+    ? batch.last_error_message || "La importación terminó con candidatos sin procesar. Revisa los fallos del lote antes de reintentar únicamente los pendientes."
     : withErrors
       ? "El ranking está disponible, aunque algunos archivos o evaluaciones requieren revisión."
       : "Los candidatos fueron procesados y el ranking quedó actualizado.";

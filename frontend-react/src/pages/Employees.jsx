@@ -3,6 +3,7 @@ import React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import api from "../api/client";
+import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
 
 function todayInputValue() {
@@ -52,7 +53,11 @@ function Employees() {
       const { data } = await api.get("/employees", { params });
       setEmployees(Array.isArray(data?.items) ? data.items : []);
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible cargar los empleados.");
+      setError(getApiErrorMessage(err, {
+        action: "cargar el directorio de empleados",
+        resource: "empleados",
+        fallback: "El directorio no se actualizó. Mantuvimos tus filtros para que puedas reintentar.",
+      }));
     } finally {
       setLoading(false);
     }
@@ -87,7 +92,11 @@ function Employees() {
       setFormOpen(false);
       await loadEmployees();
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible crear el empleado.");
+      setError(getApiErrorMessage(err, {
+        action: "crear el empleado y su acceso",
+        resource: "empleados",
+        fallback: "El empleado no se creó. Revisa correo, datos personales y permisos antes de reintentar.",
+      }));
     } finally {
       setSaving(false);
     }
@@ -100,7 +109,11 @@ function Employees() {
       await api.put(`/employees/${employee.id}/status`, { status: nextStatus });
       await loadEmployees();
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible cambiar el estado.");
+      setError(getApiErrorMessage(err, {
+        action: "cambiar el estado de acceso del empleado",
+        resource: "empleados",
+        fallback: "El acceso del empleado no cambió. Recarga su estado antes de volver a intentarlo.",
+      }));
     }
   }
 
@@ -110,7 +123,11 @@ function Employees() {
       await api.put(`/employees/${employee.id}/role`, { role });
       await loadEmployees();
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible cambiar el rol.");
+      setError(getApiErrorMessage(err, {
+        action: "cambiar el rol del empleado",
+        resource: "roles",
+        fallback: "El rol no cambió. Verifica que no estés editando tu propio perfil y que tengas permisos de Dirección.",
+      }));
     }
   }
 
@@ -127,7 +144,11 @@ function Employees() {
       setOnboardingDetail(data);
     } catch (err) {
       setOnboardingDetailError(
-        err.response?.data?.detail || "No fue posible cargar el detalle del onboarding.",
+        getApiErrorMessage(err, {
+          action: "cargar el detalle de onboarding",
+          resource: "onboarding",
+          fallback: "El resumen del empleado está disponible, pero no se cargaron sus módulos y avances. Vuelve a abrir el detalle.",
+        }),
       );
     } finally {
       setOnboardingDetailLoading(false);

@@ -3,6 +3,7 @@ import React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import api from "../api/client";
+import { getApiErrorMessage } from "../utils/errors";
 
 
 function employeeName(employee) {
@@ -37,7 +38,11 @@ function EmployeeScores() {
         return items[0]?.id || "";
       });
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible cargar las calificaciones.");
+      setError(getApiErrorMessage(err, {
+        action: "cargar las calificaciones privadas",
+        resource: "calificaciones de Dirección",
+        fallback: "No se cargó el listado de puntuaciones. La información no fue modificada; vuelve a consultar la sección.",
+      }));
     } finally {
       setLoading(false);
     }
@@ -54,7 +59,11 @@ function EmployeeScores() {
       const { data } = await api.get(`/direction/employee-scores/${employeeId}`);
       setDetail(data);
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible cargar el historial.");
+      setError(getApiErrorMessage(err, {
+        action: "cargar el historial de calificaciones",
+        resource: "historial del empleado",
+        fallback: "La puntuación actual está visible, pero el historial de movimientos no se pudo consultar. Vuelve a seleccionar el empleado.",
+      }));
     } finally {
       setDetailLoading(false);
     }
@@ -102,7 +111,11 @@ function EmployeeScores() {
       setDescription("");
       await Promise.all([loadEmployees(), loadDetail(selectedId)]);
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible guardar la calificación.");
+      setError(getApiErrorMessage(err, {
+        action: "registrar la calificación",
+        resource: "calificaciones de Dirección",
+        fallback: "El movimiento no se registró y la puntuación no cambió. Revisa los puntos y la justificación antes de reintentar.",
+      }));
     } finally {
       setSaving(false);
     }
@@ -122,7 +135,11 @@ function EmployeeScores() {
       });
       await Promise.all([loadEmployees(), loadDetail(selectedId)]);
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible anular el movimiento.");
+      setError(getApiErrorMessage(err, {
+        action: "anular el movimiento de puntuación",
+        resource: "historial de calificaciones",
+        fallback: "El movimiento sigue activo. Recarga el historial antes de intentar anularlo nuevamente.",
+      }));
     }
   }
 
@@ -208,7 +225,10 @@ function EmployeeScores() {
                   <h2>{employeeName(selectedEmployee)}</h2>
                   <p>{selectedEmployee.job_title || "Sin cargo"} · {selectedEmployee.department || "Sin área"}</p>
                 </div>
-                <strong className={`direction-score-total ${(detail?.employee?.score_total ?? selectedEmployee.score_total) < 0 ? "score-negative" : "score-positive"}`}>
+                <strong
+                  key={`${selectedId}-${detail?.employee?.score_total ?? selectedEmployee.score_total ?? 0}`}
+                  className={`direction-score-total ${(detail?.employee?.score_total ?? selectedEmployee.score_total) < 0 ? "score-negative" : "score-positive"}`}
+                >
                   {(detail?.employee?.score_total ?? selectedEmployee.score_total) > 0 ? "+" : ""}
                   {detail?.employee?.score_total ?? selectedEmployee.score_total ?? 0}
                   <small> pts</small>
@@ -275,8 +295,12 @@ function EmployeeScores() {
                   </div>
                 ) : (
                   <div className="score-history-list">
-                    {detail.history.map((scoreEvent) => (
-                      <article key={scoreEvent.id} className={`score-history-row ${scoreEvent.status === "VOIDED" ? "is-voided" : ""}`}>
+                    {detail.history.map((scoreEvent, index) => (
+                      <article
+                        key={scoreEvent.id}
+                        className={`score-history-row ${scoreEvent.status === "VOIDED" ? "is-voided" : ""}`}
+                        style={{ "--score-delay": `${Math.min(index, 8) * 45}ms` }}
+                      >
                         <div className={`score-history-points ${scoreEvent.points < 0 ? "score-negative" : "score-positive"}`}>
                           {scoreEvent.points > 0 ? "+" : ""}{scoreEvent.points}
                         </div>
