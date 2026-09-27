@@ -255,12 +255,12 @@ jobs:
           if [ -z "$BASE_URL" ]; then BASE_URL="http://$INSTANCE_IP"; fi
           CODE=000
           for i in $(seq 1 10); do
-            CODE=$(curl -sf -o /dev/null -w '%{http_code}' "$BASE_URL/api/health" || echo 000)
+            CODE=$(curl -sf -o /dev/null -w '%{http_code}' "$BASE_URL/api/ready" || echo 000)
             [ "$CODE" = 200 ] && break
             sleep 3
           done
           [ "$CODE" = 200 ]
-          echo "PUBLIC_HEALTH_OK HTTP $CODE"
+          echo "PUBLIC_READINESS_OK HTTP $CODE"
 
       - name: Verify public frontend
         run: |
