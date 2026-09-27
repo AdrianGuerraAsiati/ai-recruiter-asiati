@@ -42,7 +42,7 @@ function CandidateDetail() {
         const candidateResponse = await api.get(`/candidates/${candidate_id}`);
         if (cancelled) return;
         setCandidate(candidateResponse.data);
-      } catch {
+      } catch (error) {
         if (!cancelled) {
           setLoadError(getApiErrorMessage(error, {
             action: "cargar el perfil del candidato",
@@ -103,7 +103,7 @@ function CandidateDetail() {
       const downloadUrl = response.data?.download_url;
       if (!downloadUrl) throw new Error("CV_DOWNLOAD_URL_MISSING");
       window.open(downloadUrl, "_blank", "noopener,noreferrer");
-    } catch {
+    } catch (error) {
       setResumeError(getApiErrorMessage(error, {
         action: "abrir el CV",
         resource: "archivo del candidato",
