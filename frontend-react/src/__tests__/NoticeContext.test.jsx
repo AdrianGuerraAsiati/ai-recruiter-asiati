@@ -3,7 +3,8 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { NoticeProvider, useNotice } from "../context/NoticeContext";
+import { NoticeProvider } from "../context/NoticeContext";
+import { useNotice } from "../context/noticeStore";
 
 function Trigger() {
   const { notify } = useNotice();
