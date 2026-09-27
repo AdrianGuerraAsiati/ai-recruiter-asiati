@@ -10,13 +10,29 @@ import ThemeToggle from "./ThemeToggle";
 const navItems = [
   { to: "/dashboard", label: "Inicio", icon: "⌁" },
   { to: "/jobs", label: "Vacantes", icon: "▤", permission: "jobs.read" },
+  { to: "/applications", label: "Postulaciones", icon: "◉", permission: "candidates.read" },
   { to: "/candidates", label: "Candidatos", icon: "◎", permission: "candidates.read" },
   { to: "/ranking", label: "Ranking IA", icon: "↗", permission: "ranking.read" },
   { to: "/employees", label: "Empleados", icon: "◫", permission: "employees.read" },
-  { to: "/direction/scores", label: "Calificación", icon: "★", permission: "employee_scores.read" },
+  { to: "/direction/scores", label: "Dirección · Calificación", icon: "★", permission: "employee_scores.read" },
   { to: "/training", label: "Capacitación", icon: "▶", permission: "training.read" },
+  {
+    to: "/progress",
+    label: "Mi progreso",
+    icon: "✓",
+    permission: "training.progress.read_own",
+    roles: ["EMPLOYEE"],
+  },
+  { to: "/profile", label: "Mi perfil", icon: "○", permission: "profile.read_own" },
   { to: "/integrations", label: "Integraciones", icon: "◇", permission: "integrations.manage" },
 ];
+
+
+function primaryRole(roles = []) {
+  if (roles.includes("SUPER_ADMIN")) return "SUPER_ADMIN";
+  if (roles.includes("ADMIN")) return "ADMIN";
+  return "EMPLOYEE";
+}
 
 
 function Brand() {
@@ -29,8 +45,9 @@ function Brand() {
 
 
 function roleLabel(roles = []) {
-  if (roles.includes("SUPER_ADMIN")) return "Dirección";
-  if (roles.includes("ADMIN")) return "Administración";
+  const role = primaryRole(roles);
+  if (role === "SUPER_ADMIN") return "Dirección";
+  if (role === "ADMIN") return "Administración";
   return "Empleado";
 }
 
@@ -54,8 +71,12 @@ function Navbar() {
     navigate("/login");
   }
 
+  const role = primaryRole(principal?.roles);
   const visibleItems = navItems.filter(
-    (item) => !item.permission || hasPermission(item.permission),
+    (item) => (
+      (!item.permission || hasPermission(item.permission))
+      && (!item.roles || item.roles.includes(role))
+    ),
   );
   const profile = principal?.profile || {};
   const displayName = [profile.first_name, profile.last_name].filter(Boolean).join(" ")
