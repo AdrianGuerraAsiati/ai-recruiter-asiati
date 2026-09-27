@@ -766,7 +766,7 @@ function Jobs() {
         <button className="btn btn-primary" onClick={toggleForm}>{showForm ? "Cerrar formulario" : "Nueva vacante"}<span aria-hidden="true">{showForm ? "×" : "＋"}</span></button>
       </header>
 
-      {error && <div className="alert alert-error" role="alert"><strong>No pudimos completar la acción.</strong><span>{error}</span></div>}
+      {error && <div className="alert alert-error" role="alert"><span>{error}</span></div>}
       {successMessage && <div className="alert alert-success" role="status" style={{ background: "var(--success-bg)", color: "var(--success)", borderColor: "var(--success)" }}>{successMessage}</div>}
 
       {showForm && (
