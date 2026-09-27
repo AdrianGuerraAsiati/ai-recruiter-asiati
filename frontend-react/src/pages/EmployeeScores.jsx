@@ -225,7 +225,10 @@ function EmployeeScores() {
                   <h2>{employeeName(selectedEmployee)}</h2>
                   <p>{selectedEmployee.job_title || "Sin cargo"} · {selectedEmployee.department || "Sin área"}</p>
                 </div>
-                <strong className={`direction-score-total ${(detail?.employee?.score_total ?? selectedEmployee.score_total) < 0 ? "score-negative" : "score-positive"}`}>
+                <strong
+                  key={`${selectedId}-${detail?.employee?.score_total ?? selectedEmployee.score_total ?? 0}`}
+                  className={`direction-score-total ${(detail?.employee?.score_total ?? selectedEmployee.score_total) < 0 ? "score-negative" : "score-positive"}`}
+                >
                   {(detail?.employee?.score_total ?? selectedEmployee.score_total) > 0 ? "+" : ""}
                   {detail?.employee?.score_total ?? selectedEmployee.score_total ?? 0}
                   <small> pts</small>
@@ -292,8 +295,12 @@ function EmployeeScores() {
                   </div>
                 ) : (
                   <div className="score-history-list">
-                    {detail.history.map((scoreEvent) => (
-                      <article key={scoreEvent.id} className={`score-history-row ${scoreEvent.status === "VOIDED" ? "is-voided" : ""}`}>
+                    {detail.history.map((scoreEvent, index) => (
+                      <article
+                        key={scoreEvent.id}
+                        className={`score-history-row ${scoreEvent.status === "VOIDED" ? "is-voided" : ""}`}
+                        style={{ "--score-delay": `${Math.min(index, 8) * 45}ms` }}
+                      >
                         <div className={`score-history-points ${scoreEvent.points < 0 ? "score-negative" : "score-positive"}`}>
                           {scoreEvent.points > 0 ? "+" : ""}{scoreEvent.points}
                         </div>
