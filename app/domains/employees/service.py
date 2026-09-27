@@ -119,6 +119,7 @@ def list_employees(
     *,
     q: str = "",
     status: str | None = None,
+    onboarding_status: str | None = None,
 ) -> list[UserProfile]:
     query = db.query(UserProfile)
     normalized_q = q.strip()
@@ -135,6 +136,8 @@ def list_employees(
         )
     if status:
         query = query.filter(UserProfile.status == status)
+    if onboarding_status:
+        query = query.filter(UserProfile.onboarding_status == onboarding_status)
     return query.order_by(UserProfile.first_name.asc(), UserProfile.last_name.asc()).all()
 
 
