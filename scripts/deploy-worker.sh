@@ -43,6 +43,9 @@ run_worker() {
     --restart unless-stopped \
     --network "$NETWORK_NAME" \
     --add-host=host.docker.internal:host-gateway \
+    --pids-limit 256 \
+    --log-opt max-size=10m \
+    --log-opt max-file=3 \
     -e "DATABASE_URL=$DATABASE_URL" \
     -e "AWS_REGION=$AWS_REGION" \
     -e "BEDROCK_AWS_PROFILE=$BEDROCK_PROFILE" \
