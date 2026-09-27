@@ -131,7 +131,11 @@ function Candidates() {
   async function assignCandidate(candidateId) {
     const jobId = selectedJob[candidateId];
     if (!jobId) {
-      alert("Selecciona una vacante antes de continuar. Esta acción necesita saber contra qué cargo debe evaluarse o asignarse el candidato.");
+      notify({
+        tone: "warning",
+        title: "Selecciona una vacante",
+        message: "La asignación necesita una vacante para crear la postulación del candidato.",
+      });
       return;
     }
 
