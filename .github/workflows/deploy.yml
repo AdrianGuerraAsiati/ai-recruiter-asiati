@@ -119,12 +119,14 @@ jobs:
         run: |
           set -euo pipefail
           RuntimeRoleArn="arn:aws:iam::$AWS_ACCOUNT_ID:role/AiRecruiterBedrockRuntimeRole"
+          CANDIDATE_IMPORT_PARAMETERS=(RuntimeRoleArn="$RuntimeRoleArn")
+          if [[ -n "$CANDIDATE_IMPORT_ALARM_TOPIC_ARN" ]]; then
+            CANDIDATE_IMPORT_PARAMETERS+=(AlarmTopicArn="$CANDIDATE_IMPORT_ALARM_TOPIC_ARN")
+          fi
           aws cloudformation deploy \
             --stack-name ai-recruiter-candidate-import \
             --template-file infra/candidate-import.yml \
-            --parameter-overrides \
-              RuntimeRoleArn="$RuntimeRoleArn" \
-              AlarmTopicArn="$CANDIDATE_IMPORT_ALARM_TOPIC_ARN" \
+            --parameter-overrides "${CANDIDATE_IMPORT_PARAMETERS[@]}" \
             --no-fail-on-empty-changeset
           STACK_JSON=$(aws cloudformation describe-stacks --stack-name ai-recruiter-candidate-import)
           IMPORT_STAGING_BUCKET=$(echo "$STACK_JSON" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey=="ImportStagingBucket") | .OutputValue')
