@@ -194,3 +194,68 @@ def test_local_validation_failure_uses_short_provider_fallback(monkeypatch):
         "sub": "stable-sub",
         "email": "person@example.com",
     }
+
+
+
+def test_local_decoder_rejects_wrong_token_use(monkeypatch):
+    monkeypatch.setenv("COGNITO_USER_POOL_ID", "us-east-2_TestPool")
+    monkeypatch.setenv("COGNITO_CLIENT_ID", "client-123")
+    monkeypatch.setattr(
+        cognito.jwt,
+        "get_unverified_header",
+        lambda token: {"kid": "kid-1"},
+    )
+    monkeypatch.setattr(
+        cognito,
+        "_load_jwks",
+        lambda pool_id, force_refresh=False: {"kid-1": {"kid": "kid-1"}},
+    )
+    monkeypatch.setattr(
+        cognito.jwt,
+        "decode",
+        lambda *args, **kwargs: {
+            "sub": "stable-sub",
+            "token_use": "id",
+            "client_id": "client-123",
+        },
+    )
+
+    with pytest.raises(cognito.CognitoAuthenticationError):
+        cognito._decode_access_token("token")
+
+
+def test_local_decoder_rejects_wrong_client_id(monkeypatch):
+    monkeypatch.setenv("COGNITO_USER_POOL_ID", "us-east-2_TestPool")
+    monkeypatch.setenv("COGNITO_CLIENT_ID", "expected-client")
+    monkeypatch.setattr(
+        cognito.jwt,
+        "get_unverified_header",
+        lambda token: {"kid": "kid-1"},
+    )
+    monkeypatch.setattr(
+        cognito,
+        "_load_jwks",
+        lambda pool_id, force_refresh=False: {"kid-1": {"kid": "kid-1"}},
+    )
+    monkeypatch.setattr(
+        cognito.jwt,
+        "decode",
+        lambda *args, **kwargs: {
+            "sub": "stable-sub",
+            "token_use": "access",
+            "client_id": "other-client",
+        },
+    )
+
+    with pytest.raises(cognito.CognitoAuthenticationError):
+        cognito._decode_access_token("token")
+
+
+def test_identity_cache_ttl_never_outlives_access_token(monkeypatch):
+    monkeypatch.setattr(
+        cognito.jwt,
+        "get_unverified_claims",
+        lambda token: {"exp": int(cognito.time.time()) + 15},
+    )
+
+    assert cognito._token_cache_ttl("token", 300) <= 15
