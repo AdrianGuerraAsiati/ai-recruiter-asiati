@@ -184,14 +184,14 @@ function CandidateDetail() {
       )}
 
       {!evaluationCompleted ? (
-        <div className="empty-state">
-          <span aria-hidden="true">{evaluation?.status === "FAILED" ? "!" : "↗"}</span>
-          <strong>{evaluation?.status === "FAILED" ? "La evaluación no pudo completarse" : "Perfil pendiente de evaluación"}</strong>
-          <p>{evaluation?.status === "FAILED"
-            ? "Intenta evaluar nuevamente este candidato."
-            : "Evalúa este candidato contra una vacante para ver su afinidad."}</p>
-          <Link to="/candidates" className="btn btn-primary">Evaluar candidato</Link>
-        </div>
+        <EmptyState
+          icon={evaluation?.status === "FAILED" ? "warning" : "ranking"}
+          title={evaluation?.status === "FAILED" ? "La evaluación no pudo completarse" : "Perfil pendiente de evaluación"}
+          description={evaluation?.status === "FAILED"
+            ? "Vuelve al directorio, selecciona la vacante y ejecuta la evaluación nuevamente."
+            : "Evalúa este candidato contra una vacante para ver su afinidad."}
+          action={<Link to="/candidates" className="btn btn-primary">Ir a evaluar candidato</Link>}
+        />
       ) : (
         <div className="evaluation-layout">
           <aside className="panel score-panel"><span className="eyebrow">Afinidad global</span><strong className="score score-large">{numericScore}%</strong><ProgressBar value={numericScore} label="Afinidad con la vacante" /><span className="badge badge-success">{recommendationLabel(evaluation.recommendation)}</span></aside>
