@@ -160,3 +160,15 @@ def test_production_deploy_scripts_require_database_url_explicitly():
         script = _read(script_path)
         assert 'DATABASE_URL="${DATABASE_URL:?DATABASE_URL is required}"' in script
         assert "postgres:postgres" not in script
+
+
+
+def test_host_side_database_tools_normalize_docker_host_alias():
+    backup = _read(BACKUP_SCRIPT)
+    restore = _read(ROOT / "scripts" / "restore-postgres.sh")
+
+    expected = '${DATABASE_URL/host.docker.internal/127.0.0.1}'
+    assert expected in backup
+    assert expected in restore
+    assert '--dbname="$BACKUP_DATABASE_URL"' in backup
+    assert '--dbname="$RESTORE_DATABASE_URL"' in restore
