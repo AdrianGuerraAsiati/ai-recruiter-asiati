@@ -180,7 +180,20 @@ def test_database_backup_supports_optional_encrypted_offhost_copy():
 
     assert 'BACKUP_S3_URI="${BACKUP_S3_URI:-}"' in backup
     assert 'BACKUP_AWS_PROFILE="${BACKUP_AWS_PROFILE:-}"' in backup
+    assert 'BACKUP_AWS_CONFIG_FILE="${BACKUP_AWS_CONFIG_FILE:-}"' in backup
     assert 'if [[ -n "$BACKUP_S3_URI" ]]' in backup
     assert 'aws "${AWS_ARGS[@]}" s3 cp "$OUTPUT"' in backup
     assert "--sse AES256" in backup
     assert "DATABASE_BACKUP_OFFHOST_OK" in backup
+
+
+
+def test_deploy_wires_optional_alarm_topic_and_offhost_backup_configuration():
+    workflow = _read(WORKFLOW)
+
+    assert "CANDIDATE_IMPORT_ALARM_TOPIC_ARN" in workflow
+    assert "DATABASE_BACKUP_S3_URI" in workflow
+    assert 'AlarmTopicArn="$CANDIDATE_IMPORT_ALARM_TOPIC_ARN"' in workflow
+    assert 'BACKUP_S3_URI="$DATABASE_BACKUP_S3_URI"' in workflow
+    assert "BACKUP_AWS_PROFILE=ai-recruiter-bedrock" in workflow
+    assert "BACKUP_AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config" in workflow
