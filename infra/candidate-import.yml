@@ -9,8 +9,19 @@ Parameters:
     Type: String
     Default: ""
     Description: Optional SNS topic ARN that receives candidate-import alarms.
+  EnableOperationalAlarms:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: Enable CloudWatch alarms after deployment IAM has been verified.
 
 Conditions:
+  CreateOperationalAlarms:
+    Fn::Equals:
+      - Ref: EnableOperationalAlarms
+      - "true"
   HasAlarmTopic:
     Fn::Not:
       - Fn::Equals:
@@ -108,6 +119,7 @@ Resources:
 
   ImportDlqVisibleMessagesAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: CreateOperationalAlarms
     Properties:
       AlarmDescription: Candidate import messages reached the dead-letter queue.
       Namespace: AWS/SQS
@@ -133,6 +145,7 @@ Resources:
 
   ImportQueueBacklogAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: CreateOperationalAlarms
     Properties:
       AlarmDescription: Candidate import queue backlog is above the operational threshold.
       Namespace: AWS/SQS
@@ -158,6 +171,7 @@ Resources:
 
   ImportQueueOldestMessageAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: CreateOperationalAlarms
     Properties:
       AlarmDescription: Candidate import queue has work older than fifteen minutes.
       Namespace: AWS/SQS
@@ -225,14 +239,17 @@ Outputs:
     Value:
       Ref: ImportDlq
   ImportDlqAlarmName:
+    Condition: CreateOperationalAlarms
     Description: CloudWatch alarm raised when the candidate import DLQ receives messages.
     Value:
       Ref: ImportDlqVisibleMessagesAlarm
   ImportQueueBacklogAlarmName:
+    Condition: CreateOperationalAlarms
     Description: CloudWatch alarm for candidate import queue backlog.
     Value:
       Ref: ImportQueueBacklogAlarm
   ImportQueueOldestMessageAlarmName:
+    Condition: CreateOperationalAlarms
     Description: CloudWatch alarm for candidate import queue age.
     Value:
       Ref: ImportQueueOldestMessageAlarm
