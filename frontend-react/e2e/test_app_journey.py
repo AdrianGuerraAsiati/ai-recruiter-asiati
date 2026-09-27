@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import pytest
-from playwright.sync_api import Page, Route, expect
+from playwright.sync_api import Page, Route, expect, sync_playwright
 
 
 BASE_URL = os.getenv("FRONTEND_E2E_BASE_URL", "http://127.0.0.1:4173")
@@ -172,10 +172,21 @@ def _assert_layout_fits_viewport(page: Page) -> None:
 
 
 @pytest.fixture
-def app_page(page: Page) -> Page:
+def browser_page() -> Page:
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        try:
+            yield page
+        finally:
+            browser.close()
+
+
+@pytest.fixture
+def app_page(browser_page: Page) -> Page:
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
-    page.route("**/api/**", _api_contract)
-    return page
+    browser_page.route("**/api/**", _api_contract)
+    return browser_page
 
 
 def _login(page: Page) -> None:
