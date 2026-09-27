@@ -7,6 +7,7 @@ BACKUP_DIR="${BACKUP_DIR:-/opt/ai-recruiter/backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-7}"
 BACKUP_S3_URI="${BACKUP_S3_URI:-}"
 BACKUP_AWS_PROFILE="${BACKUP_AWS_PROFILE:-}"
+BACKUP_AWS_CONFIG_FILE="${BACKUP_AWS_CONFIG_FILE:-}"
 
 command -v pg_dump >/dev/null 2>&1 || {
   echo "pg_dump is required" >&2
@@ -40,9 +41,14 @@ if [[ -n "$BACKUP_S3_URI" ]]; then
     AWS_ARGS+=(--profile "$BACKUP_AWS_PROFILE")
   fi
 
+  AWS_ENV=()
+  if [[ -n "$BACKUP_AWS_CONFIG_FILE" ]]; then
+    AWS_ENV+=(AWS_CONFIG_FILE="$BACKUP_AWS_CONFIG_FILE")
+  fi
+
   DESTINATION="${BACKUP_S3_URI%/}/$(basename "$OUTPUT")"
-  aws "${AWS_ARGS[@]}" s3 cp "$OUTPUT" "$DESTINATION" --only-show-errors --sse AES256
-  aws "${AWS_ARGS[@]}" s3 cp "$OUTPUT.sha256" "$DESTINATION.sha256" --only-show-errors --sse AES256
+  env "${AWS_ENV[@]}" aws "${AWS_ARGS[@]}" s3 cp "$OUTPUT" "$DESTINATION" --only-show-errors --sse AES256
+  env "${AWS_ENV[@]}" aws "${AWS_ARGS[@]}" s3 cp "$OUTPUT.sha256" "$DESTINATION.sha256" --only-show-errors --sse AES256
   echo "DATABASE_BACKUP_OFFHOST_OK=$DESTINATION"
 fi
 
