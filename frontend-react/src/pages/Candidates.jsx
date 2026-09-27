@@ -5,12 +5,17 @@ import { useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
+import { useNotice } from "../context/NoticeContext";
+import PageHeader from "../components/ui/PageHeader";
+import Icon from "../components/ui/Icon";
+import { EmptyState, FeedbackMessage, ProgressBar } from "../components/ui/StatePanel";
 import CandidateImportModal from "../features/candidate-import/CandidateImportModal.jsx";
 
 const PAGE_SIZE = 20;
 
 function Candidates() {
   const { hasPermission } = useSession();
+  const { notify } = useNotice();
   const canRestrictCandidates = hasPermission("candidates.restrict");
   const [candidates, setCandidates] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -89,7 +94,11 @@ function Candidates() {
     const jobId = selectedJob[candidateId];
 
     if (!jobId) {
-      alert("Selecciona una vacante antes de continuar. Esta acción necesita saber contra qué cargo debe evaluarse o asignarse el candidato.");
+      notify({
+        tone: "warning",
+        title: "Selecciona una vacante",
+        message: "La evaluación necesita una vacante para comparar el perfil contra sus requisitos.",
+      });
       return;
     }
 
@@ -105,13 +114,15 @@ function Candidates() {
         evaluation: response.data,
       });
     } catch (error) {
-      alert(
-        getApiErrorMessage(error, {
+      notify({
+        tone: "error",
+        title: "La evaluación no se completó",
+        message: getApiErrorMessage(error, {
           action: "evaluar el candidato",
           resource: "evaluación",
           fallback: "La evaluación no se guardó. El candidato conserva su resultado anterior; vuelve a evaluarlo cuando el servicio esté disponible.",
         }),
-      );
+      });
     } finally {
       setLoading(false);
     }
@@ -129,16 +140,22 @@ function Candidates() {
       await api.post(`/jobs/${jobId}/candidates`, {
         candidate_ids: [candidateId],
       });
-      alert("Candidato asignado a la vacante.");
+      notify({
+        tone: "success",
+        title: "Candidato asignado",
+        message: "La postulación quedó vinculada a la vacante seleccionada.",
+      });
       await loadData(page);
     } catch (error) {
-      alert(
-        getApiErrorMessage(error, {
+      notify({
+        tone: "error",
+        title: "No se creó la postulación",
+        message: getApiErrorMessage(error, {
           action: "asignar el candidato a la vacante",
           resource: "postulación",
           fallback: "El candidato no quedó asignado a la vacante. Actualiza el listado y confirma que la vacante siga activa.",
         }),
-      );
+      });
     } finally {
       setLoading(false);
     }
@@ -147,7 +164,11 @@ function Candidates() {
   async function viewCV(candidate) {
     const viewer = window.open("about:blank", "_blank");
     if (!viewer) {
-      alert("El navegador bloqueó la nueva pestaña. Permite ventanas emergentes para ver el CV.");
+      notify({
+        tone: "warning",
+        title: "El navegador bloqueó el CV",
+        message: "Permite ventanas emergentes para este sitio y vuelve a seleccionar «Ver CV».",
+      });
       return;
     }
     viewer.opener = null;
@@ -161,13 +182,15 @@ function Candidates() {
       viewer.location.replace(viewUrl);
     } catch (error) {
       viewer.close();
-      alert(
-        getApiErrorMessage(error, {
+      notify({
+        tone: "error",
+        title: "El CV no se abrió",
+        message: getApiErrorMessage(error, {
           action: "abrir el CV",
           resource: "archivo del candidato",
           fallback: "El CV no devolvió un enlace de visualización válido. Vuelve a abrirlo desde el perfil del candidato.",
         }),
-      );
+      });
     }
   }
 
@@ -197,13 +220,15 @@ function Candidates() {
       setRestrictionReason("");
       await loadData(page);
     } catch (error) {
-      window.alert(
-        getApiErrorMessage(error, {
+      notify({
+        tone: "error",
+        title: "La restricción no cambió",
+        message: getApiErrorMessage(error, {
           action: "actualizar el veto del candidato",
           resource: "restricciones",
           fallback: "La restricción del candidato no cambió. Recarga su perfil antes de repetir la acción.",
         }),
-      );
+      });
     } finally {
       setRestrictionSaving(false);
     }
@@ -267,39 +292,29 @@ function Candidates() {
 
   return (
     <div className="page candidate-page">
-      <div
-        className="page-header"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: "20px",
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <h1>Candidatos</h1>
-          <p>Gestión de CVs con Inteligencia Artificial</p>
-        </div>
-
-        <button
-          type="button"
-          className="btn btn-primary candidate-add-button"
-          onClick={openCreateCandidateModal}
-        >
-          Agregar candidato
-          <span aria-hidden="true">＋</span>
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Base de talento"
+        title="Candidatos"
+        description="Centraliza CVs, asigna perfiles a vacantes y ejecuta evaluaciones asistidas por IA."
+        actions={(
+          <button
+            type="button"
+            className="btn btn-primary candidate-add-button"
+            onClick={openCreateCandidateModal}
+          >
+            <Icon name="plus" size={17} />
+            Agregar candidato
+          </button>
+        )}
+      />
 
       {loadError && (
-        <div className="empty-state" role="alert">
-          <strong>No se pudo cargar la información</strong>
+        <FeedbackMessage title="La base de candidatos no está actualizada">
           <p>{loadError}</p>
           <button type="button" className="btn btn-secondary" onClick={() => void loadData(page)}>
-            Reintentar
+            Reintentar carga
           </button>
-        </div>
+        </FeedbackMessage>
       )}
 
       <div className="section-heading candidate-section-heading">
@@ -315,27 +330,19 @@ function Candidates() {
       </div>
 
       {candidates.length === 0 ? (
-        <div className="card">
-          <p className="muted">No hay candidatos registrados.</p>
-        </div>
+        <EmptyState
+          icon="users"
+          title="Aún no hay candidatos registrados"
+          description="Agrega CVs manualmente o mediante una ingesta para empezar a construir la base de talento."
+          action={<button type="button" className="btn btn-primary" onClick={openCreateCandidateModal}>Agregar candidatos</button>}
+        />
       ) : (
         candidates.map((candidate) => (
-          <div className="card candidate-card" key={candidate.candidate_id}>
-            <div
-              className="candidate-header"
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                gap: "20px",
-                flexWrap: "wrap",
-              }}
-            >
+          <article className="card candidate-card candidate-card--directory" key={candidate.candidate_id}>
+            <div className="candidate-header candidate-directory-header">
               <div>
                 <h2>{candidate.name}</h2>
-                <p className="muted" style={{ marginTop: "6px", fontSize: "14px" }}>
-                  Candidato registrado
-                </p>
+                <p className="muted candidate-directory-subtitle">Candidato registrado</p>
                 {candidate.is_banned && (
                   <div className="candidate-ban-alert" role="alert">
                     <strong>⚠ Candidato vetado</strong>
@@ -344,15 +351,14 @@ function Candidates() {
                 )}
               </div>
 
-              <div
-                className="candidate-actions"
-                style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}
-              >
+              <div className="candidate-actions ui-actions">
                 <button
                   className="btn btn-secondary"
+                  type="button"
                   onClick={() => viewCV(candidate)}
                 >
-                  📄 Ver CV
+                  <Icon name="applications" size={16} />
+                  Ver CV
                 </button>
                 {canRestrictCandidates && (
                   <button
@@ -365,31 +371,14 @@ function Candidates() {
               </div>
             </div>
 
-            <div
-              className="candidate-file"
-              style={{
-                marginTop: "20px",
-                padding: "14px 16px",
-                background: "#f8fafc",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-sm)",
-              }}
-            >
-              <span
-                className="candidate-file-label"
-                style={{
-                  fontSize: "13px",
-                  color: "var(--text-muted)",
-                  display: "block",
-                  marginBottom: "4px",
-                }}
-              >
+            <div className="candidate-file candidate-directory-file">
+              <span className="candidate-file-label">
                 Archivo
               </span>
               <strong>{getDisplayFilename(candidate)}</strong>
             </div>
 
-            <div className="controls" style={{ marginTop: "20px" }}>
+            <div className="controls candidate-directory-controls">
               <select
                 className="select"
                 value={selectedJob[candidate.candidate_id] || ""}
@@ -425,24 +414,14 @@ function Candidates() {
                 Evaluar candidato
               </button>
             </div>
-          </div>
+          </article>
         ))
       )}
 
       {total > 0 && (
-        <div
-          className="candidate-pagination"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "12px",
-            flexWrap: "wrap",
-            marginTop: "20px",
-          }}
-        >
+        <div className="candidate-pagination">
           <span className="muted">Mostrando {visibleStart}–{visibleEnd}</span>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div className="candidate-pagination-controls">
             <button
               type="button"
               className="btn btn-secondary"
@@ -585,17 +564,10 @@ function Candidates() {
                 <div className="score">
                   {selectedEvaluation.evaluation.match_score}%
                 </div>
-                <div
-                  className="score-bar"
-                  style={{ maxWidth: "400px", margin: "0 auto" }}
-                >
-                  <div
-                    className="score-fill"
-                    style={{
-                      width: `${selectedEvaluation.evaluation.match_score}%`,
-                    }}
-                  />
-                </div>
+                <ProgressBar
+                  value={selectedEvaluation.evaluation.match_score}
+                  label="Afinidad con la vacante"
+                />
                 <div
                   className="badge"
                   style={{
@@ -645,14 +617,7 @@ function Candidates() {
               </div>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                marginTop: "25px",
-                gap: "10px",
-              }}
-            >
+            <div className="form-actions">
               <button className="btn btn-close" onClick={closeEvaluationModal}>
                 Cerrar
               </button>
