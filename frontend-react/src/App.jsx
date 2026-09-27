@@ -14,6 +14,9 @@ import Integrations from "./pages/Integrations";
 import Employees from "./pages/Employees";
 import Training from "./pages/Training";
 import EmployeeScores from "./pages/EmployeeScores";
+import Applications from "./pages/Applications";
+import Progress from "./pages/Progress";
+import Profile from "./pages/Profile";
 
 
 function ProtectedRoute({ children, permission }) {
@@ -51,9 +54,12 @@ function AppRoutes() {
 
       <Route path="/dashboard" element={<ProtectedPage><Dashboard /></ProtectedPage>} />
       <Route path="/training" element={<ProtectedPage permission="training.read"><Training /></ProtectedPage>} />
+      <Route path="/progress" element={<ProtectedPage permission="training.progress.read_own"><Progress /></ProtectedPage>} />
+      <Route path="/profile" element={<ProtectedPage permission="profile.read_own"><Profile /></ProtectedPage>} />
       <Route path="/employees" element={<ProtectedPage permission="employees.read"><Employees /></ProtectedPage>} />
       <Route path="/direction/scores" element={<ProtectedPage permission="employee_scores.read"><EmployeeScores /></ProtectedPage>} />
       <Route path="/jobs" element={<ProtectedPage permission="jobs.read"><Jobs /></ProtectedPage>} />
+      <Route path="/applications" element={<ProtectedPage permission="candidates.read"><Applications /></ProtectedPage>} />
       <Route path="/candidates" element={<ProtectedPage permission="candidates.read"><Candidates /></ProtectedPage>} />
       <Route path="/ranking" element={<ProtectedPage permission="ranking.read"><Ranking /></ProtectedPage>} />
       <Route path="/integrations" element={<ProtectedPage permission="integrations.manage"><Integrations /></ProtectedPage>} />
