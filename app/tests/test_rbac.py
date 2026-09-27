@@ -77,6 +77,7 @@ def test_admin_can_manage_employees_but_cannot_read_private_scores(db):
     assert "employees.create" in principal["permissions"]
     assert "training.manage" in principal["permissions"]
     assert "candidates.restrict" in principal["permissions"]
+    assert "integrations.manage" not in principal["permissions"]
     assert "employee_scores.read" not in principal["permissions"]
     assert "employee_scores.create" not in principal["permissions"]
 
@@ -97,6 +98,7 @@ def test_super_admin_receives_private_director_permissions(db):
 
     assert SUPER_ADMIN in principal["roles"]
     assert "candidates.restrict" in principal["permissions"]
+    assert "integrations.manage" in principal["permissions"]
     assert "employee_scores.read" in principal["permissions"]
     assert "employee_scores.create" in principal["permissions"]
     assert "employee_scores.correct" in principal["permissions"]
@@ -186,3 +188,30 @@ def test_admin_bootstrap_never_downgrades_super_admin(db, monkeypatch):
     )
     assert principal["roles"] == [SUPER_ADMIN]
 
+
+
+
+def test_rbac_catalog_removes_stale_builtin_grants(db):
+    ensure_rbac_catalog(db)
+    db.commit()
+
+    db.add(
+        RolePermission(
+            role_code=ADMIN,
+            permission_code="employee_scores.read",
+        )
+    )
+    db.commit()
+
+    ensure_rbac_catalog(db)
+    db.commit()
+
+    stale = (
+        db.query(RolePermission)
+        .filter(
+            RolePermission.role_code == ADMIN,
+            RolePermission.permission_code == "employee_scores.read",
+        )
+        .one_or_none()
+    )
+    assert stale is None
