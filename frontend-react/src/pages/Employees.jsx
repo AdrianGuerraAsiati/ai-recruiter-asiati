@@ -175,11 +175,11 @@ function Employees() {
         eyebrow="Gestión interna"
         title="Empleados"
         description="Administra accesos, perfiles, roles y seguimiento de onboarding del equipo ASIATI."
-        actions={(
+        actions={!formOpen ? (
           <button className="btn btn-primary" type="button" onClick={() => setFormOpen(true)}>
             Crear empleado
           </button>
-        )}
+        ) : null}
         className="split-header"
       />
 
