@@ -26,6 +26,7 @@ from app.domains.ranking.exceptions import RankingAlreadyRunning, RankingJobNotF
 from app.infrastructure.imports import documents, ingestion, queue, storage
 from app.infrastructure.imports.documents import DocumentImportError
 from app.infrastructure.imports.queue import ReceivedImportMessage
+from app.observability import configure_logging, correlation_scope
 
 logger = logging.getLogger(__name__)
 
@@ -892,30 +893,54 @@ def process_batch(batch_id: str, *, receipt_handle: str | None = None) -> None:
 
 def handle_message(message: ReceivedImportMessage) -> None:
     """Handle one SQS delivery with safe ACK/DLQ semantics."""
-    try:
-        process_batch(
-            message.batch_id,
-            receipt_handle=message.receipt_handle,
+    with correlation_scope(f"candidate-import:{message.batch_id}"):
+        logger.info(
+            "Candidate import message received",
+            extra={
+                "event": "candidate_import_received",
+                "batch_id": message.batch_id,
+                "receive_count": message.receive_count,
+            },
         )
-    except BatchMissing:
-        queue.delete_message(message.receipt_handle)
-        return
-    except Exception:
-        logger.exception(
-            "Candidate import worker failed for batch %s on receive %s",
-            message.batch_id,
-            message.receive_count,
-        )
-        if message.receive_count >= MAX_RECEIVE_COUNT:
-            _mark_retry_exhausted(message.batch_id)
-        # Do not ACK failures: SQS visibility/redrive policy owns the retry/DLQ.
-        return
+        try:
+            process_batch(
+                message.batch_id,
+                receipt_handle=message.receipt_handle,
+            )
+        except BatchMissing:
+            queue.delete_message(message.receipt_handle)
+            return
+        except Exception:
+            logger.exception(
+                "Candidate import worker failed for batch %s on receive %s",
+                message.batch_id,
+                message.receive_count,
+                extra={
+                    "event": "candidate_import_failed",
+                    "batch_id": message.batch_id,
+                    "receive_count": message.receive_count,
+                },
+            )
+            if message.receive_count >= MAX_RECEIVE_COUNT:
+                _mark_retry_exhausted(message.batch_id)
+            # Do not ACK failures: SQS visibility/redrive policy owns the retry/DLQ.
+            return
 
-    queue.delete_message(message.receipt_handle)
+        queue.delete_message(message.receipt_handle)
+        logger.info(
+            "Candidate import message completed",
+            extra={
+                "event": "candidate_import_completed",
+                "batch_id": message.batch_id,
+                "receive_count": message.receive_count,
+            },
+        )
 
 
 def run_worker_forever() -> None:
     """Long-poll SQS forever, repairing undispatched durable batches each cycle."""
+    configure_logging()
+    logger.info("Candidate import worker started", extra={"event": "worker_started"})
     while True:
         try:
             with SessionLocal() as db:
