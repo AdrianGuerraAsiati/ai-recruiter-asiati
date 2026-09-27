@@ -23,8 +23,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -55,7 +55,7 @@ jobs:
           if ($Process.ExitCode -ne 0) {
             throw "Packaged Resume Agent self-test failed with exit code $($Process.ExitCode)"
           }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ASIATI-Resume-Agent-Windows
           path: dist/ASIATI Resume Agent/**
