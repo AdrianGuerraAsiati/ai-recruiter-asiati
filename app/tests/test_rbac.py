@@ -238,3 +238,22 @@ def test_rbac_catalog_removes_stale_builtin_grants(db):
         .all()
     )
     assert stale == []
+
+
+
+def test_existing_principal_resolution_does_not_commit_when_nothing_changes(db, monkeypatch):
+    resolve_principal(
+        db,
+        {"sub": "stable-user", "email": "stable@asiati.com.co"},
+    )
+
+    commits = []
+    monkeypatch.setattr(db, "commit", lambda: commits.append(True))
+
+    principal = resolve_principal(
+        db,
+        {"sub": "stable-user", "email": "stable@asiati.com.co"},
+    )
+
+    assert principal["roles"] == [EMPLOYEE]
+    assert commits == []
