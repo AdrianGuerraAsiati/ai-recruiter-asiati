@@ -17,18 +17,26 @@ from .browser import (
     BrowserFetchStageError,
     BrowserOutcome,
     BrowserResult,
-    DOCX_CONTENT_TYPE,
-    PDF_CONTENT_TYPE,
     _resolve_browser_executable,
     _safe_diagnostic_text,
     _safe_diagnostic_url,
+)
+from .candidate_search import (
+    INDEED_CANDIDATES_HOME,
+    candidate_search_queries,
+    candidate_search_url,
+    normalize_lookup_text,
+)
+from .config import AgentConfig
+from .documents import (
+    DOCX_CONTENT_TYPE,
+    PDF_CONTENT_TYPE,
     normalize_resume_filename,
     validate_resume_document,
 )
-from .config import AgentConfig
 
 
-_INDEED_CANDIDATES_HOME = "https://employers.indeed.com/candidates"
+_INDEED_CANDIDATES_HOME = INDEED_CANDIDATES_HOME
 _INDEED_RESUME_DOWNLOAD_PATH = "/api/catws/resume/v2/download"
 _CHALLENGE_MARKERS = (
     "sign in",
@@ -59,12 +67,7 @@ def _runtime_value(result):
     return None
 
 
-def _normalize_lookup_text(value: object) -> str:
-    text = unicodedata.normalize("NFKD", str(value or ""))
-    text = "".join(ch for ch in text if not unicodedata.combining(ch))
-    text = text.casefold()
-    text = re.sub(r"[^a-z0-9]+", " ", text)
-    return " ".join(text.split())
+_normalize_lookup_text = normalize_lookup_text
 
 
 def _candidate_recency_key(row: dict) -> tuple[int, float, int]:
@@ -105,32 +108,8 @@ def _candidate_recency_key(row: dict) -> tuple[int, float, int]:
     return (1, 0.0, -int(row.get("index") or 0))
 
 
-def _candidate_search_queries(candidate_name: str) -> list[str]:
-    original = " ".join(str(candidate_name or "").split()).strip()
-    if not original:
-        return []
-    normalized = _normalize_lookup_text(original)
-    queries = [original]
-    if normalized and normalized.casefold() != original.casefold():
-        queries.append(normalized)
-    tokens = normalized.split()
-    if len(tokens) >= 3:
-        queries.append(f"{tokens[0]} {tokens[-1]}")
-    unique: list[str] = []
-    seen: set[str] = set()
-    for query in queries:
-        key = query.casefold()
-        if key and key not in seen:
-            seen.add(key)
-            unique.append(query)
-    return unique
-
-
-def _candidate_search_url(query: str) -> str:
-    return (
-        f"{_INDEED_CANDIDATES_HOME}"
-        f"?statusName=All&tab=manage&q={quote_plus(str(query or '').strip())}"
-    )
+_candidate_search_queries = candidate_search_queries
+_candidate_search_url = candidate_search_url
 
 
 def _safe_indeed_url(raw_url: str | None) -> str:
