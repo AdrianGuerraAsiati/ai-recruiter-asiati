@@ -9,6 +9,8 @@ Parameters:
 Resources:
   TrainingContentBucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BucketName:
         Fn::Sub: "ai-recruiter-training-${AWS::AccountId}-${AWS::Region}"
@@ -21,6 +23,8 @@ Resources:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
       CorsConfiguration:
         CorsRules:
           - AllowedMethods:
