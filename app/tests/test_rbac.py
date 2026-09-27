@@ -65,6 +65,9 @@ def test_admin_can_manage_employees_but_cannot_read_private_scores(db):
         {"sub": "admin-1", "email": "admin@asiati.com.co"},
     )
     profile = db.query(UserProfile).filter_by(cognito_sub="admin-1").one()
+    db.query(UserRole).filter(UserRole.user_id == profile.id).delete(
+        synchronize_session=False
+    )
     assign_role(db, profile, ADMIN)
     db.commit()
 
