@@ -44,6 +44,7 @@ fi
 
 rollback_frontend() {
   local status=$?
+  trap - EXIT
   if [[ "$status" -ne 0 && -n "$OLD_IMAGE" ]]; then
     echo "Frontend deployment failed; restoring $OLD_IMAGE" >&2
     docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
