@@ -4,6 +4,7 @@ import Login from "./auth/Login";
 import Layout from "./components/Layout";
 import { ThemeProvider } from "./context/ThemeContext";
 import { SessionProvider, useSession } from "./context/SessionContext";
+import { NoticeProvider } from "./context/NoticeContext";
 
 import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
@@ -80,7 +81,9 @@ function App() {
     <ThemeProvider>
       <BrowserRouter>
         <SessionProvider>
-          <AppRoutes />
+          <NoticeProvider>
+            <AppRoutes />
+          </NoticeProvider>
         </SessionProvider>
       </BrowserRouter>
     </ThemeProvider>
