@@ -28,7 +28,10 @@ BACKUP_DATABASE_URL="${DATABASE_URL/host.docker.internal/127.0.0.1}"
 pg_dump   --dbname="$BACKUP_DATABASE_URL"   --format=custom   --no-owner   --no-privileges   --file="$OUTPUT"
 
 test -s "$OUTPUT"
-sha256sum "$OUTPUT" > "$OUTPUT.sha256"
+(
+  cd "$BACKUP_DIR"
+  sha256sum "$(basename "$OUTPUT")" > "$(basename "$OUTPUT").sha256"
+)
 
 if [[ -n "$BACKUP_S3_URI" ]]; then
   command -v aws >/dev/null 2>&1 || {
