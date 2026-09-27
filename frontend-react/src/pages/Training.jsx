@@ -868,14 +868,16 @@ function Training() {
             >
               {creatingPreset ? "Preparando…" : "Crear ruta ASIATI"}
             </button>
-            <button
-              className="btn btn-primary"
-              type="button"
-              onClick={() => setCreatingCourse(true)}
-            >
-              <Icon name="plus" size={17} />
-              Crear curso
-            </button>
+            {!creatingCourse && (
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={() => setCreatingCourse(true)}
+              >
+                <Icon name="plus" size={17} />
+                Crear curso
+              </button>
+            )}
           </div>
         ) : null}
         className="split-header"
