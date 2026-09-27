@@ -1,14 +1,13 @@
-"""Health check endpoint for FastAPI.
-
-Returns 200 with {"status":"ok","db":true} when healthy.
-Returns 503 with {"status":"unhealthy","db":false} when DB fails.
-"""
+"""Liveness and readiness endpoints for FastAPI."""
 
 import logging
 import os
 
 from fastapi import APIRouter
-from sqlalchemy import create_engine, text
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+
+from app.db import get_engine
 
 logger = logging.getLogger(__name__)
 
@@ -16,46 +15,35 @@ router = APIRouter()
 
 
 def _check_db() -> bool:
-    """Verify DB connection with 500ms timeout.
-
-    Returns True if healthy, False otherwise.
-    Non-blocking and exception-safe.
-    """
-    db_url = os.getenv("DATABASE_URL", "")
-    if not db_url:
-        return True
+    """Verify that the configured database accepts a trivial query."""
+    if not os.getenv("DATABASE_URL", "").strip():
+        logger.error("Readiness failed: DATABASE_URL is not configured.")
+        return False
 
     try:
-        # Create a minimal engine for health check only — avoids
-        # issues with pool kwargs that SQLite doesn't support.
-        engine = create_engine(
-            db_url,
-            pool_pre_ping=True,
-        )
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        engine.dispose()
+        with get_engine().connect() as connection:
+            connection.execute(text("SELECT 1"))
         return True
     except Exception as exc:
-        logger.warning("DB health check failed: %s", type(exc).__name__)
+        logger.warning("DB readiness check failed: %s", type(exc).__name__)
         return False
 
 
+@router.get("/live")
+@router.get("/api/live")
+def liveness_check():
+    """Process liveness only; does not depend on external services."""
+    return {"status": "ok"}
+
+
+@router.get("/ready")
+@router.get("/api/ready")
 @router.get("/health")
 @router.get("/api/health")
-def health_check():
-    """Health check endpoint.
-
-    Returns:
-        200: {"status": "ok", "db": true} — app and DB healthy
-        503: {"status": "unhealthy", "db": false} — DB connection failed
-    """
-    db_healthy = _check_db()
-
-    if db_healthy:
+def readiness_check():
+    """Readiness check used before routing production traffic."""
+    if _check_db():
         return {"status": "ok", "db": True}
-
-    from fastapi.responses import JSONResponse
 
     return JSONResponse(
         status_code=503,
