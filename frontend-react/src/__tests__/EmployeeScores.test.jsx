@@ -120,6 +120,27 @@ describe("Direction employee scoring", () => {
     });
   });
 
+  it("anuls a score movement through an auditable dialog", async () => {
+    api.post.mockResolvedValueOnce({ data: {} });
+    renderPage();
+
+    await screen.findByText("Completó el proyecto.");
+    fireEvent.click(screen.getAllByRole("button", { name: "Anular" })[0]);
+
+    expect(await screen.findByRole("heading", { name: "Anular movimiento" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Motivo de la anulación"), {
+      target: { value: "Movimiento duplicado." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Anular movimiento" }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        "/direction/employee-scores/events/event-1/void",
+        { reason: "Movimiento duplicado." },
+      );
+    });
+  });
+
   it("submits negative points without applying an automatic rule", async () => {
     api.post.mockResolvedValueOnce({ data: {} });
     renderPage();
