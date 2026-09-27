@@ -825,3 +825,45 @@ body.nav-mobile-open {
     text-align: center;
   }
 }
+
+
+/* Reconcile legacy progress containers with the shared ProgressBar primitive. */
+.employee-progress-preview > .ui-progress,
+.onboarding-summary-progress > .ui-progress {
+  height: auto;
+  margin-top: 10px;
+  margin-bottom: 12px;
+  overflow: visible;
+  border-radius: 0;
+  background: transparent;
+}
+
+.employee-progress-preview > .ui-progress .ui-progress-track,
+.onboarding-summary-progress > .ui-progress .ui-progress-track {
+  height: 8px;
+}
+
+.employees-page .employee-filters {
+  grid-template-columns: minmax(220px, 1.4fr) minmax(150px, .65fr) minmax(170px, .75fr);
+  width: min(760px, 100%);
+}
+
+@media (max-width: 900px) {
+  .employees-page .employee-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .employees-page .employee-filters > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 620px) {
+  .employees-page .employee-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .employees-page .employee-filters > :first-child {
+    grid-column: auto;
+  }
+}
