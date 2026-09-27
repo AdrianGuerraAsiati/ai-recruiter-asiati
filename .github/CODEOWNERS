@@ -1,0 +1,9 @@
+# Default ownership for the internal AI Recruiter platform.
+* @AdrianGuerraAsiati
+
+# Production and security-sensitive areas.
+.github/ @AdrianGuerraAsiati
+infra/ @AdrianGuerraAsiati
+scripts/ @AdrianGuerraAsiati
+app/access_control.py @AdrianGuerraAsiati
+app/infrastructure/ @AdrianGuerraAsiati
