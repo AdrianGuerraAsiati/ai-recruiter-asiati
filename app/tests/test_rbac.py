@@ -76,6 +76,11 @@ def test_admin_can_manage_employees_but_cannot_read_private_scores(db):
     assert ADMIN in principal["roles"]
     assert "employees.create" in principal["permissions"]
     assert "training.manage" in principal["permissions"]
+    assert "training.assign" in principal["permissions"]
+    assert "training.results.read" in principal["permissions"]
+    assert "training.consume" not in principal["permissions"]
+    assert "training.quiz.take" not in principal["permissions"]
+    assert "training.progress.read_own" not in principal["permissions"]
     assert "candidates.restrict" in principal["permissions"]
     assert "integrations.manage" not in principal["permissions"]
     assert "employee_scores.read" not in principal["permissions"]
@@ -195,12 +200,18 @@ def test_rbac_catalog_removes_stale_builtin_grants(db):
     ensure_rbac_catalog(db)
     db.commit()
 
-    db.add(
-        RolePermission(
-            role_code=ADMIN,
-            permission_code="employee_scores.read",
+    for permission_code in (
+        "employee_scores.read",
+        "training.consume",
+        "training.quiz.take",
+        "training.progress.read_own",
+    ):
+        db.add(
+            RolePermission(
+                role_code=ADMIN,
+                permission_code=permission_code,
+            )
         )
-    )
     db.commit()
 
     ensure_rbac_catalog(db)
@@ -210,8 +221,15 @@ def test_rbac_catalog_removes_stale_builtin_grants(db):
         db.query(RolePermission)
         .filter(
             RolePermission.role_code == ADMIN,
-            RolePermission.permission_code == "employee_scores.read",
+            RolePermission.permission_code.in_(
+                (
+                    "employee_scores.read",
+                    "training.consume",
+                    "training.quiz.take",
+                    "training.progress.read_own",
+                )
+            ),
         )
-        .one_or_none()
+        .all()
     )
-    assert stale is None
+    assert stale == []
