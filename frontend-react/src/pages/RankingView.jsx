@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
+import PageHeader from "../components/ui/PageHeader";
 import "./Ranking.css";
 
 function Ranking() {
@@ -734,13 +735,13 @@ async function recalculateRanking() {
     <div className="page ranking-page">
 
       {/* 1. HEADER */}
-      <header className="ranking-header">
-        <div className="ranking-header-text">
-          <span className="eyebrow">Decisiones asistidas por IA</span>
-          <h1>Ranking de candidatos</h1>
-          <p>Compara, evalúa y prioriza candidatos para cada vacante.</p>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="Decisiones asistidas por IA"
+        title="Ranking de candidatos"
+        description="Compara, evalúa y prioriza candidatos para cada vacante con trazabilidad de la evaluación."
+        className="ranking-header"
+        copyClassName="ranking-header-text"
+      />
 
       {/* 2. JOB PANEL + ACTIONS */}
       <div className="ranking-job-panel">
