@@ -13,106 +13,22 @@ import {
   LoadingState,
   ProgressBar,
 } from "../components/ui/StatePanel";
-
-
-function courseProgress(course) {
-  return Number.isFinite(course?.progress_percent) ? course.progress_percent : 0;
-}
-
-
-function isDirectVideo(url) {
-  return /\.(mp4|webm|ogg)(\?|#|$)/i.test(String(url || ""));
-}
-
-
-function googleDrivePreviewUrl(url) {
-  const match = String(url || "").match(
-    /^https:\/\/drive\.google\.com\/file\/d\/([^/]+)\//i,
-  );
-  return match
-    ? `https://drive.google.com/file/d/${match[1]}/preview`
-    : "";
-}
-
-
-function lessonTypeLabel(type) {
-  return {
-    VIDEO: "Video",
-    ARTICLE: "Lectura",
-    RESOURCE: "Recurso",
-    CHECKLIST: "Checklist",
-  }[String(type || "VIDEO").toUpperCase()] || "Contenido";
-}
-
-
-function lessonTypeIcon(type) {
-  return {
-    VIDEO: "▶",
-    ARTICLE: "▤",
-    RESOURCE: "↗",
-    CHECKLIST: "✓",
-  }[String(type || "VIDEO").toUpperCase()] || "•";
-}
-
-
-function isTeamModule(module) {
-  return String(module?.title || "").includes("Conoce al equipo");
-}
-
-
-function isPortraitOnboardingModule(module) {
-  return /^Módulo (?:[1-4]|6|7) ·/.test(String(module?.title || ""));
-}
-
-
-function teamInitials(name) {
-  return String(name || "")
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join("");
-}
-
-
-function recommendedSession(lessons, nextLessonId) {
-  const requiredPending = lessons.filter(
-    (lesson) => !lesson.is_optional && !lesson.completed,
-  );
-  if (requiredPending.length === 0) {
-    return { items: [], minutes: 0, hasUnknownDuration: false };
-  }
-
-  const startIndex = Math.max(
-    0,
-    requiredPending.findIndex((lesson) => lesson.id === nextLessonId),
-  );
-  const queue = requiredPending.slice(startIndex);
-  const items = [];
-  let minutes = 0;
-  let hasUnknownDuration = false;
-
-  for (const lesson of queue) {
-    if (items.length >= 3) break;
-
-    const lessonMinutes = Number(lesson.estimated_minutes);
-    const hasKnownMinutes = Number.isFinite(lessonMinutes) && lessonMinutes > 0;
-
-    if (items.length > 0 && hasKnownMinutes && minutes + lessonMinutes > 15) {
-      break;
-    }
-
-    items.push(lesson);
-    if (hasKnownMinutes) {
-      minutes += lessonMinutes;
-    } else {
-      hasUnknownDuration = true;
-      break;
-    }
-  }
-
-  return { items, minutes, hasUnknownDuration };
-}
+import {
+  TrainingCourseOverview,
+  TrainingCourseSidebar,
+  TrainingQualityPanel,
+} from "../features/training/TrainingAdminPanels";
+import {
+  courseProgress,
+  googleDrivePreviewUrl,
+  isDirectVideo,
+  isPortraitOnboardingModule,
+  isTeamModule,
+  lessonTypeIcon,
+  lessonTypeLabel,
+  recommendedSession,
+  teamInitials,
+} from "../features/training/trainingUtils";
 
 
 function Training() {
@@ -887,136 +803,25 @@ function Training() {
 
       {canManage && (
         <section className="training-admin-layout">
-          <aside className="panel training-course-sidebar">
-            <div className="panel-heading">
-              <div>
-                <span className="eyebrow">Administración</span>
-                <h2>Cursos</h2>
-              </div>
-              <span className="training-count">{courses.length}</span>
-            </div>
-
-            {courses.length === 0 ? (
-              <EmptyState
-                compact
-                icon="training"
-                title="Aún no hay cursos"
-                description="Crea el primer curso de inducción o capacitación."
-              />
-            ) : (
-              <div className="training-course-list">
-                {courses.map((course) => (
-                  <button
-                    className={`training-course-row ${course.id === selectedCourseId ? "active" : ""}`}
-                    key={course.id}
-                    type="button"
-                    onClick={() => setSelectedCourseId(course.id)}
-                  >
-                    <span>
-                      <strong>{course.title}</strong>
-                      <small>{course.module_count} módulos · {course.lesson_count} lecciones</small>
-                      {course.is_onboarding && <small className="training-onboarding-label">Inducción</small>}
-                    </span>
-                    <b className={`training-status training-status-${course.status.toLowerCase()}`}>
-                      {course.status === "PUBLISHED" ? "Publicado" : course.status === "ARCHIVED" ? "Archivado" : "Borrador"}
-                    </b>
-                  </button>
-                ))}
-              </div>
-            )}
-          </aside>
+          <TrainingCourseSidebar
+            courses={courses}
+            selectedCourseId={selectedCourseId}
+            onSelectCourse={setSelectedCourseId}
+          />
 
           <div className="training-admin-content">
             {detailLoading && !selectedCourse ? (
               <section className="panel"><LoadingState label="Cargando curso…" compact /></section>
             ) : selectedCourse ? (
               <>
-                <section className="panel training-course-overview">
-                  <div>
-                    <span className="eyebrow">Editor de curso</span>
-                    <h2>{selectedCourse.title}</h2>
-                    <p>{selectedCourse.description || "Sin descripción."}</p>
-                    {selectedCourse.is_onboarding && (
-                      <span className="training-onboarding-badge">Curso de inducción</span>
-                    )}
-                  </div>
-                  <div className="training-course-overview-actions">
-                    <button
-                      className="btn btn-secondary"
-                      type="button"
-                      onClick={openCoursePreview}
-                    >
-                      Vista previa
-                    </button>
-                    <span className={`training-status training-status-${String(selectedCourse.status || "DRAFT").toLowerCase()}`}>
-                      {selectedCourse.status === "PUBLISHED" ? "Publicado" : selectedCourse.status === "ARCHIVED" ? "Archivado" : "Borrador"}
-                    </span>
-                    {selectedCourse.status === "DRAFT" && (
-                      <button
-                        className="btn btn-primary"
-                        type="button"
-                        onClick={publishCourse}
-                        disabled={saving}
-                      >
-                        Publicar curso
-                      </button>
-                    )}
-                  </div>
-                </section>
+                <TrainingCourseOverview
+                  course={selectedCourse}
+                  saving={saving}
+                  onPreview={openCoursePreview}
+                  onPublish={publishCourse}
+                />
 
-                {selectedCourse.quality && (
-                  <section className="panel training-quality-panel">
-                    <div className="panel-heading">
-                      <div>
-                        <span className="eyebrow">Control de calidad</span>
-                        <h2>Experiencia de onboarding</h2>
-                      </div>
-                      <span className={`training-quality-status ${selectedCourse.quality.warning_count ? "has-warnings" : "is-ready"}`}>
-                        {selectedCourse.quality.warning_count
-                          ? `${selectedCourse.quality.warning_count} por revisar`
-                          : "Sin alertas"}
-                      </span>
-                    </div>
-
-                    <div className="training-quality-summary">
-                      <div>
-                        <span>Actividades obligatorias</span>
-                        <strong>{selectedCourse.quality.required_activity_count}</strong>
-                      </div>
-                      <div>
-                        <span>Tiempo conocido</span>
-                        <strong>~{selectedCourse.quality.known_minutes} min</strong>
-                      </div>
-                      <div>
-                        <span>Preguntas de quiz</span>
-                        <strong>{selectedCourse.quality.quiz_question_count}</strong>
-                      </div>
-                    </div>
-
-                    {selectedCourse.quality.issues?.length > 0 ? (
-                      <div className="training-quality-issues">
-                        {selectedCourse.quality.issues.map((issue, index) => (
-                          <div
-                            className={`training-quality-issue is-${issue.severity}`}
-                            key={`${issue.code}-${issue.lesson_id || issue.module_id || index}`}
-                          >
-                            <span aria-hidden="true">
-                              {issue.severity === "warning" ? "!" : "i"}
-                            </span>
-                            <div>
-                              <strong>{issue.code === "LONG_ACTIVITY" ? "Actividad extensa" : issue.code === "UNKNOWN_DURATION" ? "Duración pendiente" : issue.code === "MISSING_VIDEO" ? "Video pendiente" : issue.code === "LONG_JOURNEY" ? "Ruta extensa" : issue.code === "MISSING_QUIZ" ? "Evaluación pendiente" : "Sugerencia"}</strong>
-                              <p>{issue.message}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="training-quality-ready">
-                        La ruta mantiene una estructura ligera con los datos configurados actualmente.
-                      </div>
-                    )}
-                  </section>
-                )}
+                <TrainingQualityPanel quality={selectedCourse.quality} />
 
                 <section className="panel">
                   <div className="panel-heading">

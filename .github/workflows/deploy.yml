@@ -64,6 +64,20 @@ jobs:
         env:
           VITE_API_URL: /api
         run: npm run build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          pip install "playwright>=1.50,<2" pytest
+          python -m playwright install --with-deps chromium
+      - run: bash scripts/run-frontend-e2e.sh
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-frontend-e2e-screenshots
+          path: frontend-react/test-results/e2e/*.png
+          if-no-files-found: ignore
+          retention-days: 14
 
   deploy:
     needs: [backend-tests, frontend-tests]
