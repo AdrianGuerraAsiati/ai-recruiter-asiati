@@ -17,7 +17,12 @@ mkdir -p "$BACKUP_DIR"
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 OUTPUT="$BACKUP_DIR/ai-recruiter-${STAMP}.dump"
 
-pg_dump   --dbname="$DATABASE_URL"   --format=custom   --no-owner   --no-privileges   --file="$OUTPUT"
+# The application containers reach host PostgreSQL through host.docker.internal.
+# This backup runs on the host itself, where that Docker-only hostname is not
+# resolvable; normalize only that host alias and preserve the rest of the DSN.
+BACKUP_DATABASE_URL="${DATABASE_URL/host.docker.internal/127.0.0.1}"
+
+pg_dump   --dbname="$BACKUP_DATABASE_URL"   --format=custom   --no-owner   --no-privileges   --file="$OUTPUT"
 
 test -s "$OUTPUT"
 sha256sum "$OUTPUT" > "$OUTPUT.sha256"
