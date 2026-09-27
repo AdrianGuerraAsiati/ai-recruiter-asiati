@@ -73,7 +73,7 @@ def assign_candidates_to_job(
     job_id: str,
     body: AssignCandidatesRequest,
     db: Session = Depends(get_db),
-    _user: dict = Depends(require_permission("candidates.read")),
+    _user: dict = Depends(require_permission("candidates.manage")),
 ):
     _require_job(db, job_id, _user["sub"])
     if not body.candidate_ids:
@@ -143,7 +143,7 @@ def update_application_status(
     candidate_id: str,
     body: ApplicationStatusRequest,
     db: Session = Depends(get_db),
-    _user: dict = Depends(require_permission("candidates.read")),
+    _user: dict = Depends(require_permission("candidates.manage")),
 ):
     try:
         link, changed = service.set_application_status(
@@ -287,7 +287,7 @@ def get_candidate(
 async def upload_candidates_bulk(
     files: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
-    _user: dict = Depends(require_permission("candidates.read")),
+    _user: dict = Depends(require_permission("candidates.manage")),
 ):
     results = []
     errors = []

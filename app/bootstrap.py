@@ -8,7 +8,8 @@ from fastapi.responses import JSONResponse
 
 from app.auth_routes import router as auth_router
 from app.config import CORS_ORIGINS, get_database_url
-from app.db import Base, get_engine
+from app.access_control import ensure_rbac_catalog
+from app.db import SessionLocal
 from app.domains.candidate_imports.router import router as candidate_imports_router
 from app.domains.candidate_ingestion.indeed_agent_router import router as indeed_agent_router
 from app.domains.candidate_ingestion.router import router as candidate_ingestion_router
@@ -76,10 +77,17 @@ def create_app() -> FastAPI:
     def on_startup() -> None:
         db_url = get_database_url()
         if "sqlite" in db_url or not db_url:
-            logger.info("Skipping table creation (non-PostgreSQL URL).")
+            logger.info("Skipping production RBAC catalog sync for non-PostgreSQL runtime.")
             return
-        logger.info("Creating tables if not present ...")
-        Base.metadata.create_all(bind=get_engine())
-        logger.info("Tables ready.")
+
+        # Alembic is the only schema owner. Startup may reconcile seed data,
+        # but it must never create/alter tables implicitly.
+        db = SessionLocal()
+        try:
+            ensure_rbac_catalog(db)
+            db.commit()
+        finally:
+            db.close()
+        logger.info("RBAC catalog ready.")
 
     return app

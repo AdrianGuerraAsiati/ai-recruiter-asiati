@@ -29,18 +29,21 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.12"
           cache: pip
       - run: |
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-xdist
+          pip install pytest pytest-xdist pytest-cov ruff
       - run: |
           python -m py_compile app/main.py
           python -m py_compile app/evaluation.py
+          ruff check app --select E9,F63,F7,F82
       - env:
           DATABASE_URL: "sqlite:///:memory:"
-        run: python -m pytest app/tests/ -n 2 --dist=loadfile -v --tb=short
+        run: >-
+          python -m pytest app/tests/ -n 2 --dist=loadfile -v --tb=short
+          --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=80
 
   frontend-tests:
     runs-on: ubuntu-latest
@@ -48,7 +51,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend-react/package-lock.json
       - working-directory: frontend-react
@@ -160,7 +163,7 @@ jobs:
       - name: Verify existing Roles Anywhere identity
         run: |
           set -euo pipefail
-          SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+          SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/lightsail-known-hosts)
           ssh "${SSH[@]}" "$LIGHTSAIL_SSH_USER@$INSTANCE_IP" 'set -euo pipefail; for f in /opt/ai-recruiter/aws/config /usr/local/bin/aws_signing_helper /opt/ai-recruiter/rolesanywhere/client.crt /opt/ai-recruiter/rolesanywhere/client.key; do test -f "$f"; done; AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws sts get-caller-identity --profile ai-recruiter-bedrock >/tmp/ai-recruiter-sts.json; test "$(jq -r .Account /tmp/ai-recruiter-sts.json)" = "890876258895"; echo ROLES_ANYWHERE_OK'
 
       - name: Migrate and backfill production database
@@ -168,7 +171,8 @@ jobs:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
         run: |
           set -euo pipefail
-          SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+          SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/lightsail-known-hosts)
+          scp "${SSH[@]}" scripts/backup-postgres.sh "$LIGHTSAIL_SSH_USER@$INSTANCE_IP:/tmp/ai-recruiter-backup-postgres.sh"
           ssh "${SSH[@]}" "$LIGHTSAIL_SSH_USER@$INSTANCE_IP" bash -s <<REMOTE_PREFLIGHT
             set -euo pipefail
             export AWS_DEFAULT_REGION="$AWS_REGION"
@@ -176,13 +180,14 @@ jobs:
             echo DOCKER_DISK_BEFORE
             sudo docker system df
             sudo docker container prune -f
-            sudo docker image prune -a -f
-            sudo docker builder prune -a -f
+            sudo docker builder prune -a -f --filter until=168h
             echo DOCKER_DISK_AFTER
             sudo docker system df
             sudo docker pull "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}"
             DATABASE_URL_VALUE=\$(sudo docker inspect ai-recruiter-api --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^DATABASE_URL=//p' | head -1)
             test -n "\$DATABASE_URL_VALUE"
+            chmod +x /tmp/ai-recruiter-backup-postgres.sh
+            sudo env DATABASE_URL="\$DATABASE_URL_VALUE" BACKUP_DIR=/opt/ai-recruiter/backups RETENTION_DAYS=7 /tmp/ai-recruiter-backup-postgres.sh
             sudo docker run --rm --network ai-recruiter --add-host=host.docker.internal:host-gateway \
               -e "DATABASE_URL=\$DATABASE_URL_VALUE" \
               "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}" \
@@ -209,45 +214,36 @@ jobs:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
         run: |
           set -euo pipefail
-          SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+          SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/lightsail-known-hosts)
           scp "${SSH[@]}" scripts/deploy-api.sh "$LIGHTSAIL_SSH_USER@$INSTANCE_IP:/tmp/ai-recruiter-deploy-api.sh"
           scp "${SSH[@]}" scripts/deploy-worker.sh "$LIGHTSAIL_SSH_USER@$INSTANCE_IP:/tmp/ai-recruiter-deploy-worker.sh"
+          scp "${SSH[@]}" scripts/deploy-frontend.sh "$LIGHTSAIL_SSH_USER@$INSTANCE_IP:/tmp/ai-recruiter-deploy-frontend.sh"
           ssh "${SSH[@]}" "$LIGHTSAIL_SSH_USER@$INSTANCE_IP" bash -s <<REMOTE_DEPLOY
             set -euo pipefail
             export AWS_DEFAULT_REGION="$AWS_REGION"
             AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws ecr get-login-password --region "$AWS_REGION" --profile ai-recruiter-bedrock | sudo docker login --username AWS --password-stdin "$ECR_REGISTRY"
             sudo docker pull "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}"
             sudo docker pull "$ECR_REGISTRY/$ECR_FRONTEND_REPO:${{ github.sha }}"
-            chmod +x /tmp/ai-recruiter-deploy-api.sh /tmp/ai-recruiter-deploy-worker.sh
-            AWS_ACCOUNT_ID="$AWS_ACCOUNT_ID" ECR_TAG="${{ github.sha }}" IMPORT_STAGING_BUCKET="$IMPORT_STAGING_BUCKET" IMPORT_QUEUE_URL="$IMPORT_QUEUE_URL" TRAINING_CONTENT_BUCKET="$TRAINING_CONTENT_BUCKET" IMPORT_EVALUATION_CONCURRENCY="1" S3_BUCKET="$S3_BUCKET" KNOWLEDGE_BASE_ID="$KNOWLEDGE_BASE_ID" DATA_SOURCE_ID="$DATA_SOURCE_ID" COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID" COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" ALLOW_PUBLIC_REGISTRATION="false" RBAC_BOOTSTRAP_ADMIN_EMAILS="talentohumano@asiati.com.co" RBAC_BOOTSTRAP_SUPER_ADMIN_EMAILS="natali.garzon@asiati.com.co" sudo -H -E /tmp/ai-recruiter-deploy-api.sh
+            DATABASE_URL_VALUE=\$(sudo docker inspect ai-recruiter-api --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^DATABASE_URL=//p' | head -1)
+            test -n "\$DATABASE_URL_VALUE"
+            chmod +x /tmp/ai-recruiter-deploy-api.sh /tmp/ai-recruiter-deploy-worker.sh /tmp/ai-recruiter-deploy-frontend.sh
+            DATABASE_URL="\$DATABASE_URL_VALUE" AWS_ACCOUNT_ID="$AWS_ACCOUNT_ID" ECR_TAG="${{ github.sha }}" IMPORT_STAGING_BUCKET="$IMPORT_STAGING_BUCKET" IMPORT_QUEUE_URL="$IMPORT_QUEUE_URL" TRAINING_CONTENT_BUCKET="$TRAINING_CONTENT_BUCKET" IMPORT_EVALUATION_CONCURRENCY="1" S3_BUCKET="$S3_BUCKET" KNOWLEDGE_BASE_ID="$KNOWLEDGE_BASE_ID" DATA_SOURCE_ID="$DATA_SOURCE_ID" COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID" COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" ALLOW_PUBLIC_REGISTRATION="false" RBAC_BOOTSTRAP_ADMIN_EMAILS="talentohumano@asiati.com.co" RBAC_BOOTSTRAP_SUPER_ADMIN_EMAILS="natali.garzon@asiati.com.co" sudo -H -E /tmp/ai-recruiter-deploy-api.sh
             API_STATUS=\$(sudo docker inspect ai-recruiter-api --format '{{.State.Status}}')
             API_IMAGE=\$(sudo docker inspect ai-recruiter-api --format '{{.Config.Image}}')
             test "\$API_STATUS" = running
             echo "\$API_IMAGE" | grep -q ':${{ github.sha }}$'
             echo "BACKEND_IMAGE_OK=\$API_IMAGE"
-            AWS_ACCOUNT_ID="$AWS_ACCOUNT_ID" ECR_TAG="${{ github.sha }}" IMPORT_STAGING_BUCKET="$IMPORT_STAGING_BUCKET" IMPORT_QUEUE_URL="$IMPORT_QUEUE_URL" IMPORT_EVALUATION_CONCURRENCY="1" S3_BUCKET="$S3_BUCKET" KNOWLEDGE_BASE_ID="$KNOWLEDGE_BASE_ID" DATA_SOURCE_ID="$DATA_SOURCE_ID" COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID" COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" sudo -H -E /tmp/ai-recruiter-deploy-worker.sh
+            DATABASE_URL="\$DATABASE_URL_VALUE" AWS_ACCOUNT_ID="$AWS_ACCOUNT_ID" ECR_TAG="${{ github.sha }}" IMPORT_STAGING_BUCKET="$IMPORT_STAGING_BUCKET" IMPORT_QUEUE_URL="$IMPORT_QUEUE_URL" IMPORT_EVALUATION_CONCURRENCY="1" S3_BUCKET="$S3_BUCKET" KNOWLEDGE_BASE_ID="$KNOWLEDGE_BASE_ID" DATA_SOURCE_ID="$DATA_SOURCE_ID" COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID" COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" sudo -H -E /tmp/ai-recruiter-deploy-worker.sh
             WORKER_STATUS=\$(sudo docker inspect ai-recruiter-worker --format '{{.State.Status}}')
             test "\$WORKER_STATUS" = running
             echo '━━━ Deploy Frontend ━━━'
-            sudo docker stop ai-recruiter-web 2>/dev/null || true
-            sudo docker rm ai-recruiter-web 2>/dev/null || true
-            sudo docker run -d --name ai-recruiter-web --network ai-recruiter --restart unless-stopped -p 80:80 "$ECR_REGISTRY/$ECR_FRONTEND_REPO:${{ github.sha }}"
+            ECR_REGISTRY="$ECR_REGISTRY" ECR_FRONTEND_REPO="$ECR_FRONTEND_REPO" ECR_TAG="${{ github.sha }}" sudo -H -E /tmp/ai-recruiter-deploy-frontend.sh
             FRONTEND_IMAGE=\$(sudo docker inspect ai-recruiter-web --format '{{.Config.Image}}')
             echo "\$FRONTEND_IMAGE" | grep -q ':${{ github.sha }}$'
             echo "FRONTEND_IMAGE_OK=\$FRONTEND_IMAGE"
-            FRONTEND_HTML=""
-            FRONTEND_READY=false
-            for i in \$(seq 1 10); do
-              FRONTEND_HTML=\$(curl -fS http://127.0.0.1/ 2>/dev/null || echo FAIL)
-              if echo "\$FRONTEND_HTML" | grep -q "root"; then FRONTEND_READY=true; break; fi
-              sleep 1
-            done
-            test "\$FRONTEND_READY" = true
-            echo "\$FRONTEND_HTML" | grep -q "root"
             echo DEPLOYMENT_FRONTEND_OK
             sudo docker image prune -f
           REMOTE_DEPLOY
-
       - name: Verify public health
         run: |
           set -euo pipefail
@@ -255,12 +251,12 @@ jobs:
           if [ -z "$BASE_URL" ]; then BASE_URL="http://$INSTANCE_IP"; fi
           CODE=000
           for i in $(seq 1 10); do
-            CODE=$(curl -sf -o /dev/null -w '%{http_code}' "$BASE_URL/api/health" || echo 000)
+            CODE=$(curl -sf -o /dev/null -w '%{http_code}' "$BASE_URL/api/ready" || echo 000)
             [ "$CODE" = 200 ] && break
             sleep 3
           done
           [ "$CODE" = 200 ]
-          echo "PUBLIC_HEALTH_OK HTTP $CODE"
+          echo "PUBLIC_READINESS_OK HTTP $CODE"
 
       - name: Verify public frontend
         run: |
@@ -293,4 +289,4 @@ jobs:
 
       - name: Cleanup temporary SSH credentials
         if: always()
-        run: rm -f /tmp/lightsail-key /tmp/lightsail-key-cert.pub
+        run: rm -f /tmp/lightsail-key /tmp/lightsail-key-cert.pub /tmp/lightsail-known-hosts

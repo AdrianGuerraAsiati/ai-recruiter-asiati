@@ -127,7 +127,7 @@ def recalculate_ranking_endpoint(
     mode: str = Query("full", pattern=r"^(full|incremental)$"),
     scope: str = Query("assigned", pattern=r"^(assigned|all)$"),
     db: Session = Depends(get_db),
-    _user: dict = Depends(require_permission("ranking.read")),
+    _user: dict = Depends(require_permission("ranking.recalculate")),
 ):
     try:
         return recalculate_ranking(

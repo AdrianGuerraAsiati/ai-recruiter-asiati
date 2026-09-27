@@ -1,32 +1,57 @@
 # AI Recruiter infrastructure
 
-The React frontend is deployed as static files in a private S3 bucket and served
-through CloudFront. Requests under `/api/*` are forwarded by CloudFront to the
-existing Application Load Balancer.
+This directory contains only infrastructure that belongs to the current production path or current operational support.
 
-## Production resources
+## Current production path
 
-- Frontend bucket: `ai-recruiter-frontend-765761474007`
-- CloudFront distribution: `E2D9QVT3763I47`
-- Public hostname: `ai.adrianguerra.net`
-- API origin hostname: `origin-ai.adrianguerra.net`
-- CloudFormation stack: `ai-recruiter-frontend-static`
-- Region for S3, ECS and ALB: `us-east-2`
-- Region for the CloudFront ACM certificate: `us-east-1`
+Production is deployed by `.github/workflows/deploy.yml` to a Lightsail host in `us-east-2`.
 
-`ai.adrianguerra.net` has Route 53 A and AAAA aliases to CloudFront.
-`origin-ai.adrianguerra.net` has an A alias to the ALB and its own ACM
-certificate attached to the HTTPS listener.
+The supported runtime consists of:
 
-## Frontend deployment
+- `ai-recruiter-web`: Nginx + React SPA.
+- `ai-recruiter-api`: FastAPI.
+- `ai-recruiter-worker`: asynchronous candidate/import worker.
+- PostgreSQL running on the host.
+- Amazon ECR for immutable backend/frontend images.
+- Amazon S3/SQS/Bedrock/Cognito/Secrets Manager integrations consumed by the runtime.
 
-The `Frontend CI/CD` GitHub Actions workflow builds with `VITE_API_URL=/api`,
-syncs immutable assets to S3, publishes `index.html` without browser caching and
-then creates a CloudFront invalidation.
+GitHub Actions authenticates to AWS through OIDC. The Lightsail host consumes AWS through IAM Roles Anywhere.
 
-## Cost controls
+## Versioned infrastructure
 
-- The frontend ECS service and its EventBridge Scheduler schedules were removed.
-- The ALB and backend ECS service use `us-east-2a` and `us-east-2b` only.
-- Both ECR repositories retain only the 10 most recent images and expire
-  untagged images after seven days.
+### candidate-import.yml
+
+Creates the private temporary S3 staging bucket plus the import queue and DLQ.
+
+### training-content.yml
+
+Creates the private persistent training-media bucket. The bucket is versioned and retained on CloudFormation replacement/deletion.
+
+### lightsail_logs_to_cloudwatch.sh / lightsail_logs_iam_policy.json
+
+Optional operational support for forwarding host/container logs. These files do not imply that log forwarding is active until the production host has been configured and verified.
+
+## Deployment scripts
+
+The production workflow copies and executes the versioned scripts under `scripts/`:
+
+- `deploy-api.sh`
+- `deploy-worker.sh`
+- `deploy-frontend.sh`
+- `backup-postgres.sh` before schema migrations
+
+API and frontend deployment scripts automatically restore the previously running image if the new container fails its local readiness check. Worker deployment retains its existing image rollback path.
+
+## Database ownership
+
+Alembic is the only schema owner. Application startup must not create/alter tables implicitly.
+
+Before production migrations, CI creates a restricted local PostgreSQL dump under `/opt/ai-recruiter/backups`. This protects against migration/application rollback mistakes, but it is **not** a host-loss/disaster-recovery backup.
+
+An encrypted off-host backup/restore path remains required and must be validated against the live AWS environment before being enabled.
+
+## Retired infrastructure
+
+Historical ECS/ALB/CloudFront/static-S3, EC2 bootstrap, canary-routing, feature-flag and legacy OIDC artifacts were removed from `main` during the 2026-09-27 infrastructure audit. Git history remains the source for those retired implementations.
+
+Do not copy old deployment artifacts back into `infra/` unless they are being deliberately reactivated, tested and documented as part of the supported production path.

@@ -223,6 +223,17 @@ def test_alembic_head_builds_current_postgres_schema():
                     )
                 ).all()
             }
+            admin_write_grants = {
+                row[0]
+                for row in connection.execute(
+                    text(
+                        "SELECT permission_code FROM role_permissions "
+                        "WHERE role_code = 'ADMIN' "
+                        "AND permission_code IN "
+                        "('candidates.manage', 'ranking.recalculate')"
+                    )
+                ).all()
+            }
             admin_score_grants = connection.execute(
                 text(
                     "SELECT COUNT(*) FROM role_permissions "
@@ -333,6 +344,7 @@ def test_alembic_head_builds_current_postgres_schema():
         assert {"employee_id", "hired_at"}.issubset(job_candidate_columns)
 
         assert admin_score_grants == 0
-        assert revision == "025"
+        assert admin_write_grants == {"candidates.manage", "ranking.recalculate"}
+        assert revision == "026"
     finally:
         engine.dispose()

@@ -78,7 +78,7 @@ def list_jobs_page(
 def enrich_job(
     body: JobEnrichmentRequest,
     db: Session = Depends(get_db),
-    _user: dict = Depends(require_permission("jobs.read")),
+    _user: dict = Depends(require_permission("jobs.manage")),
 ):
     try:
         proposal, context_version = enrich_job_draft(
@@ -99,7 +99,7 @@ def enrich_job(
 def create_job(
     body: CreateJobRequest,
     db: Session = Depends(get_db),
-    _user: dict = Depends(require_permission("jobs.read")),
+    _user: dict = Depends(require_permission("jobs.manage")),
 ):
     job = service.create_job(
         db,
@@ -120,7 +120,7 @@ def update_job(
     job_id: str,
     body: UpdateJobRequest,
     db: Session = Depends(get_db),
-    _user: dict = Depends(require_permission("jobs.read")),
+    _user: dict = Depends(require_permission("jobs.manage")),
 ):
     try:
         job = service.update_job(
@@ -146,7 +146,7 @@ def delete_job(
     job_id: str,
     delete_candidates: bool = Query(False),
     db: Session = Depends(get_db),
-    _user: dict = Depends(require_permission("jobs.read")),
+    _user: dict = Depends(require_permission("jobs.manage")),
 ):
     try:
         deleted_count = service.delete_job(

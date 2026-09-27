@@ -84,7 +84,9 @@ def test_admin_can_manage_employees_but_cannot_read_private_scores(db):
     assert "training.consume" not in principal["permissions"]
     assert "training.quiz.take" not in principal["permissions"]
     assert "training.progress.read_own" not in principal["permissions"]
+    assert "candidates.manage" in principal["permissions"]
     assert "candidates.restrict" in principal["permissions"]
+    assert "ranking.recalculate" in principal["permissions"]
     assert "integrations.manage" not in principal["permissions"]
     assert "employee_scores.read" not in principal["permissions"]
     assert "employee_scores.create" not in principal["permissions"]
@@ -236,3 +238,22 @@ def test_rbac_catalog_removes_stale_builtin_grants(db):
         .all()
     )
     assert stale == []
+
+
+
+def test_existing_principal_resolution_does_not_commit_when_nothing_changes(db, monkeypatch):
+    resolve_principal(
+        db,
+        {"sub": "stable-user", "email": "stable@asiati.com.co"},
+    )
+
+    commits = []
+    monkeypatch.setattr(db, "commit", lambda: commits.append(True))
+
+    principal = resolve_principal(
+        db,
+        {"sub": "stable-user", "email": "stable@asiati.com.co"},
+    )
+
+    assert principal["roles"] == [EMPLOYEE]
+    assert commits == []
