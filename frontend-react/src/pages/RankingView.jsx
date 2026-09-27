@@ -325,7 +325,7 @@ async function evaluateCandidates() {
         setActionFeedback({
           type: "error",
           message:
-            "La evaluación se procesó, pero no fue posible cargar los resultados. Actualiza el ranking o intenta nuevamente.",
+            "La evaluación terminó, pero la consulta posterior no devolvió el ranking actualizado. No vuelvas a evaluar todavía; usa «Actualizar ranking» para recuperar los resultados guardados.",
         });
       } else {
         setActionFeedback({
@@ -508,7 +508,7 @@ async function recalculateRanking() {
           setActionFeedback({
             type: "error",
             message:
-              "El ranking se procesó, pero no fue posible cargar los resultados. Actualiza el ranking o intenta nuevamente.",
+              "El recálculo terminó, pero la consulta posterior no devolvió la nueva versión del ranking. No recalcules otra vez todavía; usa «Actualizar ranking» para recuperar los resultados guardados.",
           });
         }
         return;
@@ -518,7 +518,7 @@ async function recalculateRanking() {
         setActionFeedback({
           type: "error",
           message:
-            "El ranking se procesó, pero no fue posible cargar los resultados. Actualiza el ranking o intenta nuevamente.",
+            "El recálculo terminó, pero la consulta posterior no devolvió la nueva versión del ranking. No recalcules otra vez todavía; usa «Actualizar ranking» para recuperar los resultados guardados.",
         });
         return;
       }
