@@ -127,7 +127,7 @@ def _ensure_minimum_role(
     db: Session,
     profile: UserProfile,
     role_code: str,
-) -> None:
+) -> bool:
     current_roles = [
         code
         for (code,) in (
@@ -140,7 +140,7 @@ def _ensure_minimum_role(
     target_rank = ROLE_RANK.get(role_code, 0)
 
     if current_rank >= target_rank:
-        return
+        return False
 
     db.query(UserRole).filter(UserRole.user_id == profile.id).delete(
         synchronize_session=False
@@ -151,6 +151,7 @@ def _ensure_minimum_role(
         role_code,
         assigned_by_sub="bootstrap-config",
     )
+    return True
 
 
 def ensure_rbac_catalog(db: Session) -> None:
@@ -246,9 +247,9 @@ def ensure_user_profile(
     if not email:
         raise ValueError("Authenticated identity does not contain an email.")
 
-    ensure_rbac_catalog(db)
     bootstrap_role = bootstrap_role_for_email(email)
     effective_default_role = default_role or bootstrap_role
+    changed = False
 
     profile = (
         db.query(UserProfile)
@@ -265,9 +266,11 @@ def ensure_user_profile(
         db.add(profile)
         db.flush()
         assign_role(db, profile, effective_default_role)
+        changed = True
     else:
         if normalize_email(profile.email) != email:
             profile.email = email
+            changed = True
         has_role = (
             db.query(UserRole)
             .filter(UserRole.user_id == profile.id)
@@ -276,11 +279,13 @@ def ensure_user_profile(
         )
         if not has_role:
             assign_role(db, profile, effective_default_role)
+            changed = True
 
-    _ensure_minimum_role(db, profile, bootstrap_role)
+    changed = _ensure_minimum_role(db, profile, bootstrap_role) or changed
 
-    db.commit()
-    db.refresh(profile)
+    if changed:
+        db.commit()
+        db.refresh(profile)
     return profile
 
 
