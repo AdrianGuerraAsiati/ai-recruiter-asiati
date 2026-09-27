@@ -8,6 +8,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "deploy.yml"
 API_SCRIPT = ROOT / "scripts" / "deploy-api.sh"
+FRONTEND_SCRIPT = ROOT / "scripts" / "deploy-frontend.sh"
+BACKUP_SCRIPT = ROOT / "scripts" / "backup-postgres.sh"
 
 
 def _read(path: Path) -> str:
@@ -70,17 +72,11 @@ def test_backend_uses_immutable_sha_then_promotes_after_health(deploy_yml_conten
     assert latest > health
 
 
-def test_frontend_pull_precedes_stop_and_sha_is_verified(deploy_yml_content):
-    lines = deploy_yml_content.splitlines()
-    pull = next(
-        i for i, line in enumerate(lines)
-        if "docker pull" in line and "ECR_FRONTEND_REPO" in line
-    )
-    stop = next(
-        i for i, line in enumerate(lines)
-        if "docker stop" in line and "ai-recruiter-web" in line
-    )
-    assert pull < stop
+def test_frontend_uses_rollback_script_and_sha_is_verified(deploy_yml_content):
+    script = _read(FRONTEND_SCRIPT)
+    assert "scripts/deploy-frontend.sh" in deploy_yml_content
+    assert "FRONTEND_ROLLBACK_OK" in script
+    assert 'docker pull "$IMAGE"' in script
     assert "docker inspect ai-recruiter-web" in deploy_yml_content
     assert "FRONTEND_IMAGE_OK" in deploy_yml_content
     assert "PUBLIC_FRONTEND_OK" in deploy_yml_content
@@ -121,3 +117,29 @@ def test_runtime_resource_configuration_comes_from_aws_secret(deploy_yml_content
         "COGNITO_CLIENT_ID",
     ):
         assert key in deploy_yml_content
+
+
+
+def test_api_deploy_has_automatic_rollback_and_readiness():
+    script = _read(API_SCRIPT)
+    assert "API_ROLLBACK_OK" in script
+    assert "OLD_IMAGE" in script
+    assert "/ready" in script
+    assert "--pids-limit 256" in script
+    assert "--log-opt max-size=10m" in script
+
+
+def test_database_backup_runs_before_migration():
+    workflow = _read(WORKFLOW)
+    backup = _read(BACKUP_SCRIPT)
+    section = workflow[
+        workflow.index("- name: Migrate and backfill production database"):
+        workflow.index("- name: Deploy API worker and frontend via SSH")
+    ]
+    assert "scripts/backup-postgres.sh" in section
+    assert section.index("ai-recruiter-backup-postgres.sh") < section.index(
+        "python -m app.scripts.migrate_candidate_import"
+    )
+    assert "pg_dump" in backup
+    assert "sha256sum" in backup
+    assert "umask 077" in backup
