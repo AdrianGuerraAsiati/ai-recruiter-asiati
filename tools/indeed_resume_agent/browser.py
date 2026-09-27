@@ -18,7 +18,22 @@ from enum import Enum
 from pathlib import Path
 from urllib.parse import quote_plus, unquote, urlsplit
 
+from .candidate_search import (
+    candidate_search_queries,
+    candidate_search_url,
+    normalize_lookup_text,
+)
 from .config import AgentConfig
+from .documents import (
+    DOCX_CONTENT_TYPE,
+    PDF_CONTENT_TYPE,
+    InvalidResumeDocument,
+    InvalidResumePdf,
+    normalize_pdf_filename,
+    normalize_resume_filename,
+    validate_pdf,
+    validate_resume_document,
+)
 
 
 class BrowserOutcome(str, Enum):
@@ -36,96 +51,17 @@ class BrowserResult:
     diagnostic_path: str | None = None
 
 
-class InvalidResumeDocument(ValueError):
-    def __init__(self, code: str):
-        self.code = str(code)
-        super().__init__(self.code)
-
-
-# Backwards-compatible name for callers/tests that imported the former PDF-only
-# exception. The agent now accepts PDF and DOCX.
-InvalidResumePdf = InvalidResumeDocument
-
-
 class BrowserFetchStageError(RuntimeError):
     def __init__(self, code: str):
         self.code = str(code)
         super().__init__(self.code)
 
 
-PDF_CONTENT_TYPE = "application/pdf"
-DOCX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 _GENERIC_BINARY_CONTENT_TYPES = {
     "",
     "application/octet-stream",
     "binary/octet-stream",
 }
-
-
-def _is_docx(payload: bytes) -> bool:
-    if not payload.startswith(b"PK"):
-        return False
-    try:
-        with zipfile.ZipFile(io.BytesIO(payload), "r") as archive:
-            names = set(archive.namelist())
-    except (zipfile.BadZipFile, zipfile.LargeZipFile, OSError):
-        return False
-    return "[Content_Types].xml" in names and "word/document.xml" in names
-
-
-def validate_resume_document(
-    data: bytes,
-    *,
-    filename: str | None = None,
-    content_type: str | None = None,
-    max_bytes: int,
-) -> str:
-    """Validate a supported resume and return its canonical MIME type."""
-    payload = bytes(data or b"")
-    if len(payload) > int(max_bytes):
-        raise InvalidResumeDocument("RESUME_TOO_LARGE")
-
-    declared = str(content_type or "").split(";", 1)[0].strip().casefold()
-    suffix = Path(str(filename or "")).suffix.casefold()
-
-    if payload.startswith(b"%PDF-"):
-        return PDF_CONTENT_TYPE
-    if _is_docx(payload):
-        return DOCX_CONTENT_TYPE
-
-    if declared == PDF_CONTENT_TYPE or suffix == ".pdf":
-        raise InvalidResumeDocument("RESUME_NOT_PDF")
-    if declared == DOCX_CONTENT_TYPE or suffix == ".docx":
-        raise InvalidResumeDocument("RESUME_NOT_DOCX")
-    raise InvalidResumeDocument("RESUME_UNSUPPORTED_FORMAT")
-
-
-def validate_pdf(data: bytes, *, max_bytes: int) -> None:
-    """Compatibility wrapper for legacy PDF-only callers."""
-    detected = validate_resume_document(
-        data,
-        filename="resume.pdf",
-        content_type=PDF_CONTENT_TYPE,
-        max_bytes=max_bytes,
-    )
-    if detected != PDF_CONTENT_TYPE:
-        raise InvalidResumeDocument("RESUME_NOT_PDF")
-
-
-def normalize_resume_filename(
-    filename: str | None,
-    *,
-    content_type: str,
-) -> str:
-    raw = str(filename or "").replace("\\", "/").rsplit("/", 1)[-1].strip()
-    stem = Path(raw).stem.strip() if raw else "indeed-resume"
-    safe = "".join(ch if ch.isalnum() or ch in " ._-" else "_" for ch in stem).strip()
-    extension = ".docx" if content_type == DOCX_CONTENT_TYPE else ".pdf"
-    return f"{safe or 'indeed-resume'}{extension}"
-
-
-def normalize_pdf_filename(filename: str | None) -> str:
-    return normalize_resume_filename(filename, content_type=PDF_CONTENT_TYPE)
 
 
 def _default_playwright_factory():
@@ -917,11 +853,7 @@ class IndeedBrowser:
 
     @staticmethod
     def _normalize_lookup_text(value: object) -> str:
-        text = unicodedata.normalize("NFKD", str(value or ""))
-        text = "".join(ch for ch in text if not unicodedata.combining(ch))
-        text = text.casefold()
-        text = re.sub(r"[^a-z0-9]+", " ", text)
-        return " ".join(text.split())
+        return normalize_lookup_text(value)
 
     def _candidate_name_links(self, page):
         # Indeed has rendered candidate names in several shapes across releases:
@@ -1138,43 +1070,11 @@ class IndeedBrowser:
 
     @staticmethod
     def _candidate_search_url(query: str) -> str:
-        # Captured from the live Indeed Candidates UI: searching from
-        # "Gestionar candidatos" serializes the search as
-        # /candidates?statusName=All&tab=manage&q=<candidate>.
-        # Navigating to the same first-party URL is substantially more stable
-        # than depending only on a React textbox selector.
-        return (
-            f"{_INDEED_CANDIDATES_HOME}"
-            f"?statusName=All&tab=manage&q={quote_plus(str(query or '').strip())}"
-        )
+        return candidate_search_url(query)
 
     @classmethod
     def _candidate_search_queries(cls, candidate_name: str) -> list[str]:
-        original = " ".join(str(candidate_name or "").split()).strip()
-        if not original:
-            return []
-
-        normalized = cls._normalize_lookup_text(original)
-        queries = [original]
-        if normalized and normalized.casefold() != original.casefold():
-            queries.append(normalized)
-
-        tokens = normalized.split()
-        if len(tokens) >= 3:
-            short = f"{tokens[0]} {tokens[-1]}"
-            if short not in queries:
-                queries.append(short)
-
-        # Preserve order and avoid repeated searches.
-        unique: list[str] = []
-        seen: set[str] = set()
-        for query in queries:
-            key = query.casefold()
-            if key in seen:
-                continue
-            seen.add(key)
-            unique.append(query)
-        return unique
+        return candidate_search_queries(candidate_name)
 
     def _open_candidate_from_list(
         self,
