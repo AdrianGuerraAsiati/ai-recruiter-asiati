@@ -85,10 +85,21 @@ def _translate_service_error(exc: Exception):
 def list_employees(
     q: str = Query("", max_length=120),
     status: Literal["ACTIVE", "DISABLED"] | None = Query(None),
+    onboarding_status: Literal[
+        "NOT_REQUIRED",
+        "PENDING",
+        "IN_PROGRESS",
+        "COMPLETED",
+    ] | None = Query(None),
     db: Session = Depends(get_db),
     _principal: dict = Depends(require_permission("employees.read")),
 ):
-    employees = service.list_employees(db, q=q, status=status)
+    employees = service.list_employees(
+        db,
+        q=q,
+        status=status,
+        onboarding_status=onboarding_status,
+    )
     return {
         "items": [service.employee_payload(db, employee) for employee in employees],
         "total": len(employees),
