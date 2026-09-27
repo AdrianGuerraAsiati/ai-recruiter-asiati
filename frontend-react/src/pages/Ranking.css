@@ -864,3 +864,62 @@
   from { opacity: 0; transform: translateY(-5px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+
+/* Audit cleanup: semantic layout hooks */
+.ranking-skeleton-line--spaced {
+  margin-top: 10px;
+}
+
+.ranking-page-size {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ranking-modal-status {
+  margin-top: 10px;
+}
+
+.ranking-modal-status h3 {
+  font-size: 1.35rem;
+}
+
+.ranking-modal-status--failed h3 {
+  color: var(--danger);
+}
+
+.ranking-modal-status-copy {
+  margin-top: 8px;
+}
+
+.ranking-modal-recommendation,
+.ranking-modal-requirement-badge {
+  margin-top: 8px;
+}
+
+.ranking-modal-analysis-copy {
+  color: var(--ink-soft);
+  line-height: 1.65;
+}
+
+.ranking-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 620px) {
+  .ranking-page-size {
+    justify-content: center;
+  }
+
+  .ranking-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .ranking-modal-actions .btn {
+    width: 100%;
+  }
+}
