@@ -146,6 +146,19 @@ def _cached_identity(token: str) -> dict[str, str | None] | None:
         return dict(identity)
 
 
+def _token_cache_ttl(token: str, max_ttl_seconds: int) -> int:
+    try:
+        claims = jwt.get_unverified_claims(token)
+        expires_at = int(claims.get("exp") or 0)
+    except (JWTError, TypeError, ValueError):
+        expires_at = 0
+
+    if expires_at:
+        remaining = max(0, expires_at - int(time.time()))
+        return max(1, min(max_ttl_seconds, remaining))
+    return max(1, min(max_ttl_seconds, 60))
+
+
 def _remember_identity(
     token: str,
     identity: dict[str, str | None],
@@ -153,9 +166,10 @@ def _remember_identity(
     ttl_seconds: int = 300,
 ) -> None:
     key = _cache_key(token)
+    effective_ttl = _token_cache_ttl(token, ttl_seconds)
     with _identity_lock:
         _identity_cache[key] = (
-            time.monotonic() + max(1, ttl_seconds),
+            time.monotonic() + effective_ttl,
             dict(identity),
         )
         if len(_identity_cache) > 512:
