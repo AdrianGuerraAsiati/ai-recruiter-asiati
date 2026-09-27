@@ -63,7 +63,7 @@ def test_workflow_uses_current_account_github_oidc_role(deploy_yml_content):
 def test_backend_uses_immutable_sha_then_promotes_after_health(deploy_yml_content):
     assert "ECR_BACKEND_REPO:${{ github.sha }}" in deploy_yml_content
     lines = deploy_yml_content.splitlines()
-    health = next(i for i, line in enumerate(lines) if "PUBLIC_HEALTH_OK" in line)
+    health = next(i for i, line in enumerate(lines) if "PUBLIC_READINESS_OK" in line)
     latest = max(
         i
         for i, line in enumerate(lines)
