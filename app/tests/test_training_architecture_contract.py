@@ -30,3 +30,18 @@ def test_training_page_is_split_into_feature_modules():
     assert len(page.splitlines()) < 2000
     assert "../features/training/trainingUtils" in page
     assert "../features/training/TrainingAdminPanels" in page
+
+
+
+def test_training_models_live_in_domain_with_compatibility_facade():
+    facade_path = ROOT / "app" / "models.py"
+    domain_path = ROOT / "app" / "domains" / "training" / "models.py"
+    facade = facade_path.read_text(encoding="utf-8")
+    domain = domain_path.read_text(encoding="utf-8")
+
+    assert len(facade.splitlines()) < 900
+    assert "class TrainingCourse(Base):" not in facade
+    assert "from app.domains.training.models import" in facade
+
+    assert "class TrainingCourse(Base):" in domain
+    assert "class TrainingQuizAttempt(Base):" in domain
