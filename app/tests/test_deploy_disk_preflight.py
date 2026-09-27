@@ -13,11 +13,12 @@ def test_production_preflight_reclaims_unused_docker_disk_before_pull():
     deploy = workflow.index("- name: Deploy API worker and frontend via SSH", migrate)
     preflight = workflow[migrate:deploy]
 
-    cleanup = preflight.index("docker image prune -a -f")
+    cleanup = preflight.index("docker image prune -f")
     pull = preflight.index('docker pull "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}"')
 
     assert cleanup < pull
     assert "docker container prune -f" in preflight
-    assert "docker builder prune -a -f" in preflight
+    assert "docker image prune -a -f" not in preflight
+    assert "docker builder prune -a -f --filter until=168h" in preflight
     assert "docker system df" in preflight
     assert "--volumes" not in preflight
