@@ -1,8 +1,7 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import Icon from "../components/ui/Icon";
-
-const NoticeContext = createContext({ notify: () => null, dismiss: () => {} });
+import { NoticeContext } from "./noticeStore";
 
 export function NoticeProvider({ children }) {
   const [notices, setNotices] = useState([]);
@@ -47,6 +46,3 @@ export function NoticeProvider({ children }) {
   );
 }
 
-export function useNotice() {
-  return useContext(NoticeContext);
-}
