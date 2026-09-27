@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import api from "../api/client";
+import { getApiErrorMessage } from "../utils/errors";
 
 function recommendationLabel(recommendation) {
   const labels = {
@@ -43,7 +44,11 @@ function CandidateDetail() {
         setCandidate(candidateResponse.data);
       } catch {
         if (!cancelled) {
-          setLoadError("No fue posible cargar el perfil del candidato.");
+          setLoadError(getApiErrorMessage(error, {
+            action: "cargar el perfil del candidato",
+            resource: "candidato",
+            fallback: "El perfil no se cargó. Vuelve al listado y abre el candidato nuevamente para confirmar que aún existe.",
+          }));
           setLoading(false);
         }
         return;
@@ -61,7 +66,11 @@ function CandidateDetail() {
       } catch (error) {
         // A candidate can legitimately exist before its first evaluation.
         if (!cancelled && error?.response?.status !== 404) {
-          setLoadError("El perfil cargó, pero no fue posible consultar su evaluación.");
+          setLoadError(getApiErrorMessage(error, {
+            action: "consultar la evaluación del candidato",
+            resource: "evaluación",
+            fallback: "El perfil sí cargó, pero su evaluación no está disponible. Puedes revisar el CV y volver a evaluar desde la vacante.",
+          }));
         }
       }
 
@@ -95,7 +104,11 @@ function CandidateDetail() {
       if (!downloadUrl) throw new Error("CV_DOWNLOAD_URL_MISSING");
       window.open(downloadUrl, "_blank", "noopener,noreferrer");
     } catch {
-      setResumeError("No fue posible abrir el CV. Intenta nuevamente.");
+      setResumeError(getApiErrorMessage(error, {
+        action: "abrir el CV",
+        resource: "archivo del candidato",
+        fallback: "El CV no devolvió una URL de visualización válida. Cierra esta vista y vuelve a abrir el archivo.",
+      }));
     } finally {
       setOpeningResume(false);
     }
@@ -103,7 +116,7 @@ function CandidateDetail() {
 
   if (loading) return <div className="page"><div className="page-loading"><span /> Cargando perfil…</div></div>;
   if (!candidate) {
-    return <div className="page"><div className="empty-state"><strong>No fue posible cargar el candidato</strong><p>{loadError || "Intenta nuevamente."}</p><Link to="/candidates" className="btn btn-primary">Volver a candidatos</Link></div></div>;
+    return <div className="page"><div className="empty-state"><strong>El candidato no está disponible</strong><p>{loadError || "Vuelve al listado y confirma que el perfil siga activo."}</p><Link to="/candidates" className="btn btn-primary">Volver a candidatos</Link></div></div>;
   }
 
   const evaluation = evaluations[0];
@@ -135,7 +148,7 @@ function CandidateDetail() {
             <p className="muted">Procesando CV…</p>
           )}
           {resume?.status === "FAILED" && (
-            <p className="muted">No fue posible procesar el CV. Intenta nuevamente.</p>
+            <p className="muted">El CV no pudo procesarse en la última evaluación. Reabre el archivo o ejecuta una nueva evaluación para generar el análisis.</p>
           )}
           {resumeError && <p className="muted">{resumeError}</p>}
           {jobId && (
