@@ -172,3 +172,15 @@ def test_host_side_database_tools_normalize_docker_host_alias():
     assert expected in restore
     assert '--dbname="$BACKUP_DATABASE_URL"' in backup
     assert '--dbname="$RESTORE_DATABASE_URL"' in restore
+
+
+
+def test_database_backup_supports_optional_encrypted_offhost_copy():
+    backup = _read(BACKUP_SCRIPT)
+
+    assert 'BACKUP_S3_URI="${BACKUP_S3_URI:-}"' in backup
+    assert 'BACKUP_AWS_PROFILE="${BACKUP_AWS_PROFILE:-}"' in backup
+    assert 'if [[ -n "$BACKUP_S3_URI" ]]' in backup
+    assert 'aws "${AWS_ARGS[@]}" s3 cp "$OUTPUT"' in backup
+    assert "--sse AES256" in backup
+    assert "DATABASE_BACKUP_OFFHOST_OK" in backup
