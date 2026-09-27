@@ -233,7 +233,7 @@ describe("CandidateDetail Indeed canonical resume", () => {
 
     renderDetail();
 
-    await screen.findByText(/No fue posible procesar el CV/i);
+    await screen.findByText(/El CV no pudo procesarse en la última evaluación/i);
     expect(document.body).not.toHaveTextContent("resume.invalid");
   });
 });
