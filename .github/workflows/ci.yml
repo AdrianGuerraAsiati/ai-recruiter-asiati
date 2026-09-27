@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 env:
-  PYTHON_VERSION: "3.10"
-  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
