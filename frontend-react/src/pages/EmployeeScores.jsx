@@ -4,6 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
+import PageHeader from "../components/ui/PageHeader";
+import {
+  EmptyState,
+  FeedbackMessage,
+  LoadingState,
+} from "../components/ui/StatePanel";
 
 
 function employeeName(employee) {
@@ -24,6 +30,9 @@ function EmployeeScores() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [voidTarget, setVoidTarget] = useState(null);
+  const [voidReason, setVoidReason] = useState("");
+  const [voiding, setVoiding] = useState(false);
 
   const loadEmployees = useCallback(async () => {
     setLoading(true);
@@ -121,18 +130,29 @@ function EmployeeScores() {
     }
   }
 
-  async function voidEvent(scoreEvent) {
-    const reason = window.prompt(
-      "Motivo de la anulación. El movimiento seguirá visible en el historial:",
-      "",
-    );
-    if (!reason?.trim()) return;
+  function requestVoidEvent(scoreEvent) {
+    setVoidTarget(scoreEvent);
+    setVoidReason("");
+  }
 
+  function closeVoidDialog() {
+    if (voiding) return;
+    setVoidTarget(null);
+    setVoidReason("");
+  }
+
+  async function submitVoidEvent(event) {
+    event.preventDefault();
+    if (!voidTarget || !voidReason.trim()) return;
+
+    setVoiding(true);
     setError("");
     try {
-      await api.post(`/direction/employee-scores/events/${scoreEvent.id}/void`, {
-        reason: reason.trim(),
+      await api.post(`/direction/employee-scores/events/${voidTarget.id}/void`, {
+        reason: voidReason.trim(),
       });
+      setVoidTarget(null);
+      setVoidReason("");
       await Promise.all([loadEmployees(), loadDetail(selectedId)]);
     } catch (err) {
       setError(getApiErrorMessage(err, {
@@ -140,25 +160,25 @@ function EmployeeScores() {
         resource: "historial de calificaciones",
         fallback: "El movimiento sigue activo. Recarga el historial antes de intentar anularlo nuevamente.",
       }));
+    } finally {
+      setVoiding(false);
     }
   }
 
   return (
     <div className="page direction-score-page">
-      <header className="page-header">
-        <div>
-          <span className="eyebrow">Dirección · Privado</span>
-          <h1>Calificación de empleados</h1>
-          <p>Registra reconocimientos o descuentos con su justificación y conserva el historial completo.</p>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="Dirección · Privado"
+        title="Calificación de empleados"
+        description="Registra reconocimientos o descuentos con su justificación y conserva el historial completo."
+      />
 
       <div className="direction-privacy-note">
         <strong>Información privada de Dirección</strong>
         <span>Esta sección y sus movimientos no están disponibles para administradores ni empleados.</span>
       </div>
 
-      {error && <div className="alert" role="alert">{error}</div>}
+      {error && <FeedbackMessage title="La operación no se completó">{error}</FeedbackMessage>}
 
       <div className="score-workspace">
         <aside className="panel score-employee-panel">
@@ -180,12 +200,14 @@ function EmployeeScores() {
           />
 
           {loading ? (
-            <div className="page-loading compact-loading"><span /> Cargando…</div>
+            <LoadingState label="Cargando empleados…" compact />
           ) : employees.length === 0 ? (
-            <div className="empty-state compact">
-              <strong>Sin resultados</strong>
-              <p>No encontramos empleados con ese filtro.</p>
-            </div>
+            <EmptyState
+              compact
+              icon="users"
+              title="Sin resultados"
+              description="No encontramos empleados con ese filtro."
+            />
           ) : (
             <div className="score-employee-list">
               {employees.map((employee) => (
@@ -213,9 +235,12 @@ function EmployeeScores() {
 
         <section className="score-detail-column">
           {!selectedEmployee ? (
-            <section className="panel empty-state">
-              <strong>Selecciona un empleado</strong>
-              <p>Elige un perfil para consultar su historial y registrar una calificación.</p>
+            <section className="panel">
+              <EmptyState
+                icon="employee"
+                title="Selecciona un empleado"
+                description="Elige un perfil para consultar su historial y registrar una calificación."
+              />
             </section>
           ) : (
             <>
@@ -287,12 +312,14 @@ function EmployeeScores() {
                 </div>
 
                 {detailLoading ? (
-                  <div className="page-loading compact-loading"><span /> Cargando historial…</div>
+                  <LoadingState label="Cargando historial…" compact />
                 ) : !detail?.history?.length ? (
-                  <div className="empty-state compact">
-                    <strong>Aún no hay movimientos</strong>
-                    <p>La primera calificación aparecerá aquí.</p>
-                  </div>
+                  <EmptyState
+                    compact
+                    icon="star"
+                    title="Aún no hay movimientos"
+                    description="La primera calificación aparecerá aquí."
+                  />
                 ) : (
                   <div className="score-history-list">
                     {detail.history.map((scoreEvent, index) => (
@@ -313,7 +340,7 @@ function EmployeeScores() {
                           {scoreEvent.void_reason && <p>Motivo de anulación: {scoreEvent.void_reason}</p>}
                         </div>
                         {scoreEvent.status === "ACTIVE" && (
-                          <button className="btn btn-ghost" type="button" onClick={() => voidEvent(scoreEvent)}>
+                          <button className="btn btn-ghost" type="button" onClick={() => requestVoidEvent(scoreEvent)}>
                             Anular
                           </button>
                         )}
@@ -326,6 +353,48 @@ function EmployeeScores() {
           )}
         </section>
       </div>
+
+      {voidTarget && (
+        <div className="modal-overlay" role="presentation" onMouseDown={closeVoidDialog}>
+          <section
+            className="modal score-void-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="score-void-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <span className="eyebrow">Trazabilidad</span>
+                <h2 id="score-void-title">Anular movimiento</h2>
+                <p>El movimiento seguirá visible en el historial y quedará marcado como anulado.</p>
+              </div>
+              <button className="btn btn-close" type="button" onClick={closeVoidDialog} disabled={voiding} aria-label="Cerrar">×</button>
+            </div>
+
+            <form onSubmit={submitVoidEvent}>
+              <div className="form-group">
+                <label htmlFor="score-void-reason">Motivo de la anulación</label>
+                <textarea
+                  id="score-void-reason"
+                  rows="4"
+                  value={voidReason}
+                  onChange={(event) => setVoidReason(event.target.value)}
+                  placeholder="Explica por qué este movimiento debe quedar anulado."
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="form-actions">
+                <button className="btn btn-secondary" type="button" onClick={closeVoidDialog} disabled={voiding}>Cancelar</button>
+                <button className="btn btn-danger" type="submit" disabled={voiding || !voidReason.trim()}>
+                  {voiding ? "Anulando…" : "Anular movimiento"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
