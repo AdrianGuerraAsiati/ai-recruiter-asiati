@@ -1,4 +1,5 @@
 import { useTheme } from "../context/ThemeContext";
+import Icon from "./ui/Icon";
 
 function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
@@ -12,7 +13,7 @@ function ThemeToggle() {
       title={theme === "light" ? "Modo oscuro" : "Modo claro"}
     >
       <span className="theme-toggle-icon" aria-hidden="true">
-        {theme === "light" ? "◐" : "◑"}
+        <Icon name={theme === "light" ? "moon" : "sun"} size={18} />
       </span>
     </button>
   );
