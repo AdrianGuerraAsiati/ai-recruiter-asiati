@@ -260,24 +260,12 @@ function Candidates() {
     return "Sin clasificación";
   }
 
-  function badgeStyle(recommendation) {
-    if (recommendation === "STRONG_MATCH") {
-      return { background: "#dcfce7", color: "#166534" };
-    }
-    if (
-      recommendation === "GOOD_MATCH" ||
-      recommendation === "PARTIAL_MATCH"
-    ) {
-      return { background: "#fef3c7", color: "#92400e" };
-    }
-    if (recommendation === "EVALUATION_FAILED") {
-      return {
-        background: "#fef2f2",
-        color: "#991b1b",
-        border: "1px solid #fecaca",
-      };
-    }
-    return { background: "#fee2e2", color: "#991b1b" };
+  function badgeClass(recommendation) {
+    if (recommendation === "STRONG_MATCH") return "candidate-evaluation-badge--strong";
+    if (recommendation === "GOOD_MATCH") return "candidate-evaluation-badge--good";
+    if (recommendation === "PARTIAL_MATCH") return "candidate-evaluation-badge--partial";
+    if (recommendation === "EVALUATION_FAILED") return "candidate-evaluation-badge--failed";
+    return "candidate-evaluation-badge--low";
   }
 
   const selectedEvaluationFailed =
@@ -537,7 +525,7 @@ function Candidates() {
             <div className="modal-header">
               <div>
                 <h2>Resultado de evaluación IA</h2>
-                <p className="muted" style={{ marginTop: "6px" }}>
+                <p className="muted candidate-evaluation-subtitle">
                   Evaluación del candidato
                 </p>
               </div>
@@ -547,20 +535,13 @@ function Candidates() {
             </div>
 
             {selectedEvaluationFailed ? (
-              <div style={{ textAlign: "center", padding: "20px 0" }}>
-                <div
-                  className="badge"
-                  style={{
-                    display: "inline-block",
-                    padding: "10px 18px",
-                    ...badgeStyle("EVALUATION_FAILED"),
-                  }}
-                >
+              <div className="candidate-evaluation-summary candidate-evaluation-summary--failed">
+                <div className="badge candidate-evaluation-badge candidate-evaluation-badge--failed">
                   Evaluación fallida
                 </div>
               </div>
             ) : (
-              <div style={{ textAlign: "center", padding: "20px 0" }}>
+              <div className="candidate-evaluation-summary">
                 <div className="score">
                   {selectedEvaluation.evaluation.match_score}%
                 </div>
@@ -568,13 +549,7 @@ function Candidates() {
                   value={selectedEvaluation.evaluation.match_score}
                   label="Afinidad con la vacante"
                 />
-                <div
-                  className="badge"
-                  style={{
-                    marginTop: "18px",
-                    ...badgeStyle(selectedEvaluation.evaluation.recommendation),
-                  }}
-                >
+                <div className={`badge candidate-evaluation-badge ${badgeClass(selectedEvaluation.evaluation.recommendation)}`}>
                   {getRecommendationLabel(
                     selectedEvaluation.evaluation.recommendation,
                   )}
@@ -584,14 +559,14 @@ function Candidates() {
 
             <div className="result">
               <h3>Resumen</h3>
-              <p style={{ marginTop: "10px", lineHeight: "1.6" }}>
+              <p className="candidate-evaluation-copy">
                 {selectedEvaluation.evaluation.summary}
               </p>
             </div>
 
             <div className="columns">
               <div>
-                <h3 className="section-title">✅ Fortalezas</h3>
+                <h3 className="section-title candidate-section-title candidate-section-title--positive"><Icon name="check" size={16} /> Fortalezas</h3>
                 {selectedEvaluation.evaluation.strengths?.length ? (
                   <ul className="list">
                     {selectedEvaluation.evaluation.strengths.map((item, index) => (
@@ -604,7 +579,7 @@ function Candidates() {
               </div>
 
               <div>
-                <h3 className="section-title">❌ Gaps</h3>
+                <h3 className="section-title candidate-section-title candidate-section-title--negative"><Icon name="warning" size={16} /> Brechas</h3>
                 {selectedEvaluation.evaluation.gaps?.length ? (
                   <ul className="list">
                     {selectedEvaluation.evaluation.gaps.map((item, index) => (
