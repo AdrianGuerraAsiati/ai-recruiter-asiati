@@ -50,7 +50,7 @@ function Candidates() {
       setTotal(responseTotal);
       setPages(responsePages);
       setJobs(Array.isArray(jobsData) ? jobsData : jobsData.jobs || []);
-    } catch {
+    } catch (error) {
       setLoadError(getApiErrorMessage(error, {
         action: "cargar candidatos y vacantes",
         resource: "reclutamiento",
