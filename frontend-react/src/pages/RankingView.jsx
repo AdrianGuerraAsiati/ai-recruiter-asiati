@@ -973,7 +973,7 @@ async function recalculateRanking() {
 
             return (
               <div
-                key={candidate.candidate_id}
+                key={`${candidate.candidate_id}-${rankingVersion ?? "pending"}`}
                 className={`ranking-candidate-card ${
                   position <= 3
                     ? `ranking-candidate-card--top ranking-candidate-card--top-${position}`
