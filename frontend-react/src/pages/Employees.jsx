@@ -5,6 +5,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
+import PageHeader from "../components/ui/PageHeader";
+import {
+  EmptyState,
+  FeedbackMessage,
+  LoadingState,
+  MetricCard,
+  ProgressBar,
+} from "../components/ui/StatePanel";
 
 function todayInputValue() {
   const now = new Date();
@@ -163,45 +171,26 @@ function Employees() {
 
   return (
     <div className="page employees-page">
-      <header className="page-header split-header">
-        <div>
-          <span className="eyebrow">Gestión interna</span>
-          <h1>Empleados</h1>
-          <p>Administra accesos, perfiles y roles del equipo ASIATI.</p>
-        </div>
-        <button className="btn btn-primary" type="button" onClick={() => setFormOpen(true)}>
-          + Crear empleado
-        </button>
-      </header>
+      <PageHeader
+        eyebrow="Gestión interna"
+        title="Empleados"
+        description="Administra accesos, perfiles, roles y seguimiento de onboarding del equipo ASIATI."
+        actions={!formOpen ? (
+          <button className="btn btn-primary" type="button" onClick={() => setFormOpen(true)}>
+            Crear empleado
+          </button>
+        ) : null}
+        className="split-header"
+      />
 
-      {error && <div className="alert" role="alert">{error}</div>}
+      {error && <FeedbackMessage title="El directorio no está actualizado">{error}</FeedbackMessage>}
 
       <section className="metrics-grid employees-metrics" aria-label="Resumen de empleados">
-        <article className="metric-card metric-blue">
-          <span className="metric-label">Empleados visibles</span>
-          <strong className="metric-value">{employees.length}</strong>
-          <small>Perfiles encontrados</small>
-        </article>
-        <article className="metric-card metric-cyan">
-          <span className="metric-label">Activos</span>
-          <strong className="metric-value">{stats.active}</strong>
-          <small>Con acceso habilitado</small>
-        </article>
-        <article className="metric-card metric-violet">
-          <span className="metric-label">Administrativos</span>
-          <strong className="metric-value">{stats.admins}</strong>
-          <small>ADMIN o SUPER_ADMIN</small>
-        </article>
-        <article className="metric-card">
-          <span className="metric-label">Onboarding activos</span>
-          <strong className="metric-value">{stats.onboardingActive}</strong>
-          <small>Pendientes o en progreso</small>
-        </article>
-        <article className="metric-card">
-          <span className="metric-label">Onboarding completados</span>
-          <strong className="metric-value">{stats.onboardingCompleted}</strong>
-          <small>Ruta finalizada</small>
-        </article>
+        <MetricCard icon="employee" label="Empleados visibles" value={employees.length} detail="Perfiles encontrados" tone="blue" />
+        <MetricCard icon="check" label="Activos" value={stats.active} detail="Con acceso habilitado" tone="cyan" />
+        <MetricCard icon="users" label="Administrativos" value={stats.admins} detail="ADMIN o SUPER_ADMIN" tone="violet" />
+        <MetricCard icon="progress" label="Onboarding activos" value={stats.onboardingActive} detail="Pendientes o en progreso" />
+        <MetricCard icon="training" label="Onboarding completados" value={stats.onboardingCompleted} detail="Ruta finalizada" />
       </section>
 
       <section className="panel employee-list-panel">
@@ -242,12 +231,14 @@ function Employees() {
         </div>
 
         {loading ? (
-          <div className="page-loading"><span /> Cargando empleados…</div>
+          <LoadingState label="Cargando empleados…" compact />
         ) : employees.length === 0 ? (
-          <div className="empty-state compact">
-            <strong>No hay empleados para mostrar</strong>
-            <p>Crea el primer perfil o modifica los filtros.</p>
-          </div>
+          <EmptyState
+            compact
+            icon="employee"
+            title="No hay empleados para mostrar"
+            description="Crea el primer perfil o modifica los filtros."
+          />
         ) : (
           <div className="employee-table-wrap">
             <table className="employee-table">
@@ -313,9 +304,7 @@ function Employees() {
                         </span>
                         {employee.onboarding && (
                           <div className="employee-onboarding-progress">
-                            <div className="employee-onboarding-progress-track" aria-hidden="true">
-                              <span style={{ width: `${Math.max(0, Math.min(100, Number(employee.onboarding.progress_percent || 0)))}%` }} />
-                            </div>
+                            <ProgressBar value={employee.onboarding.progress_percent} />
                             <small>{Number(employee.onboarding.progress_percent || 0)}% completado</small>
                             {canReadTrainingResults && (
                               <button
@@ -376,9 +365,9 @@ function Employees() {
             </div>
 
             {onboardingDetailLoading ? (
-              <div className="page-loading"><span /> Cargando progreso…</div>
+              <LoadingState label="Cargando progreso…" compact />
             ) : onboardingDetailError ? (
-              <div className="alert" role="alert">{onboardingDetailError}</div>
+              <FeedbackMessage title="El detalle de onboarding no está disponible">{onboardingDetailError}</FeedbackMessage>
             ) : onboardingDetail?.course ? (
               <div className="employee-onboarding-detail">
                 <div className="employee-onboarding-summary">

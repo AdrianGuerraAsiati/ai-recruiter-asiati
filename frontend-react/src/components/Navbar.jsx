@@ -1,40 +1,41 @@
 // eslint-disable-next-line no-unused-vars
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 
 import api from "../api/client";
 import { useSession } from "../context/SessionContext";
 import BrandMark from "./BrandMark";
 import ThemeToggle from "./ThemeToggle";
-
+import Icon from "./ui/Icon";
 
 const navItems = [
-  { to: "/dashboard", label: "Inicio", icon: "⌁" },
-  { to: "/jobs", label: "Vacantes", icon: "▤", permission: "jobs.read" },
-  { to: "/applications", label: "Postulaciones", icon: "◉", permission: "candidates.read" },
-  { to: "/candidates", label: "Candidatos", icon: "◎", permission: "candidates.read" },
-  { to: "/ranking", label: "Ranking IA", icon: "↗", permission: "ranking.read" },
-  { to: "/employees", label: "Empleados", icon: "◫", permission: "employees.read" },
-  { to: "/direction/scores", label: "Dirección · Calificación", icon: "★", permission: "employee_scores.read" },
-  { to: "/training", label: "Capacitación", icon: "▶", permission: "training.read" },
+  { to: "/dashboard", label: "Inicio", icon: "home", section: "General" },
+  { to: "/jobs", label: "Vacantes", icon: "briefcase", section: "Reclutamiento", permission: "jobs.read" },
+  { to: "/applications", label: "Postulaciones", icon: "applications", section: "Reclutamiento", permission: "candidates.read" },
+  { to: "/candidates", label: "Candidatos", icon: "users", section: "Reclutamiento", permission: "candidates.read" },
+  { to: "/ranking", label: "Ranking IA", icon: "ranking", section: "Reclutamiento", permission: "ranking.read" },
+  { to: "/employees", label: "Empleados", icon: "employee", section: "Equipo", permission: "employees.read" },
+  { to: "/direction/scores", label: "Calificación", icon: "star", section: "Equipo", permission: "employee_scores.read" },
+  { to: "/training", label: "Capacitación", icon: "training", section: "Desarrollo", permission: "training.read" },
   {
     to: "/progress",
     label: "Mi progreso",
-    icon: "✓",
+    icon: "progress",
+    section: "Desarrollo",
     permission: "training.progress.read_own",
     roles: ["EMPLOYEE"],
   },
-  { to: "/profile", label: "Mi perfil", icon: "○", permission: "profile.read_own" },
-  { to: "/integrations", label: "Integraciones", icon: "◇", permission: "integrations.manage" },
+  { to: "/profile", label: "Mi perfil", icon: "profile", section: "Cuenta", permission: "profile.read_own" },
+  { to: "/integrations", label: "Integraciones", icon: "integrations", section: "Sistema", permission: "integrations.manage" },
 ];
 
+const sectionOrder = ["General", "Reclutamiento", "Equipo", "Desarrollo", "Cuenta", "Sistema"];
 
 function primaryRole(roles = []) {
   if (roles.includes("SUPER_ADMIN")) return "SUPER_ADMIN";
   if (roles.includes("ADMIN")) return "ADMIN";
   return "EMPLOYEE";
 }
-
 
 function Brand() {
   return (
@@ -44,14 +45,12 @@ function Brand() {
   );
 }
 
-
 function roleLabel(roles = []) {
   const role = primaryRole(roles);
   if (role === "SUPER_ADMIN") return "Dirección";
   if (role === "ADMIN") return "Administración";
   return "Empleado";
 }
-
 
 function Navbar() {
   const navigate = useNavigate();
@@ -66,6 +65,11 @@ function Navbar() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, []);
 
+  useEffect(() => {
+    document.body.classList.toggle("nav-mobile-open", open);
+    return () => document.body.classList.remove("nav-mobile-open");
+  }, [open]);
+
   async function logout() {
     await api.post("/auth/logout").catch(() => {});
     clearSession();
@@ -79,6 +83,17 @@ function Navbar() {
       && (!item.roles || item.roles.includes(role))
     ),
   );
+
+  const sections = useMemo(
+    () => sectionOrder
+      .map((section) => ({
+        section,
+        items: visibleItems.filter((item) => item.section === section),
+      }))
+      .filter((group) => group.items.length > 0),
+    [visibleItems],
+  );
+
   const profile = principal?.profile || {};
   const displayName = [profile.first_name, profile.last_name].filter(Boolean).join(" ")
     || principal?.email
@@ -101,28 +116,44 @@ function Navbar() {
         </button>
       </header>
 
-      {open && <button className="nav-backdrop" aria-label="Cerrar menú" onClick={() => setOpen(false)} />}
+      {open && (
+        <button
+          className="nav-backdrop"
+          type="button"
+          aria-label="Cerrar menú"
+          onClick={() => setOpen(false)}
+        />
+      )}
 
-      <aside className={`navbar ${open ? "is-open" : ""}`}>
+      <aside className={`navbar ${open ? "is-open" : ""}`} aria-label="Navegación de la aplicación">
         <div className="navbar-inner">
           <Brand />
 
           <div className="nav-context">
             <span className="nav-context-label">{roleLabel(principal?.roles)}</span>
-            <strong>{displayName}</strong>
+            <strong title={displayName}>{displayName}</strong>
           </div>
 
           <nav id="primary-navigation" className="navbar-links" aria-label="Navegación principal">
-            {visibleItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                onClick={() => setOpen(false)}
-                className={({ isActive }) => `navbar-link ${isActive ? "active" : ""}`}
-              >
-                <span className="navbar-icon" aria-hidden="true">{item.icon}</span>
-                <span>{item.label}</span>
-              </NavLink>
+            {sections.map(({ section, items }) => (
+              <div className="nav-section" key={section}>
+                <span className="nav-section-label">{section}</span>
+                <div className="nav-section-items">
+                  {items.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      onClick={() => setOpen(false)}
+                      className={({ isActive }) => `navbar-link ${isActive ? "active" : ""}`}
+                    >
+                      <span className="navbar-icon" aria-hidden="true">
+                        <Icon name={item.icon} size={17} />
+                      </span>
+                      <span>{item.label}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
             ))}
           </nav>
 
@@ -130,14 +161,14 @@ function Navbar() {
             <span className="nav-insight-dot" aria-hidden="true" />
             <div>
               <strong>{hasPermission("jobs.read") ? "Gestión de talento" : "Tu espacio ASIATI"}</strong>
-              <span>{hasPermission("jobs.read") ? "Selección y capacitación" : "Capacitación y progreso"}</span>
+              <span>{hasPermission("jobs.read") ? "Selección y desarrollo" : "Capacitación y progreso"}</span>
             </div>
           </div>
 
           <div className="navbar-bottom-actions">
             <ThemeToggle />
-            <button className="navbar-logout" onClick={logout}>
-              <span aria-hidden="true">↪</span>
+            <button className="navbar-logout" type="button" onClick={logout}>
+              <Icon name="logout" size={17} />
               <span>Cerrar sesión</span>
             </button>
           </div>

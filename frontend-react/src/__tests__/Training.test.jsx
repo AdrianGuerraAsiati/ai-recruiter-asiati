@@ -148,7 +148,7 @@ describe("Training platform", () => {
 
     expect((await screen.findAllByText("Inducción ASIATI")).length).toBeGreaterThan(0);
     expect((await screen.findAllByText("Quiénes somos")).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: "+ Crear curso" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Crear curso" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Marcar completada" }));
 
@@ -999,12 +999,12 @@ describe("Training platform", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("button", { name: "+ Crear curso" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Crear curso" })).toBeInTheDocument();
     expect((await screen.findAllByText("Inducción ASIATI")).length).toBeGreaterThan(0);
     expect(await screen.findByText("Ana Pérez")).toBeInTheDocument();
     expect(screen.getByText("50%")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "+ Crear curso" }));
+    fireEvent.click(screen.getByRole("button", { name: "Crear curso" }));
     fireEvent.change(screen.getByLabelText("Título"), {
       target: { value: "Seguridad" },
     });
@@ -1059,7 +1059,7 @@ describe("Training onboarding classification", () => {
 
     renderPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: "+ Crear curso" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Crear curso" }));
     fireEvent.change(screen.getByLabelText("Título"), {
       target: { value: "Inducción ASIATI" },
     });

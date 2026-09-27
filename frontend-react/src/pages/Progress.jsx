@@ -6,6 +6,13 @@ import { Link } from "react-router-dom";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
+import PageHeader from "../components/ui/PageHeader";
+import {
+  EmptyState,
+  FeedbackMessage,
+  LoadingState,
+  MetricCard,
+} from "../components/ui/StatePanel";
 
 
 function Progress() {
@@ -44,35 +51,39 @@ function Progress() {
   }, [assignments]);
 
   if (loading) {
-    return <div className="page"><div className="page-loading"><span /> Cargando tu progreso…</div></div>;
+    return <div className="page"><LoadingState label="Cargando tu progreso…" /></div>;
   }
 
   const firstName = principal?.profile?.first_name || "equipo";
 
   return (
     <div className="page progress-page">
-      <header className="page-header split-header">
-        <div>
-          <span className="eyebrow">Desarrollo personal</span>
-          <h1>Mi progreso</h1>
-          <p>{firstName}, aquí puedes revisar tus cursos asignados y el avance acumulado.</p>
-        </div>
-        <Link className="btn btn-primary" to="/training">Continuar capacitación</Link>
-      </header>
+      <PageHeader
+        eyebrow="Desarrollo personal"
+        title="Mi progreso"
+        description={`${firstName}, aquí puedes revisar tus cursos asignados y el avance acumulado.`}
+        actions={<Link className="btn btn-primary" to="/training">Continuar capacitación</Link>}
+        className="split-header"
+      />
 
-      {error && <div className="alert" role="alert">{error}</div>}
+      {error && <FeedbackMessage title="El progreso no está actualizado">{error}</FeedbackMessage>}
 
       <section className="metrics-grid" aria-label="Resumen de progreso">
-        <article className="metric-card metric-blue"><span className="metric-label">Cursos asignados</span><strong className="metric-value">{assignments.length}</strong><small>Ruta personal de aprendizaje</small></article>
-        <article className="metric-card metric-cyan"><span className="metric-label">Completados</span><strong className="metric-value">{summary.completed}</strong><small>Cursos finalizados</small></article>
-        <article className="metric-card metric-violet"><span className="metric-label">Progreso general</span><strong className="metric-value">{summary.progress}%</strong><small>Promedio de tus cursos</small></article>
-        <article className="metric-card"><span className="metric-label">Evaluaciones aprobadas</span><strong className="metric-value">{summary.evaluationsPassed}</strong><small>Resultados superados</small></article>
+        <MetricCard icon="training" label="Cursos asignados" value={assignments.length} detail="Ruta personal de aprendizaje" tone="blue" />
+        <MetricCard icon="check" label="Completados" value={summary.completed} detail="Cursos finalizados" tone="cyan" />
+        <MetricCard icon="progress" label="Progreso general" value={`${summary.progress}%`} detail="Promedio de tus cursos" tone="violet" />
+        <MetricCard icon="star" label="Evaluaciones aprobadas" value={summary.evaluationsPassed} detail="Resultados superados" />
       </section>
 
       <section className="panel">
         <div className="panel-heading"><div><span className="eyebrow">Detalle</span><h2>Mis capacitaciones</h2></div></div>
         {assignments.length === 0 ? (
-          <div className="empty-state compact"><strong>Aún no tienes capacitaciones asignadas</strong><p>Cuando se te asigne un curso aparecerá aquí automáticamente.</p></div>
+          <EmptyState
+            compact
+            icon="training"
+            title="Aún no tienes capacitaciones asignadas"
+            description="Cuando se te asigne un curso aparecerá aquí automáticamente."
+          />
         ) : (
           <div className="job-list">
             {assignments.map((assignment, index) => {

@@ -2,6 +2,7 @@
 import React from "react";
 
 import { useSession } from "../context/SessionContext";
+import PageHeader from "../components/ui/PageHeader";
 
 
 function roleName(roles = []) {
@@ -38,13 +39,11 @@ function Profile() {
 
   return (
     <div className="page profile-page">
-      <header className="page-header">
-        <div>
-          <span className="eyebrow">Cuenta personal</span>
-          <h1>Mi perfil</h1>
-          <p>Consulta la información asociada a tu cuenta y tu acceso dentro de ASIATI.</p>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="Cuenta personal"
+        title="Mi perfil"
+        description="Consulta la información asociada a tu cuenta y tu acceso dentro de ASIATI."
+      />
 
       <section className="panel">
         <div className="panel-heading">

@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
+import { EmptyState, LoadingState, ProgressBar } from "../components/ui/StatePanel";
 
 function recommendationLabel(recommendation) {
   const labels = {
@@ -114,7 +115,7 @@ function CandidateDetail() {
     }
   }
 
-  if (loading) return <div className="page"><div className="page-loading"><span /> Cargando perfil…</div></div>;
+  if (loading) return <div className="page"><LoadingState label="Cargando perfil…" /></div>;
   if (!candidate) {
     return <div className="page"><div className="empty-state"><strong>El candidato no está disponible</strong><p>{loadError || "Vuelve al listado y confirma que el perfil siga activo."}</p><Link to="/candidates" className="btn btn-primary">Volver a candidatos</Link></div></div>;
   }
@@ -183,17 +184,17 @@ function CandidateDetail() {
       )}
 
       {!evaluationCompleted ? (
-        <div className="empty-state">
-          <span aria-hidden="true">{evaluation?.status === "FAILED" ? "!" : "↗"}</span>
-          <strong>{evaluation?.status === "FAILED" ? "La evaluación no pudo completarse" : "Perfil pendiente de evaluación"}</strong>
-          <p>{evaluation?.status === "FAILED"
-            ? "Intenta evaluar nuevamente este candidato."
-            : "Evalúa este candidato contra una vacante para ver su afinidad."}</p>
-          <Link to="/candidates" className="btn btn-primary">Evaluar candidato</Link>
-        </div>
+        <EmptyState
+          icon={evaluation?.status === "FAILED" ? "warning" : "ranking"}
+          title={evaluation?.status === "FAILED" ? "La evaluación no pudo completarse" : "Perfil pendiente de evaluación"}
+          description={evaluation?.status === "FAILED"
+            ? "Vuelve al directorio, selecciona la vacante y ejecuta la evaluación nuevamente."
+            : "Evalúa este candidato contra una vacante para ver su afinidad."}
+          action={<Link to="/candidates" className="btn btn-primary">Ir a evaluar candidato</Link>}
+        />
       ) : (
         <div className="evaluation-layout">
-          <aside className="panel score-panel"><span className="eyebrow">Afinidad global</span><strong className="score score-large">{numericScore}%</strong><div className="score-bar"><div className="score-fill" style={{ width: `${Math.max(0, Math.min(100, numericScore))}%` }} /></div><span className="badge badge-success">{recommendationLabel(evaluation.recommendation)}</span></aside>
+          <aside className="panel score-panel"><span className="eyebrow">Afinidad global</span><strong className="score score-large">{numericScore}%</strong><ProgressBar value={numericScore} label="Afinidad con la vacante" /><span className="badge badge-success">{recommendationLabel(evaluation.recommendation)}</span></aside>
           <div className="evaluation-content">
             <section className="panel"><span className="eyebrow">Lectura ejecutiva</span><h2>Resumen del perfil</h2><p className="analysis-copy">{evaluation.summary}</p></section>
             <div className="columns">

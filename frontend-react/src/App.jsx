@@ -4,6 +4,7 @@ import Login from "./auth/Login";
 import Layout from "./components/Layout";
 import { ThemeProvider } from "./context/ThemeContext";
 import { SessionProvider, useSession } from "./context/SessionContext";
+import { NoticeProvider } from "./context/NoticeContext";
 
 import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
@@ -17,6 +18,9 @@ import EmployeeScores from "./pages/EmployeeScores";
 import Applications from "./pages/Applications";
 import Progress from "./pages/Progress";
 import Profile from "./pages/Profile";
+import Forbidden from "./pages/Forbidden";
+import NotFound from "./pages/NotFound";
+import "./ui-system.css";
 
 
 function ProtectedRoute({ children, permission }) {
@@ -31,7 +35,7 @@ function ProtectedRoute({ children, permission }) {
   }
 
   if (permission && !hasPermission(permission)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/forbidden" replace />;
   }
 
   return children;
@@ -67,9 +71,10 @@ function AppRoutes() {
         path="/candidates/:candidate_id"
         element={<ProtectedPage permission="candidates.read"><CandidateDetail /></ProtectedPage>}
       />
+      <Route path="/forbidden" element={<ProtectedPage><Forbidden /></ProtectedPage>} />
 
       <Route path="/register" element={<Navigate to="/login" replace />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<ProtectedPage><NotFound /></ProtectedPage>} />
     </Routes>
   );
 }
@@ -80,7 +85,9 @@ function App() {
     <ThemeProvider>
       <BrowserRouter>
         <SessionProvider>
-          <AppRoutes />
+          <NoticeProvider>
+            <AppRoutes />
+          </NoticeProvider>
         </SessionProvider>
       </BrowserRouter>
     </ThemeProvider>

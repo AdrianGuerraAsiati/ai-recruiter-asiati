@@ -5,6 +5,8 @@ import { Link } from "react-router-dom";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
+import PageHeader from "../components/ui/PageHeader";
+import { LoadingState } from "../components/ui/StatePanel";
 import "./Ranking.css";
 
 function Ranking() {
@@ -734,13 +736,13 @@ async function recalculateRanking() {
     <div className="page ranking-page">
 
       {/* 1. HEADER */}
-      <header className="ranking-header">
-        <div className="ranking-header-text">
-          <span className="eyebrow">Decisiones asistidas por IA</span>
-          <h1>Ranking de candidatos</h1>
-          <p>Compara, evalúa y prioriza candidatos para cada vacante.</p>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="Decisiones asistidas por IA"
+        title="Ranking de candidatos"
+        description="Compara, evalúa y prioriza candidatos para cada vacante con trazabilidad de la evaluación."
+        className="ranking-header"
+        copyClassName="ranking-header-text"
+      />
 
       {/* 2. JOB PANEL + ACTIONS */}
       <div className="ranking-job-panel">
@@ -938,7 +940,7 @@ async function recalculateRanking() {
           {[1, 2, 3].map((i) => (
             <div className="ranking-skeleton-card" key={i}>
               <div className="ranking-skeleton-line ranking-skeleton-line--medium" />
-              <div className="ranking-skeleton-line ranking-skeleton-line--short" style={{ marginTop: 10 }} />
+              <div className="ranking-skeleton-line ranking-skeleton-line--short ranking-skeleton-line--spaced" />
               <div className="ranking-skeleton-line ranking-skeleton-line--bar" />
             </div>
           ))}
@@ -1094,7 +1096,7 @@ async function recalculateRanking() {
       {/* 10. PAGINATION */}
       {rankingInfo.total > 0 && (
         <div className="ranking-pagination">
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div className="ranking-page-size">
             <span>Mostrar</span>
             <select value={pageSize} onChange={changePageSize}>
               <option value={10}>10</option>
@@ -1150,9 +1152,7 @@ async function recalculateRanking() {
             </div>
 
             {costEstimateLoading ? (
-              <div className="page-loading compact-loading">
-                <span /> Calculando costo estimado…
-              </div>
+              <LoadingState label="Calculando costo estimado…" compact />
             ) : costEstimate ? (
               <>
                 <div className="ranking-cost-grid">
@@ -1279,18 +1279,18 @@ async function recalculateRanking() {
             </div>
 
             {selectedCandidate.status === "FAILED" || selectedCandidate.status === "PENDING" ? (
-              <div style={{ marginTop: 10 }}>
-                <h1 style={{ color: "var(--danger)", fontSize: "1.8rem" }}>
+              <div className="ranking-modal-status ranking-modal-status--failed">
+                <h3>
                   {selectedCandidate.status === "FAILED" ? "Evaluación fallida" : "Evaluación pendiente"}
-                </h1>
+                </h3>
                 {selectedCandidate.error_message && (
-                  <p className="muted" style={{ marginTop: 8 }}>{selectedCandidate.error_message}</p>
+                  <p className="muted ranking-modal-status-copy">{selectedCandidate.error_message}</p>
                 )}
               </div>
             ) : (
               <>
                 <span className="ranking-modal-score">{selectedCandidate.match_score}%</span>
-                <div style={{ marginTop: 10 }}>
+                <div className="ranking-modal-recommendation">
                   <span className={`ranking-badge ${getRecommendationClass(selectedCandidate.recommendation)}`}>
                     {getRecommendationLabel(selectedCandidate.recommendation)}
                   </span>
@@ -1326,7 +1326,7 @@ async function recalculateRanking() {
               {requirements.map((req, i) => (
                 <div key={i} className="ranking-modal-requirement">
                   <strong>{req.requirement}</strong>
-                  <span className={`ranking-badge ${getRequirementClass(req.status)}`} style={{ marginTop: 6 }}>
+                  <span className={`ranking-badge ranking-modal-requirement-badge ${getRequirementClass(req.status)}`}>
                     {getRequirementLabel(req.status)}
                   </span>
                   {req.evidence && <p className="ranking-modal-evidence"><strong>Evidencia:</strong> {req.evidence}</p>}
@@ -1340,10 +1340,10 @@ async function recalculateRanking() {
               <h3>Análisis IA</h3>
               {analysisLoading && <p className="muted">Generando análisis...</p>}
               {analysisError && <p className="muted" role="alert">{analysisError}</p>}
-              {analysis && <p style={{ lineHeight: 1.6, color: "var(--ink-soft)" }}>{analysis.explanation || analysis.summary || analysis.analysis}</p>}
+              {analysis && <p className="ranking-modal-analysis-copy">{analysis.explanation || analysis.summary || analysis.analysis}</p>}
             </div>
 
-            <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+            <div className="ranking-modal-actions">
               <button className="btn btn-ghost" onClick={closeModal}>Cerrar</button>
               <Link className="btn btn-primary" to={`/candidates/${selectedCandidate.candidate_id}?job_id=${selectedJob}`}>
                 Abrir ficha de esta vacante

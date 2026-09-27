@@ -4,6 +4,8 @@ import { useSearchParams } from "react-router-dom";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
+import PageHeader from "../components/ui/PageHeader";
+import { FeedbackMessage, LoadingState } from "../components/ui/StatePanel";
 import "./Integrations.css";
 
 function Integrations() {
@@ -199,21 +201,17 @@ function Integrations() {
   const manageable = status?.manageable !== false;
 
   return (
-    <section className="integrations-page">
-      <header className="integrations-hero">
-        <div>
-          <span className="integrations-eyebrow">Fuentes de candidatos</span>
-          <h1>Integraciones</h1>
-          <p>
-            Conecta el buzón corporativo que recibe postulaciones para importar CVs al
-            flujo de evaluación de ASIATI.
-          </p>
-        </div>
-        <div className="integrations-hero-badge">1 cuenta corporativa</div>
-      </header>
+    <section className="page integrations-page">
+      <PageHeader
+        eyebrow="Fuentes de candidatos"
+        title="Integraciones"
+        description="Conecta servicios corporativos que alimentan el flujo de selección sin perder trazabilidad."
+        actions={<div className="integrations-hero-badge">1 cuenta corporativa</div>}
+        className="integrations-hero"
+      />
 
-      {error && <div className="integration-alert is-error" role="alert">{error}</div>}
-      {message && <div className="integration-alert is-success" role="status">{message}</div>}
+      {error && <FeedbackMessage title="La integración necesita atención">{error}</FeedbackMessage>}
+      {message && <FeedbackMessage tone="success">{message}</FeedbackMessage>}
 
       <article className="integration-card">
         <div className="integration-card-header">
@@ -236,7 +234,7 @@ function Integrations() {
         </div>
 
         {loading ? (
-          <div className="integration-loading">Consultando configuración…</div>
+          <LoadingState label="Consultando configuración…" compact />
         ) : (
           <div className="integration-body">
             {connected ? (

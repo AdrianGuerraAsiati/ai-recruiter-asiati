@@ -1,9 +1,11 @@
-// eslint-disable-next-line no-unused-vars
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
+import PageHeader from "../components/ui/PageHeader";
+import Icon from "../components/ui/Icon";
+import { EmptyState, FeedbackMessage, LoadingState } from "../components/ui/StatePanel";
 import "./Jobs.css";
 import "./JobsPagination.css";
 
@@ -761,13 +763,21 @@ function Jobs() {
 
   return (
     <div className="page">
-      <header className="page-header split-header">
-        <div><span className="eyebrow">Gestión de posiciones</span><h1>Vacantes</h1><p>Define los perfiles que tu equipo necesita incorporar.</p></div>
-        <button className="btn btn-primary" onClick={toggleForm}>{showForm ? "Cerrar formulario" : "Nueva vacante"}<span aria-hidden="true">{showForm ? "×" : "＋"}</span></button>
-      </header>
+      <PageHeader
+        eyebrow="Gestión de posiciones"
+        title="Vacantes"
+        description="Define, publica y administra los perfiles que tu equipo necesita incorporar."
+        actions={(
+          <button className="btn btn-primary" type="button" onClick={toggleForm}>
+            <Icon name={showForm ? "error" : "plus"} size={17} />
+            {showForm ? "Cerrar formulario" : "Nueva vacante"}
+          </button>
+        )}
+        className="split-header"
+      />
 
-      {error && <div className="alert alert-error" role="alert"><span>{error}</span></div>}
-      {successMessage && <div className="alert alert-success" role="status" style={{ background: "var(--success-bg)", color: "var(--success)", borderColor: "var(--success)" }}>{successMessage}</div>}
+      {error && <FeedbackMessage title="La operación sobre la vacante no se completó">{error}</FeedbackMessage>}
+      {successMessage && <FeedbackMessage tone="success">{successMessage}</FeedbackMessage>}
 
       {showForm && (
         <section className="panel job-form-panel">
@@ -932,19 +942,19 @@ function Jobs() {
         </div>
 
         {jobs.length === 0 ? (
-          <div className="empty-state">
-            <span aria-hidden="true">▤</span>
-            <strong>{query ? "No encontramos vacantes con ese filtro" : "Tu tablero de vacantes está vacío"}</strong>
-            <p>{query ? "Prueba otro título o limpia la búsqueda." : "Crea una posición para comenzar a comparar candidatos."}</p>
-            {query
+          <EmptyState
+            icon="briefcase"
+            title={query ? "No encontramos vacantes con ese filtro" : "Tu tablero de vacantes está vacío"}
+            description={query ? "Prueba otro título o limpia la búsqueda." : "Crea una posición para comenzar a comparar candidatos."}
+            action={query
               ? <button className="btn btn-secondary" type="button" onClick={clearJobSearch}>Limpiar búsqueda</button>
-              : <button className="btn btn-secondary" onClick={() => setShowForm(true)}>Crear primera vacante</button>}
-          </div>
+              : <button className="btn btn-secondary" type="button" onClick={() => setShowForm(true)}>Crear primera vacante</button>}
+          />
         ) : (
           <div className="jobs-grid">
             {jobs.map((job) => (
               <article className="job-card" key={job.job_id}>
-                <div className="job-card-top"><span className="job-card-icon" aria-hidden="true">▤</span><span className="status-pill"><i /> Activa</span></div>
+                <div className="job-card-top"><span className="job-card-icon" aria-hidden="true"><Icon name="briefcase" size={18} /></span><span className="status-pill"><i /> Activa</span></div>
                 <h3>{job.title}</h3><p>{job.description}</p>
                 <p className="job-description-source-meta">
                   Descripción activa: <strong>{job.active_description_source === "ai" ? "IA" : "Indeed"}</strong>
@@ -1010,7 +1020,7 @@ function Jobs() {
               <div>
                 <span className="eyebrow">Vacante</span>
                 <h2 id="job-details-title">{viewJob.title}</h2>
-                <span className="status-pill" style={{ marginTop: 8 }}><i /> Activa</span>
+                <span className="status-pill job-detail-status"><i /> Activa</span>
               </div>
               <button className="btn btn-close" onClick={closeJobDetails} aria-label="Cerrar detalle de vacante"><span aria-hidden="true">✕</span></button>
             </div>
@@ -1102,7 +1112,7 @@ function Jobs() {
             <div className="job-detail-section">
               <div className="job-detail-candidates-header"><h3>Candidatos asignados</h3><span className="badge badge-success">{jobCandidates.length}</span></div>
 
-              {jobCandidatesLoading && <div className="job-detail-loading"><span className="page-loading"><span />Cargando candidatos…</span></div>}
+              {jobCandidatesLoading && <div className="job-detail-loading"><LoadingState label="Cargando candidatos…" compact /></div>}
               {!jobCandidatesLoading && jobCandidatesError && <div className="job-detail-error"><p>{jobCandidatesError}</p><button className="btn btn-secondary" onClick={() => openJobDetails(viewJob)}>Reintentar</button></div>}
               {!jobCandidatesLoading && !jobCandidatesError && jobCandidates.length === 0 && <div className="job-detail-empty"><p>No hay candidatos asignados a esta vacante.</p><Link className="btn btn-primary" to={`/candidates?job_id=${viewJob.job_id}`}>Agregar candidatos</Link></div>}
               {!jobCandidatesLoading && !jobCandidatesError && jobCandidates.length > 0 && (
@@ -1209,12 +1219,12 @@ function Jobs() {
         <div className="modal-overlay" onClick={() => { if (!deletingJob) { setDeleteJobTarget(null); setDeleteError(""); } }}>
           <div className="modal job-delete-modal" role="dialog" aria-modal="true" aria-labelledby="delete-job-title" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <div><span className="eyebrow" style={{ color: "var(--danger)" }}>⚠ Eliminar vacante</span><h2 id="delete-job-title">¿qué deseas eliminar?</h2></div>
+              <div><span className="eyebrow job-danger-eyebrow">Eliminar vacante</span><h2 id="delete-job-title">¿qué deseas eliminar?</h2></div>
               <button className="btn btn-close" onClick={() => { if (!deletingJob) { setDeleteJobTarget(null); setDeleteError(""); } }} disabled={deletingJob} aria-label="Cerrar modal de eliminación"><span aria-hidden="true">✕</span></button>
             </div>
 
             <p className="job-delete-job-title">{deleteJobTarget.title}</p>
-            <p className="muted" style={{ marginBottom: 16 }}>Esta vacante tiene {deleteJobTarget.candidate_count || 0} candidato{deleteJobTarget.candidate_count === 1 ? "" : "s"} asignado{deleteJobTarget.candidate_count === 1 ? "" : "s"}.</p>
+            <p className="muted job-delete-copy">Esta vacante tiene {deleteJobTarget.candidate_count || 0} candidato{deleteJobTarget.candidate_count === 1 ? "" : "s"} asignado{deleteJobTarget.candidate_count === 1 ? "" : "s"}.</p>
             {deleteError && <div className="job-delete-error" role="alert">{deleteError}</div>}
 
             <div className="job-delete-options">

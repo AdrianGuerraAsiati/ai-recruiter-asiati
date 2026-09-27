@@ -1,29 +1,19 @@
 .integrations-page {
   display: grid;
   gap: 24px;
-  max-width: 980px;
-  margin: 0 auto;
-  padding: 8px 0 40px;
+  max-width: 1180px;
 }
 
 .integrations-hero {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
+  align-items: flex-end;
 }
 
 .integrations-hero h1 {
-  margin: 4px 0 8px;
-  font-size: clamp(2rem, 4vw, 3rem);
-  line-height: 1;
+  line-height: 1.08;
 }
 
 .integrations-hero p {
-  max-width: 680px;
-  margin: 0;
-  color: var(--text-muted, #667085);
-  line-height: 1.65;
+  max-width: 720px;
 }
 
 .integrations-eyebrow,

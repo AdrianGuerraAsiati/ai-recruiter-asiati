@@ -5,6 +5,13 @@ import { Link } from "react-router-dom";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
+import PageHeader from "../components/ui/PageHeader";
+import {
+  EmptyState,
+  FeedbackMessage,
+  LoadingState,
+  MetricCard,
+} from "../components/ui/StatePanel";
 
 const PAGE_SIZE = 25;
 
@@ -95,32 +102,19 @@ function Applications() {
 
   return (
     <div className="page applications-page">
-      <header className="page-header split-header">
-        <div>
-          <span className="eyebrow">Pipeline de selección</span>
-          <h1>Postulaciones</h1>
-          <p>Consulta cada candidato por vacante y actualiza su etapa sin perder el historial.</p>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="Pipeline de selección"
+        title="Postulaciones"
+        description="Consulta cada candidato por vacante y actualiza su etapa sin perder el historial."
+        className="split-header"
+      />
 
-      {error && <div className="alert" role="alert">{error}</div>}
+      {error && <FeedbackMessage title="Las postulaciones no están actualizadas">{error}</FeedbackMessage>}
 
       <section className="metrics-grid" aria-label="Resumen de postulaciones">
-        <article className="metric-card metric-blue">
-          <span className="metric-label">Total</span>
-          <strong className="metric-value">{total}</strong>
-          <small>Postulaciones registradas</small>
-        </article>
-        <article className="metric-card metric-cyan">
-          <span className="metric-label">Activas en esta página</span>
-          <strong className="metric-value">{stageCounts.active}</strong>
-          <small>En proceso de selección</small>
-        </article>
-        <article className="metric-card metric-violet">
-          <span className="metric-label">Contratados en esta página</span>
-          <strong className="metric-value">{stageCounts.hired}</strong>
-          <small>Etapa finalizada</small>
-        </article>
+        <MetricCard icon="applications" label="Total" value={total} detail="Postulaciones registradas" tone="blue" />
+        <MetricCard icon="progress" label="Activas en esta página" value={stageCounts.active} detail="En proceso de selección" tone="cyan" />
+        <MetricCard icon="check" label="Contratados en esta página" value={stageCounts.hired} detail="Etapa finalizada" tone="violet" />
       </section>
 
       <section className="panel employee-list-panel">
@@ -157,12 +151,14 @@ function Applications() {
         </div>
 
         {loading ? (
-          <div className="page-loading"><span /> Cargando postulaciones…</div>
+          <LoadingState label="Cargando postulaciones…" compact />
         ) : items.length === 0 ? (
-          <div className="empty-state compact">
-            <strong>No hay postulaciones para mostrar</strong>
-            <p>Prueba con otros filtros o asigna candidatos a una vacante.</p>
-          </div>
+          <EmptyState
+            compact
+            icon="applications"
+            title="No hay postulaciones para mostrar"
+            description="Prueba con otros filtros o asigna candidatos a una vacante."
+          />
         ) : (
           <div className="employee-table-wrap">
             <table className="employee-table">
