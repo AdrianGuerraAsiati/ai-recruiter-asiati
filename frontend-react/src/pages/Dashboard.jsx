@@ -4,6 +4,14 @@ import { Link } from "react-router-dom";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
+import PageHeader from "../components/ui/PageHeader";
+import {
+  EmptyState,
+  FeedbackMessage,
+  LoadingState,
+  MetricCard,
+  ProgressBar,
+} from "../components/ui/StatePanel";
 
 function getGreeting(date = new Date()) {
   const hour = date.getHours();
@@ -70,7 +78,7 @@ function Dashboard() {
   }, [canManageEmployees, canRecruit]);
 
   if (loading) {
-    return <div className="page"><div className="page-loading"><span /> Preparando tu workspace…</div></div>;
+    return <div className="page"><LoadingState label="Preparando tu workspace…" /></div>;
   }
 
   if (!canRecruit) {
@@ -89,16 +97,15 @@ function Dashboard() {
 
     return (
       <div className="page dashboard-page employee-dashboard">
-        <header className="page-header dashboard-header">
-          <div>
-            <span className="eyebrow">Tu espacio ASIATI</span>
-            <h1>{greeting}, {firstName}.</h1>
-            <p>Aquí encontrarás tu proceso de inducción, capacitación y progreso.</p>
-          </div>
-        </header>
+        <PageHeader
+          eyebrow="Tu espacio ASIATI"
+          title={`${greeting}, ${firstName}.`}
+          description="Aquí encontrarás tu proceso de inducción, capacitación y progreso."
+          className="dashboard-header"
+        />
 
         {loadError && (
-          <div className="alert" role="alert">{loadError}</div>
+          <FeedbackMessage title="No pudimos actualizar tu espacio">{loadError}</FeedbackMessage>
         )}
 
         <section className="panel employee-welcome-panel">
@@ -126,7 +133,7 @@ function Dashboard() {
           <div className="employee-progress-preview" aria-label="Progreso de capacitación">
             <span>Progreso general</span>
             <strong>{overallProgress}%</strong>
-            <div><i style={{ width: `${overallProgress}%` }} /></div>
+            <ProgressBar value={overallProgress} label="Progreso general" />
             <small>
               {trainingAssignments.length
                 ? `${completedCourses} de ${trainingAssignments.length} cursos completados`
@@ -142,25 +149,21 @@ function Dashboard() {
 
   return (
     <div className="page dashboard-page">
-      <header className="page-header dashboard-header">
-        <div>
-          <span className="eyebrow">Vista general</span>
-          <h1>{greeting}, equipo.</h1>
-          <p>Así avanza tu proceso de selección hoy.</p>
-        </div>
-       </header>
+      <PageHeader
+        eyebrow="Vista general"
+        title={`${greeting}, equipo.`}
+        description="Así avanza tu proceso de selección hoy."
+        className="dashboard-header"
+      />
 
       {loadError && (
-        <div className="empty-state" role="alert">
-          <strong>No se pudo cargar el resumen</strong>
-          <p>{loadError}</p>
-        </div>
+        <FeedbackMessage title="El resumen no está actualizado">{loadError}</FeedbackMessage>
       )}
 
       <section className="metrics-grid" aria-label="Indicadores principales">
-        <MetricCard icon="▤" label="Vacantes activas" value={jobs.length} detail="Procesos en seguimiento" tone="blue" />
-        <MetricCard icon="◎" label="Talento disponible" value={candidates.length} detail="Perfiles centralizados" tone="cyan" />
-        <MetricCard icon="↗" label="Cobertura estimada" value={`${coverage}%`} detail="Candidatos por vacante" tone="violet" />
+        <MetricCard icon="briefcase" label="Vacantes activas" value={jobs.length} detail="Procesos en seguimiento" tone="blue" live />
+        <MetricCard icon="users" label="Talento disponible" value={candidates.length} detail="Perfiles centralizados" tone="cyan" live />
+        <MetricCard icon="ranking" label="Cobertura estimada" value={`${coverage}%`} detail="Candidatos por vacante" tone="violet" live />
       </section>
 
       {canManageEmployees && employeeSummary && (
@@ -193,7 +196,7 @@ function Dashboard() {
             <div className="onboarding-summary-progress">
               <span>Finalización onboarding</span>
               <strong>{employeeSummary.onboarding.completion_percent}%</strong>
-              <div><i style={{ width: `${employeeSummary.onboarding.completion_percent}%` }} /></div>
+              <ProgressBar value={employeeSummary.onboarding.completion_percent} label="Finalización onboarding" />
             </div>
           </div>
         </section>
@@ -207,7 +210,13 @@ function Dashboard() {
           </div>
 
           {jobs.length === 0 ? (
-            <div className="empty-state compact"><span aria-hidden="true">▤</span><strong>Aún no hay vacantes</strong><p>Crea la primera para comenzar a evaluar talento.</p><Link className="btn btn-secondary" to="/jobs">Crear vacante</Link></div>
+            <EmptyState
+              compact
+              icon="briefcase"
+              title="Aún no hay vacantes"
+              description="Crea la primera para comenzar a evaluar talento."
+              action={<Link className="btn btn-secondary" to="/jobs">Crear vacante</Link>}
+            />
           ) : (
             <div className="job-list">
               {jobs.slice(0, 4).map((job, index) => (
@@ -230,17 +239,6 @@ function Dashboard() {
         </aside>
       </div>
     </div>
-  );
-}
-
-function MetricCard({ icon, label, value, detail, tone }) {
-  return (
-    <article className={`metric-card metric-${tone}`}>
-      <div className="metric-top"><span className="metric-icon" aria-hidden="true">{icon}</span><span className="metric-trend">En vivo</span></div>
-      <strong className="metric-value">{value}</strong>
-      <span className="metric-label">{label}</span>
-      <small>{detail}</small>
-    </article>
   );
 }
 
