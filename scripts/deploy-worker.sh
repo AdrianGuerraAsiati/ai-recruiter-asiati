@@ -86,15 +86,28 @@ OLD_WORKER_IMAGE=""
 if docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
   OLD_WORKER_IMAGE=$(docker inspect "$CONTAINER_NAME" --format '{{.Config.Image}}')
 fi
-docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 
-if ! run_worker "$ECR_IMAGE"; then
-  if [[ -n "$OLD_WORKER_IMAGE" ]]; then
+rollback_worker() {
+  local status=$?
+  trap - EXIT
+  if [[ "$status" -ne 0 && -n "$OLD_WORKER_IMAGE" ]]; then
+    echo "Worker deployment failed; restoring $OLD_WORKER_IMAGE" >&2
     docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
-    run_worker "$OLD_WORKER_IMAGE" || true
+    if run_worker "$OLD_WORKER_IMAGE"; then
+      sleep 3
+      if [[ "$(docker inspect "$CONTAINER_NAME" --format '{{.State.Status}}' 2>/dev/null || true)" == "running" ]]; then
+        echo "WORKER_ROLLBACK_OK=$OLD_WORKER_IMAGE" >&2
+      else
+        echo "WORKER_ROLLBACK_FAILED=$OLD_WORKER_IMAGE" >&2
+      fi
+    fi
   fi
-  exit 1
-fi
+  exit "$status"
+}
+trap rollback_worker EXIT
+
+docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+run_worker "$ECR_IMAGE"
 
 sleep 5
 STATUS=$(docker inspect "$CONTAINER_NAME" --format '{{.State.Status}}' 2>/dev/null || echo MISSING)
@@ -118,8 +131,9 @@ for required in \
   echo "$CONTAINER_ENV" | grep -Fqx "$required" || { echo "Missing runtime env ${required%%=*}" >&2; exit 1; }
 done
 
-CALLER=$(docker exec "$CONTAINER_NAME" python -c "from app.infrastructure.bedrock.session import get_cached_session; r=get_cached_session().client('sts', region_name='us-east-2').get_caller_identity(); print(f\"{r['Account']}|{r['Arn']}\")")
+CALLER=$(docker exec "$CONTAINER_NAME" python -c "from app.infrastructure.bedrock.session import get_cached_session; r=get_cached_session().client('sts', region_name='$AWS_REGION').get_caller_identity(); print(f\"{r['Account']}|{r['Arn']}\")")
 echo "$CALLER" | grep -q "$EXPECTED_AWS_ACCOUNT" || { echo "Worker AWS account mismatch: $CALLER" >&2; exit 1; }
 echo "$CALLER" | grep -q "AiRecruiterBedrockRuntimeRole" || { echo "Worker AWS role mismatch: $CALLER" >&2; exit 1; }
 
-echo "DEPLOY_WORKER_OK"
+trap - EXIT
+echo "DEPLOY_WORKER_OK=$ECR_IMAGE"
