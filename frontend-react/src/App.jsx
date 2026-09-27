@@ -20,6 +20,7 @@ import Progress from "./pages/Progress";
 import Profile from "./pages/Profile";
 import Forbidden from "./pages/Forbidden";
 import NotFound from "./pages/NotFound";
+import "./ui-system.css";
 
 
 function ProtectedRoute({ children, permission }) {
