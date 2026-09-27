@@ -867,3 +867,23 @@ body.nav-mobile-open {
     grid-column: auto;
   }
 }
+
+
+/* Training legacy containers now host the shared progress primitive. */
+.training-progress > .ui-progress,
+.training-result-progress > .ui-progress {
+  height: auto;
+  margin-top: 7px;
+  overflow: visible;
+  border-radius: 0;
+  background: transparent;
+}
+
+.training-progress > .ui-progress .ui-progress-track,
+.training-result-progress > .ui-progress .ui-progress-track {
+  height: 7px;
+}
+
+.job-detail-status {
+  margin-top: 8px;
+}
