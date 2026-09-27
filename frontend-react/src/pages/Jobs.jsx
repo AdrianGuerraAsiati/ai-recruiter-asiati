@@ -348,7 +348,7 @@ function Jobs() {
       const all = await loadAllJobCandidates(job.job_id);
       if (requestId !== detailsRequestRef.current) return;
       setJobCandidates(all);
-    } catch {
+    } catch (requestError) {
       if (requestId !== detailsRequestRef.current) return;
       setJobCandidatesError(getApiErrorMessage(requestError, {
         action: "cargar los candidatos asignados",
