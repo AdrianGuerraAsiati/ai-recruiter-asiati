@@ -34,7 +34,7 @@ WRITE_ROUTE_PERMISSIONS = {
     "app/domains/candidates/router.py": {
         "assign_candidates_to_job": "candidates.manage",
         "update_application_status": "candidates.manage",
-        "bulk_create_candidates": "candidates.manage",
+        "upload_candidates_bulk": "candidates.manage",
     },
     "app/domains/ranking/router.py": {
         "recalculate_ranking_endpoint": "ranking.recalculate",
