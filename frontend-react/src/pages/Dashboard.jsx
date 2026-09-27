@@ -133,7 +133,7 @@ function Dashboard() {
           <div className="employee-progress-preview" aria-label="Progreso de capacitación">
             <span>Progreso general</span>
             <strong>{overallProgress}%</strong>
-            <ProgressBar value={overallProgress} label="Progreso general" />
+            <ProgressBar value={overallProgress} />
             <small>
               {trainingAssignments.length
                 ? `${completedCourses} de ${trainingAssignments.length} cursos completados`
@@ -196,7 +196,7 @@ function Dashboard() {
             <div className="onboarding-summary-progress">
               <span>Finalización onboarding</span>
               <strong>{employeeSummary.onboarding.completion_percent}%</strong>
-              <ProgressBar value={employeeSummary.onboarding.completion_percent} label="Finalización onboarding" />
+              <ProgressBar value={employeeSummary.onboarding.completion_percent} />
             </div>
           </div>
         </section>
