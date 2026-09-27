@@ -151,7 +151,7 @@ describe("Jobs page", () => {
     fireEvent.click(screen.getAllByText("Ver")[0]);
 
     await waitFor(() => {
-      expect(screen.getByText("No fue posible cargar los candidatos de esta vacante.")).toBeInTheDocument();
+      expect(screen.getByText(/no su lista de candidatos/i)).toBeInTheDocument();
     });
     expect(screen.getByText("Reintentar")).toBeInTheDocument();
   });
