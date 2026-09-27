@@ -325,8 +325,7 @@ function Candidates() {
         <EmptyState
           icon="users"
           title="Aún no hay candidatos registrados"
-          description="Agrega CVs manualmente o mediante una ingesta para empezar a construir la base de talento."
-          action={<button type="button" className="btn btn-primary" onClick={openCreateCandidateModal}>Agregar candidatos</button>}
+          description="Agrega CVs manualmente o mediante una ingesta para empezar a construir la base de talento. Usa «Agregar candidato» para iniciar la importación."
         />
       ) : (
         candidates.map((candidate) => (
