@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import api from "../api/client";
+import { getApiErrorMessage } from "../utils/errors";
 import "./Ranking.css";
 
 function Ranking() {
@@ -89,7 +90,11 @@ function Ranking() {
     } catch {
       setActionFeedback({
         type: "error",
-        message: "No fue posible cargar las vacantes.",
+        message: getApiErrorMessage(error, {
+          action: "cargar las vacantes disponibles para ranking",
+          resource: "vacantes",
+          fallback: "El ranking no puede iniciarse porque la lista de vacantes no cargó. Recarga esta pantalla antes de seleccionar una vacante.",
+        }),
       });
     }
   }
@@ -227,8 +232,11 @@ async function loadRanking(
       setActionFeedback({
         type: "error",
         message:
-          error.response?.data?.detail ||
-          "No fue posible cargar el ranking.",
+          getApiErrorMessage(error, {
+          action: "cargar el ranking",
+          resource: "ranking de candidatos",
+          fallback: "No se cargaron las posiciones ni puntuaciones actuales. Conservamos los filtros para que puedas volver a consultar el ranking.",
+        }),
       });
       return { ok: false, data: null, candidates: [], scopeMismatch: false };
     } finally {
@@ -329,8 +337,11 @@ async function evaluateCandidates() {
       setActionFeedback({
         type: "error",
         message:
-          error.response?.data?.detail ||
-          "No fue posible evaluar los candidatos. Intenta nuevamente.",
+          getApiErrorMessage(error, {
+          action: "evaluar los candidatos",
+          resource: "ranking",
+          fallback: "La evaluación masiva no quedó confirmada. Consulta el ranking antes de volver a ejecutarla para evitar procesar candidatos dos veces.",
+        }),
       });
     } finally {
       setIsEvaluatingCandidates(false);
@@ -390,8 +401,11 @@ async function refreshRanking() {
       setActionFeedback({
         type: "error",
         message:
-          error.response?.data?.detail ||
-          "No fue posible actualizar el ranking.",
+          getApiErrorMessage(error, {
+          action: "actualizar el ranking",
+          resource: "ranking de candidatos",
+          fallback: "La vista no pudo leer la versión más reciente del ranking. Tus evaluaciones guardadas no se modificaron; vuelve a actualizar.",
+        }),
       });
     } finally {
       setIsRefreshingRanking(false);
@@ -437,8 +451,11 @@ async function openRecalculationDisclaimer() {
       setActionFeedback({
         type: "error",
         message:
-          error.response?.data?.detail ||
-          "No fue posible calcular el costo estimado de la evaluación.",
+          getApiErrorMessage(error, {
+          action: "calcular el costo estimado de la evaluación",
+          resource: "estimación de ranking",
+          fallback: "No se pudo calcular candidatos, tokens o costo estimado. No iniciaremos la reevaluación hasta obtener una estimación válida.",
+        }),
       });
     } finally {
       setCostEstimateLoading(false);
@@ -530,8 +547,11 @@ async function recalculateRanking() {
       setActionFeedback({
         type: "error",
         message:
-          error.response?.data?.detail ||
-          "No fue posible recalcular el ranking. Intenta nuevamente.",
+          getApiErrorMessage(error, {
+          action: "recalcular el ranking",
+          resource: "ranking de candidatos",
+          fallback: "El nuevo ranking no quedó confirmado. Consulta la versión actual antes de volver a recalcular para evitar trabajo duplicado.",
+        }),
       });
     } finally {
       setIsRecalculating(false);
@@ -638,13 +658,21 @@ async function recalculateRanking() {
     if (analysisResult.status === "fulfilled") {
       setAnalysis(analysisResult.value.data);
     } else if (analysisResult.reason?.code !== "ERR_CANCELED") {
-      setAnalysisError("No fue posible cargar el análisis del candidato.");
+      setAnalysisError(getApiErrorMessage(analysisResult.reason, {
+        action: "cargar el análisis del candidato",
+        resource: "análisis de IA",
+        fallback: "La puntuación está disponible, pero no se cargó la explicación de fortalezas y brechas. Cierra y vuelve a abrir el análisis.",
+      }));
     }
 
     if (requirementsResult.status === "fulfilled") {
       setRequirements(requirementsResult.value.data.requirements || []);
     } else if (requirementsResult.reason?.code !== "ERR_CANCELED") {
-      setRequirementsError("No fue posible cargar los requisitos evaluados.");
+      setRequirementsError(getApiErrorMessage(requirementsResult.reason, {
+        action: "cargar los requisitos evaluados",
+        resource: "requisitos del candidato",
+        fallback: "El análisis general está disponible, pero no se cargó el detalle requisito por requisito. Vuelve a abrir el análisis para reconsultarlo.",
+      }));
     }
 
     setAnalysisLoading(false);
