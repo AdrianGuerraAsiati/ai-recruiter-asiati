@@ -4,11 +4,11 @@ Plataforma de reclutamiento para gestionar vacantes, candidatos e ingestión de 
 
 La aplicación centraliza el flujo de selección: recibe candidatos por carga manual, importación masiva e integraciones; almacena los documentos de forma duradera; los indexa en Amazon Bedrock Knowledge Bases; y genera evaluaciones versionadas con fortalezas, brechas, evidencia y ranking por vacante.
 
-**Aplicación actual:** http://3.23.27.223
+**Aplicación actual:** definida mediante `PUBLIC_BASE_URL` en el entorno de producción.
 
-**Health check:** http://3.23.27.223/api/health
+**Readiness:** `<PUBLIC_BASE_URL>/api/ready`
 
-> El entorno actual utiliza una IP estática de Lightsail y HTTP mientras se define el dominio corporativo. El workload productivo se mantiene en `us-east-2`.
+> El workload productivo se mantiene en Lightsail en `us-east-2`. La URL/IP concreta del entorno no se versiona en el repositorio.
 
 ## Funcionalidades principales
 
@@ -102,7 +102,7 @@ Los secretos OAuth nunca se envían al frontend. `client_id`, `client_secret`, `
 El callback HTTPS de producción se expone mediante un HTTP API regional en `us-east-2`:
 
 ```text
-https://3fkmecjfig.execute-api.us-east-2.amazonaws.com/api/integrations/gmail/oauth/callback
+<GMAIL_OAUTH_REDIRECT_URI>
 ```
 
 Ese URI debe registrarse exactamente como **Authorized redirect URI** en el cliente OAuth Web de Google Cloud.
@@ -237,7 +237,9 @@ Endpoints locales útiles:
 
 - Swagger: `http://localhost:8000/docs`
 - OpenAPI: `http://localhost:8000/openapi.json`
-- Health: `http://localhost:8000/api/health`
+- Liveness: `http://localhost:8000/api/live`
+- Readiness: `http://localhost:8000/api/ready`
+- Compatibilidad: `http://localhost:8000/api/health`
 
 ### Frontend
 
@@ -279,7 +281,7 @@ Los cambios pasan por GitHub Actions antes de producción:
 5. Push a ECR con tag inmutable por SHA.
 6. Migraciones antes de reemplazar la API.
 7. Deploy API + worker + frontend en Lightsail.
-8. Health checks locales y públicos.
+8. Readiness checks locales y públicos.
 9. Promoción del artefacto validado.
 
 La instancia obtiene permisos AWS mediante Roles Anywhere; no se almacenan access keys permanentes en GitHub ni dentro de las imágenes.
