@@ -1,0 +1,673 @@
+/* ============================================================
+   UI SYSTEM — semantic overrides and reusable primitives
+   Loaded after legacy styles so new work can converge without
+   expanding the legacy monolith.
+   ============================================================ */
+
+:root {
+  --content-max: 1360px;
+  --content-gutter: clamp(20px, 3.5vw, 52px);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --control-h: 44px;
+  --focus-ring: 0 0 0 4px color-mix(in srgb, var(--blue) 14%, transparent);
+  --surface-raised: color-mix(in srgb, var(--surface) 96%, var(--canvas));
+  --surface-hover: color-mix(in srgb, var(--blue) 4%, var(--surface));
+  --border-interactive: color-mix(in srgb, var(--blue) 26%, var(--border));
+  --shadow-focus: 0 10px 30px color-mix(in srgb, var(--blue) 10%, transparent);
+  --motion-fast: 150ms;
+  --motion-base: 220ms;
+  --ease-standard: cubic-bezier(.2, .7, .2, 1);
+  --z-nav: 100;
+  --z-overlay: 900;
+  --z-notice: 1600;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+body {
+  line-height: 1.5;
+}
+
+.app-content {
+  min-height: 100vh;
+}
+
+.app-main {
+  position: relative;
+  isolation: isolate;
+}
+
+.page {
+  width: min(var(--content-max), 100%);
+  padding: clamp(28px, 3.2vw, 48px) var(--content-gutter) 56px;
+}
+
+.page > * {
+  min-width: 0;
+}
+
+.ui-page-header,
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+  margin-bottom: clamp(24px, 3vw, 34px);
+}
+
+.ui-page-header-copy {
+  min-width: 0;
+}
+
+.ui-page-header .eyebrow,
+.page-header .eyebrow {
+  margin-bottom: 9px;
+}
+
+.ui-page-header h1,
+.page-header h1 {
+  max-width: 900px;
+  margin-bottom: 8px;
+}
+
+.ui-page-header p,
+.page-header p {
+  max-width: 760px;
+  color: var(--ink-soft);
+  font-size: .94rem;
+  line-height: 1.65;
+}
+
+.ui-page-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ui-icon {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.panel,
+.card {
+  border-color: color-mix(in srgb, var(--border) 92%, var(--ink));
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.panel {
+  padding: clamp(20px, 2.4vw, 28px);
+}
+
+.panel-heading {
+  gap: 16px;
+}
+
+.btn {
+  min-height: var(--control-h);
+  border-radius: 12px;
+  transition:
+    transform var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    opacity var(--motion-fast) ease;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0) scale(.985);
+}
+
+.btn:disabled,
+button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+  transform: none !important;
+  box-shadow: none;
+}
+
+.btn-primary {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--navy) 90%, var(--blue)), var(--navy));
+}
+
+[data-theme="dark"] .btn-primary {
+  background: linear-gradient(180deg, var(--blue-bright), var(--blue));
+}
+
+input,
+textarea,
+select {
+  border-radius: 12px;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  box-shadow: var(--focus-ring);
+}
+
+.form-group > label,
+label {
+  line-height: 1.35;
+}
+
+.employee-table-wrap,
+.table-wrap,
+.ranking-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 14px;
+  scrollbar-width: thin;
+}
+
+.employee-table,
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.employee-table thead th,
+table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+}
+
+.employee-table tbody tr,
+table tbody tr {
+  transition: background var(--motion-fast) ease;
+}
+
+.employee-table tbody tr:hover,
+table tbody tr:hover {
+  background: var(--surface-hover);
+}
+
+.modal-overlay {
+  z-index: var(--z-overlay);
+  padding: 16px;
+  backdrop-filter: blur(4px);
+}
+
+.modal {
+  width: min(760px, calc(100vw - 32px));
+  max-height: min(88vh, 920px);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 28px 90px rgba(5, 16, 34, .24);
+}
+
+.modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: calc(clamp(20px, 2.5vw, 30px) * -1);
+  margin-bottom: 22px;
+  padding: clamp(20px, 2.5vw, 30px);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 95%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.page-loading.ui-loading-state,
+.page-loading {
+  min-height: 300px;
+}
+
+.panel .page-loading,
+.modal .page-loading,
+.compact-loading,
+.job-detail-loading .page-loading {
+  min-height: 120px;
+}
+
+.ui-loading-state {
+  flex-wrap: wrap;
+}
+
+.ui-loading-label {
+  width: auto !important;
+  height: auto !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  animation: none !important;
+  color: inherit;
+}
+
+.ui-empty-state {
+  min-height: 220px;
+}
+
+.ui-empty-state.compact {
+  min-height: 150px;
+}
+
+.ui-empty-icon {
+  display: grid !important;
+  width: 46px !important;
+  height: 46px !important;
+  place-items: center;
+}
+
+.ui-feedback {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 11px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+  font-size: .84rem;
+}
+
+.ui-feedback--error {
+  border-color: color-mix(in srgb, var(--danger) 24%, var(--border));
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.ui-feedback--success {
+  border-color: color-mix(in srgb, var(--success) 24%, var(--border));
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.ui-feedback--warning {
+  border-color: color-mix(in srgb, var(--warning) 24%, var(--border));
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.ui-feedback--info {
+  border-color: color-mix(in srgb, var(--blue) 20%, var(--border));
+  background: color-mix(in srgb, var(--blue) 7%, var(--surface));
+  color: var(--blue);
+}
+
+.ui-feedback-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.ui-feedback strong,
+.ui-feedback-copy {
+  display: block;
+}
+
+.ui-feedback strong {
+  margin-bottom: 2px;
+  color: currentColor;
+}
+
+.ui-feedback-copy {
+  color: color-mix(in srgb, currentColor 84%, var(--ink));
+  line-height: 1.5;
+}
+
+.ui-progress {
+  width: 100%;
+}
+
+.ui-progress-copy {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+}
+
+.ui-progress-copy span {
+  color: var(--ink-soft);
+  font-size: .75rem;
+  font-weight: 700;
+}
+
+.ui-progress-copy strong {
+  font-family: "Manrope", sans-serif;
+  font-size: .82rem;
+}
+
+.ui-progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 88%, var(--surface-soft));
+}
+
+.ui-progress-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--blue), var(--cyan));
+  transform-origin: left center;
+  transition: width .35s var(--ease-standard);
+}
+
+.ui-metric-card {
+  min-height: 168px;
+}
+
+.ui-metric-card .metric-top {
+  min-height: 40px;
+}
+
+.metric-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.metric-trend i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/* Notices replace blocking browser alerts for routine UI feedback. */
+.ui-notice-viewport {
+  position: fixed;
+  z-index: var(--z-notice);
+  top: 18px;
+  right: 18px;
+  display: grid;
+  width: min(420px, calc(100vw - 36px));
+  gap: 10px;
+  pointer-events: none;
+}
+
+.ui-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: flex-start;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--surface);
+  box-shadow: 0 18px 48px rgba(7, 20, 38, .16);
+  pointer-events: auto;
+  animation: ui-notice-enter .24s var(--ease-standard) both;
+}
+
+.ui-notice--success { border-color: color-mix(in srgb, var(--success) 26%, var(--border)); }
+.ui-notice--error { border-color: color-mix(in srgb, var(--danger) 28%, var(--border)); }
+.ui-notice--warning { border-color: color-mix(in srgb, var(--warning) 28%, var(--border)); }
+.ui-notice--info { border-color: color-mix(in srgb, var(--blue) 24%, var(--border)); }
+
+.ui-notice-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--surface-soft);
+  color: var(--blue);
+}
+
+.ui-notice--success .ui-notice-icon { color: var(--success); background: var(--success-bg); }
+.ui-notice--error .ui-notice-icon { color: var(--danger); background: var(--danger-bg); }
+.ui-notice--warning .ui-notice-icon { color: var(--warning); background: var(--warning-bg); }
+
+.ui-notice-copy {
+  min-width: 0;
+}
+
+.ui-notice-copy strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--ink);
+  font-size: .8rem;
+}
+
+.ui-notice-copy p {
+  color: var(--ink-soft);
+  font-size: .76rem;
+  line-height: 1.45;
+}
+
+.ui-notice-close {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+
+.ui-notice-close:hover {
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+
+@keyframes ui-notice-enter {
+  from { opacity: 0; transform: translateY(-8px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Navigation hierarchy */
+.navbar-inner {
+  padding: 24px 18px 18px;
+}
+
+.nav-context {
+  margin: 28px 2px 14px;
+  padding: 13px 14px;
+}
+
+.navbar-links {
+  display: block;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.14) transparent;
+}
+
+.nav-section + .nav-section {
+  margin-top: 14px;
+}
+
+.nav-section-label {
+  display: block;
+  margin: 0 10px 6px;
+  color: #5d7592;
+  font-size: .58rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.nav-section-items {
+  display: grid;
+  gap: 3px;
+}
+
+.navbar-link {
+  min-height: 42px;
+  border-radius: 10px;
+}
+
+.navbar-icon {
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  color: #7088a5;
+}
+
+.navbar-link:hover .navbar-icon,
+.navbar-link.active .navbar-icon {
+  color: #7de4df;
+}
+
+.nav-insight {
+  margin-top: 14px;
+}
+
+/* Avoid content jumps on long filter toolbars. */
+.employee-toolbar,
+.controls,
+.ranking-filter-grid,
+.jobs-toolbar {
+  gap: 12px;
+}
+
+.employee-filters {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.employee-filters > * {
+  min-width: min(220px, 100%);
+}
+
+/* Native horizontal scroll should be visible and intentional on dense tables. */
+.employee-table-wrap {
+  margin-inline: -4px;
+  padding: 4px;
+}
+
+/* Candidate page previously relied heavily on inline styles. These utilities
+   create stable targets for the refactor and future pages. */
+.ui-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ui-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.ui-cluster {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ui-section-copy {
+  margin-top: 6px;
+  color: var(--ink-soft);
+  font-size: .84rem;
+  line-height: 1.55;
+}
+
+.site-footer {
+  width: min(var(--content-max), 100%);
+  margin-inline: auto;
+  padding-inline: var(--content-gutter);
+}
+
+@media (max-width: 1040px) {
+  .ui-page-header,
+  .page-header {
+    align-items: flex-start;
+  }
+
+  .ui-page-header--with-actions,
+  .split-header,
+  .dashboard-header {
+    flex-direction: column;
+  }
+
+  .ui-page-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  :root {
+    --content-gutter: 18px;
+  }
+
+  .page {
+    padding-top: 26px;
+    padding-bottom: 40px;
+  }
+
+  .ui-page-header,
+  .page-header {
+    margin-bottom: 24px;
+  }
+
+  .ui-page-header h1,
+  .page-header h1 {
+    font-size: clamp(1.85rem, 9vw, 2.35rem);
+  }
+
+  .ui-page-header-actions,
+  .ui-page-header-actions .btn,
+  .split-header > .btn {
+    width: 100%;
+  }
+
+  .panel {
+    padding: 18px;
+  }
+
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 8px;
+  }
+
+  .modal {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 20px 20px 12px 12px;
+  }
+
+  .ui-notice-viewport {
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    width: calc(100vw - 24px);
+  }
+
+  .employee-table-wrap {
+    margin-inline: -10px;
+    padding-inline: 10px;
+  }
+
+  .employee-table {
+    min-width: 760px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-notice,
+  .ui-progress-track i {
+    animation: none !important;
+    transition: none !important;
+  }
+}
