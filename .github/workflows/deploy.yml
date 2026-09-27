@@ -89,6 +89,10 @@ jobs:
             test -n "$VALUE" && test "$VALUE" != "null"
             echo "$KEY=$VALUE" >> "$GITHUB_ENV"
           done
+          for OPTIONAL_KEY in CANDIDATE_IMPORT_ALARM_TOPIC_ARN DATABASE_BACKUP_S3_URI; do
+            VALUE=$(echo "$RUNTIME_JSON" | jq -r --arg key "$OPTIONAL_KEY" '.[$key] // empty')
+            echo "$OPTIONAL_KEY=$VALUE" >> "$GITHUB_ENV"
+          done
           echo "AWS_TARGET_ACCOUNT_OK=$ACTUAL"
 
       - name: Login ECR
@@ -118,7 +122,9 @@ jobs:
           aws cloudformation deploy \
             --stack-name ai-recruiter-candidate-import \
             --template-file infra/candidate-import.yml \
-            --parameter-overrides RuntimeRoleArn="$RuntimeRoleArn" \
+            --parameter-overrides \
+              RuntimeRoleArn="$RuntimeRoleArn" \
+              AlarmTopicArn="$CANDIDATE_IMPORT_ALARM_TOPIC_ARN" \
             --no-fail-on-empty-changeset
           STACK_JSON=$(aws cloudformation describe-stacks --stack-name ai-recruiter-candidate-import)
           IMPORT_STAGING_BUCKET=$(echo "$STACK_JSON" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey=="ImportStagingBucket") | .OutputValue')
@@ -187,7 +193,14 @@ jobs:
             DATABASE_URL_VALUE=\$(sudo docker inspect ai-recruiter-api --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^DATABASE_URL=//p' | head -1)
             test -n "\$DATABASE_URL_VALUE"
             chmod +x /tmp/ai-recruiter-backup-postgres.sh
-            sudo env DATABASE_URL="\$DATABASE_URL_VALUE" BACKUP_DIR=/opt/ai-recruiter/backups RETENTION_DAYS=7 /tmp/ai-recruiter-backup-postgres.sh
+            sudo env \
+              DATABASE_URL="\$DATABASE_URL_VALUE" \
+              BACKUP_DIR=/opt/ai-recruiter/backups \
+              RETENTION_DAYS=7 \
+              BACKUP_S3_URI="$DATABASE_BACKUP_S3_URI" \
+              BACKUP_AWS_PROFILE=ai-recruiter-bedrock \
+              BACKUP_AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config \
+              /tmp/ai-recruiter-backup-postgres.sh
             sudo docker run --rm --network ai-recruiter --add-host=host.docker.internal:host-gateway \
               -e "DATABASE_URL=\$DATABASE_URL_VALUE" \
               "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}" \
