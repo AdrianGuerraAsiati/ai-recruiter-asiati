@@ -197,3 +197,21 @@ def test_deploy_wires_optional_alarm_topic_and_offhost_backup_configuration():
     assert 'BACKUP_S3_URI="$DATABASE_BACKUP_S3_URI"' in workflow
     assert "BACKUP_AWS_PROFILE=ai-recruiter-bedrock" in workflow
     assert "BACKUP_AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config" in workflow
+
+
+
+def test_database_restore_requires_checksum_and_supports_s3_source():
+    restore = _read(ROOT / "scripts" / "restore-postgres.sh")
+    backup = _read(BACKUP_SCRIPT)
+
+    assert 'BACKUP_SOURCE="${1:?usage: restore-postgres.sh' in restore
+    assert 'if [[ "$BACKUP_SOURCE" == s3://* ]]' in restore
+    assert 's3 cp "$BACKUP_SOURCE" "$BACKUP_FILE"' in restore
+    assert 's3 cp "$BACKUP_SOURCE.sha256" "$BACKUP_FILE.sha256"' in restore
+    assert 'test -s "$BACKUP_FILE.sha256"' in restore
+    assert 'sha256sum -c "$(basename "$BACKUP_FILE").sha256"' in restore
+    assert 'CONFIRM_RESTORE="${CONFIRM_RESTORE:-}"' in restore
+    assert 'if [[ "$CONFIRM_RESTORE" != "yes" ]]' in restore
+
+    assert 'cd "$BACKUP_DIR"' in backup
+    assert 'sha256sum "$(basename "$OUTPUT")"' in backup
