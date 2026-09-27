@@ -18,6 +18,8 @@ import EmployeeScores from "./pages/EmployeeScores";
 import Applications from "./pages/Applications";
 import Progress from "./pages/Progress";
 import Profile from "./pages/Profile";
+import Forbidden from "./pages/Forbidden";
+import NotFound from "./pages/NotFound";
 
 
 function ProtectedRoute({ children, permission }) {
@@ -32,7 +34,7 @@ function ProtectedRoute({ children, permission }) {
   }
 
   if (permission && !hasPermission(permission)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/forbidden" replace />;
   }
 
   return children;
@@ -68,9 +70,10 @@ function AppRoutes() {
         path="/candidates/:candidate_id"
         element={<ProtectedPage permission="candidates.read"><CandidateDetail /></ProtectedPage>}
       />
+      <Route path="/forbidden" element={<ProtectedPage><Forbidden /></ProtectedPage>} />
 
       <Route path="/register" element={<Navigate to="/login" replace />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<ProtectedPage><NotFound /></ProtectedPage>} />
     </Routes>
   );
 }
