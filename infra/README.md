@@ -67,7 +67,9 @@ The API emits a correlation ID in `X-Request-ID` and logs one structured request
 - main queue visible backlog >= 50 for two consecutive periods;
 - oldest queued message >= 15 minutes for two consecutive periods.
 
-The alarms are created even when notifications are not configured. To attach an existing SNS topic, add the optional `CANDIDATE_IMPORT_ALARM_TOPIC_ARN` key to the production runtime-config secret.
+The alarm definitions are versioned but remain disabled by default until production IAM is verified. Enable them by setting `ENABLE_CANDIDATE_IMPORT_ALARMS=true` in the production runtime-config secret. To attach notifications, also set `CANDIDATE_IMPORT_ALARM_TOPIC_ARN` to an existing SNS topic.
+
+If CloudFormation rejects a future candidate-import update, the deploy workflow prints recent stack events automatically before stopping.
 
 ## Off-host database backup
 

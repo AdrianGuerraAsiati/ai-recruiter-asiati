@@ -192,7 +192,9 @@ def test_deploy_wires_optional_alarm_topic_and_offhost_backup_configuration():
     workflow = _read(WORKFLOW)
 
     assert "CANDIDATE_IMPORT_ALARM_TOPIC_ARN" in workflow
+    assert "ENABLE_CANDIDATE_IMPORT_ALARMS" in workflow
     assert "DATABASE_BACKUP_S3_URI" in workflow
+    assert 'CANDIDATE_IMPORT_PARAMETERS+=(EnableOperationalAlarms=true)' in workflow
     assert 'AlarmTopicArn="$CANDIDATE_IMPORT_ALARM_TOPIC_ARN"' in workflow
     assert 'BACKUP_S3_URI="$DATABASE_BACKUP_S3_URI"' in workflow
     assert "BACKUP_AWS_PROFILE=ai-recruiter-bedrock" in workflow
@@ -215,3 +217,16 @@ def test_database_restore_requires_checksum_and_supports_s3_source():
 
     assert 'cd "$BACKUP_DIR"' in backup
     assert 'sha256sum "$(basename "$OUTPUT")"' in backup
+
+
+
+def test_candidate_import_stack_failure_prints_recent_cloudformation_events():
+    workflow = _read(WORKFLOW)
+
+    section = workflow[
+        workflow.index("- name: Provision candidate import infrastructure"):
+        workflow.index("- name: Provision training content infrastructure")
+    ]
+    assert "if ! aws cloudformation deploy" in section
+    assert "aws cloudformation describe-stack-events" in section
+    assert "ResourceStatusReason" in section

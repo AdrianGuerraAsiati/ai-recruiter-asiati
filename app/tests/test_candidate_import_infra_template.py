@@ -125,7 +125,20 @@ def test_candidate_import_template_has_operational_cloudwatch_alarms():
     resources = template["Resources"]
 
     assert template["Parameters"]["AlarmTopicArn"]["Default"] == ""
+    assert template["Parameters"]["EnableOperationalAlarms"]["Default"] == "false"
+    assert set(template["Parameters"]["EnableOperationalAlarms"]["AllowedValues"]) == {
+        "true",
+        "false",
+    }
+    assert "CreateOperationalAlarms" in template["Conditions"]
     assert "HasAlarmTopic" in template["Conditions"]
+
+    for resource_name in (
+        "ImportDlqVisibleMessagesAlarm",
+        "ImportQueueBacklogAlarm",
+        "ImportQueueOldestMessageAlarm",
+    ):
+        assert resources[resource_name]["Condition"] == "CreateOperationalAlarms"
 
     dlq_alarm = resources["ImportDlqVisibleMessagesAlarm"]["Properties"]
     backlog_alarm = resources["ImportQueueBacklogAlarm"]["Properties"]
