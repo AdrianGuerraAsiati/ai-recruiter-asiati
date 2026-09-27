@@ -4,11 +4,12 @@ export default function PageHeader({
   description,
   actions,
   className = "",
+  copyClassName = "",
   children,
 }) {
   return (
     <header className={`page-header ui-page-header ${actions ? "ui-page-header--with-actions" : ""} ${className}`.trim()}>
-      <div className="ui-page-header-copy">
+      <div className={`ui-page-header-copy ${copyClassName}`.trim()}>
         {eyebrow ? <span className="eyebrow">{eyebrow}</span> : null}
         <h1>{title}</h1>
         {description ? <p>{description}</p> : null}
