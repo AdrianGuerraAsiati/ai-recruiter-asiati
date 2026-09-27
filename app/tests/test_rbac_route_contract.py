@@ -11,7 +11,7 @@ ROUTE_PERMISSIONS = {
     "app/domains/candidates/router.py": "candidates.read",
     "app/domains/ranking/router.py": "ranking.read",
     "app/domains/evaluations/router.py": "candidates.evaluate",
-    "app/domains/candidate_imports/router.py": "candidates.evaluate",
+    "app/domains/candidate_imports/router.py": "candidates.read",
     "app/domains/indeed/router.py": "integrations.manage",
 }
 
@@ -38,6 +38,10 @@ WRITE_ROUTE_PERMISSIONS = {
     },
     "app/domains/ranking/router.py": {
         "recalculate_ranking_endpoint": "ranking.recalculate",
+    },
+    "app/domains/candidate_imports/router.py": {
+        "create_import_batch": "candidates.manage",
+        "complete_import_batch": "candidates.manage",
     },
 }
 
