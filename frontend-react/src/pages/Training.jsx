@@ -5,6 +5,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
+import PageHeader from "../components/ui/PageHeader";
+import Icon from "../components/ui/Icon";
+import {
+  EmptyState,
+  FeedbackMessage,
+  LoadingState,
+} from "../components/ui/StatePanel";
 
 
 function courseProgress(course) {
@@ -839,20 +846,18 @@ function Training() {
   if (loading) {
     return (
       <div className="page">
-        <div className="page-loading"><span /> Preparando capacitación…</div>
+        <LoadingState label="Preparando capacitación…" />
       </div>
     );
   }
 
   return (
     <div className="page training-page">
-      <header className="page-header split-header">
-        <div>
-          <span className="eyebrow">Aprendizaje interno</span>
-          <h1>Capacitación</h1>
-          <p>Hola, {firstName}. Cursos, videos y progreso en un solo lugar.</p>
-        </div>
-        {canManage && (
+      <PageHeader
+        eyebrow="Aprendizaje interno"
+        title="Capacitación"
+        description={`Hola, ${firstName}. Cursos, videos y progreso en un solo lugar.`}
+        actions={canManage ? (
           <div className="training-header-actions">
             <button
               className="btn btn-secondary"
@@ -867,13 +872,15 @@ function Training() {
               type="button"
               onClick={() => setCreatingCourse(true)}
             >
-              + Crear curso
+              <Icon name="plus" size={17} />
+              Crear curso
             </button>
           </div>
-        )}
-      </header>
+        ) : null}
+        className="split-header"
+      />
 
-      {error && <div className="alert" role="alert">{error}</div>}
+      {error && <FeedbackMessage title="La capacitación no pudo completar la operación">{error}</FeedbackMessage>}
 
       {canManage && (
         <section className="training-admin-layout">
@@ -887,10 +894,12 @@ function Training() {
             </div>
 
             {courses.length === 0 ? (
-              <div className="empty-state compact">
-                <strong>Aún no hay cursos</strong>
-                <p>Crea el primer curso de inducción o capacitación.</p>
-              </div>
+              <EmptyState
+                compact
+                icon="training"
+                title="Aún no hay cursos"
+                description="Crea el primer curso de inducción o capacitación."
+              />
             ) : (
               <div className="training-course-list">
                 {courses.map((course) => (
