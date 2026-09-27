@@ -71,9 +71,6 @@ _ADMIN_PERMISSIONS = {
     "training.manage",
     "training.assign",
     "training.results.read",
-    "training.consume",
-    "training.quiz.take",
-    "training.progress.read_own",
     "profile.read_own",
 }
 
