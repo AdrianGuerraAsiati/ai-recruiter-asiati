@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import api from "../api/client";
+import { getApiErrorMessage } from "../utils/errors";
 import "./Integrations.css";
 
 function Integrations() {
@@ -17,7 +18,7 @@ function Integrations() {
   );
   const [error, setError] = useState(() => {
     if (oauthOutcome === "denied") return "La autorización de Gmail fue cancelada.";
-    if (oauthOutcome === "error") return "No fue posible completar la autorización de Gmail.";
+    if (oauthOutcome === "error") return "Google devolvió la autorización sin completar. Revisa la cuenta seleccionada y vuelve a iniciar la conexión con Gmail.";
     return "";
   });
 
@@ -28,7 +29,7 @@ function Integrations() {
       setStatus(data);
     } catch (requestError) {
       const detail = requestError?.response?.data?.detail;
-      setError(detail || "No fue posible consultar el estado de Gmail.");
+      setError(detail || getApiErrorMessage(requestError, { action: "consultar la conexión de Gmail", resource: "Gmail", fallback: "No pudimos confirmar si Gmail está conectado. No inicies una sincronización hasta actualizar este estado." }));
     } finally {
       setLoading(false);
     }
@@ -62,7 +63,7 @@ function Integrations() {
       .catch((requestError) => {
         if (!active) return;
         const detail = requestError?.response?.data?.detail;
-        setError(detail || "No fue posible consultar el estado de Gmail.");
+        setError(detail || getApiErrorMessage(requestError, { action: "consultar la conexión de Gmail", resource: "Gmail", fallback: "No pudimos confirmar si Gmail está conectado. No inicies una sincronización hasta actualizar este estado." }));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -96,7 +97,7 @@ function Integrations() {
       window.open(data.authorization_url, "_self");
     } catch (requestError) {
       const detail = requestError?.response?.data?.detail;
-      setError(detail || "No fue posible iniciar la conexión con Google.");
+      setError(detail || getApiErrorMessage(requestError, { action: "iniciar la autorización con Google", resource: "Gmail", fallback: "No se generó el enlace de autorización de Google. Vuelve a iniciar la conexión desde esta pantalla." }));
       setBusy("");
     }
   }
@@ -115,7 +116,7 @@ function Integrations() {
       );
     } catch (requestError) {
       const detail = requestError?.response?.data?.detail;
-      setError(detail || "No fue posible sincronizar Gmail.");
+      setError(detail || getApiErrorMessage(requestError, { action: "sincronizar Gmail", resource: "Gmail", fallback: "La sincronización no se inició. Verifica que Gmail esté conectado y vuelve a lanzar la sincronización." }));
     } finally {
       setBusy("");
     }
@@ -146,7 +147,7 @@ function Integrations() {
       }
     } catch (requestError) {
       const detail = requestError?.response?.data?.detail;
-      setError(detail || "No fue posible preparar una tarea de prueba.");
+      setError(detail || getApiErrorMessage(requestError, { action: "preparar la tarea de prueba", resource: "Resume Agent", fallback: "No se pudo crear una tarea de prueba recuperable. Revisa que exista una tarea archivada compatible antes de reintentar." }));
     } finally {
       setBusy("");
     }
@@ -171,7 +172,7 @@ function Integrations() {
       }
     } catch (requestError) {
       const detail = requestError?.response?.data?.detail;
-      setError(detail || "No fue posible reintentar la tarea de prueba.");
+      setError(detail || getApiErrorMessage(requestError, { action: "reactivar la tarea de prueba", resource: "Resume Agent", fallback: "La tarea no volvió a la cola activa. Consulta su estado antes de intentar otro reintento." }));
     } finally {
       setBusy("");
     }
@@ -187,7 +188,7 @@ function Integrations() {
       await loadStatus();
     } catch (requestError) {
       const detail = requestError?.response?.data?.detail;
-      setError(detail || "No fue posible desconectar Gmail.");
+      setError(detail || getApiErrorMessage(requestError, { action: "desconectar Gmail", resource: "Gmail", fallback: "La integración sigue conectada. Recarga su estado antes de intentar desconectarla otra vez." }));
     } finally {
       setBusy("");
     }
