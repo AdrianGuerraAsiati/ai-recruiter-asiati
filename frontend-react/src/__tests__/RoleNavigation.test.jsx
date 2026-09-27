@@ -68,7 +68,7 @@ describe("role navigation", () => {
     expect(screen.queryByText("Postulaciones")).not.toBeInTheDocument();
     expect(screen.queryByText("Candidatos")).not.toBeInTheDocument();
     expect(screen.queryByText("Empleados")).not.toBeInTheDocument();
-    expect(screen.queryByText("Dirección · Calificación")).not.toBeInTheDocument();
+    expect(screen.queryByText("Calificación")).not.toBeInTheDocument();
     expect(screen.queryByText("Integraciones")).not.toBeInTheDocument();
   });
 
@@ -97,7 +97,7 @@ describe("role navigation", () => {
     }
 
     expect(screen.queryByText("Mi progreso")).not.toBeInTheDocument();
-    expect(screen.queryByText("Dirección · Calificación")).not.toBeInTheDocument();
+    expect(screen.queryByText("Calificación")).not.toBeInTheDocument();
     expect(screen.queryByText("Integraciones")).not.toBeInTheDocument();
   });
 
@@ -115,7 +115,7 @@ describe("role navigation", () => {
     ]);
 
     expect(screen.getByText("Postulaciones")).toBeInTheDocument();
-    expect(screen.getByText("Dirección · Calificación")).toBeInTheDocument();
+    expect(screen.getByText("Calificación")).toBeInTheDocument();
     expect(screen.getByText("Integraciones")).toBeInTheDocument();
     expect(screen.queryByText("Mi progreso")).not.toBeInTheDocument();
   });
