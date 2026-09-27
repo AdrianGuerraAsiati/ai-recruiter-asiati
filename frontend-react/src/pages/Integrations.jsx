@@ -29,7 +29,7 @@ function Integrations() {
       setStatus(data);
     } catch (requestError) {
       const detail = requestError?.response?.data?.detail;
-      setError(detail || getApiErrorMessage(requestError, { action: "consultar la conexión de Gmail", resource: "Gmail", fallback: "No pudimos confirmar si Gmail está conectado. No inicies una sincronización hasta actualizar este estado." }));
+      setError(detail || getApiErrorMessage(requestError, { action: "consultar la conexión de Gmail", resource: "Gmail", fallback: "El estado de la conexión de Gmail no respondió. No inicies una sincronización hasta volver a confirmar si la cuenta sigue conectada." }));
     } finally {
       setLoading(false);
     }
@@ -63,7 +63,7 @@ function Integrations() {
       .catch((requestError) => {
         if (!active) return;
         const detail = requestError?.response?.data?.detail;
-        setError(detail || getApiErrorMessage(requestError, { action: "consultar la conexión de Gmail", resource: "Gmail", fallback: "No pudimos confirmar si Gmail está conectado. No inicies una sincronización hasta actualizar este estado." }));
+        setError(detail || getApiErrorMessage(requestError, { action: "consultar la conexión de Gmail", resource: "Gmail", fallback: "El estado de la conexión de Gmail no respondió. No inicies una sincronización hasta volver a confirmar si la cuenta sigue conectada." }));
       })
       .finally(() => {
         if (active) setLoading(false);
