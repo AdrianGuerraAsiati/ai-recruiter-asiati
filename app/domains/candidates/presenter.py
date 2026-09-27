@@ -22,6 +22,30 @@ def candidate_to_dict(candidate) -> dict:
     }
 
 
+def application_to_dict(link, candidate, job) -> dict:
+    return {
+        "id": link.id,
+        "application_status": link.application_status,
+        "assigned_at": link.assigned_at.isoformat() if link.assigned_at else None,
+        "status_changed_at": (
+            link.status_changed_at.isoformat() if link.status_changed_at else None
+        ),
+        "hired_at": link.hired_at.isoformat() if link.hired_at else None,
+        "candidate": {
+            "id": candidate.id,
+            "candidate_id": candidate.id,
+            "name": candidate.name,
+            "email": candidate.email,
+            "is_banned": bool(candidate.is_banned),
+        },
+        "job": {
+            "id": job.id,
+            "job_id": job.id,
+            "title": job.title,
+        },
+    }
+
+
 def evaluation_to_dict(evaluation) -> dict:
     failed = evaluation.status == "FAILED"
     return {
