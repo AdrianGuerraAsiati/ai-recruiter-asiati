@@ -30,6 +30,7 @@ function Employees() {
   const [employees, setEmployees] = useState([]);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [onboardingStatusFilter, setOnboardingStatusFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -47,6 +48,7 @@ function Employees() {
       const params = {};
       if (query.trim()) params.q = query.trim();
       if (statusFilter) params.status = statusFilter;
+      if (onboardingStatusFilter) params.onboarding_status = onboardingStatusFilter;
       const { data } = await api.get("/employees", { params });
       setEmployees(Array.isArray(data?.items) ? data.items : []);
     } catch (err) {
@@ -54,7 +56,7 @@ function Employees() {
     } finally {
       setLoading(false);
     }
-  }, [query, statusFilter]);
+  }, [onboardingStatusFilter, query, statusFilter]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(loadEmployees, 250);
@@ -203,6 +205,17 @@ function Employees() {
               <option value="">Todos los estados</option>
               <option value="ACTIVE">Activos</option>
               <option value="DISABLED">Deshabilitados</option>
+            </select>
+            <select
+              value={onboardingStatusFilter}
+              onChange={(event) => setOnboardingStatusFilter(event.target.value)}
+              aria-label="Filtrar por onboarding"
+            >
+              <option value="">Todo el onboarding</option>
+              <option value="PENDING">Pendiente</option>
+              <option value="IN_PROGRESS">En progreso</option>
+              <option value="COMPLETED">Completado</option>
+              <option value="NOT_REQUIRED">No requerido</option>
             </select>
           </div>
         </div>
