@@ -180,7 +180,6 @@ jobs:
             echo DOCKER_DISK_BEFORE
             sudo docker system df
             sudo docker container prune -f
-            sudo docker image prune -f
             sudo docker builder prune -a -f --filter until=168h
             echo DOCKER_DISK_AFTER
             sudo docker system df
