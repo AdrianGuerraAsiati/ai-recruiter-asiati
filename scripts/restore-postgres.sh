@@ -21,6 +21,8 @@ if [[ -f "$BACKUP_FILE.sha256" ]]; then
   (cd "$(dirname "$BACKUP_FILE")" && sha256sum -c "$(basename "$BACKUP_FILE").sha256")
 fi
 
-pg_restore   --dbname="$DATABASE_URL"   --clean   --if-exists   --no-owner   --no-privileges   "$BACKUP_FILE"
+RESTORE_DATABASE_URL="${DATABASE_URL/host.docker.internal/127.0.0.1}"
+
+pg_restore   --dbname="$RESTORE_DATABASE_URL"   --clean   --if-exists   --no-owner   --no-privileges   "$BACKUP_FILE"
 
 echo "DATABASE_RESTORE_OK"
