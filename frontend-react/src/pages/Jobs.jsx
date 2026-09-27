@@ -6,7 +6,7 @@ import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
 import Icon from "../components/ui/Icon";
-import { FeedbackMessage, LoadingState } from "../components/ui/StatePanel";
+import { EmptyState, FeedbackMessage, LoadingState } from "../components/ui/StatePanel";
 import "./Jobs.css";
 import "./JobsPagination.css";
 
@@ -943,19 +943,19 @@ function Jobs() {
         </div>
 
         {jobs.length === 0 ? (
-          <div className="empty-state">
-            <span aria-hidden="true">▤</span>
-            <strong>{query ? "No encontramos vacantes con ese filtro" : "Tu tablero de vacantes está vacío"}</strong>
-            <p>{query ? "Prueba otro título o limpia la búsqueda." : "Crea una posición para comenzar a comparar candidatos."}</p>
-            {query
+          <EmptyState
+            icon="briefcase"
+            title={query ? "No encontramos vacantes con ese filtro" : "Tu tablero de vacantes está vacío"}
+            description={query ? "Prueba otro título o limpia la búsqueda." : "Crea una posición para comenzar a comparar candidatos."}
+            action={query
               ? <button className="btn btn-secondary" type="button" onClick={clearJobSearch}>Limpiar búsqueda</button>
-              : <button className="btn btn-secondary" onClick={() => setShowForm(true)}>Crear primera vacante</button>}
-          </div>
+              : <button className="btn btn-secondary" type="button" onClick={() => setShowForm(true)}>Crear primera vacante</button>}
+          />
         ) : (
           <div className="jobs-grid">
             {jobs.map((job) => (
               <article className="job-card" key={job.job_id}>
-                <div className="job-card-top"><span className="job-card-icon" aria-hidden="true">▤</span><span className="status-pill"><i /> Activa</span></div>
+                <div className="job-card-top"><span className="job-card-icon" aria-hidden="true"><Icon name="briefcase" size={18} /></span><span className="status-pill"><i /> Activa</span></div>
                 <h3>{job.title}</h3><p>{job.description}</p>
                 <p className="job-description-source-meta">
                   Descripción activa: <strong>{job.active_description_source === "ai" ? "IA" : "Indeed"}</strong>
@@ -1021,7 +1021,7 @@ function Jobs() {
               <div>
                 <span className="eyebrow">Vacante</span>
                 <h2 id="job-details-title">{viewJob.title}</h2>
-                <span className="status-pill" style={{ marginTop: 8 }}><i /> Activa</span>
+                <span className="status-pill job-detail-status"><i /> Activa</span>
               </div>
               <button className="btn btn-close" onClick={closeJobDetails} aria-label="Cerrar detalle de vacante"><span aria-hidden="true">✕</span></button>
             </div>
