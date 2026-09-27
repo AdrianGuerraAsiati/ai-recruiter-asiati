@@ -89,7 +89,7 @@ function Candidates() {
     const jobId = selectedJob[candidateId];
 
     if (!jobId) {
-      alert("Seleccione una vacante");
+      alert("Selecciona una vacante antes de continuar. Esta acción necesita saber contra qué cargo debe evaluarse o asignarse el candidato.");
       return;
     }
 
@@ -120,7 +120,7 @@ function Candidates() {
   async function assignCandidate(candidateId) {
     const jobId = selectedJob[candidateId];
     if (!jobId) {
-      alert("Seleccione una vacante");
+      alert("Selecciona una vacante antes de continuar. Esta acción necesita saber contra qué cargo debe evaluarse o asignarse el candidato.");
       return;
     }
 
