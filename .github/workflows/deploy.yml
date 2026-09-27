@@ -171,7 +171,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
         run: |
           set -euo pipefail
-          SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+          SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/lightsail-known-hosts)
           scp "${SSH[@]}" scripts/backup-postgres.sh "$LIGHTSAIL_SSH_USER@$INSTANCE_IP:/tmp/ai-recruiter-backup-postgres.sh"
           ssh "${SSH[@]}" "$LIGHTSAIL_SSH_USER@$INSTANCE_IP" bash -s <<REMOTE_PREFLIGHT
             set -euo pipefail
@@ -215,7 +215,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
         run: |
           set -euo pipefail
-          SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+          SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/lightsail-known-hosts)
           scp "${SSH[@]}" scripts/deploy-api.sh "$LIGHTSAIL_SSH_USER@$INSTANCE_IP:/tmp/ai-recruiter-deploy-api.sh"
           scp "${SSH[@]}" scripts/deploy-worker.sh "$LIGHTSAIL_SSH_USER@$INSTANCE_IP:/tmp/ai-recruiter-deploy-worker.sh"
           scp "${SSH[@]}" scripts/deploy-frontend.sh "$LIGHTSAIL_SSH_USER@$INSTANCE_IP:/tmp/ai-recruiter-deploy-frontend.sh"
@@ -225,23 +225,26 @@ jobs:
             AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws ecr get-login-password --region "$AWS_REGION" --profile ai-recruiter-bedrock | sudo docker login --username AWS --password-stdin "$ECR_REGISTRY"
             sudo docker pull "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}"
             sudo docker pull "$ECR_REGISTRY/$ECR_FRONTEND_REPO:${{ github.sha }}"
-            chmod +x /tmp/ai-recruiter-deploy-api.sh /tmp/ai-recruiter-deploy-worker.sh
-            AWS_ACCOUNT_ID="$AWS_ACCOUNT_ID" ECR_TAG="${{ github.sha }}" IMPORT_STAGING_BUCKET="$IMPORT_STAGING_BUCKET" IMPORT_QUEUE_URL="$IMPORT_QUEUE_URL" TRAINING_CONTENT_BUCKET="$TRAINING_CONTENT_BUCKET" IMPORT_EVALUATION_CONCURRENCY="1" S3_BUCKET="$S3_BUCKET" KNOWLEDGE_BASE_ID="$KNOWLEDGE_BASE_ID" DATA_SOURCE_ID="$DATA_SOURCE_ID" COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID" COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" ALLOW_PUBLIC_REGISTRATION="false" RBAC_BOOTSTRAP_ADMIN_EMAILS="talentohumano@asiati.com.co" RBAC_BOOTSTRAP_SUPER_ADMIN_EMAILS="natali.garzon@asiati.com.co" sudo -H -E /tmp/ai-recruiter-deploy-api.sh
-            API_STATUS=\$(sudo docker inspect ai-recruiter-api --format '{{.State.Status}}')
-            API_IMAGE=\$(sudo docker inspect ai-recruiter-api --format '{{.Config.Image}}')
-            test "\$API_STATUS" = running
-            echo "\$API_IMAGE" | grep -q ':${{ github.sha }}$'
-            echo "BACKEND_IMAGE_OK=\$API_IMAGE"
-            AWS_ACCOUNT_ID="$AWS_ACCOUNT_ID" ECR_TAG="${{ github.sha }}" IMPORT_STAGING_BUCKET="$IMPORT_STAGING_BUCKET" IMPORT_QUEUE_URL="$IMPORT_QUEUE_URL" IMPORT_EVALUATION_CONCURRENCY="1" S3_BUCKET="$S3_BUCKET" KNOWLEDGE_BASE_ID="$KNOWLEDGE_BASE_ID" DATA_SOURCE_ID="$DATA_SOURCE_ID" COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID" COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" sudo -H -E /tmp/ai-recruiter-deploy-worker.sh
-            WORKER_STATUS=\$(sudo docker inspect ai-recruiter-worker --format '{{.State.Status}}')
-            test "\$WORKER_STATUS" = running
+            DATABASE_URL_VALUE=$(sudo docker inspect ai-recruiter-api --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^DATABASE_URL=//p' | head -1)
+            test -n "$DATABASE_URL_VALUE"
+            chmod +x /tmp/ai-recruiter-deploy-api.sh /tmp/ai-recruiter-deploy-worker.sh /tmp/ai-recruiter-deploy-frontend.sh
+            DATABASE_URL="$DATABASE_URL_VALUE" AWS_ACCOUNT_ID="$AWS_ACCOUNT_ID" ECR_TAG="${{ github.sha }}" IMPORT_STAGING_BUCKET="$IMPORT_STAGING_BUCKET" IMPORT_QUEUE_URL="$IMPORT_QUEUE_URL" TRAINING_CONTENT_BUCKET="$TRAINING_CONTENT_BUCKET" IMPORT_EVALUATION_CONCURRENCY="1" S3_BUCKET="$S3_BUCKET" KNOWLEDGE_BASE_ID="$KNOWLEDGE_BASE_ID" DATA_SOURCE_ID="$DATA_SOURCE_ID" COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID" COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" ALLOW_PUBLIC_REGISTRATION="false" RBAC_BOOTSTRAP_ADMIN_EMAILS="talentohumano@asiati.com.co" RBAC_BOOTSTRAP_SUPER_ADMIN_EMAILS="natali.garzon@asiati.com.co" sudo -H -E /tmp/ai-recruiter-deploy-api.sh
+            API_STATUS=$(sudo docker inspect ai-recruiter-api --format '{{.State.Status}}')
+            API_IMAGE=$(sudo docker inspect ai-recruiter-api --format '{{.Config.Image}}')
+            test "$API_STATUS" = running
+            echo "$API_IMAGE" | grep -q ':${{ github.sha }}$'
+            echo "BACKEND_IMAGE_OK=$API_IMAGE"
+            DATABASE_URL="$DATABASE_URL_VALUE" AWS_ACCOUNT_ID="$AWS_ACCOUNT_ID" ECR_TAG="${{ github.sha }}" IMPORT_STAGING_BUCKET="$IMPORT_STAGING_BUCKET" IMPORT_QUEUE_URL="$IMPORT_QUEUE_URL" IMPORT_EVALUATION_CONCURRENCY="1" S3_BUCKET="$S3_BUCKET" KNOWLEDGE_BASE_ID="$KNOWLEDGE_BASE_ID" DATA_SOURCE_ID="$DATA_SOURCE_ID" COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID" COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" sudo -H -E /tmp/ai-recruiter-deploy-worker.sh
+            WORKER_STATUS=$(sudo docker inspect ai-recruiter-worker --format '{{.State.Status}}')
+            test "$WORKER_STATUS" = running
             echo '━━━ Deploy Frontend ━━━'
-            chmod +x /tmp/ai-recruiter-deploy-frontend.sh
             ECR_REGISTRY="$ECR_REGISTRY" ECR_FRONTEND_REPO="$ECR_FRONTEND_REPO" ECR_TAG="${{ github.sha }}" sudo -H -E /tmp/ai-recruiter-deploy-frontend.sh
-            FRONTEND_IMAGE=\$(sudo docker inspect ai-recruiter-web --format '{{.Config.Image}}')
-            echo "\$FRONTEND_IMAGE" | grep -q ':${{ github.sha }}
+            FRONTEND_IMAGE=$(sudo docker inspect ai-recruiter-web --format '{{.Config.Image}}')
+            echo "$FRONTEND_IMAGE" | grep -q ':${{ github.sha }}$'
+            echo "FRONTEND_IMAGE_OK=$FRONTEND_IMAGE"
+            echo DEPLOYMENT_FRONTEND_OK
+            sudo docker image prune -f
           REMOTE_DEPLOY
-
       - name: Verify public health
         run: |
           set -euo pipefail
