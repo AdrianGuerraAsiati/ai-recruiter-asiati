@@ -304,11 +304,8 @@ function Employees() {
                         </span>
                         {employee.onboarding && (
                           <div className="employee-onboarding-progress">
-                            <ProgressBar
-                              value={employee.onboarding.progress_percent}
-                              label="Progreso onboarding"
-                              showValue
-                            />
+                            <ProgressBar value={employee.onboarding.progress_percent} />
+                            <small>{Number(employee.onboarding.progress_percent || 0)}% completado</small>
                             {canReadTrainingResults && (
                               <button
                                 className="btn btn-ghost btn-sm employee-onboarding-detail-button"
