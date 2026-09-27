@@ -82,3 +82,12 @@ s3://<private-backup-bucket>/postgres/production
 ```
 
 The deploy intentionally treats an off-host copy failure as a failed pre-migration backup and stops before applying schema changes.
+
+
+### Restore drill
+
+`scripts/restore-postgres.sh` accepts either a local dump path or an `s3://` URI. Remote restores require the dump checksum object at the same URI with the `.sha256` suffix.
+
+The script refuses destructive restore unless `CONFIRM_RESTORE=yes` is provided and always validates SHA-256 before invoking `pg_restore`.
+
+A real disaster-recovery drill should restore into a disposable PostgreSQL target first; never validate a backup by restoring over production.
