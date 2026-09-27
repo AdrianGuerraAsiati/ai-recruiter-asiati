@@ -671,3 +671,157 @@ table tbody tr:hover {
     transition: none !important;
   }
 }
+
+
+/* Candidate directory */
+.candidate-card--directory {
+  padding: 22px;
+}
+
+.candidate-directory-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.candidate-directory-subtitle {
+  margin-top: 5px;
+  font-size: .78rem;
+}
+
+.candidate-directory-file {
+  margin-top: 18px;
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.candidate-directory-file .candidate-file-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ink-faint);
+  font-size: .69rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.candidate-directory-controls {
+  margin-top: 18px;
+}
+
+.candidate-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+}
+
+.candidate-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.candidate-evaluation-subtitle {
+  margin-top: 5px;
+}
+
+.candidate-evaluation-summary {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 18px 0 22px;
+}
+
+.candidate-evaluation-summary .ui-progress {
+  width: min(400px, 100%);
+}
+
+.candidate-evaluation-badge {
+  margin-top: 4px;
+  padding: 8px 14px;
+}
+
+.candidate-evaluation-badge--strong {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.candidate-evaluation-badge--good,
+.candidate-evaluation-badge--partial {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.candidate-evaluation-badge--failed,
+.candidate-evaluation-badge--low {
+  border: 1px solid color-mix(in srgb, var(--danger) 22%, transparent);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.candidate-evaluation-copy {
+  margin-top: 10px;
+  line-height: 1.65;
+}
+
+.candidate-section-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.candidate-section-title--positive {
+  color: var(--success);
+}
+
+.candidate-section-title--negative {
+  color: var(--warning);
+}
+
+.job-danger-eyebrow {
+  color: var(--danger);
+}
+
+.job-delete-copy {
+  margin-bottom: 16px;
+}
+
+.score-void-modal {
+  max-width: 620px;
+}
+
+body.nav-mobile-open {
+  overflow: hidden;
+}
+
+@media (max-width: 620px) {
+  .candidate-card--directory {
+    padding: 18px;
+  }
+
+  .candidate-directory-header,
+  .candidate-pagination,
+  .candidate-pagination-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .candidate-directory-header .candidate-actions,
+  .candidate-directory-header .candidate-actions .btn,
+  .candidate-directory-controls .btn,
+  .candidate-directory-controls select,
+  .candidate-pagination-controls .btn {
+    width: 100%;
+  }
+
+  .candidate-pagination {
+    text-align: center;
+  }
+}
