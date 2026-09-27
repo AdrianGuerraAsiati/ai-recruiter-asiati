@@ -85,6 +85,25 @@ def list_candidates_page(
     )
 
 
+def list_applications_page(
+    db: Session,
+    owner_sub: str,
+    *,
+    page: int = 1,
+    page_size: int = 25,
+    status: str = "",
+    q: str = "",
+):
+    return candidates_repository.list_applications_page(
+        db,
+        owner_sub=owner_sub,
+        page=page,
+        page_size=page_size,
+        status=status,
+        q=q,
+    )
+
+
 def list_job_candidates(
     db: Session,
     job_id: str,
