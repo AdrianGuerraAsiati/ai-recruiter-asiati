@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import api from "../api/client";
+import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
 import "./Jobs.css";
 import "./JobsPagination.css";
@@ -220,7 +221,11 @@ function Jobs() {
     } catch (requestError) {
       setJobs([]);
       setJobsPage({ page, page_size: pageSize, total: 0, total_pages: 0 });
-      setError(requestError.response?.data?.detail || requestError.response?.data?.error || "No fue posible cargar las vacantes.");
+      setError(getApiErrorMessage(requestError, {
+        action: "cargar las vacantes",
+        resource: "vacantes",
+        fallback: "La lista de vacantes no se actualizó. Conservamos la página y filtros actuales para que puedas reintentar.",
+      }));
     }
   }, [page, pageSize, query, sort]);
 
@@ -316,7 +321,11 @@ function Jobs() {
         setIndeedJobStatus({ unpublished: true });
         return;
       }
-      setIndeedError(requestError.response?.data?.detail || "No fue posible consultar Indeed.");
+      setIndeedError(getApiErrorMessage(requestError, {
+        action: "consultar el estado de publicación",
+        resource: "Indeed",
+        fallback: "No se pudo confirmar el estado de esta vacante en Indeed. Evita volver a publicarla hasta actualizar este dato.",
+      }));
     }
   }
 
@@ -341,7 +350,11 @@ function Jobs() {
       setJobCandidates(all);
     } catch {
       if (requestId !== detailsRequestRef.current) return;
-      setJobCandidatesError("No fue posible cargar los candidatos de esta vacante.");
+      setJobCandidatesError(getApiErrorMessage(requestError, {
+        action: "cargar los candidatos asignados",
+        resource: "esta vacante",
+        fallback: "El detalle de la vacante cargó, pero no su lista de candidatos. Usa «Reintentar» para consultar solo esa sección.",
+      }));
     } finally {
       if (requestId === detailsRequestRef.current) {
         setJobCandidatesLoading(false);
@@ -362,7 +375,11 @@ function Jobs() {
       setSuccessMessage("Vacante enviada a Indeed.");
       setTimeout(() => setSuccessMessage(""), 5000);
     } catch (requestError) {
-      setIndeedError(requestError.response?.data?.detail || "No fue posible publicar en Indeed.");
+      setIndeedError(getApiErrorMessage(requestError, {
+        action: "publicar la vacante",
+        resource: "Indeed",
+        fallback: "Indeed no confirmó la publicación. Consulta el estado de la vacante antes de volver a enviarla para evitar duplicados.",
+      }));
     } finally {
       setIndeedBusy("");
     }
@@ -378,7 +395,11 @@ function Jobs() {
       setSuccessMessage("Se solicitó el cierre de la vacante en Indeed.");
       setTimeout(() => setSuccessMessage(""), 5000);
     } catch (requestError) {
-      setIndeedError(requestError.response?.data?.detail || "No fue posible cerrar la vacante en Indeed.");
+      setIndeedError(getApiErrorMessage(requestError, {
+        action: "cerrar la vacante",
+        resource: "Indeed",
+        fallback: "Indeed no confirmó el cierre. La vacante puede seguir publicada; actualiza su estado antes de repetir la acción.",
+      }));
     } finally {
       setIndeedBusy("");
     }
@@ -397,7 +418,11 @@ function Jobs() {
       setSuccessMessage(`Indeed: ${data.fetched || 0} candidatos procesados; ${data.created || 0} nuevos.`);
       setTimeout(() => setSuccessMessage(""), 5000);
     } catch (requestError) {
-      setIndeedError(requestError.response?.data?.detail || "No fue posible sincronizar candidatos de Indeed.");
+      setIndeedError(getApiErrorMessage(requestError, {
+        action: "sincronizar candidatos",
+        resource: "Indeed",
+        fallback: "La ingesta de candidatos no se inició o no terminó de confirmarse. Revisa el estado de sincronización antes de lanzarla nuevamente.",
+      }));
     } finally {
       setIndeedBusy("");
     }
@@ -457,7 +482,11 @@ function Jobs() {
     } catch (requestError) {
       setHireError(
         requestError.response?.data?.detail
-        || "No fue posible completar la contratación y el onboarding.",
+        || getApiErrorMessage(requestError, {
+            action: "contratar al candidato y preparar su onboarding",
+            resource: "contratación",
+            fallback: "La contratación no quedó confirmada completamente. Revisa el estado del candidato y del empleado antes de repetir la acción.",
+          }),
       );
     } finally {
       setHiring(false);
@@ -473,7 +502,11 @@ function Jobs() {
       setSuccessMessage(`Indeed: ${data.sent || 0} estados enviados; ${data.failed || 0} fallidos.`);
       setTimeout(() => setSuccessMessage(""), 5000);
     } catch (requestError) {
-      setIndeedError(requestError.response?.data?.detail || "No fue posible sincronizar estados con Indeed.");
+      setIndeedError(getApiErrorMessage(requestError, {
+        action: "sincronizar estados de candidatos",
+        resource: "Indeed",
+        fallback: "Los estados locales no se confirmaron en Indeed. Mantén esta vacante abierta y vuelve a sincronizar cuando la integración esté disponible.",
+      }));
     } finally {
       setIndeedBusy("");
     }
@@ -504,7 +537,11 @@ function Jobs() {
       );
       setTimeout(() => setSuccessMessage(""), 5000);
     } catch (requestError) {
-      setDeleteError(requestError.response?.data?.detail || "No fue posible eliminar la vacante. Intenta nuevamente.");
+      setDeleteError(getApiErrorMessage(requestError, {
+        action: "eliminar la vacante",
+        resource: "vacante",
+        fallback: "La vacante no se eliminó. Recarga su detalle para confirmar que siga activa antes de volver a intentarlo.",
+      }));
     } finally {
       setDeletingJob(false);
     }
@@ -527,8 +564,11 @@ function Jobs() {
       setEnrichmentProposal(data?.proposal || null);
     } catch (requestError) {
       setEnrichmentError(
-        requestError.response?.data?.detail ||
-        "No fue posible enriquecer la vacante. Puedes continuar con tu borrador."
+        getApiErrorMessage(requestError, {
+        action: "generar la descripción con IA",
+        resource: "vacante",
+        fallback: "La IA no generó una propuesta, pero tu borrador original sigue intacto. Puedes guardarlo o volver a solicitar el enriquecimiento.",
+      })
       );
     } finally {
       setEnriching(false);
@@ -594,7 +634,13 @@ function Jobs() {
       await loadJobs();
       setTimeout(() => setSuccessMessage(""), 5000);
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || requestError.response?.data?.error || "No fue posible guardar la vacante.");
+      setError(getApiErrorMessage(requestError, {
+        action: editingJob ? "guardar los cambios de la vacante" : "crear la vacante",
+        resource: "vacante",
+        fallback: editingJob
+          ? "Los cambios no quedaron guardados. Mantén el formulario abierto y vuelve a enviarlos después de revisar los campos."
+          : "La vacante no se creó. Revisa título, descripción activa y datos obligatorios antes de volver a enviarla.",
+      }));
     } finally {
       setSaving(false);
     }
@@ -695,7 +741,11 @@ function Jobs() {
       }
       setTimeout(() => setSuccessMessage(""), 5000);
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || "No fue posible cambiar la descripción activa.");
+      setError(getApiErrorMessage(requestError, {
+        action: "cambiar la descripción activa",
+        resource: "vacante",
+        fallback: "La fuente de descripción no cambió. La versión anterior sigue activa; recarga el detalle antes de intentarlo otra vez.",
+      }));
     } finally {
       setDescriptionSourceBusy(false);
     }
