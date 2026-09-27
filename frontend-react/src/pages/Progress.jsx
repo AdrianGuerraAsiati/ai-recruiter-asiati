@@ -32,7 +32,10 @@ function Progress() {
     const progress = assignments.length
       ? Math.round(assignments.reduce((total, item) => total + Number(item.course?.progress_percent || 0), 0) / assignments.length)
       : 0;
-    return { completed, progress };
+    const evaluationsPassed = assignments.filter(
+      (item) => item.quiz_result?.passed,
+    ).length;
+    return { completed, progress, evaluationsPassed };
   }, [assignments]);
 
   if (loading) {
@@ -58,6 +61,7 @@ function Progress() {
         <article className="metric-card metric-blue"><span className="metric-label">Cursos asignados</span><strong className="metric-value">{assignments.length}</strong><small>Ruta personal de aprendizaje</small></article>
         <article className="metric-card metric-cyan"><span className="metric-label">Completados</span><strong className="metric-value">{summary.completed}</strong><small>Cursos finalizados</small></article>
         <article className="metric-card metric-violet"><span className="metric-label">Progreso general</span><strong className="metric-value">{summary.progress}%</strong><small>Promedio de tus cursos</small></article>
+        <article className="metric-card"><span className="metric-label">Evaluaciones aprobadas</span><strong className="metric-value">{summary.evaluationsPassed}</strong><small>Resultados superados</small></article>
       </section>
 
       <section className="panel">
@@ -73,7 +77,12 @@ function Progress() {
                   <span className="job-index">{String(index + 1).padStart(2, "0")}</span>
                   <div>
                     <h3>{assignment.course?.title || "Capacitación"}</h3>
-                    <p>{assignment.course?.completed_lessons || 0} de {assignment.course?.lesson_count || 0} lecciones completadas · {courseProgress}% de avance</p>
+                    <p>
+                      {assignment.course?.completed_lessons || 0} de {assignment.course?.lesson_count || 0} lecciones completadas · {courseProgress}% de avance
+                      {assignment.quiz_result
+                        ? ` · Evaluación: ${assignment.quiz_result.best_score ?? "sin intento"}${assignment.quiz_result.best_score == null ? "" : "%"}${assignment.quiz_result.passed ? " · Aprobada" : assignment.quiz_result.attempt_count ? " · Pendiente de aprobar" : ""}`
+                        : ""}
+                    </p>
                   </div>
                   <span className="status-pill"><i /> {assignment.status === "COMPLETED" ? "Completado" : "En progreso"}</span>
                 </article>
