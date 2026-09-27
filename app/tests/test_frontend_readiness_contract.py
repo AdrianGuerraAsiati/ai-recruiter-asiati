@@ -17,7 +17,7 @@ def test_frontend_deploy_uses_versioned_rollback_script():
     assert "OLD_IMAGE" in script
 
     pull = script.index('docker pull "$IMAGE"')
-    replace = script.index('docker rm -f "$CONTAINER_NAME"')
+    replace = script.rindex('docker rm -f "$CONTAINER_NAME"')
     assert pull < replace
 
 
