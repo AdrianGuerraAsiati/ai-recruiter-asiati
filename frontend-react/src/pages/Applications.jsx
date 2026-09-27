@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import api from "../api/client";
+import { getApiErrorMessage } from "../utils/errors";
 
 const PAGE_SIZE = 25;
 
@@ -46,7 +47,11 @@ function Applications() {
       setTotal(Number(data?.total || 0));
       setPages(Number(data?.pages || 0));
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible cargar las postulaciones.");
+      setError(getApiErrorMessage(err, {
+        action: "cargar las postulaciones",
+        resource: "postulaciones",
+        fallback: "La lista de postulaciones no se actualizó. Conservamos los filtros actuales para que puedas reintentar.",
+      }));
     } finally {
       setLoading(false);
     }
@@ -78,7 +83,11 @@ function Applications() {
       );
       await loadApplications();
     } catch (err) {
-      setError(err.response?.data?.detail || "No fue posible actualizar la postulación.");
+      setError(getApiErrorMessage(err, {
+        action: "cambiar el estado de la postulación",
+        resource: "postulaciones",
+        fallback: "El estado de la postulación no cambió. Recarga la lista antes de volver a intentarlo.",
+      }));
     } finally {
       setSavingId("");
     }
