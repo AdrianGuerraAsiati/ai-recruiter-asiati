@@ -244,6 +244,35 @@ def list_candidates(
     }
 
 
+@router.get("/applications")
+def list_applications(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    status: str = Query("", max_length=32),
+    q: str = Query("", max_length=120),
+    db: Session = Depends(get_db),
+    _user: dict = Depends(require_permission("candidates.read")),
+):
+    rows, total = service.list_applications_page(
+        db,
+        _user["sub"],
+        page=page,
+        page_size=page_size,
+        status=status,
+        q=q,
+    )
+    return {
+        "items": [
+            presenter.application_to_dict(link, candidate, job)
+            for link, candidate, job in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "pages": (total + page_size - 1) // page_size if total else 0,
+    }
+
+
 @router.get("/{candidate_id}")
 def get_candidate(
     candidate_id: str,

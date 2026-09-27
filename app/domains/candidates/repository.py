@@ -1,6 +1,7 @@
 """Candidates repository."""
 
 from datetime import datetime, timezone
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -9,6 +10,7 @@ from app.models import (
     Candidate,
     CandidateRestrictionEvent,
     Evaluation,
+    Job,
     JobCandidate,
     RankingItem,
 )
@@ -45,6 +47,55 @@ def list_candidates_page(
         .all()
     )
     return items, total
+
+
+def list_applications_page(
+    db: Session,
+    *,
+    owner_sub: str,
+    page: int = 1,
+    page_size: int = 25,
+    status: str = "",
+    q: str = "",
+):
+    """Return owner-scoped job applications with candidate and vacancy context."""
+    query = (
+        db.query(JobCandidate, Candidate, Job)
+        .join(Candidate, Candidate.id == JobCandidate.candidate_id)
+        .join(Job, Job.id == JobCandidate.job_id)
+        .filter(
+            Candidate.owner_sub == owner_sub,
+            Job.owner_sub == owner_sub,
+        )
+    )
+
+    normalized_status = str(status or "").strip().upper()
+    if normalized_status:
+        query = query.filter(JobCandidate.application_status == normalized_status)
+
+    search = str(q or "").strip()
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter(
+            or_(
+                Candidate.name.ilike(pattern),
+                Candidate.email.ilike(pattern),
+                Job.title.ilike(pattern),
+            )
+        )
+
+    total = int(query.count() or 0)
+    rows = (
+        query.order_by(
+            JobCandidate.status_changed_at.desc(),
+            JobCandidate.assigned_at.desc(),
+            JobCandidate.id.desc(),
+        )
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    return rows, total
 
 
 def count_candidates(
