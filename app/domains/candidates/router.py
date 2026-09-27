@@ -287,7 +287,7 @@ def get_candidate(
 async def upload_candidates_bulk(
     files: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
-    _user: dict = Depends(require_permission("candidates.read")),
+    _user: dict = Depends(require_permission("candidates.manage")),
 ):
     results = []
     errors = []
