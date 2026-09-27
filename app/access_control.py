@@ -62,7 +62,6 @@ _ADMIN_PERMISSIONS = {
     "candidates.evaluate",
     "candidates.restrict",
     "ranking.read",
-    "integrations.manage",
     "employees.read",
     "employees.create",
     "employees.update",
@@ -165,6 +164,21 @@ def ensure_rbac_catalog(db: Session) -> None:
     for code, description in PERMISSION_DEFINITIONS.items():
         if code not in existing_permissions:
             db.add(Permission(code=code, description=description))
+
+    db.flush()
+
+    desired_grants = {
+        (role_code, permission_code)
+        for role_code, permission_codes in ROLE_PERMISSION_MATRIX.items()
+        for permission_code in permission_codes
+    }
+    for grant in (
+        db.query(RolePermission)
+        .filter(RolePermission.role_code.in_(tuple(ROLE_PERMISSION_MATRIX)))
+        .all()
+    ):
+        if (grant.role_code, grant.permission_code) not in desired_grants:
+            db.delete(grant)
 
     db.flush()
 
