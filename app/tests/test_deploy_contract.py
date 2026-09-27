@@ -10,6 +10,7 @@ WORKFLOW = ROOT / ".github" / "workflows" / "deploy.yml"
 API_SCRIPT = ROOT / "scripts" / "deploy-api.sh"
 FRONTEND_SCRIPT = ROOT / "scripts" / "deploy-frontend.sh"
 BACKUP_SCRIPT = ROOT / "scripts" / "backup-postgres.sh"
+WORKER_SCRIPT = ROOT / "scripts" / "deploy-worker.sh"
 
 
 def _read(path: Path) -> str:
@@ -143,3 +144,19 @@ def test_database_backup_runs_before_migration():
     assert "pg_dump" in backup
     assert "sha256sum" in backup
     assert "umask 077" in backup
+
+
+
+def test_worker_deploy_rolls_back_after_verification_failure():
+    script = _read(WORKER_SCRIPT)
+    assert "WORKER_ROLLBACK_OK" in script
+    assert "trap rollback_worker EXIT" in script
+    assert "--pids-limit 256" in script
+    assert "--log-opt max-size=10m" in script
+
+
+def test_production_deploy_scripts_require_database_url_explicitly():
+    for script_path in (API_SCRIPT, WORKER_SCRIPT):
+        script = _read(script_path)
+        assert 'DATABASE_URL="${DATABASE_URL:?DATABASE_URL is required}"' in script
+        assert "postgres:postgres" not in script
