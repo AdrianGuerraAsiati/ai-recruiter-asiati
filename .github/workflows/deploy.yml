@@ -169,6 +169,7 @@ jobs:
         run: |
           set -euo pipefail
           SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+          scp "${SSH[@]}" scripts/backup-postgres.sh "$LIGHTSAIL_SSH_USER@$INSTANCE_IP:/tmp/ai-recruiter-backup-postgres.sh"
           ssh "${SSH[@]}" "$LIGHTSAIL_SSH_USER@$INSTANCE_IP" bash -s <<REMOTE_PREFLIGHT
             set -euo pipefail
             export AWS_DEFAULT_REGION="$AWS_REGION"
@@ -176,13 +177,15 @@ jobs:
             echo DOCKER_DISK_BEFORE
             sudo docker system df
             sudo docker container prune -f
-            sudo docker image prune -a -f
-            sudo docker builder prune -a -f
+            sudo docker image prune -f
+            sudo docker builder prune -a -f --filter until=168h
             echo DOCKER_DISK_AFTER
             sudo docker system df
             sudo docker pull "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}"
             DATABASE_URL_VALUE=\$(sudo docker inspect ai-recruiter-api --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^DATABASE_URL=//p' | head -1)
             test -n "\$DATABASE_URL_VALUE"
+            chmod +x /tmp/ai-recruiter-backup-postgres.sh
+            sudo env DATABASE_URL="\$DATABASE_URL_VALUE" BACKUP_DIR=/opt/ai-recruiter/backups RETENTION_DAYS=7 /tmp/ai-recruiter-backup-postgres.sh
             sudo docker run --rm --network ai-recruiter --add-host=host.docker.internal:host-gateway \
               -e "DATABASE_URL=\$DATABASE_URL_VALUE" \
               "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}" \
@@ -212,6 +215,7 @@ jobs:
           SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
           scp "${SSH[@]}" scripts/deploy-api.sh "$LIGHTSAIL_SSH_USER@$INSTANCE_IP:/tmp/ai-recruiter-deploy-api.sh"
           scp "${SSH[@]}" scripts/deploy-worker.sh "$LIGHTSAIL_SSH_USER@$INSTANCE_IP:/tmp/ai-recruiter-deploy-worker.sh"
+          scp "${SSH[@]}" scripts/deploy-frontend.sh "$LIGHTSAIL_SSH_USER@$INSTANCE_IP:/tmp/ai-recruiter-deploy-frontend.sh"
           ssh "${SSH[@]}" "$LIGHTSAIL_SSH_USER@$INSTANCE_IP" bash -s <<REMOTE_DEPLOY
             set -euo pipefail
             export AWS_DEFAULT_REGION="$AWS_REGION"
@@ -229,21 +233,60 @@ jobs:
             WORKER_STATUS=\$(sudo docker inspect ai-recruiter-worker --format '{{.State.Status}}')
             test "\$WORKER_STATUS" = running
             echo '━━━ Deploy Frontend ━━━'
-            sudo docker stop ai-recruiter-web 2>/dev/null || true
-            sudo docker rm ai-recruiter-web 2>/dev/null || true
-            sudo docker run -d --name ai-recruiter-web --network ai-recruiter --restart unless-stopped -p 80:80 "$ECR_REGISTRY/$ECR_FRONTEND_REPO:${{ github.sha }}"
+            chmod +x /tmp/ai-recruiter-deploy-frontend.sh
+            ECR_REGISTRY="$ECR_REGISTRY" ECR_FRONTEND_REPO="$ECR_FRONTEND_REPO" ECR_TAG="${{ github.sha }}" sudo -H -E /tmp/ai-recruiter-deploy-frontend.sh
             FRONTEND_IMAGE=\$(sudo docker inspect ai-recruiter-web --format '{{.Config.Image}}')
-            echo "\$FRONTEND_IMAGE" | grep -q ':${{ github.sha }}$'
+            echo "\$FRONTEND_IMAGE" | grep -q ':${{ github.sha }}
+          REMOTE_DEPLOY
+
+      - name: Verify public health
+        run: |
+          set -euo pipefail
+          BASE_URL="${PUBLIC_BASE_URL:-}"
+          if [ -z "$BASE_URL" ]; then BASE_URL="http://$INSTANCE_IP"; fi
+          CODE=000
+          for i in $(seq 1 10); do
+            CODE=$(curl -sf -o /dev/null -w '%{http_code}' "$BASE_URL/api/ready" || echo 000)
+            [ "$CODE" = 200 ] && break
+            sleep 3
+          done
+          [ "$CODE" = 200 ]
+          echo "PUBLIC_READINESS_OK HTTP $CODE"
+
+      - name: Verify public frontend
+        run: |
+          set -euo pipefail
+          DIRECT_HTML=$(curl -fS "http://$INSTANCE_IP/")
+          DIRECT_FRONTEND_BUNDLE=$(echo "$DIRECT_HTML" | grep -oE 'assets/index-[^"]+\.js' | head -1)
+          echo "DIRECT_FRONTEND_BUNDLE=$DIRECT_FRONTEND_BUNDLE"
+          test -n "$DIRECT_FRONTEND_BUNDLE"
+          BASE_URL="${PUBLIC_BASE_URL:-}"
+          if [ -z "$BASE_URL" ]; then BASE_URL="http://$INSTANCE_IP"; fi
+          PUBLIC_HTML=$(curl -fS "$BASE_URL/")
+          echo "$PUBLIC_HTML" | grep -q root
+          PUBLIC_FRONTEND_BUNDLE=$(echo "$PUBLIC_HTML" | grep -oE 'assets/index-[^"]+\.js' | head -1)
+          echo "PUBLIC_FRONTEND_BUNDLE=$PUBLIC_FRONTEND_BUNDLE"
+          test "$DIRECT_FRONTEND_BUNDLE" = "$PUBLIC_FRONTEND_BUNDLE"
+          echo PUBLIC_FRONTEND_OK
+
+      - name: Promote validated SHA images to latest
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          set -euo pipefail
+          docker pull "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}"
+          docker tag "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}" "$ECR_REGISTRY/$ECR_BACKEND_REPO:latest"
+          docker push "$ECR_REGISTRY/$ECR_BACKEND_REPO:latest"
+          docker pull "$ECR_REGISTRY/$ECR_FRONTEND_REPO:${{ github.sha }}"
+          docker tag "$ECR_REGISTRY/$ECR_FRONTEND_REPO:${{ github.sha }}" "$ECR_REGISTRY/$ECR_FRONTEND_REPO:latest"
+          docker push "$ECR_REGISTRY/$ECR_FRONTEND_REPO:latest"
+          echo DEPLOYMENT_OK
+
+      - name: Cleanup temporary SSH credentials
+        if: always()
+        run: rm -f /tmp/lightsail-key /tmp/lightsail-key-cert.pub
+
             echo "FRONTEND_IMAGE_OK=\$FRONTEND_IMAGE"
-            FRONTEND_HTML=""
-            FRONTEND_READY=false
-            for i in \$(seq 1 10); do
-              FRONTEND_HTML=\$(curl -fS http://127.0.0.1/ 2>/dev/null || echo FAIL)
-              if echo "\$FRONTEND_HTML" | grep -q "root"; then FRONTEND_READY=true; break; fi
-              sleep 1
-            done
-            test "\$FRONTEND_READY" = true
-            echo "\$FRONTEND_HTML" | grep -q "root"
             echo DEPLOYMENT_FRONTEND_OK
             sudo docker image prune -f
           REMOTE_DEPLOY
