@@ -16,6 +16,7 @@ const pageTitles = {
   "/progress": "Mi progreso",
   "/profile": "Mi perfil",
   "/integrations": "Integraciones",
+  "/forbidden": "Acceso restringido",
 };
 
 
