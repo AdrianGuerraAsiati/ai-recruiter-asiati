@@ -117,3 +117,38 @@ def test_candidate_import_template_exposes_runtime_outputs_and_parameter():
         "Fn::GetAtt": ["ImportQueue", "Arn"]
     }
     assert template["Outputs"]["ImportDlqUrl"]["Value"] == {"Ref": "ImportDlq"}
+
+
+
+def test_candidate_import_template_has_operational_cloudwatch_alarms():
+    template = _template()
+    resources = template["Resources"]
+
+    assert template["Parameters"]["AlarmTopicArn"]["Default"] == ""
+    assert "HasAlarmTopic" in template["Conditions"]
+
+    dlq_alarm = resources["ImportDlqVisibleMessagesAlarm"]["Properties"]
+    backlog_alarm = resources["ImportQueueBacklogAlarm"]["Properties"]
+    age_alarm = resources["ImportQueueOldestMessageAlarm"]["Properties"]
+
+    assert dlq_alarm["MetricName"] == "ApproximateNumberOfMessagesVisible"
+    assert dlq_alarm["Threshold"] == 1
+    assert dlq_alarm["TreatMissingData"] == "notBreaching"
+
+    assert backlog_alarm["MetricName"] == "ApproximateNumberOfMessagesVisible"
+    assert backlog_alarm["Threshold"] == 50
+    assert backlog_alarm["EvaluationPeriods"] == 2
+
+    assert age_alarm["MetricName"] == "ApproximateAgeOfOldestMessage"
+    assert age_alarm["Threshold"] == 900
+    assert age_alarm["EvaluationPeriods"] == 2
+
+    for alarm in (dlq_alarm, backlog_alarm, age_alarm):
+        assert alarm["Namespace"] == "AWS/SQS"
+        assert alarm["AlarmActions"]["Fn::If"][0] == "HasAlarmTopic"
+
+    assert set(template["Outputs"]) >= {
+        "ImportDlqAlarmName",
+        "ImportQueueBacklogAlarmName",
+        "ImportQueueOldestMessageAlarmName",
+    }

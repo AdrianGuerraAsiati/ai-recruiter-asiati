@@ -172,3 +172,46 @@ def test_host_side_database_tools_normalize_docker_host_alias():
     assert expected in restore
     assert '--dbname="$BACKUP_DATABASE_URL"' in backup
     assert '--dbname="$RESTORE_DATABASE_URL"' in restore
+
+
+
+def test_database_backup_supports_optional_encrypted_offhost_copy():
+    backup = _read(BACKUP_SCRIPT)
+
+    assert 'BACKUP_S3_URI="${BACKUP_S3_URI:-}"' in backup
+    assert 'BACKUP_AWS_PROFILE="${BACKUP_AWS_PROFILE:-}"' in backup
+    assert 'BACKUP_AWS_CONFIG_FILE="${BACKUP_AWS_CONFIG_FILE:-}"' in backup
+    assert 'if [[ -n "$BACKUP_S3_URI" ]]' in backup
+    assert 'aws "${AWS_ARGS[@]}" s3 cp "$OUTPUT"' in backup
+    assert "--sse AES256" in backup
+    assert "DATABASE_BACKUP_OFFHOST_OK" in backup
+
+
+
+def test_deploy_wires_optional_alarm_topic_and_offhost_backup_configuration():
+    workflow = _read(WORKFLOW)
+
+    assert "CANDIDATE_IMPORT_ALARM_TOPIC_ARN" in workflow
+    assert "DATABASE_BACKUP_S3_URI" in workflow
+    assert 'AlarmTopicArn="$CANDIDATE_IMPORT_ALARM_TOPIC_ARN"' in workflow
+    assert 'BACKUP_S3_URI="$DATABASE_BACKUP_S3_URI"' in workflow
+    assert "BACKUP_AWS_PROFILE=ai-recruiter-bedrock" in workflow
+    assert "BACKUP_AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config" in workflow
+
+
+
+def test_database_restore_requires_checksum_and_supports_s3_source():
+    restore = _read(ROOT / "scripts" / "restore-postgres.sh")
+    backup = _read(BACKUP_SCRIPT)
+
+    assert 'BACKUP_SOURCE="${1:?usage: restore-postgres.sh' in restore
+    assert 'if [[ "$BACKUP_SOURCE" == s3://* ]]' in restore
+    assert 's3 cp "$BACKUP_SOURCE" "$BACKUP_FILE"' in restore
+    assert 's3 cp "$BACKUP_SOURCE.sha256" "$BACKUP_FILE.sha256"' in restore
+    assert 'test -s "$BACKUP_FILE.sha256"' in restore
+    assert 'sha256sum -c "$(basename "$BACKUP_FILE").sha256"' in restore
+    assert 'CONFIRM_RESTORE="${CONFIRM_RESTORE:-}"' in restore
+    assert 'if [[ "$CONFIRM_RESTORE" != "yes" ]]' in restore
+
+    assert 'cd "$BACKUP_DIR"' in backup
+    assert 'sha256sum "$(basename "$OUTPUT")"' in backup

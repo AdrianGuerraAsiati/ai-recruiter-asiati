@@ -5,6 +5,17 @@ Parameters:
   RuntimeRoleArn:
     Type: String
     Description: ARN of the existing AiRecruiterBedrockRuntimeRole used by API and worker.
+  AlarmTopicArn:
+    Type: String
+    Default: ""
+    Description: Optional SNS topic ARN that receives candidate-import alarms.
+
+Conditions:
+  HasAlarmTopic:
+    Fn::Not:
+      - Fn::Equals:
+          - Ref: AlarmTopicArn
+          - ""
 
 Resources:
   ImportStagingBucket:
@@ -95,6 +106,81 @@ Resources:
             - Arn
         maxReceiveCount: 5
 
+  ImportDlqVisibleMessagesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Candidate import messages reached the dead-letter queue.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value:
+            Fn::GetAtt:
+              - ImportDlq
+              - QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        Fn::If:
+          - HasAlarmTopic
+          - - Ref: AlarmTopicArn
+          - Ref: AWS::NoValue
+
+  ImportQueueBacklogAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Candidate import queue backlog is above the operational threshold.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value:
+            Fn::GetAtt:
+              - ImportQueue
+              - QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 50
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        Fn::If:
+          - HasAlarmTopic
+          - - Ref: AlarmTopicArn
+          - Ref: AWS::NoValue
+
+  ImportQueueOldestMessageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Candidate import queue has work older than fifteen minutes.
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value:
+            Fn::GetAtt:
+              - ImportQueue
+              - QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 900
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        Fn::If:
+          - HasAlarmTopic
+          - - Ref: AlarmTopicArn
+          - Ref: AWS::NoValue
+
   ImportQueuePolicy:
     Type: AWS::SQS::QueuePolicy
     Properties:
@@ -138,3 +224,15 @@ Outputs:
     Description: Candidate import dead-letter queue URL.
     Value:
       Ref: ImportDlq
+  ImportDlqAlarmName:
+    Description: CloudWatch alarm raised when the candidate import DLQ receives messages.
+    Value:
+      Ref: ImportDlqVisibleMessagesAlarm
+  ImportQueueBacklogAlarmName:
+    Description: CloudWatch alarm for candidate import queue backlog.
+    Value:
+      Ref: ImportQueueBacklogAlarm
+  ImportQueueOldestMessageAlarmName:
+    Description: CloudWatch alarm for candidate import queue age.
+    Value:
+      Ref: ImportQueueOldestMessageAlarm

@@ -23,17 +23,21 @@ from app.domains.jobs.router import router as jobs_router
 from app.domains.ranking.router import router as ranking_router
 from app.domains.training.router import router as training_router
 from app.health import router as health_router
+from app.observability import configure_logging, install_request_observability
 
 logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
     """Build the FastAPI application without changing its public contract."""
+    configure_logging()
     app = FastAPI(
         title="AI Recruiter API (PostgreSQL)",
         description="Ranking de candidatos con PostgreSQL + advisory locks",
         version="2.0.0",
     )
+
+    install_request_observability(app)
 
     app.add_middleware(
         CORSMiddleware,
@@ -41,6 +45,7 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Request-ID"],
     )
 
     app.include_router(health_router)
@@ -67,6 +72,11 @@ def create_app() -> FastAPI:
             request.url.path,
             exc,
             exc_info=True,
+            extra={
+                "event": "unhandled_exception",
+                "http_method": request.method,
+                "http_path": request.url.path,
+            },
         )
         return JSONResponse(
             status_code=500,
