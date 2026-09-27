@@ -71,3 +71,14 @@ def test_training_content_template_exposes_bucket_output():
     assert template["Outputs"]["TrainingContentBucket"]["Value"] == {
         "Ref": "TrainingContentBucket"
     }
+
+
+
+def test_training_content_is_versioned_and_retained():
+    template = _template()
+    resource = template["Resources"]["TrainingContentBucket"]
+    bucket = resource["Properties"]
+
+    assert resource["DeletionPolicy"] == "Retain"
+    assert resource["UpdateReplacePolicy"] == "Retain"
+    assert bucket["VersioningConfiguration"] == {"Status": "Enabled"}
