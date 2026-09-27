@@ -34,13 +34,16 @@ jobs:
       - run: |
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-xdist
+          pip install pytest pytest-xdist pytest-cov ruff
       - run: |
           python -m py_compile app/main.py
           python -m py_compile app/evaluation.py
+          ruff check app --select E9,F63,F7,F82
       - env:
           DATABASE_URL: "sqlite:///:memory:"
-        run: python -m pytest app/tests/ -n 2 --dist=loadfile -v --tb=short
+        run: >-
+          python -m pytest app/tests/ -n 2 --dist=loadfile -v --tb=short
+          --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=35
 
   frontend-tests:
     runs-on: ubuntu-latest
@@ -160,7 +163,7 @@ jobs:
       - name: Verify existing Roles Anywhere identity
         run: |
           set -euo pipefail
-          SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+          SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/lightsail-known-hosts)
           ssh "${SSH[@]}" "$LIGHTSAIL_SSH_USER@$INSTANCE_IP" 'set -euo pipefail; for f in /opt/ai-recruiter/aws/config /usr/local/bin/aws_signing_helper /opt/ai-recruiter/rolesanywhere/client.crt /opt/ai-recruiter/rolesanywhere/client.key; do test -f "$f"; done; AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws sts get-caller-identity --profile ai-recruiter-bedrock >/tmp/ai-recruiter-sts.json; test "$(jq -r .Account /tmp/ai-recruiter-sts.json)" = "890876258895"; echo ROLES_ANYWHERE_OK'
 
       - name: Migrate and backfill production database
@@ -284,7 +287,7 @@ jobs:
 
       - name: Cleanup temporary SSH credentials
         if: always()
-        run: rm -f /tmp/lightsail-key /tmp/lightsail-key-cert.pub
+        run: rm -f /tmp/lightsail-key /tmp/lightsail-key-cert.pub /tmp/lightsail-known-hosts
 
             echo "FRONTEND_IMAGE_OK=\$FRONTEND_IMAGE"
             echo DEPLOYMENT_FRONTEND_OK
