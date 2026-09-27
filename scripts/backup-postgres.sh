@@ -5,6 +5,8 @@ set -euo pipefail
 DATABASE_URL="${DATABASE_URL:?DATABASE_URL is required}"
 BACKUP_DIR="${BACKUP_DIR:-/opt/ai-recruiter/backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-7}"
+BACKUP_S3_URI="${BACKUP_S3_URI:-}"
+BACKUP_AWS_PROFILE="${BACKUP_AWS_PROFILE:-}"
 
 command -v pg_dump >/dev/null 2>&1 || {
   echo "pg_dump is required" >&2
@@ -26,6 +28,23 @@ pg_dump   --dbname="$BACKUP_DATABASE_URL"   --format=custom   --no-owner   --no-
 
 test -s "$OUTPUT"
 sha256sum "$OUTPUT" > "$OUTPUT.sha256"
+
+if [[ -n "$BACKUP_S3_URI" ]]; then
+  command -v aws >/dev/null 2>&1 || {
+    echo "aws CLI is required when BACKUP_S3_URI is configured" >&2
+    exit 1
+  }
+
+  AWS_ARGS=()
+  if [[ -n "$BACKUP_AWS_PROFILE" ]]; then
+    AWS_ARGS+=(--profile "$BACKUP_AWS_PROFILE")
+  fi
+
+  DESTINATION="${BACKUP_S3_URI%/}/$(basename "$OUTPUT")"
+  aws "${AWS_ARGS[@]}" s3 cp "$OUTPUT" "$DESTINATION" --only-show-errors --sse AES256
+  aws "${AWS_ARGS[@]}" s3 cp "$OUTPUT.sha256" "$DESTINATION.sha256" --only-show-errors --sse AES256
+  echo "DATABASE_BACKUP_OFFHOST_OK=$DESTINATION"
+fi
 
 find "$BACKUP_DIR" -type f -name 'ai-recruiter-*.dump' -mtime "+$RETENTION_DAYS" -delete
 find "$BACKUP_DIR" -type f -name 'ai-recruiter-*.dump.sha256' -mtime "+$RETENTION_DAYS" -delete
