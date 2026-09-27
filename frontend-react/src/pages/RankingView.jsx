@@ -87,7 +87,7 @@ function Ranking() {
         setSelectedJob(firstJobId);
         await loadRanking(1, pageSize, firstJobId, rankingScope);
       }
-    } catch {
+    } catch (error) {
       setActionFeedback({
         type: "error",
         message: getApiErrorMessage(error, {
