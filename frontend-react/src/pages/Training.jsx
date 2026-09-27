@@ -11,6 +11,7 @@ import {
   EmptyState,
   FeedbackMessage,
   LoadingState,
+  ProgressBar,
 } from "../components/ui/StatePanel";
 
 
@@ -925,7 +926,7 @@ function Training() {
 
           <div className="training-admin-content">
             {detailLoading && !selectedCourse ? (
-              <section className="panel page-loading"><span /> Cargando curso…</section>
+              <section className="panel"><LoadingState label="Cargando curso…" compact /></section>
             ) : selectedCourse ? (
               <>
                 <section className="panel training-course-overview">
@@ -1266,10 +1267,12 @@ function Training() {
                         </button>
                       </form>
                     ) : (
-                      <div className="empty-state compact">
-                        <strong>Curso sin evaluación</strong>
-                        <p>Este curso se completa únicamente con sus lecciones.</p>
-                      </div>
+                      <EmptyState
+                        compact
+                        icon="training"
+                        title="Curso sin evaluación"
+                        description="Este curso se completa únicamente con sus lecciones."
+                      />
                     )
                   ) : (
                     <div className="training-quiz-admin-body">
@@ -1396,7 +1399,7 @@ function Training() {
                             </div>
                             <div className="training-result-progress">
                               <span>{assignment.course.progress_percent}%</span>
-                              <div><i style={{ width: `${assignment.course.progress_percent}%` }} /></div>
+                              <ProgressBar value={assignment.course.progress_percent} />
                             </div>
                             <span className="training-status training-status-published">
                               {assignment.status === "COMPLETED" ? "Completado" : "En curso"}
@@ -1409,9 +1412,13 @@ function Training() {
                 )}
               </>
             ) : (
-              <section className="panel empty-state">
-                <strong>Selecciona o crea un curso</strong>
-                <p>Desde aquí podrás construir sus módulos, videos y asignaciones.</p>
+              <section className="panel">
+                <EmptyState
+                  compact
+                  icon="training"
+                  title="Selecciona o crea un curso"
+                  description="Desde aquí podrás construir sus módulos, videos y asignaciones."
+                />
               </section>
             )}
           </div>
@@ -1428,10 +1435,13 @@ function Training() {
         </div>
 
         {myAssignments.length === 0 ? (
-          <section className="panel empty-state training-empty">
-            <span className="training-mark" aria-hidden="true">▶</span>
-            <strong>Aún no tienes cursos asignados</strong>
-            <p>Cuando se publique una capacitación para tu perfil aparecerá aquí.</p>
+          <section className="panel training-empty">
+            <EmptyState
+              compact
+              icon="training"
+              title="Aún no tienes cursos asignados"
+              description="Cuando se publique una capacitación para tu perfil aparecerá aquí."
+            />
           </section>
         ) : (
           <div className="training-learning-layout">
@@ -1455,7 +1465,7 @@ function Training() {
                   </div>
                   <div className="training-progress">
                     <span><strong>{courseProgress(assignment.course)}%</strong> completado</span>
-                    <div><i style={{ width: `${courseProgress(assignment.course)}%` }} /></div>
+                    <ProgressBar value={courseProgress(assignment.course)} />
                   </div>
                 </button>
               ))}
@@ -1463,7 +1473,7 @@ function Training() {
 
             <section className="panel training-player-panel">
               {detailLoading && !employeeCourse ? (
-                <div className="page-loading"><span /> Cargando contenido…</div>
+                <LoadingState label="Cargando contenido…" compact />
               ) : employeeCourse?.course ? (
                 <>
                   <div className="training-player-heading">
@@ -1489,9 +1499,7 @@ function Training() {
                           : ""}
                       </small>
                     </div>
-                    <div className="training-journey-progress-bar">
-                      <i style={{ width: `${employeeCourse.course.progress_percent}%` }} />
-                    </div>
+                    <ProgressBar value={employeeCourse.course.progress_percent} />
                   </div>
 
                   <section className="training-focus-session">
@@ -1805,10 +1813,12 @@ function Training() {
                           </div>
                         </>
                       ) : (
-                        <div className="empty-state compact">
-                          <strong>Ruta lista</strong>
-                          <p>No hay más actividades para mostrar.</p>
-                        </div>
+                        <EmptyState
+                          compact
+                          icon="check"
+                          title="Ruta lista"
+                          description="No hay más actividades para mostrar."
+                        />
                       )}
                     </article>
                   </div>
@@ -1886,16 +1896,17 @@ function Training() {
                           </button>
                         </form>
                       ) : (
-                        <div className="page-loading compact-loading"><span /> Preparando evaluación…</div>
+                        <LoadingState label="Preparando evaluación…" compact />
                       )}
                     </section>
                   )}
                 </>
               ) : (
-                <div className="empty-state">
-                  <strong>Selecciona un curso</strong>
-                  <p>Abre una capacitación para ver sus módulos y lecciones.</p>
-                </div>
+                <EmptyState
+                  icon="training"
+                  title="Selecciona un curso"
+                  description="Abre una capacitación para ver sus módulos y lecciones."
+                />
               )}
             </section>
           </div>
@@ -1949,7 +1960,7 @@ function Training() {
             )}
 
             {previewLoading ? (
-              <div className="page-loading compact-loading"><span /> Preparando vista previa…</div>
+              <LoadingState label="Preparando vista previa…" compact />
             ) : previewData ? (
               <div className="training-preview-body">
                 {previewData.preview_employee && (
