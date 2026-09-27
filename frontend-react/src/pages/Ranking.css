@@ -850,3 +850,17 @@
 @keyframes ranking-shimmer {
   to { transform: translateX(110%); }
 }
+
+
+.ranking-feedback {
+  animation: ranking-feedback-enter .28s ease-out both;
+}
+
+.ranking-metric-value {
+  animation: ranking-score-pop .42s cubic-bezier(.22, .8, .2, 1) both;
+}
+
+@keyframes ranking-feedback-enter {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
