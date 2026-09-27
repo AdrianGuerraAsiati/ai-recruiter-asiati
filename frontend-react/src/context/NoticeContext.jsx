@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 
 import Icon from "../components/ui/Icon";
 
-const NoticeContext = createContext(null);
+const NoticeContext = createContext({ notify: () => null, dismiss: () => {} });
 
 export function NoticeProvider({ children }) {
   const [notices, setNotices] = useState([]);
@@ -48,7 +48,5 @@ export function NoticeProvider({ children }) {
 }
 
 export function useNotice() {
-  const context = useContext(NoticeContext);
-  if (!context) throw new Error("useNotice must be used inside NoticeProvider");
-  return context;
+  return useContext(NoticeContext);
 }
