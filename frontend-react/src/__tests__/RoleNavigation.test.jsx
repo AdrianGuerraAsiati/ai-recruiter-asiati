@@ -79,7 +79,7 @@ describe("role navigation", () => {
       "ranking.read",
       "employees.read",
       "training.read",
-      "training.progress.read_own",
+      "training.results.read",
       "profile.read_own",
     ]);
 
