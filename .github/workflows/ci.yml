@@ -7,7 +7,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.10"
-  NODE_VERSION: "24"
+  NODE_VERSION: "20"
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
