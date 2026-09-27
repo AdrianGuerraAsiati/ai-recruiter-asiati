@@ -9,7 +9,7 @@ ECR_REPO="ai-recruiter-api"
 ECR_TAG="${ECR_TAG:-latest}"
 CONTAINER_NAME="ai-recruiter-api"
 NETWORK_NAME="ai-recruiter"
-DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:5432/ai_recruiter}"
+DATABASE_URL="${DATABASE_URL:?DATABASE_URL is required}"
 IMPORT_STAGING_BUCKET="${IMPORT_STAGING_BUCKET:?IMPORT_STAGING_BUCKET is required}"
 IMPORT_QUEUE_URL="${IMPORT_QUEUE_URL:?IMPORT_QUEUE_URL is required}"
 TRAINING_CONTENT_BUCKET="${TRAINING_CONTENT_BUCKET:?TRAINING_CONTENT_BUCKET is required}"
@@ -152,6 +152,7 @@ fi
 
 rollback_api() {
   local status=$?
+  trap - EXIT
   if [[ "$status" -ne 0 && -n "$OLD_IMAGE" ]]; then
     echo "API deployment failed; restoring $OLD_IMAGE" >&2
     docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
