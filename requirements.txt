@@ -31,7 +31,7 @@ langchain-aws==1.7.1
 langchain-core==1.5.4
 langchain-protocol==0.0.18
 langchain-text-splitters==1.1.2
-langsmith==0.11.0
+langsmith==0.14.0
 lxml==6.1.1
 MarkupSafe==3.0.3
 numpy==2.2.6
