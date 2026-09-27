@@ -208,7 +208,13 @@ def test_login_dashboard_and_candidate_directory_in_chromium(app_page: Page) -> 
     page.screenshot(path=str(ARTIFACT_DIR / "dashboard-desktop.png"), full_page=True)
 
     page.get_by_role("link", name="Candidatos").click()
-    expect(page.get_by_role("heading", name="Candidatos")).to_be_visible()
+    expect(
+        page.locator(".ui-page-header").get_by_role(
+            "heading",
+            name="Candidatos",
+            exact=True,
+        )
+    ).to_be_visible()
     expect(page.get_by_text("Aún no hay candidatos registrados")).to_be_visible()
     _assert_accessible_controls(page)
     _assert_layout_fits_viewport(page)
