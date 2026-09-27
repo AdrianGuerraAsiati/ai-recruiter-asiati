@@ -979,6 +979,7 @@ async function recalculateRanking() {
                     ? `ranking-candidate-card--top ranking-candidate-card--top-${position}`
                     : ""
                 }`}
+                style={{ "--ranking-delay": `${Math.min(index, 8) * 55}ms` }}
               >
                 {position <= 3 && (
                   <div className="ranking-top-marker">
