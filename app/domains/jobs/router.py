@@ -32,7 +32,7 @@ def _evaluation_profile(body) -> dict | None:
 @router.get("")
 def list_jobs(
     db: Session = Depends(get_db),
-    _user: dict = Depends(require_permission("jobs.manage")),
+    _user: dict = Depends(require_permission("jobs.read")),
 ):
     return [
         presenter.job_payload(job, candidate_count=candidate_count)
@@ -43,7 +43,7 @@ def list_jobs(
 @router.get("/page")
 def list_jobs_page(
     db: Session = Depends(get_db),
-    _user: dict = Depends(require_permission("jobs.manage")),
+    _user: dict = Depends(require_permission("jobs.read")),
     page: int = Query(1, ge=1),
     page_size: int = Query(12, ge=1, le=100),
     sort: Literal[
