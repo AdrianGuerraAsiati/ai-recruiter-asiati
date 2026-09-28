@@ -26,7 +26,6 @@ function Dashboard() {
   const canRecruit = hasPermission("jobs.read") && hasPermission("candidates.read");
   const canManageEmployees = hasPermission("employees.read");
   const [jobs, setJobs] = useState([]);
-  const [candidates, setCandidates] = useState([]);
   const [candidateTotal, setCandidateTotal] = useState(0);
   const [trainingAssignments, setTrainingAssignments] = useState([]);
   const [employeeSummary, setEmployeeSummary] = useState(null);
@@ -60,7 +59,6 @@ function Dashboard() {
           const candidateItems = Array.isArray(candidatesData)
             ? candidatesData
             : candidatesData.items || candidatesData.candidates || [];
-          setCandidates(candidateItems);
           setCandidateTotal(
             Array.isArray(candidatesData)
               ? candidatesData.length
