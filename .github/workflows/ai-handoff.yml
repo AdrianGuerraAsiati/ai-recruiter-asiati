@@ -1,0 +1,134 @@
+name: Update AI handoff checkpoint
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/ai-handoff.yml"
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - labeled
+      - closed
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: ai-handoff-main
+  cancel-in-progress: false
+
+jobs:
+  ensure-label:
+    name: Ensure handoff label
+    if: github.event_name == 'push' || github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure handoff:update exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh api "repos/${REPOSITORY}/labels/handoff%3Aupdate" >/dev/null 2>&1; then
+            exit 0
+          fi
+
+          gh api             --method POST             "repos/${REPOSITORY}/labels"             -f name='handoff:update'             -f color='0E8A16'             -f description='Actualiza docs/AI_HANDOFF.md después del merge'
+
+  update-handoff:
+    name: Update automatic checkpoint
+    if: >-
+      github.event_name == 'pull_request_target' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'handoff:update')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Update managed block
+        env:
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          TZ: America/Bogota
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CHECKPOINT_DATE="$(date +%F)"
+
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          path = Path("docs/AI_HANDOFF.md")
+          content = path.read_text(encoding="utf-8")
+
+          start = "<!-- AI_HANDOFF_AUTO_START -->"
+          end = "<!-- AI_HANDOFF_AUTO_END -->"
+
+          pattern = re.compile(
+              re.escape(start) + r".*?" + re.escape(end),
+              flags=re.DOTALL,
+          )
+
+          if not pattern.search(content):
+              raise SystemExit(
+                  "No se encontró el bloque administrado de AI_HANDOFF.md; "
+                  "se aborta para evitar sobrescribir documentación manual."
+              )
+
+          title = os.environ["PR_TITLE"].replace("\n", " ").replace("\r", " ").strip()
+          number = os.environ["PR_NUMBER"]
+          url = os.environ["PR_URL"]
+          merge_sha = os.environ["MERGE_SHA"]
+          checkpoint_date = os.environ["CHECKPOINT_DATE"]
+
+          block = f"""<!-- AI_HANDOFF_AUTO_START -->
+          ## Checkpoint automático
+
+          - **Última actualización automática:** {checkpoint_date}
+          - **Merge commit:** `{merge_sha}`
+          - **PR:** [#{number} — {title}]({url})
+          - **Origen:** merge a `main` con etiqueta `handoff:update`
+
+          > Este bloque es administrado por `.github/workflows/ai-handoff.yml`. No editarlo manualmente.
+          <!-- AI_HANDOFF_AUTO_END -->"""
+
+          block = "\n".join(line.removeprefix("          ") for line in block.splitlines())
+          updated = pattern.sub(block, content, count=1)
+          path.write_text(updated, encoding="utf-8")
+          PY
+
+      - name: Commit checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- docs/AI_HANDOFF.md; then
+            echo "AI_HANDOFF.md already up to date."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add docs/AI_HANDOFF.md
+          git commit -m "docs: actualizar checkpoint AI handoff [skip ci]"
+          git push origin HEAD:main
