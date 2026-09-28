@@ -13,6 +13,7 @@ from app.domains.indeed.exceptions import IndeedValidationError
 LOCAL_TO_INDEED_STATUS = {
     "APPLIED": "NEW",
     "SCREENING": "POSITIVELY_SCREENED",
+    "SELECTED": "POSITIVELY_SCREENED",
     "INTERVIEW": "INTERVIEW",
     "OFFER": "OFFER_MADE",
     "HIRED": "HIRED",
