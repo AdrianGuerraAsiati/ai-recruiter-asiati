@@ -50,6 +50,7 @@ class UpdateEmployeeRequest(BaseModel):
     job_title: str | None = Field(default=None, max_length=160)
     department: str | None = Field(default=None, max_length=160)
     hire_date: date | None = None
+    onboarding_required: bool | None = None
 
     @field_validator("first_name", "last_name", "job_title", "department")
     @classmethod
