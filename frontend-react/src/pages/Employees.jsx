@@ -45,6 +45,9 @@ function Employees() {
   const [error, setError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState(() => emptyEmployeeForm());
+  const [editTarget, setEditTarget] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [editError, setEditError] = useState("");
   const [onboardingTarget, setOnboardingTarget] = useState(null);
   const [onboardingDetail, setOnboardingDetail] = useState(null);
   const [onboardingDetailLoading, setOnboardingDetailLoading] = useState(false);
@@ -125,17 +128,50 @@ function Employees() {
     }
   }
 
-  async function changeRole(employee, role) {
-    setError("");
+  function openEmployeeEditor(employee) {
+    setEditTarget(employee);
+    setEditError("");
+    setEditForm({
+      job_title: employee.job_title || "",
+      department: employee.department || "",
+      role: employee.roles?.[0] || "EMPLOYEE",
+      onboarding_required:
+        employee.onboarding_required ?? employee.onboarding_status !== "NOT_REQUIRED",
+    });
+  }
+
+  function closeEmployeeEditor() {
+    setEditTarget(null);
+    setEditForm(null);
+    setEditError("");
+  }
+
+  async function saveEmployeeEdits(event) {
+    event.preventDefault();
+    if (!editTarget || !editForm) return;
+
+    setSaving(true);
+    setEditError("");
     try {
-      await api.put(`/employees/${employee.id}/role`, { role });
+      const currentRole = editTarget.roles?.[0] || "EMPLOYEE";
+      if (editForm.role !== currentRole) {
+        await api.put(`/employees/${editTarget.id}/role`, { role: editForm.role });
+      }
+      await api.put(`/employees/${editTarget.id}`, {
+        job_title: editForm.job_title,
+        department: editForm.department,
+        onboarding_required: editForm.onboarding_required,
+      });
+      closeEmployeeEditor();
       await loadEmployees();
     } catch (err) {
-      setError(getApiErrorMessage(err, {
-        action: "cambiar el rol del empleado",
-        resource: "roles",
-        fallback: "El rol no cambió. Verifica que no estés editando tu propio perfil y que tengas permisos de Dirección.",
+      setEditError(getApiErrorMessage(err, {
+        action: "actualizar el perfil del empleado",
+        resource: "empleados",
+        fallback: "Los cambios no se guardaron por completo. Revisa cargo, rol y onboarding antes de reintentar.",
       }));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -255,9 +291,8 @@ function Employees() {
               <tbody>
                 {employees.map((employee) => {
                   const role = employee.roles?.[0] || "EMPLOYEE";
-                  const administrative = role === "ADMIN" || role === "SUPER_ADMIN";
                   const isSelf = employee.id === principal?.profile?.id;
-                  const canManageTarget = !isSelf && (isSuperAdmin || !administrative);
+                  const canManageTarget = !isSelf && (isSuperAdmin || role !== "SUPER_ADMIN");
                   return (
                     <tr key={employee.id}>
                       <td>
@@ -276,21 +311,9 @@ function Employees() {
                         <small>{employee.department || "Sin área"}</small>
                       </td>
                       <td>
-                        {isSuperAdmin && canManageTarget ? (
-                          <select
-                            className="employee-role-select"
-                            value={role}
-                            onChange={(event) => changeRole(employee, event.target.value)}
-                          >
-                            <option value="EMPLOYEE">Empleado</option>
-                            <option value="ADMIN">Administrador</option>
-                            <option value="SUPER_ADMIN">Super administrador</option>
-                          </select>
-                        ) : (
-                          <span className={`role-pill role-${role.toLowerCase()}`}>
-                            {role === "SUPER_ADMIN" ? "Super admin" : role === "ADMIN" ? "Administrador" : "Empleado"}
-                          </span>
-                        )}
+                        <span className={`role-pill role-${role.toLowerCase()}`}>
+                          {role === "SUPER_ADMIN" ? "Super admin" : role === "ADMIN" ? "Administrador" : "Empleado"}
+                        </span>
                       </td>
                       <td>
                         <span className={`onboarding-pill onboarding-${String(employee.onboarding_status || "NOT_REQUIRED").toLowerCase()}`}>
@@ -326,13 +349,22 @@ function Employees() {
                       </td>
                       <td>
                         {canManageTarget && (
-                          <button
-                            className="btn btn-ghost employee-status-button"
-                            type="button"
-                            onClick={() => toggleStatus(employee)}
-                          >
-                            {employee.status === "ACTIVE" ? "Deshabilitar" : "Activar"}
-                          </button>
+                          <div className="ui-actions">
+                            <button
+                              className="btn btn-ghost"
+                              type="button"
+                              onClick={() => openEmployeeEditor(employee)}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              className="btn btn-ghost employee-status-button"
+                              type="button"
+                              onClick={() => toggleStatus(employee)}
+                            >
+                              {employee.status === "ACTIVE" ? "Deshabilitar" : "Activar"}
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -343,6 +375,102 @@ function Employees() {
           </div>
         )}
       </section>
+
+      {editTarget && editForm && (
+        <div className="modal-overlay" role="presentation" onMouseDown={closeEmployeeEditor}>
+          <section
+            className="modal employee-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="employee-edit-modal-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <span className="eyebrow">Equipo ASIATI</span>
+                <h2 id="employee-edit-modal-title">Editar integrante</h2>
+                <p>
+                  {[editTarget.first_name, editTarget.last_name].filter(Boolean).join(" ") || editTarget.email}
+                </p>
+              </div>
+              <button
+                className="btn-close"
+                type="button"
+                aria-label="Cerrar edición"
+                onClick={closeEmployeeEditor}
+              >
+                ×
+              </button>
+            </div>
+
+            {editError && (
+              <FeedbackMessage title="No se guardaron los cambios">{editError}</FeedbackMessage>
+            )}
+
+            <form className="employee-form" onSubmit={saveEmployeeEdits}>
+              <div className="employee-form-grid">
+                <div className="form-group">
+                  <label htmlFor="employee-edit-job-title">Cargo</label>
+                  <input
+                    id="employee-edit-job-title"
+                    value={editForm.job_title}
+                    onChange={(event) => setEditForm({ ...editForm, job_title: event.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="employee-edit-department">Área</label>
+                  <input
+                    id="employee-edit-department"
+                    value={editForm.department}
+                    onChange={(event) => setEditForm({ ...editForm, department: event.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="employee-form-grid">
+                <div className="form-group">
+                  <label htmlFor="employee-edit-role">Rol</label>
+                  <select
+                    id="employee-edit-role"
+                    value={editForm.role}
+                    onChange={(event) => setEditForm({ ...editForm, role: event.target.value })}
+                  >
+                    <option value="EMPLOYEE">Empleado</option>
+                    <option value="ADMIN">Administrador</option>
+                    {isSuperAdmin && <option value="SUPER_ADMIN">Super administrador</option>}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="employee-edit-onboarding">Onboarding ASIATI</label>
+                  <select
+                    id="employee-edit-onboarding"
+                    value={editForm.onboarding_required ? "REQUIRED" : "NOT_REQUIRED"}
+                    onChange={(event) => setEditForm({
+                      ...editForm,
+                      onboarding_required: event.target.value === "REQUIRED",
+                    })}
+                  >
+                    <option value="REQUIRED">Requerido</option>
+                    <option value="NOT_REQUIRED">No requerido</option>
+                  </select>
+                  <small>
+                    El progreso se calcula automáticamente a partir de las actividades completadas.
+                  </small>
+                </div>
+              </div>
+
+              <div className="form-actions">
+                <button className="btn btn-secondary" type="button" onClick={closeEmployeeEditor}>
+                  Cancelar
+                </button>
+                <button className="btn btn-primary" type="submit" disabled={saving}>
+                  {saving ? "Guardando…" : "Guardar cambios"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
 
       {onboardingTarget && (
         <div className="modal-overlay" role="presentation" onMouseDown={closeOnboardingDetail}>
