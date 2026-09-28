@@ -32,6 +32,7 @@ describe("RecruitmentCalendar", () => {
     });
 
     const startsAt = new Date();
+    startsAt.setDate(startsAt.getDate() + 1);
     startsAt.setHours(10, 0, 0, 0);
     const endsAt = new Date(startsAt);
     endsAt.setMinutes(endsAt.getMinutes() + 30);
