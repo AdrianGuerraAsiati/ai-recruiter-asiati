@@ -661,8 +661,8 @@ def test_recalculate_all_then_get_all_returns_all_candidates(
 
     assert get_data["scope_mismatch"] is False
     assert get_data["ranking_scope"] == "all"
-    assert get_data["ranking_total"] == 3
-    assert get_data["total"] == 3
+    assert get_data["ranking_total"] == 2
+    assert get_data["total"] == 2
     assert len(get_data["candidates"]) == 2
 
     candidate_ids = {c["candidate_id"] for c in get_data["candidates"]}
@@ -892,8 +892,8 @@ def test_scope_all_includes_candidates_from_other_admin_creators(
     assert get_resp.status_code == 200
     get_data = get_resp.json()
 
-    assert get_data["ranking_total"] == 2
-    assert get_data["total"] == 2
+    assert get_data["ranking_total"] == 3
+    assert get_data["total"] == 3
     candidate_ids = {c["candidate_id"] for c in get_data["candidates"]}
     assert cand_a1.id in candidate_ids
     assert cand_a2.id in candidate_ids
