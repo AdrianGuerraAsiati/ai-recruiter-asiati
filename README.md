@@ -13,7 +13,7 @@ La aplicación centraliza el flujo de selección: recibe candidatos por carga ma
 ## Funcionalidades principales
 
 - Registro con Amazon Cognito y confirmación administrativa automática; no requiere código de verificación por correo.
-- Inicio de sesión y aislamiento de datos por propietario autenticado.
+- Inicio de sesión con RBAC; vacantes, candidatos, postulaciones y rankings son datos compartidos de reclutamiento para administradores autorizados.
 - Gestión de vacantes con perfil estructurado de evaluación y enriquecimiento asistido por IA.
 - Gestión de candidatos y asignación a vacantes.
 - Carga individual de CV y descarga controlada de documentos.
@@ -290,7 +290,7 @@ La instancia obtiene permisos AWS mediante Roles Anywhere; no se almacenan acces
 
 - JWT de Cognito en endpoints autenticados.
 - Registro Cognito autoconfirmado por backend para evitar flujo de confirmación por correo.
-- Aislamiento de datos por `owner_sub`.
+- `owner_sub` se conserva como procedencia/auditoría en flujos de reclutamiento, pero no limita la visibilidad de vacantes o candidatos entre administradores autorizados.
 - OAuth Gmail protegido con `state` firmado y expiración corta.
 - Refresh tokens y client secret fuera de Git y fuera del navegador.
 - Filtro de Gmail obligatorio antes de sincronizar.
