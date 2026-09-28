@@ -46,3 +46,8 @@ def test_primary_ci_skips_agent_jobs_when_agent_paths_are_unchanged():
     assert "if: needs.changes.outputs.resume_agent == 'true'" in text
     assert "Resume Agent tests (Linux)" in text
     assert "Resume Agent (Windows + Chrome)" in text
+
+
+def test_primary_ci_revalidates_agent_when_root_python_dependencies_change():
+    text = CI_WORKFLOW.read_text(encoding="utf-8")
+    assert r"requirements\.txt$" in text
