@@ -31,6 +31,7 @@ class LegacyCandidateUploadError(ValueError):
 APPLICATION_STATUSES = {
     "APPLIED",
     "SCREENING",
+    "SELECTED",
     "INTERVIEW",
     "OFFER",
     "HIRED",
