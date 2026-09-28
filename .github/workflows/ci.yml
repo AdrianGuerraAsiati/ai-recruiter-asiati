@@ -51,7 +51,7 @@ jobs:
           echo "Changed files:"
           cat changed-files.txt
 
-          if grep -Eq '^(requirements\\.txt$|tools/indeed_resume_agent/|app/domains/candidate_ingestion/indeed_agent_.*\.py$|app/domains/candidate_ingestion/indeed_email_agent_service\.py$|\.github/workflows/ci\.yml$|\.github/workflows/indeed-resume-agent\.yml$)' changed-files.txt; then
+          if grep -Eq '^(requirements[.]txt$|tools/indeed_resume_agent/|app/domains/candidate_ingestion/indeed_agent_.*[.]py$|app/domains/candidate_ingestion/indeed_email_agent_service[.]py$|[.]github/workflows/ci[.]yml$|[.]github/workflows/indeed-resume-agent[.]yml$)' changed-files.txt; then
             echo "resume_agent=true" >> "$GITHUB_OUTPUT"
             echo "Resume Agent-related change detected."
           else
