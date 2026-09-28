@@ -11,7 +11,6 @@ import {
   EmptyState,
   FeedbackMessage,
   LoadingState,
-  ProgressBar,
 } from "../components/ui/StatePanel";
 import {
   TrainingCourseOverview,
@@ -23,6 +22,7 @@ import {
   TrainingPreviewModal,
 } from "../features/training/TrainingModals";
 import TrainingAdminQuiz from "../features/training/TrainingAdminQuiz";
+import TrainingAssignmentsPanel from "../features/training/TrainingAssignmentsPanel";
 import TrainingContentEditor from "../features/training/TrainingContentEditor";
 import TrainingEmployeeJourney from "../features/training/TrainingEmployeeJourney";
 import { recommendedSession } from "../features/training/trainingUtils";
@@ -846,68 +846,16 @@ function Training() {
                 />
 
                 {canAssign && (
-                  <section className="panel">
-                    <div className="panel-heading">
-                      <div>
-                        <span className="eyebrow">Distribución</span>
-                        <h2>Asignar a un empleado</h2>
-                      </div>
-                    </div>
-                    <form className="training-assignment-form" onSubmit={assignCourse}>
-                      <select
-                        aria-label="Empleado para asignar"
-                        value={assignEmployeeId}
-                        onChange={(event) => setAssignEmployeeId(event.target.value)}
-                        required
-                      >
-                        <option value="">Selecciona un empleado</option>
-                        {employees.map((employee) => (
-                          <option key={employee.id} value={employee.id}>
-                            {[employee.first_name, employee.last_name].filter(Boolean).join(" ") || employee.email}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        className="btn btn-primary"
-                        type="submit"
-                        disabled={saving || selectedCourse.status !== "PUBLISHED"}
-                      >
-                        Asignar curso
-                      </button>
-                    </form>
-                    {selectedCourse.status !== "PUBLISHED" && (
-                      <p className="training-form-note">Publica el curso antes de asignarlo.</p>
-                    )}
-
-                    {canViewResults && courseAssignments.length > 0 && (
-                      <div className="training-results-list">
-                        {courseAssignments.map((assignment) => (
-                          <div className="training-result-row" key={assignment.id}>
-                            <div>
-                              <strong>
-                                {[assignment.employee.first_name, assignment.employee.last_name].filter(Boolean).join(" ")
-                                  || assignment.employee.email}
-                              </strong>
-                              <small>{assignment.employee.job_title || assignment.employee.department || assignment.employee.email}</small>
-                              {assignment.quiz_result && (
-                                <small>
-                                  Quiz: {assignment.quiz_result.latest_score ?? "—"}%
-                                  {assignment.quiz_result.passed ? " · aprobado" : assignment.quiz_result.attempt_count ? " · pendiente" : " · sin intento"}
-                                </small>
-                              )}
-                            </div>
-                            <div className="training-result-progress">
-                              <span>{assignment.course.progress_percent}%</span>
-                              <ProgressBar value={assignment.course.progress_percent} />
-                            </div>
-                            <span className="training-status training-status-published">
-                              {assignment.status === "COMPLETED" ? "Completado" : "En curso"}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </section>
+                  <TrainingAssignmentsPanel
+                    course={selectedCourse}
+                    employees={employees}
+                    employeeId={assignEmployeeId}
+                    onEmployeeChange={setAssignEmployeeId}
+                    onAssignCourse={assignCourse}
+                    saving={saving}
+                    canViewResults={canViewResults}
+                    assignments={courseAssignments}
+                  />
                 )}
               </>
             ) : (
