@@ -919,7 +919,7 @@ describe("Training platform", () => {
     renderPage();
 
     expect((await screen.findAllByText("Onboarding ASIATI")).length).toBeGreaterThan(0);
-    expect(await screen.findByText("Contenido administrado por el sistema")).toBeInTheDocument();
+    expect(await screen.findByText("Ruta precargada · editable por administradores")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Crear ruta ASIATI" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Crear curso" })).not.toBeInTheDocument();
     expect(api.post).not.toHaveBeenCalledWith("/training/courses/presets/asiati-onboarding");
