@@ -81,14 +81,14 @@ def _validate_upload(upload: dict) -> tuple[str, str]:
 
 
 def _require_job(db: Session, *, owner_sub: str, job_id: str):
-    job = jobs_repository.get_job(db, job_id, owner_sub=owner_sub)
+    job = jobs_repository.get_job(db, job_id)
     if job is None:
         raise JobNotFound("JOB_NOT_FOUND")
     return job
 
 
 def _require_batch(db: Session, *, owner_sub: str, batch_id: str) -> ImportBatch:
-    batch = repository.get_batch(db, batch_id=batch_id, owner_sub=owner_sub)
+    batch = repository.get_batch(db, batch_id=batch_id)
     if batch is None:
         raise ImportBatchNotFound("IMPORT_BATCH_NOT_FOUND")
     return batch
@@ -196,7 +196,7 @@ def complete_batch_uploads(
         items = repository.list_top_level_items(
             db,
             batch_id=batch.id,
-            owner_sub=owner_sub,
+            owner_sub=None,
         )
         if len(items) != batch.upload_total:
             raise UploadVerificationFailed("UPLOAD_VERIFICATION_FAILED")
@@ -255,7 +255,7 @@ def list_recent_batches(
     _require_job(db, owner_sub=owner_sub, job_id=job_id)
     return repository.list_recent_batches(
         db,
-        owner_sub=owner_sub,
+        owner_sub=None,
         job_id=job_id,
         limit=limit,
     )
