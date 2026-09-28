@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `256dcee3c26667ecd2cc89a0a14b01728271b945`
+- **Último checkpoint conocido:** `7cf58a6d459d3874ba5f15d2797fad783e98884d`
 - **Fecha del checkpoint:** 2026-09-27
-- **Commit:** `ci: automatizar checkpoint de AI handoff`
+- **Commit:** `ci: omitir CodeQL en cambios solo documentales`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -112,18 +112,24 @@ El Resume Agent debe poder revisar vacantes y candidatos existentes y sincroniza
 
 #### P2 · Gobernanza y mantenimiento
 - [ ] Proteger `main` y exigir checks de CI/CodeQL antes de merge. Actualmente la rama no está protegida.
-- [ ] Revisar y resolver PR #35 de dependencias frontend.
-- [ ] Revisar y resolver PR #36 de GitHub Actions.
-- [ ] Revisar y resolver PR #37 de dependencias Python.
-- [ ] Verificar que el CI de `main` quede verde después de los cambios de handoff.
+- [x] Separar upgrades mayores de Dependabot: minor/patch agrupados, majors individuales.
+- [x] Desacoplar el contrato de CI de una versión fija de `actions/upload-artifact`.
+- [x] Reducir ejecuciones innecesarias del workflow de AI handoff.
+- [x] Evitar deploys de producción para cambios solo documentales, handoff, Dependabot o tests.
+- [x] Omitir CodeQL en cambios puramente documentales/configuración de handoff.
+- [ ] Revisar PR #41: frontend minor/patch (11 actualizaciones).
+- [ ] Revisar PR #42: jsdom 26 → 30 como major independiente.
+- [ ] Revisar PR #43: Vitest 3 → 5 como major independiente.
+- [ ] Revisar los PR de Python y GitHub Actions que genere Dependabot con la nueva política.
+- [ ] Confirmar CI verde en `main` después de los cambios actuales.
 
 #### P2 · Modularización residual
-- [ ] Reducir responsabilidades de `frontend-react/src/pages/Training.jsx` (~83 KB).
+- [ ] Reducir responsabilidades de `frontend-react/src/pages/Training.jsx` (~83 KB / ~1904 líneas).
 - [ ] Reducir responsabilidades de `tools/indeed_resume_agent/browser.py` (~74 KB).
 - [ ] Modularizar `frontend-react/src/pages/Jobs.jsx` (~58 KB).
-- [ ] Dividir el preset ASIATI de `app/domains/training/asiati_preset.py` (~58 KB) en datos/configuración y builder.
+- [ ] Dividir `app/domains/training/asiati_preset.py` (~58 KB) en datos/configuración y builder.
 - [ ] Reducir `frontend-react/src/pages/RankingView.jsx` (~51 KB).
-- [ ] Revisar si `tools/indeed_resume_agent/ui.py` y `ui_v2.py` son legacy sin referencias; eliminarlos solo después de verificar imports/packaging/tests.
+- [ ] Revisar si `tools/indeed_resume_agent/ui.py` y `ui_v2.py` son legacy sin referencias; eliminarlos solo después de verificar imports, packaging y tests.
 
 #### P2 · Regresiones críticas
 - [ ] Mantener pruebas explícitas de deduplicación por candidato + vacante conservando la postulación más reciente.
@@ -232,8 +238,8 @@ Al actualizar este documento, mantener como mínimo:
 
 - **Fecha:** 2026-09-27
 - **Rama:** `main`
-- **Commit:** `256dcee3c26667ecd2cc89a0a14b01728271b945`
-- **Último hito:** handoff persistente y actualización automática del checkpoint por PR etiquetado.
+- **Commit:** `7cf58a6d459d3874ba5f15d2797fad783e98884d`
+- **Último hito:** saneamiento del flujo de mantenimiento/CI y preparación del siguiente bloque P2.
 
 ### Completado
 
@@ -244,22 +250,26 @@ Al actualizar este documento, mantener como mínimo:
 - Observabilidad y DR.
 - Modularización inicial de Training y Resume Agent.
 - E2E Chromium + smoke de accesibilidad y responsive.
-- `docs/AI_HANDOFF.md` creado y versionado.
-- Workflow `.github/workflows/ai-handoff.yml` operativo; bootstrap de `handoff:update` verificado.
+- `docs/AI_HANDOFF.md` persistente y workflow automático de checkpoint.
+- Dependabot configurado para agrupar solo minor/patch y separar majors.
+- Test contractual del Resume Agent desacoplado de `upload-artifact@v4`.
+- Workflow del handoff reducido a eventos realmente necesarios.
+- Deploy de producción filtrado para no ejecutarse por documentación/configuración/test-only.
+- CodeQL filtrado para no ejecutarse por cambios puramente documentales.
 
 ### En progreso
 
-- Cierre de deuda P2 residual.
-- Revisión de CI y dependencias automáticas.
-- Reducción de módulos todavía sobredimensionados.
+- Validación del nuevo conjunto de PRs de Dependabot.
+- Confirmación de CI de `main`.
+- Preparación de la siguiente modularización de Training.
 
 ### Pendiente inmediato
 
-1. Confirmar CI verde en `main`.
-2. Revisar PRs Dependabot #35, #36 y #37 con sus checks.
-3. Resolver primero las actualizaciones de menor riesgo.
-4. Continuar modularización residual.
-5. Proteger `main` con checks obligatorios cuando la configuración de repositorio disponible permita aplicarlo.
+1. Validar y resolver #41 antes que los majors.
+2. Revisar #42 y #43 por separado.
+3. Revisar los PR nuevos de Python y GitHub Actions cuando terminen de generarse.
+4. Empezar el siguiente refactor de `Training.jsx` desde una base verde.
+5. Proteger `main` con checks obligatorios cuando haya acceso a la configuración administrativa correspondiente.
 
 ### Bloqueos / dependencias externas
 
@@ -269,13 +279,14 @@ Al actualizar este documento, mantener como mínimo:
 
 ### Riesgos
 
-- Dependabot #37 agrupa 27 dependencias Python; requiere validar compatibilidad, especialmente saltos mayores.
+- Los majors de frontend deben tratarse de forma independiente para aislar regresiones.
+- Los upgrades Python con cambios mayores (por ejemplo ORM/runtime) no deben agruparse con parches rutinarios.
 - Los archivos grandes restantes concentran demasiado estado y lógica y elevan el riesgo de regresión.
 - No eliminar UIs legacy del Resume Agent hasta demostrar ausencia de referencias en runtime, build y tests.
 
 ### Próximo paso recomendado
 
-1. Validar CI actual.
-2. Revisar y resolver Dependabot empezando por GitHub Actions.
-3. Atacar un módulo sobredimensionado por PR, con pruebas.
-4. Actualizar este checkpoint al cerrar cada bloque relevante.
+1. Cerrar la ronda de dependencias con CI verde.
+2. Extraer componentes del flujo de empleado/quiz/preview de `Training.jsx`.
+3. Ejecutar tests unitarios + E2E.
+4. Hacer PR pequeño con `handoff:update` si cambia el estado del proyecto.
