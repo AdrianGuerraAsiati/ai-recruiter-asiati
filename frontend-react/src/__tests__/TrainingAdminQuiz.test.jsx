@@ -29,7 +29,7 @@ describe("TrainingAdminQuiz", () => {
     });
     expect(onQuizFormChange).toHaveBeenCalledWith({ title: "Evaluación ASIATI" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Crear evaluación" }));
+    fireEvent.click(screen.getByRole("button", { name: /Crear evaluación/ }));
     expect(onCreateQuiz).toHaveBeenCalledTimes(1);
   });
 
