@@ -929,6 +929,7 @@ def _create_automatic_onboarding_assignment(
         .one_or_none()
     )
     if existing is not None:
+        _sync_employee_onboarding(db, employee.id)
         return existing
 
     assignment = TrainingAssignment(
@@ -1187,12 +1188,15 @@ def list_course_assignments(db: Session, course_id: str) -> list[dict]:
 
 
 def list_my_training(db: Session, employee_id: str) -> list[dict]:
-    assignments = (
+    employee = require_employee(db, employee_id)
+    query = (
         db.query(TrainingAssignment)
+        .join(TrainingCourse, TrainingAssignment.course_id == TrainingCourse.id)
         .filter(TrainingAssignment.employee_id == employee_id)
-        .order_by(TrainingAssignment.assigned_at.desc())
-        .all()
     )
+    if employee.onboarding_status == "NOT_REQUIRED":
+        query = query.filter(TrainingCourse.is_onboarding.is_(False))
+    assignments = query.order_by(TrainingAssignment.assigned_at.desc()).all()
     return [assignment_payload(db, assignment) for assignment in assignments]
 
 
@@ -1211,6 +1215,10 @@ def require_my_assignment(
         .one_or_none()
     )
     if assignment is None:
+        raise TrainingNotFound()
+
+    employee = require_employee(db, employee_id)
+    if assignment.course.is_onboarding and employee.onboarding_status == "NOT_REQUIRED":
         raise TrainingNotFound()
     return assignment
 
