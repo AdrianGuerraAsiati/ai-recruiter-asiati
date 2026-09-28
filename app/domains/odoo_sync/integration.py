@@ -40,6 +40,7 @@ def build_odoo_client(
         database=current.database,
         username=current.username,
         api_key=api_key,
+        request_timeout_seconds=current.request_timeout_seconds,
         proxy_factory=proxy_factory,
     )
 
