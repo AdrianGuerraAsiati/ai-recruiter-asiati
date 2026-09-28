@@ -17,6 +17,10 @@ class InvalidApplicationStatus(Exception):
     """Requested application status is not part of the local ATS state model."""
 
 
+class HiringFlowRequired(Exception):
+    """HIRED must go through the candidate hiring workflow."""
+
+
 
 class CandidateRetentionProtected(Exception):
     """Operational hard-delete is disabled for retained candidates."""
