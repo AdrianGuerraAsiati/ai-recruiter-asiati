@@ -18,8 +18,8 @@ Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este co
 ## Checkpoint automático
 
 - **Última actualización automática:** 2026-09-27
-- **Merge commit:** `cb980e178eca717325bc4bc464f6d91955f20ff7`
-- **PR:** [#49 — refactor: extraer quiz administrativo de Training](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/49)
+- **Merge commit:** `6a51193c149f2591023b5f20c4a4527d20fdbfed`
+- **PR:** [#42 — chore(deps-dev): bump jsdom from 26.1.0 to 30.1.1 in /frontend-react](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/42)
 - **Origen:** merge a `main` con etiqueta `handoff:update`
 
 > Este bloque es administrado por `.github/workflows/ai-handoff.yml`. No editarlo manualmente.
