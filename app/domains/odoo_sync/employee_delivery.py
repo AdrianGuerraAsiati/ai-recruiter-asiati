@@ -40,7 +40,10 @@ def require_employee_sync(db: Session, employee_id: str) -> OdooEmployeeSync:
 
 
 def _writable_employee_fields(client) -> dict[str, dict[str, Any]]:
-    fields = client.fields_get("hr.employee")
+    fields = client.fields_get(
+        "hr.employee",
+        attributes=("string", "type", "required", "readonly", "relation", "selection"),
+    )
     return {
         name: dict(metadata or {})
         for name, metadata in fields.items()
@@ -98,6 +101,16 @@ def build_hr_employee_values(client, payload: dict) -> tuple[dict, dict]:
         for field, value in desired.items()
         if value is not None and field in writable
     }
+
+    employee_type = writable.get("employee_type") or {}
+    selection = employee_type.get("selection") or []
+    selection_keys = {
+        str(item[0])
+        for item in selection
+        if isinstance(item, (list, tuple)) and item
+    }
+    if "employee" in selection_keys:
+        values["employee_type"] = "employee"
 
     resolved = {
         "department_id": None,
