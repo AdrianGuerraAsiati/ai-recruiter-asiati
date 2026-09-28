@@ -69,5 +69,5 @@ uvicorn==0.53.0
 websockets==16.0
 xxhash==4.0.1
 zstandard==0.25.0
-sqlalchemy==2.1.0
+sqlalchemy==2.0.36
 psycopg2-binary==2.9.13
