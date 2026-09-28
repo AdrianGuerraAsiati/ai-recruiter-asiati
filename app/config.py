@@ -93,6 +93,7 @@ class OdooSettings:
     database: str
     username: str
     secret_id: str
+    request_timeout_seconds: float
 
     @property
     def configured(self) -> bool:
@@ -260,6 +261,10 @@ def get_odoo_settings() -> OdooSettings:
             "ODOO_SECRET_ID",
             "/ai-recruiter/prod/odoo",
         ).strip(),
+        request_timeout_seconds=max(
+            1.0,
+            float(os.getenv("ODOO_REQUEST_TIMEOUT_SECONDS", "15")),
+        ),
     )
 
 
