@@ -69,7 +69,7 @@ export function TrainingCourseOverview({
         <p>{course.description || "Sin descripción."}</p>
         {course.is_onboarding && (
           <span className="training-onboarding-badge">
-            {course.managed_by_system ? "Contenido administrado por el sistema" : "Curso de inducción"}
+            {course.managed_by_system ? "Ruta precargada · editable por administradores" : "Curso de inducción"}
           </span>
         )}
       </div>

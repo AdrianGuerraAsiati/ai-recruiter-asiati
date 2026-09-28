@@ -466,6 +466,46 @@ function Training() {
     }
   }
 
+  async function updateModule(moduleId, payload) {
+    setSaving(true);
+    setError("");
+    try {
+      const { data } = await api.put(`/training/modules/${moduleId}`, payload);
+      setSelectedCourse(data);
+      await loadHome();
+      return data;
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "actualizar el módulo",
+        resource: "onboarding",
+        fallback: "El módulo conserva su contenido anterior. Revisa los campos y vuelve a guardar.",
+      }));
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function updateLesson(lessonId, payload) {
+    setSaving(true);
+    setError("");
+    try {
+      const { data } = await api.put(`/training/lessons/${lessonId}`, payload);
+      setSelectedCourse(data);
+      await loadHome();
+      return data;
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "actualizar la lección",
+        resource: "onboarding",
+        fallback: "La lección conserva su contenido anterior. Revisa los campos y vuelve a guardar.",
+      }));
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function uploadLessonVideo(lessonId, file) {
     if (!file) return;
     const allowedTypes = ["video/mp4", "video/webm", "video/ogg"];
@@ -753,6 +793,8 @@ function Training() {
                   onLessonFormChange={updateLessonForm}
                   onAddModule={addModule}
                   onAddLesson={addLesson}
+                  onUpdateModule={updateModule}
+                  onUpdateLesson={updateLesson}
                   onUploadLessonVideo={uploadLessonVideo}
                   uploadingLessonId={uploadingLessonId}
                   saving={saving}

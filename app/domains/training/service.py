@@ -277,11 +277,17 @@ def _is_system_managed_course(course: TrainingCourse) -> bool:
     )
 
 
-def _ensure_course_editable(course: TrainingCourse) -> None:
+def _ensure_course_structure_mutable(course: TrainingCourse) -> None:
     if _is_system_managed_course(course):
         raise TrainingStateError(
-            "Onboarding ASIATI is managed by the system and cannot be edited manually."
+            "Onboarding ASIATI is preloaded by the system; edit its existing modules and lessons instead of creating new ones."
         )
+
+
+def _ensure_existing_content_editable(course: TrainingCourse) -> None:
+    if course.status == "DRAFT" or _is_system_managed_course(course):
+        return
+    raise TrainingStateError("Only draft courses can change their content.")
 
 
 def course_payload(
@@ -617,7 +623,7 @@ def update_course(
     status: str | None = None,
 ) -> TrainingCourse:
     course = require_course(db, course_id)
-    _ensure_course_editable(course)
+    _ensure_course_structure_mutable(course)
     if title is not None:
         course.title = title.strip()
     if description is not None:
@@ -657,9 +663,9 @@ def add_module(
     audience_department: str | None = None,
 ) -> TrainingModule:
     course = require_course(db, course_id)
-    _ensure_course_editable(course)
+    _ensure_course_structure_mutable(course)
     if course.status != "DRAFT":
-        raise TrainingStateError("Only draft courses can change their content.")
+        raise TrainingStateError("Only draft courses can add modules.")
     position = (
         db.query(func.coalesce(func.max(TrainingModule.position), 0))
         .filter(TrainingModule.course_id == course_id)
@@ -695,9 +701,9 @@ def add_lesson(
     is_optional: bool = False,
 ) -> TrainingLesson:
     module = require_module(db, module_id)
-    _ensure_course_editable(module.course)
+    _ensure_course_structure_mutable(module.course)
     if module.course.status != "DRAFT":
-        raise TrainingStateError("Only draft courses can change their content.")
+        raise TrainingStateError("Only draft courses can add lessons.")
     position = (
         db.query(func.coalesce(func.max(TrainingLesson.position), 0))
         .filter(TrainingLesson.module_id == module_id)
@@ -723,6 +729,78 @@ def add_lesson(
     return lesson
 
 
+def update_module(
+    db: Session,
+    module_id: str,
+    *,
+    title: str,
+    description: str | None,
+    audience_job_title: str | None,
+    audience_department: str | None,
+) -> TrainingModule:
+    module = require_module(db, module_id)
+    _ensure_existing_content_editable(module.course)
+    if _is_system_managed_course(module.course) and (
+        (audience_job_title or "").strip()
+        or (audience_department or "").strip()
+    ):
+        raise TrainingStateError(
+            "Onboarding ASIATI is currently shared by all employees and cannot be segmented by role or department."
+        )
+    module.title = title.strip()
+    module.description = (description or "").strip() or None
+    module.audience_job_title = (
+        None
+        if _is_system_managed_course(module.course)
+        else (audience_job_title or "").strip() or None
+    )
+    module.audience_department = (
+        None
+        if _is_system_managed_course(module.course)
+        else (audience_department or "").strip() or None
+    )
+    db.commit()
+    db.refresh(module)
+    return module
+
+def update_lesson(
+    db: Session,
+    lesson_id: str,
+    *,
+    title: str,
+    description: str | None,
+    video_url: str | None,
+    duration_seconds: int | None,
+    content_type: str,
+    external_url: str | None,
+    estimated_minutes: int | None,
+    checklist_items: list[str],
+    is_optional: bool,
+) -> TrainingLesson:
+    lesson = require_lesson(db, lesson_id)
+    _ensure_existing_content_editable(lesson.module.course)
+    lesson.title = title.strip()
+    lesson.description = (description or "").strip() or None
+    lesson.duration_seconds = duration_seconds
+    lesson.content_type = content_type.strip().upper()
+    lesson.external_url = (external_url or "").strip() or None
+    lesson.estimated_minutes = estimated_minutes
+    lesson.checklist_items = list(checklist_items)
+    lesson.is_optional = bool(is_optional)
+
+    normalized_video_url = (video_url or "").strip() or None
+    if normalized_video_url:
+        lesson.video_url = normalized_video_url
+        lesson.video_storage_key = None
+        lesson.video_content_type = None
+        lesson.video_size_bytes = None
+    elif not lesson.video_storage_key:
+        lesson.video_url = None
+
+    db.commit()
+    db.refresh(lesson)
+    return lesson
+
 def create_lesson_video_upload(
     db: Session,
     *,
@@ -732,9 +810,7 @@ def create_lesson_video_upload(
     size_bytes: int,
 ) -> dict:
     lesson = require_lesson(db, lesson_id)
-    _ensure_course_editable(lesson.module.course)
-    if lesson.module.course.status != "DRAFT":
-        raise TrainingStateError("Only draft courses can change their videos.")
+    _ensure_existing_content_editable(lesson.module.course)
     return training_media.create_video_upload(
         lesson_id=lesson.id,
         filename=filename,
@@ -752,9 +828,7 @@ def finalize_lesson_video_upload(
     size_bytes: int,
 ) -> TrainingLesson:
     lesson = require_lesson(db, lesson_id)
-    _ensure_course_editable(lesson.module.course)
-    if lesson.module.course.status != "DRAFT":
-        raise TrainingStateError("Only draft courses can change their videos.")
+    _ensure_existing_content_editable(lesson.module.course)
 
     verified = training_media.verify_video_object(
         lesson_id=lesson.id,
@@ -1359,7 +1433,7 @@ def create_quiz(
     created_by_sub: str,
 ) -> TrainingQuiz:
     course = require_course(db, course_id)
-    _ensure_course_editable(course)
+    _ensure_course_structure_mutable(course)
     if course.status != "DRAFT":
         raise TrainingStateError("Only draft courses can change their evaluation.")
     if course.quiz is not None:
@@ -1386,7 +1460,7 @@ def add_quiz_question(
     correct_option: int,
 ) -> TrainingQuizQuestion:
     quiz = require_quiz(db, quiz_id)
-    _ensure_course_editable(quiz.course)
+    _ensure_course_structure_mutable(quiz.course)
     if quiz.course.status != "DRAFT":
         raise TrainingStateError("Only draft courses can change their evaluation.")
     if correct_option < 0 or correct_option >= len(options):

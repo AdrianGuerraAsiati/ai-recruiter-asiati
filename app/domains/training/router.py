@@ -16,6 +16,8 @@ from app.domains.training.schemas import (
     SubmitQuizAttemptRequest,
     UpdateChecklistProgressRequest,
     UpdateCourseRequest,
+    UpdateLessonRequest,
+    UpdateModuleRequest,
 )
 
 
@@ -154,6 +156,27 @@ def create_module(
         _translate(exc)
 
 
+@router.put("/modules/{module_id}")
+def update_module(
+    module_id: str,
+    body: UpdateModuleRequest,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("training.manage")),
+):
+    try:
+        module = service.update_module(
+            db,
+            module_id,
+            title=body.title,
+            description=body.description,
+            audience_job_title=body.audience_job_title,
+            audience_department=body.audience_department,
+        )
+        return service.get_course(db, module.course_id)
+    except Exception as exc:
+        _translate(exc)
+
+
 @router.post("/modules/{module_id}/lessons", status_code=201)
 def create_lesson(
     module_id: str,
@@ -165,6 +188,32 @@ def create_lesson(
         lesson = service.add_lesson(
             db,
             module_id=module_id,
+            title=body.title,
+            description=body.description,
+            video_url=body.video_url,
+            duration_seconds=body.duration_seconds,
+            content_type=body.content_type,
+            external_url=body.external_url,
+            estimated_minutes=body.estimated_minutes,
+            checklist_items=body.checklist_items,
+            is_optional=body.is_optional,
+        )
+        return service.get_course(db, lesson.module.course_id)
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.put("/lessons/{lesson_id}")
+def update_lesson(
+    lesson_id: str,
+    body: UpdateLessonRequest,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("training.manage")),
+):
+    try:
+        lesson = service.update_lesson(
+            db,
+            lesson_id,
             title=body.title,
             description=body.description,
             video_url=body.video_url,
