@@ -82,10 +82,13 @@ function Ranking() {
       const response = await api.get("/jobs");
       const data = response.data;
       const loadedJobs = Array.isArray(data) ? data : data.jobs || [];
-      setJobs(loadedJobs);
+      const rankingJobs = loadedJobs.filter(
+        (job) => job.candidate_count == null || Number(job.candidate_count) > 0,
+      );
+      setJobs(rankingJobs);
 
-      if (!selectedJob && loadedJobs.length > 0) {
-        const firstJobId = loadedJobs[0].job_id;
+      if (!selectedJob && rankingJobs.length > 0) {
+        const firstJobId = rankingJobs[0].job_id;
         setSelectedJob(firstJobId);
         await loadRanking(1, pageSize, firstJobId, rankingScope);
       }
