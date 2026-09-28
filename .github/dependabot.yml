@@ -7,11 +7,15 @@ updates:
       day: "monday"
       time: "08:00"
       timezone: "America/Bogota"
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 5
     groups:
-      python-dependencies:
+      python-minor-patch:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "npm"
     directory: "/frontend-react"
@@ -20,11 +24,15 @@ updates:
       day: "monday"
       time: "08:15"
       timezone: "America/Bogota"
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 5
     groups:
-      frontend-dependencies:
+      frontend-minor-patch:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -33,8 +41,12 @@ updates:
       day: "monday"
       time: "08:30"
       timezone: "America/Bogota"
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 5
     groups:
-      github-actions:
+      github-actions-minor-patch:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
