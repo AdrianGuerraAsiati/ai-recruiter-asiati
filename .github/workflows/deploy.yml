@@ -3,6 +3,15 @@ name: CI/CD — Tests & Deploy
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".github/dependabot.yml"
+      - ".github/workflows/ai-handoff.yml"
+      - "app/tests/**"
+      - "frontend-react/src/__tests__/**"
+      - "frontend-react/e2e/**"
+      - "tools/indeed_resume_agent/tests/**"
   workflow_dispatch:
 
 permissions:
