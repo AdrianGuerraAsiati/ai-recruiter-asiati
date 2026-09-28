@@ -148,7 +148,10 @@ function RecruitmentCalendar() {
   }
 
   useEffect(() => {
-    void load();
+    const timeoutId = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridStart.getTime(), rangeEnd.getTime()]);
 
