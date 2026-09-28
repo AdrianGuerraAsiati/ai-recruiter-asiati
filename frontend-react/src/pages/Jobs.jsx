@@ -9,6 +9,7 @@ import { EmptyState, FeedbackMessage, LoadingState } from "../components/ui/Stat
 import JobsPagination from "../features/jobs/JobsPagination";
 import JobCard from "../features/jobs/JobCard";
 import JobsListToolbar from "../features/jobs/JobsListToolbar";
+import JobDeleteModal from "../features/jobs/JobDeleteModal";
 import {
   MAX_PAGES,
   PAGE_SIZE_OPTIONS,
@@ -1045,27 +1046,18 @@ function Jobs() {
         </div>
       )}
 
-      {deleteJobTarget && (
-        <div className="modal-overlay" onClick={() => { if (!deletingJob) { setDeleteJobTarget(null); setDeleteError(""); } }}>
-          <div className="modal job-delete-modal" role="dialog" aria-modal="true" aria-labelledby="delete-job-title" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div><span className="eyebrow job-danger-eyebrow">Eliminar vacante</span><h2 id="delete-job-title">¿qué deseas eliminar?</h2></div>
-              <button className="btn btn-close" onClick={() => { if (!deletingJob) { setDeleteJobTarget(null); setDeleteError(""); } }} disabled={deletingJob} aria-label="Cerrar modal de eliminación"><span aria-hidden="true">✕</span></button>
-            </div>
-
-            <p className="job-delete-job-title">{deleteJobTarget.title}</p>
-            <p className="muted job-delete-copy">Esta vacante tiene {deleteJobTarget.candidate_count || 0} candidato{deleteJobTarget.candidate_count === 1 ? "" : "s"} asignado{deleteJobTarget.candidate_count === 1 ? "" : "s"}.</p>
-            {deleteError && <div className="job-delete-error" role="alert">{deleteError}</div>}
-
-            <div className="job-delete-options">
-              <button type="button" className="job-delete-option job-delete-option-danger-outline" disabled={deletingJob} onClick={() => confirmDeleteJob(false)}><strong>Borrar solo la vacante</strong><span>Conserva los candidatos en tu cuenta.</span></button>
-              <button type="button" className="job-delete-option job-delete-option-danger-solid" disabled={deletingJob || !deleteJobTarget.candidate_count} onClick={() => confirmDeleteJob(true)}><strong>Borrar vacante y candidatos</strong><span>Elimina también los {deleteJobTarget.candidate_count || 0} candidatos.{(deleteJobTarget.candidate_count || 0) > 0 && " Puede afectar otras vacantes donde estén."}</span></button>
-              <button type="button" className="job-delete-option job-delete-option-cancel" disabled={deletingJob} onClick={() => { setDeleteJobTarget(null); setDeleteError(""); }}>Cancelar</button>
-            </div>
-            {deletingJob && <p className="job-delete-loading">Eliminando…</p>}
-          </div>
-        </div>
-      )}
+      <JobDeleteModal
+        job={deleteJobTarget}
+        deleting={deletingJob}
+        error={deleteError}
+        onClose={() => {
+          if (!deletingJob) {
+            setDeleteJobTarget(null);
+            setDeleteError("");
+          }
+        }}
+        onConfirm={confirmDeleteJob}
+      />
     </div>
   );
 }
