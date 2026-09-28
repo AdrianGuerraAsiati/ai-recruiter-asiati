@@ -57,15 +57,15 @@ class CreateModuleRequest(BaseModel):
 
 
 class UpdateModuleRequest(BaseModel):
-    title: str | None = Field(default=None, min_length=2, max_length=200)
+    title: str = Field(min_length=2, max_length=200)
     description: str | None = Field(default=None, max_length=4000)
     audience_job_title: str | None = Field(default=None, max_length=200)
     audience_department: str | None = Field(default=None, max_length=200)
 
     @field_validator("title")
     @classmethod
-    def normalize_title(cls, value: str | None) -> str | None:
-        return value.strip() if value is not None else None
+    def normalize_title(cls, value: str) -> str:
+        return value.strip()
 
     @field_validator("audience_job_title", "audience_department")
     @classmethod
@@ -129,26 +129,24 @@ class CreateLessonRequest(BaseModel):
 
 
 class UpdateLessonRequest(BaseModel):
-    title: str | None = Field(default=None, min_length=2, max_length=200)
+    title: str = Field(min_length=2, max_length=200)
     description: str | None = Field(default=None, max_length=4000)
     video_url: str | None = Field(default=None, max_length=2000)
     duration_seconds: int | None = Field(default=None, ge=1, le=86_400)
-    content_type: str | None = None
+    content_type: str
     external_url: str | None = Field(default=None, max_length=2000)
     estimated_minutes: int | None = Field(default=None, ge=1, le=1440)
-    checklist_items: list[str] | None = Field(default=None, max_length=20)
-    is_optional: bool | None = None
+    checklist_items: list[str] = Field(default_factory=list, max_length=20)
+    is_optional: bool = False
 
     @field_validator("title")
     @classmethod
-    def normalize_title(cls, value: str | None) -> str | None:
-        return value.strip() if value is not None else None
+    def normalize_title(cls, value: str) -> str:
+        return value.strip()
 
     @field_validator("content_type")
     @classmethod
-    def validate_content_type(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
+    def validate_content_type(cls, value: str) -> str:
         normalized = value.strip().upper()
         if normalized not in {"VIDEO", "ARTICLE", "RESOURCE", "CHECKLIST"}:
             raise ValueError("unsupported lesson content_type")
@@ -156,13 +154,17 @@ class UpdateLessonRequest(BaseModel):
 
     @field_validator("checklist_items")
     @classmethod
-    def normalize_checklist_items(cls, value: list[str] | None) -> list[str] | None:
-        if value is None:
-            return None
+    def normalize_checklist_items(cls, value: list[str]) -> list[str]:
         normalized = [str(item).strip() for item in value if str(item).strip()]
         if len(set(normalized)) != len(normalized):
             raise ValueError("checklist items must be unique")
         return normalized
+
+    @model_validator(mode="after")
+    def validate_checklist_content(self):
+        if self.checklist_items and self.content_type != "CHECKLIST":
+            raise ValueError("checklist_items require CHECKLIST content_type")
+        return self
 
     @field_validator("video_url", "external_url")
     @classmethod
