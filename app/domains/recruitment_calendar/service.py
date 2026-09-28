@@ -1,6 +1,6 @@
 """Recruitment calendar business rules."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -23,6 +23,14 @@ def _validate_window(starts_at: datetime, ends_at: datetime) -> None:
         raise RecruitmentEventValidationError("La fecha y hora deben incluir zona horaria.")
     if ends_at <= starts_at:
         raise RecruitmentEventValidationError("La hora final debe ser posterior a la inicial.")
+
+
+def _persisted_datetime(value: datetime) -> datetime:
+    """Normalize dialects such as SQLite that drop timezone metadata on read."""
+
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
 
 
 def _require_application(db: Session, *, job_id: str, candidate_id: str):
@@ -152,8 +160,8 @@ def update_event(db: Session, event_id: str, *, changes: dict) -> dict:
 
     next_kind = changes.get("kind", event.kind)
     next_status = changes.get("status", event.status)
-    next_start = changes.get("starts_at", event.starts_at)
-    next_end = changes.get("ends_at", event.ends_at)
+    next_start = changes.get("starts_at") or _persisted_datetime(event.starts_at)
+    next_end = changes.get("ends_at") or _persisted_datetime(event.ends_at)
     if next_kind not in EVENT_KINDS:
         raise RecruitmentEventValidationError("Tipo de cita no válido.")
     if next_status not in EVENT_STATUSES:
