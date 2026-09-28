@@ -239,7 +239,7 @@ def list_batch_items(
     return repository.list_batch_items(
         db,
         batch_id=batch_id,
-        owner_sub=owner_sub,
+        owner_sub=None,
         page=page,
         page_size=page_size,
     )
