@@ -15,6 +15,10 @@ from enum import Enum
 from pathlib import Path
 from urllib.parse import quote_plus, unquote, urlsplit
 
+from .browser_diagnostics import (
+    safe_diagnostic_text as _safe_diagnostic_text,
+    safe_diagnostic_url as _safe_diagnostic_url,
+)
 from .browser_runtime import (
     manual_browser_process_exists as _manual_browser_process_exists,
     resolve_browser_executable as _resolve_browser_executable,
@@ -99,34 +103,6 @@ _FILENAME_STAR = re.compile(r"filename\*=UTF-8''([^;]+)", re.IGNORECASE)
 _FILENAME_BASIC = re.compile(r'filename="?([^";]+)"?', re.IGNORECASE)
 
 
-
-
-def _safe_diagnostic_url(raw_url: str | None) -> str:
-    """Keep only scheme/host/path so signed query parameters are never persisted."""
-    value = str(raw_url or "").strip()
-    if not value:
-        return ""
-    try:
-        parsed = urlsplit(value)
-    except Exception:
-        return ""
-    if parsed.scheme.casefold() not in {"http", "https"}:
-        return ""
-    return f"{parsed.scheme.lower()}://{parsed.netloc}{parsed.path}"
-
-
-_SECRET_ASSIGNMENT = re.compile(
-    r"(?i)\b(token|auth|authorization|signature|sig|api[_-]?key|code|session|cookie)=([^\s&\"']+)"
-)
-_URL_IN_TEXT = re.compile(r"https?://[^\s\"'<>]+")
-
-
-def _safe_diagnostic_text(value: object, *, limit: int = 500) -> str:
-    """Redact URL queries and common credential-like assignments from diagnostic text."""
-    text = " ".join(str(value or "").split())
-    text = _URL_IN_TEXT.sub(lambda match: _safe_diagnostic_url(match.group(0)), text)
-    text = _SECRET_ASSIGNMENT.sub(lambda match: f"{match.group(1)}=[REDACTED]", text)
-    return text[: max(0, int(limit))]
 
 
 class IndeedBrowser:
