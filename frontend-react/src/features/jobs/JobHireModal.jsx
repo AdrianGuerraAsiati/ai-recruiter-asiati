@@ -24,8 +24,10 @@ function JobHireModal({
             <span className="eyebrow">Contratación</span>
             <h2 id="job-hire-title">Contratar y crear empleado</h2>
             <p>
-              Se creará o reutilizará el acceso del empleado y se asignará
-              automáticamente el onboarding ASIATI.
+              Se creará o reutilizará el acceso del empleado, se asignará
+              automáticamente el onboarding ASIATI y después se intentará
+              sincronizar el empleado con Odoo. Si Odoo no está disponible,
+              la contratación queda guardada y el envío queda pendiente.
             </p>
           </div>
           <button
