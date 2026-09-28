@@ -24,7 +24,7 @@ def _job(**overrides):
     return SimpleNamespace(**values)
 
 
-def test_require_job_scopes_lookup_to_owner(monkeypatch):
+def test_require_job_uses_global_lookup(monkeypatch):
     expected = _job()
     calls = []
 
@@ -38,7 +38,7 @@ def test_require_job_scopes_lookup_to_owner(monkeypatch):
     result = service.require_job(db, "job-1", "owner-1")
 
     assert result is expected
-    assert calls == [(db, "job-1", "owner-1")]
+    assert calls == [(db, "job-1", None)]
 
 
 def test_require_job_raises_domain_error_when_invisible(monkeypatch):
@@ -48,7 +48,7 @@ def test_require_job_raises_domain_error_when_invisible(monkeypatch):
         service.require_job(object(), "job-1", "owner-1")
 
 
-def test_list_jobs_returns_candidate_counts_scoped_to_owner(monkeypatch):
+def test_list_jobs_returns_global_candidate_counts(monkeypatch):
     first = _job(id="job-1")
     second = _job(id="job-2")
     count_calls = []
@@ -68,7 +68,7 @@ def test_list_jobs_returns_candidate_counts_scoped_to_owner(monkeypatch):
     result = service.list_jobs(object(), "owner-1")
 
     assert result == [(first, 3), (second, 1)]
-    assert count_calls == [("job-1", "owner-1"), ("job-2", "owner-1")]
+    assert count_calls == [("job-1", None), ("job-2", None)]
 
 
 def test_create_job_delegates_owner_scoped_fields(monkeypatch):
@@ -93,7 +93,7 @@ def test_create_job_delegates_owner_scoped_fields(monkeypatch):
     assert calls == [(db, "Backend Developer", "Python APIs", "owner-1")]
 
 
-def test_update_job_requires_owner_then_delegates(monkeypatch):
+def test_update_job_uses_global_lookup_then_delegates(monkeypatch):
     existing = _job()
     updated = _job(title="Senior Backend Developer")
     events = []
@@ -118,13 +118,13 @@ def test_update_job_requires_owner_then_delegates(monkeypatch):
     )
 
     assert result is updated
-    assert events[0] == ("get", "job-1", "owner-1")
+    assert events[0] == ("get", "job-1", None)
     assert events[1][0] == "update"
     assert events[1][1] is existing
     assert events[1][2:] == ("Senior Backend Developer", None)
 
 
-def test_delete_job_requires_owner_and_returns_deleted_count(monkeypatch):
+def test_delete_job_uses_global_lookup_and_returns_deleted_count(monkeypatch):
     existing = _job()
     events = []
 
@@ -148,8 +148,8 @@ def test_delete_job_requires_owner_and_returns_deleted_count(monkeypatch):
 
     assert deleted_count == 4
     assert events == [
-        ("get", "job-1", "owner-1"),
-        ("delete", "job-1", "owner-1", True),
+        ("get", "job-1", None),
+        ("delete", "job-1", None, True),
     ]
 
 
