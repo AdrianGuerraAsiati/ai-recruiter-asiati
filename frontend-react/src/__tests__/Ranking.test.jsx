@@ -171,6 +171,70 @@ describe("Ranking page", () => {
     });
   });
 
+  it("hides jobs with zero candidates and does not rank them", async () => {
+    api.get.mockImplementation((url) => {
+      if (url === "/jobs") {
+        return Promise.resolve({
+          data: [
+            { job_id: "job-empty", title: "Vacante vacía", candidate_count: 0 },
+            { job_id: "job-active", title: "Vacante con candidatos", candidate_count: 2 },
+          ],
+        });
+      }
+      if (url === "/jobs/job-active/ranking") {
+        return Promise.resolve(EMPTY_RANKING);
+      }
+      if (url.includes("/ranking")) {
+        return Promise.resolve(EMPTY_RANKING);
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    renderRanking();
+
+    expect(await screen.findByRole("option", { name: "Vacante con candidatos" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Vacante vacía" })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith(
+        "/jobs/job-active/ranking",
+        expect.objectContaining({
+          params: expect.objectContaining({ scope: "assigned" }),
+        }),
+      );
+    });
+    expect(api.get).not.toHaveBeenCalledWith(
+      "/jobs/job-empty/ranking",
+      expect.anything(),
+    );
+  });
+
+  it("keeps ranking unselected when every job is empty", async () => {
+    api.get.mockImplementation((url) => {
+      if (url === "/jobs") {
+        return Promise.resolve({
+          data: [
+            { job_id: "job-empty-1", title: "Vacante vacía 1", candidate_count: 0 },
+            { job_id: "job-empty-2", title: "Vacante vacía 2", candidate_count: 0 },
+          ],
+        });
+      }
+      return Promise.resolve(EMPTY_RANKING);
+    });
+
+    renderRanking();
+
+    const select = await screen.findByRole("combobox", { name: "" }).catch(() => null);
+    await waitFor(() => {
+      expect(screen.queryByRole("option", { name: "Vacante vacía 1" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: "Vacante vacía 2" })).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("option", { name: "Seleccione vacante" })).toBeInTheDocument();
+    expect(api.get.mock.calls.filter(([url]) => url.includes("/ranking"))).toHaveLength(0);
+    void select;
+  });
+
   // ============================================================
   // TEST 1 — TRES BOTONES
   // ============================================================
