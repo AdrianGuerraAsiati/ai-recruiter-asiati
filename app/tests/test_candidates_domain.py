@@ -110,7 +110,7 @@ def test_requirements_fallback_preserves_strength_gap_mapping():
     }
 
 
-def test_require_candidate_scopes_lookup_to_owner(monkeypatch):
+def test_require_candidate_uses_global_lookup(monkeypatch):
     candidate = _candidate()
     calls = []
 
@@ -122,7 +122,7 @@ def test_require_candidate_scopes_lookup_to_owner(monkeypatch):
     db = object()
 
     assert service.require_candidate(db, "candidate-1", "owner-1") is candidate
-    assert calls == [(db, "candidate-1", "owner-1")]
+    assert calls == [(db, "candidate-1", None)]
 
 
 def test_require_candidate_raises_domain_error_when_invisible(monkeypatch):
@@ -136,7 +136,7 @@ def test_require_candidate_raises_domain_error_when_invisible(monkeypatch):
         service.require_candidate(object(), "missing", "owner-1")
 
 
-def test_require_job_scopes_lookup_to_owner(monkeypatch):
+def test_require_job_uses_global_lookup(monkeypatch):
     job = SimpleNamespace(id="job-1")
     calls = []
 
@@ -148,7 +148,7 @@ def test_require_job_scopes_lookup_to_owner(monkeypatch):
     db = object()
 
     assert service.require_job(db, "job-1", "owner-1") is job
-    assert calls == [(db, "job-1", "owner-1")]
+    assert calls == [(db, "job-1", None)]
 
 
 def test_require_job_raises_domain_error_when_invisible(monkeypatch):
@@ -191,7 +191,7 @@ def test_assign_candidates_validates_job_then_delegates(monkeypatch):
     assert result == (2, 1)
     assert events == [
         ("job", "job-1", "owner-1"),
-        ("assign", "job-1", ("c1", "c2", "missing"), "owner-1"),
+        ("assign", "job-1", ("c1", "c2", "missing"), None),
     ]
 
 

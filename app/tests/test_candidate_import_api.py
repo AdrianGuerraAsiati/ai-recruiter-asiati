@@ -126,7 +126,7 @@ def test_create_batch_returns_202_and_presigned_manifest(api, db_session, monkey
     assert payload["expires_at"]
 
 
-def test_create_batch_hides_other_owners_job(api, db_session, monkeypatch):
+def test_admin_can_create_batch_for_job_created_by_another_admin(api, db_session, monkeypatch):
     client, _ = api
     job = _seed_job(db_session, owner="owner-b")
     monkeypatch.setattr(service.storage, "create_staging_presigned_post", _fake_presign)
@@ -145,11 +145,11 @@ def test_create_batch_hides_other_owners_job(api, db_session, monkeypatch):
         },
     )
 
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Vacante no encontrada."}
+    assert response.status_code == 202
+    assert response.json()["batch_id"]
 
 
-def test_other_owner_cannot_read_batch(api, db_session):
+def test_admin_can_read_batch_created_by_another_admin(api, db_session):
     client, principal = api
     job = _seed_job(db_session, owner="owner-a")
     batch = ImportBatch(job_id=job.id, owner_sub="owner-a", upload_total=1)
@@ -160,8 +160,8 @@ def test_other_owner_cannot_read_batch(api, db_session):
     principal["sub"] = "owner-b"
     response = client.get(f"/api/import-batches/{batch.id}")
 
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Importacion no encontrada."}
+    assert response.status_code == 200
+    assert response.json()["id"] == batch.id
 
 
 def test_complete_is_idempotent_and_does_not_duplicate_queue_send(api, db_session, monkeypatch):
@@ -212,7 +212,7 @@ def test_queue_dispatch_failure_is_sanitized_and_batch_stays_queued(api, db_sess
     assert persisted.queue_dispatched_at is None
 
 
-def test_items_are_paginated_owner_scoped_and_hide_staging_keys(api, db_session):
+def test_items_are_shared_across_admins_and_hide_staging_keys(api, db_session):
     client, principal = api
     job = _seed_job(db_session)
     batch = ImportBatch(job_id=job.id, owner_sub="owner-a", upload_total=1, total_items=1)
@@ -240,9 +240,10 @@ def test_items_are_paginated_owner_scoped_and_hide_staging_keys(api, db_session)
     assert "secret-key" not in response.text
 
     principal["sub"] = "owner-b"
-    hidden = client.get(f"/api/import-batches/{batch.id}/items?page=1&page_size=100")
-    assert hidden.status_code == 404
-    assert hidden.json() == {"detail": "Importacion no encontrada."}
+    shared = client.get(f"/api/import-batches/{batch.id}/items?page=1&page_size=100")
+    assert shared.status_code == 200
+    assert shared.json()["total"] == 1
+    assert "staging_s3_key" not in shared.json()["items"][0]
 
 
 def test_progress_payload_never_replays_presigned_or_queue_internal_fields(api, db_session):
@@ -269,7 +270,7 @@ def test_progress_payload_never_replays_presigned_or_queue_internal_fields(api, 
     assert "fields" not in payload
 
 
-def test_recent_batches_require_job_ownership_and_limit(api, db_session):
+def test_recent_batches_are_shared_across_admins_and_respect_limit(api, db_session):
     client, principal = api
     job = _seed_job(db_session, owner="owner-a")
     db_session.add_all(
@@ -285,6 +286,6 @@ def test_recent_batches_require_job_ownership_and_limit(api, db_session):
     assert len(response.json()["items"]) == 1
 
     principal["sub"] = "owner-b"
-    hidden = client.get(f"/api/import-batches?job_id={job.id}&limit=10")
-    assert hidden.status_code == 404
-    assert hidden.json() == {"detail": "Vacante no encontrada."}
+    shared = client.get(f"/api/import-batches?job_id={job.id}&limit=10")
+    assert shared.status_code == 200
+    assert len(shared.json()["items"]) == 2

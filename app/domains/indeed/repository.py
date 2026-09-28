@@ -28,8 +28,15 @@ def get_or_create_connection(db: Session, owner_sub: str, employer_id: str = "")
     return connection
 
 
-def get_job_link(db: Session, job_id: str, owner_sub: str) -> IndeedJobLink | None:
-    return db.query(IndeedJobLink).filter(IndeedJobLink.job_id == job_id, IndeedJobLink.owner_sub == owner_sub).first()
+def get_job_link(
+    db: Session,
+    job_id: str,
+    owner_sub: str | None = None,
+) -> IndeedJobLink | None:
+    query = db.query(IndeedJobLink).filter(IndeedJobLink.job_id == job_id)
+    if owner_sub is not None:
+        query = query.filter(IndeedJobLink.owner_sub == owner_sub)
+    return query.first()
 
 
 def get_job_link_by_sourced_posting(
@@ -49,7 +56,7 @@ def get_job_link_by_sourced_posting(
 
 
 def upsert_job_link(db: Session, *, job_id: str, owner_sub: str, sourced_posting_id: str, employer_job_id: str) -> IndeedJobLink:
-    link = get_job_link(db, job_id, owner_sub)
+    link = get_job_link(db, job_id)
     if link is None:
         link = IndeedJobLink(job_id=job_id, owner_sub=owner_sub)
         db.add(link)
@@ -130,17 +137,18 @@ def get_candidate_link_by_asset(
 def get_candidate_link(
     db: Session,
     *,
-    owner_sub: str,
+    owner_sub: str | None = None,
     job_id: str,
     candidate_id: str,
 ) -> IndeedCandidateLink | None:
+    query = db.query(IndeedCandidateLink).filter(
+        IndeedCandidateLink.job_id == job_id,
+        IndeedCandidateLink.candidate_id == candidate_id,
+    )
+    if owner_sub is not None:
+        query = query.filter(IndeedCandidateLink.owner_sub == owner_sub)
     return (
-        db.query(IndeedCandidateLink)
-        .filter(
-            IndeedCandidateLink.owner_sub == owner_sub,
-            IndeedCandidateLink.job_id == job_id,
-            IndeedCandidateLink.candidate_id == candidate_id,
-        )
+        query
         .order_by(
             IndeedCandidateLink.staged_at.desc().nullslast(),
             IndeedCandidateLink.created_at.desc(),

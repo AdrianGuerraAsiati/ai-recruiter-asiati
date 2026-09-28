@@ -260,15 +260,17 @@ class TestDeleteJobWithCandidates:
         assert data["deleted_candidates"] == 1
 
 
-class TestDeleteJobMultitenancy:
-    def test_user_cannot_delete_other_users_job(self, client, db_session):
+class TestDeleteJobGlobalAdminAccess:
+    def test_admin_can_delete_job_created_by_another_admin(self, client, db_session):
         job = _seed_job(db_session, owner="user-b")
         job_id = job.id
 
         resp = client.delete(f"/api/jobs/{job_id}", params={"delete_candidates": False})
-        assert resp.status_code == 404
+        assert resp.status_code == 200
+        db_session.expire_all()
+        assert db_session.query(Job).filter(Job.id == job_id).first() is None
 
-    def test_user_cannot_cause_deletion_of_other_users_candidates(self, client, db_session):
+    def test_explicit_delete_candidates_ignores_creator_provenance(self, client, db_session):
         job = _seed_job(db_session, owner="user-a")
         other_cand = _seed_candidate(db_session, name="Other", owner="user-b")
         job_id = job.id
@@ -280,6 +282,7 @@ class TestDeleteJobMultitenancy:
 
         resp = client.delete(f"/api/jobs/{job_id}", params={"delete_candidates": True})
         assert resp.status_code == 200
+        assert resp.json()["deleted_candidates"] == 1
 
         db_session.expire_all()
-        assert db_session.query(Candidate).filter(Candidate.id == other_id).first() is not None
+        assert db_session.query(Candidate).filter(Candidate.id == other_id).first() is None

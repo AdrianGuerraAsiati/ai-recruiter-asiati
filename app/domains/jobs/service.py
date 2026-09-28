@@ -12,21 +12,23 @@ from app.domains.jobs.reevaluation import schedule_reevaluation
 
 
 def require_job(db: Session, job_id: str, owner_sub: str):
-    job = repository.get_job(db, job_id, owner_sub=owner_sub)
+    # Recruiting records are organization-wide. owner_sub is provenance, not
+    # an authorization boundary; RBAC is enforced at the HTTP dependency.
+    job = repository.get_job(db, job_id)
     if job is None:
         raise JobNotFound(job_id)
     return job
 
 
 def list_jobs(db: Session, owner_sub: str):
-    jobs = repository.list_jobs(db, owner_sub=owner_sub)
+    jobs = repository.list_jobs(db)
     return [
         (
             job,
             repository.count_candidates_for_job(
                 db,
                 job.id,
-                owner_sub=owner_sub,
+                owner_sub=None,
             ),
         )
         for job in jobs
@@ -44,7 +46,7 @@ def list_jobs_page(
 ):
     return repository.list_jobs_page(
         db,
-        owner_sub=owner_sub,
+        owner_sub=None,
         page=page,
         page_size=page_size,
         sort=sort,
@@ -212,14 +214,14 @@ def update_job(
         candidate_count = repository.count_candidates_for_job(
             db,
             updated.id,
-            owner_sub=owner_sub,
+            owner_sub=None,
         )
         reevaluation_scheduled = False
         if evaluation_changed and candidate_count > 0:
             schedule_reevaluation(
                 db,
                 job=updated,
-                owner_sub=owner_sub,
+                owner_sub=getattr(updated, "owner_sub", None) or owner_sub,
             )
             reevaluation_scheduled = True
 
@@ -249,7 +251,7 @@ def delete_job(
     success, deleted_count = repository.delete_job(
         db,
         job_id,
-        owner_sub=owner_sub,
+        owner_sub=None,
         delete_candidates=delete_candidates,
     )
     if not success:

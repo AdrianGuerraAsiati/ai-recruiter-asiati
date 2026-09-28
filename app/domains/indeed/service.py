@@ -58,10 +58,10 @@ def publish_job(db, *, job_id: str, owner_sub: str, client: IndeedClient | None 
 def get_job_status(db, *, job_id: str, owner_sub: str, client: IndeedClient | None = None, settings: IndeedSettings | None = None) -> dict:
     cfg = _settings(settings)
     require_job(db, job_id, owner_sub)
-    link = repository.get_job_link(db, job_id, owner_sub)
+    link = repository.get_job_link(db, job_id)
     if link is None or not link.employer_job_id:
         raise IndeedLinkNotFound("Job has not been published to Indeed")
-    event = repository.start_event(db, owner_sub=owner_sub, job_id=job_id, operation="STATUS")
+    event = repository.start_event(db, owner_sub=link.owner_sub, job_id=job_id, operation="STATUS")
     try:
         data = (client or IndeedClient(cfg)).execute(JOB_STATUS, {"id": link.employer_job_id})
         node = data.get("node")
@@ -81,10 +81,10 @@ def get_job_status(db, *, job_id: str, owner_sub: str, client: IndeedClient | No
 def expire_job(db, *, job_id: str, owner_sub: str, client: IndeedClient | None = None, settings: IndeedSettings | None = None) -> dict:
     cfg = _settings(settings)
     require_job(db, job_id, owner_sub)
-    link = repository.get_job_link(db, job_id, owner_sub)
+    link = repository.get_job_link(db, job_id)
     if link is None or not link.sourced_posting_id:
         raise IndeedLinkNotFound("Job has not been published to Indeed")
-    event = repository.start_event(db, owner_sub=owner_sub, job_id=job_id, operation="EXPIRE")
+    event = repository.start_event(db, owner_sub=link.owner_sub, job_id=job_id, operation="EXPIRE")
     try:
         (client or IndeedClient(cfg)).execute(EXPIRE_JOB, {"input": {"jobs": [{"sourcedPostingId": link.sourced_posting_id}]}})
         repository.update_status(db, link, {"lifecycleStatus": "EXPIRE_REQUESTED"})
@@ -117,7 +117,7 @@ def get_candidate_details(db, *, owner_sub: str, job_id: str, candidate_id: str)
     require_job(db, job_id, owner_sub)
     link = repository.get_candidate_link(
         db,
-        owner_sub=owner_sub,
+        owner_sub=None,
         job_id=job_id,
         candidate_id=candidate_id,
     )
@@ -126,7 +126,7 @@ def get_candidate_details(db, *, owner_sub: str, job_id: str, candidate_id: str)
 
     resume_task = resume_repository.get_resume_ingestion_for_candidate_link(
         db,
-        owner_sub=owner_sub,
+        owner_sub=link.owner_sub,
         candidate_link_id=link.id,
     )
     resume_status = resume_task.status if resume_task is not None else (
@@ -172,7 +172,7 @@ def get_canonical_resume_download(
         db,
         job_id=job_id,
         candidate_id=candidate_id,
-        owner_sub=owner_sub,
+        owner_sub=None,
     )
     if assignment is None:
         raise IndeedLinkNotFound("Candidate is not assigned to this job")
@@ -200,7 +200,7 @@ def queue_candidate_status(
 ):
     link = repository.get_candidate_link(
         db,
-        owner_sub=owner_sub,
+        owner_sub=None,
         job_id=job_id,
         candidate_id=candidate_id,
     )
@@ -208,7 +208,7 @@ def queue_candidate_status(
         return None
     return dispositions.queue_disposition_for_application(
         db,
-        owner_sub=owner_sub,
+        owner_sub=link.owner_sub,
         candidate_link=link,
         local_status=local_status,
         status_changed_at=status_changed_at,

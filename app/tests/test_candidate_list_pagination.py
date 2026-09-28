@@ -1,4 +1,4 @@
-"""Pagination contract for the owner-scoped candidates list."""
+"""Pagination contract for the organization-wide candidates list."""
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -37,11 +37,11 @@ def test_candidates_endpoint_returns_fixed_page_of_20_with_metadata():
             _user={"sub": "owner-1"},
         )
 
-        assert payload["total"] == 25
+        assert payload["total"] == 28
         assert payload["page"] == 2
         assert payload["page_size"] == 20
         assert payload["pages"] == 2
-        assert len(payload["items"]) == 5
+        assert len(payload["items"]) == 8
     finally:
         db.close()
         engine.dispose()

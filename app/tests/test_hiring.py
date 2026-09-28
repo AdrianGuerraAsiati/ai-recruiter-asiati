@@ -174,6 +174,26 @@ def test_hire_materializes_existing_cognito_user_and_continues_onboarding(db):
     assert cognito.created == ["existing@example.com"]
 
 
+def test_admin_can_hire_candidate_created_by_another_admin(db):
+    job, candidate, link = _application(db)
+    cognito = FakeCognito()
+
+    result = hiring_service.hire_candidate(
+        db,
+        owner_sub="other-admin-sub",
+        job_id=job.id,
+        candidate_id=candidate.id,
+        created_by_sub="other-admin-sub",
+        department="Tecnología",
+        cognito_client=cognito,
+    )
+
+    db.refresh(link)
+    assert result["application_status"] == "HIRED"
+    assert link.application_status == "HIRED"
+    assert result["employee_created"] is True
+
+
 def test_hire_is_idempotent_for_same_application(db):
     job, candidate, link = _application(db)
     cognito = FakeCognito()

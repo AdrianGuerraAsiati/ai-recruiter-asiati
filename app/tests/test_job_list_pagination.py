@@ -112,7 +112,7 @@ def _seed_listing(db):
     _assign_candidates(db, data, 2)
     _assign_candidates(db, design, 0)
 
-    # A foreign-tenant candidate linked to this job must not inflate user-a's count.
+    # Candidate provenance does not affect the organization-wide job count.
     _assign_candidates(db, design, 1, owner="user-b")
 
 
@@ -126,10 +126,10 @@ def test_jobs_page_orders_by_candidate_count_before_paginating(client, db_sessio
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["total"] == 4
+    assert payload["total"] == 5
     assert payload["page"] == 1
     assert payload["page_size"] == 2
-    assert payload["total_pages"] == 2
+    assert payload["total_pages"] == 3
     assert [item["title"] for item in payload["items"]] == [
         "Frontend Developer",
         "Data Engineer",
@@ -145,12 +145,13 @@ def test_jobs_page_supports_oldest_first_and_title_search(client, db_session):
         params={"page": 1, "page_size": 12, "sort": "created_asc"},
     )
     assert oldest.status_code == 200
-    assert [item["title"] for item in oldest.json()["items"]] == [
+    oldest_titles = [item["title"] for item in oldest.json()["items"]]
+    assert oldest_titles[:3] == [
         "Backend Developer",
         "Frontend Developer",
         "Data Engineer",
-        "Product Designer",
     ]
+    assert set(oldest_titles[3:]) == {"Product Designer", "Other tenant"}
 
     searched = client.get(
         "/api/jobs/page",

@@ -48,7 +48,6 @@ def require_candidate(
     candidate = candidates_repository.get_candidate(
         db,
         candidate_id,
-        owner_sub=owner_sub,
     )
     if candidate is None:
         raise CandidateNotFound(candidate_id)
@@ -60,14 +59,14 @@ def require_job(
     job_id: str,
     owner_sub: str,
 ):
-    job = jobs_repository.get_job(db, job_id, owner_sub=owner_sub)
+    job = jobs_repository.get_job(db, job_id)
     if job is None:
         raise JobNotFound(job_id)
     return job
 
 
 def list_candidates(db: Session, owner_sub: str):
-    return candidates_repository.list_candidates(db, owner_sub=owner_sub)
+    return candidates_repository.list_candidates(db)
 
 
 def list_candidates_page(
@@ -79,7 +78,7 @@ def list_candidates_page(
 ):
     return candidates_repository.list_candidates_page(
         db,
-        owner_sub=owner_sub,
+        owner_sub=None,
         page=page,
         page_size=page_size,
     )
@@ -96,7 +95,7 @@ def list_applications_page(
 ):
     return candidates_repository.list_applications_page(
         db,
-        owner_sub=owner_sub,
+        owner_sub=None,
         page=page,
         page_size=page_size,
         status=status,
@@ -118,7 +117,7 @@ def list_job_candidates(
         job_id,
         page=page,
         page_size=page_size,
-        owner_sub=owner_sub,
+        owner_sub=None,
     )
 
 
@@ -148,7 +147,7 @@ def assign_candidates(
         db,
         job_id,
         candidate_ids,
-        owner_sub=owner_sub,
+        owner_sub=None,
     )
 
 
@@ -166,7 +165,7 @@ def set_application_status(
         db,
         job_id=job_id,
         candidate_id=candidate_id,
-        owner_sub=owner_sub,
+        owner_sub=None,
     )
     if link is None:
         raise JobCandidateNotFound(candidate_id)
@@ -225,7 +224,7 @@ def get_candidate_download(
     candidate_id: str,
     owner_sub: str,
 ) -> dict | None:
-    """Return a short-lived URL only after owner-scoped candidate authorization."""
+    """Return a short-lived URL after organization-wide RBAC authorization."""
     require_candidate(db, candidate_id, owner_sub)
     return create_canonical_candidate_download(candidate_id)
 

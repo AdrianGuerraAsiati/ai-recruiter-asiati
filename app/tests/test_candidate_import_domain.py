@@ -111,7 +111,7 @@ def _fake_presign(**kwargs):
     }
 
 
-def test_create_batch_requires_owned_job_and_returns_upload_manifest(db, monkeypatch):
+def test_create_batch_accepts_global_job_and_returns_upload_manifest(db, monkeypatch):
     service = _module("app.domains.candidate_imports.service")
     exceptions = _module("app.domains.candidate_imports.exceptions")
     job = _seed_job(db, owner="owner-a")
@@ -141,19 +141,20 @@ def test_create_batch_requires_owned_job_and_returns_upload_manifest(db, monkeyp
     assert item.kind == "DOCUMENT"
     assert item.staging_s3_key == descriptors[0]["upload"]["fields"]["key"]
 
-    with pytest.raises(exceptions.JobNotFound):
-        service.create_batch(
-            db,
-            owner_sub="owner-b",
-            job_id=job.id,
-            uploads=[
-                {
-                    "filename": "b.pdf",
-                    "size_bytes": 10,
-                    "content_type": "application/pdf",
-                }
-            ],
-        )
+    cross_admin_batch, _ = service.create_batch(
+        db,
+        owner_sub="owner-b",
+        job_id=job.id,
+        uploads=[
+            {
+                "filename": "b.pdf",
+                "size_bytes": 10,
+                "content_type": "application/pdf",
+            }
+        ],
+    )
+    assert cross_admin_batch.job_id == job.id
+    assert cross_admin_batch.owner_sub == "owner-b"
 
 
 def test_create_batch_rejects_empty_manifest_and_more_than_500_direct_documents(db, monkeypatch):
@@ -307,7 +308,7 @@ def test_queue_send_failure_leaves_durable_queued_batch_for_repair(db, monkeypat
     assert persisted.queue_dispatched_at is None
 
 
-def test_batch_reads_and_items_are_owner_scoped(db):
+def test_batch_reads_and_items_are_shared_across_admins(db):
     service = _module("app.domains.candidate_imports.service")
     exceptions = _module("app.domains.candidate_imports.exceptions")
     batch = _seed_batch(db, owner="owner-a")
@@ -335,19 +336,19 @@ def test_batch_reads_and_items_are_owner_scoped(db):
     assert total == 1
     assert items[0].id == item.id
 
-    with pytest.raises(exceptions.ImportBatchNotFound):
-        service.get_batch(db, owner_sub="owner-b", batch_id=batch.id)
-    with pytest.raises(exceptions.ImportBatchNotFound):
-        service.list_batch_items(
-            db,
-            owner_sub="owner-b",
-            batch_id=batch.id,
-            page=1,
-            page_size=100,
-        )
+    assert service.get_batch(db, owner_sub="owner-b", batch_id=batch.id).id == batch.id
+    shared_items, shared_total = service.list_batch_items(
+        db,
+        owner_sub="owner-b",
+        batch_id=batch.id,
+        page=1,
+        page_size=100,
+    )
+    assert shared_total == 1
+    assert shared_items[0].id == item.id
 
 
-def test_recent_batches_require_owned_job(db):
+def test_recent_batches_are_shared_for_global_job(db):
     service = _module("app.domains.candidate_imports.service")
     exceptions = _module("app.domains.candidate_imports.exceptions")
     job = _seed_job(db, owner="owner-a")
@@ -365,8 +366,13 @@ def test_recent_batches_require_owned_job(db):
     assert len(recent) == 1
     assert recent[0].owner_sub == "owner-a"
 
-    with pytest.raises(exceptions.JobNotFound):
-        service.list_recent_batches(db, owner_sub="owner-b", job_id=job.id, limit=10)
+    shared = service.list_recent_batches(
+        db,
+        owner_sub="owner-b",
+        job_id=job.id,
+        limit=10,
+    )
+    assert len(shared) == 2
 
 
 def test_name_only_never_reuses_candidate(db, parsed_document_factory):

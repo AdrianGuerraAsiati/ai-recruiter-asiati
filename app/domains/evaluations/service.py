@@ -49,7 +49,7 @@ def evaluate_candidate_for_owner(
     owner_sub: str,
     force: bool = False,
 ) -> tuple[object, bool, str | None]:
-    """Authorize candidate/job visibility, then run the evaluation use case."""
+    """Authorize candidate/job access via RBAC, then run the evaluation use case."""
     candidate = candidates_service.require_candidate(
         db,
         candidate_id,
@@ -58,7 +58,7 @@ def evaluate_candidate_for_owner(
     if getattr(candidate, "is_banned", False):
         raise CandidateBanned(candidate_id)
 
-    job = jobs_repository.get_job(db, job_id, owner_sub=owner_sub)
+    job = jobs_repository.get_job(db, job_id)
     if job is None:
         raise JobNotFound(job_id)
     if not has_evaluation_criteria(job):
