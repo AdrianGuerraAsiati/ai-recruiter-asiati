@@ -61,6 +61,26 @@ def _enforce_target_manageable(
 
 
 
+def _ensure_automatic_onboarding_for_all(
+    db: Session,
+    *,
+    created_by_sub: str | None,
+) -> None:
+    try:
+        course = training_service.ensure_published_asiati_onboarding(
+            db,
+            created_by_sub=created_by_sub or "system:employee-directory",
+        )
+        training_service.ensure_asiati_onboarding_for_active_employees(
+            db,
+            course=course,
+            created_by_sub=created_by_sub,
+        )
+    except Exception:
+        db.rollback()
+        logger.exception("Automatic ASIATI onboarding backfill failed")
+
+
 def _ensure_automatic_onboarding(
     db: Session,
     *,
@@ -115,8 +135,12 @@ def list_employees(
         "COMPLETED",
     ] | None = Query(None),
     db: Session = Depends(get_db),
-    _principal: dict = Depends(require_permission("employees.read")),
+    principal: dict = Depends(require_permission("employees.read")),
 ):
+    _ensure_automatic_onboarding_for_all(
+        db,
+        created_by_sub=principal.get("sub"),
+    )
     employees = service.list_employees(
         db,
         q=q,
