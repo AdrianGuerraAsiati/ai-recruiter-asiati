@@ -18,8 +18,8 @@ Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este co
 ## Checkpoint automático
 
 - **Última actualización automática:** 2026-09-27
-- **Merge commit:** `dca0ccdd56a38d53460a9bcb1de347c099c8c3ce`
-- **PR:** [#43 — chore(deps-dev): bump vitest from 3.2.7 to 5.0.1 in /frontend-react](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/43)
+- **Merge commit:** `6858f68b6939b87b391c8e0405fd4150701ed904`
+- **PR:** [#51 — ci: revalidar Resume Agent ante cambios de dependencias Python](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/51)
 - **Origen:** merge a `main` con etiqueta `handoff:update`
 
 > Este bloque es administrado por `.github/workflows/ai-handoff.yml`. No editarlo manualmente.
