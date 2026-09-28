@@ -171,7 +171,7 @@ function Dashboard() {
       <section className="metrics-grid" aria-label="Indicadores principales">
         <MetricCard icon="briefcase" label="Vacantes activas" value={jobs.length} detail="Procesos en seguimiento" tone="blue" live />
         <MetricCard icon="users" label="Candidatos registrados" value={candidateTotal} detail="Perfiles centralizados" tone="cyan" live />
-        <MetricCard icon="ranking" label="Cobertura estimada" value={`${coverage}%`} detail="Candidatos por vacante" tone="violet" live />
+        <MetricCard icon="ranking" label="Cobertura estimada" value={`${coverage}%`} detail="Vacantes con candidatos" tone="violet" live />
       </section>
 
       {canManageEmployees && employeeSummary && (
