@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `4c1394e79a0f7982070755b09f244bd753f63b71`
+- **Último checkpoint conocido:** `cc42b3021b9bb96b9d788fae17b2b44dc9d8559a`
 - **Fecha del checkpoint:** 2026-09-27
-- **Commit:** `chore(deps): actualizar rpds-py a 2026.6.3 (#56)`
+- **Commit:** `refactor: extraer asignaciones y resultados de Training (#59)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -40,6 +40,7 @@ Mantener aiRecruiterAsiati como una plataforma de reclutamiento estable, modular
 ### Arquitectura y calidad
 
 - Modularización de Training y Resume Agent.
+- Training reducido de ~1904 a 928 líneas mediante extracción progresiva de modales, quizzes, journey de empleado, editor de contenido y asignaciones/resultados.
 - Separación de modelos y responsabilidades.
 - Validaciones locales relacionadas con Cognito.
 - Hardening general de código e infraestructura.
@@ -127,7 +128,7 @@ El Resume Agent debe poder revisar vacantes y candidatos existentes y sincroniza
 - [ ] Revisar el PR de GitHub Actions cuando Dependabot lo regenere con la nueva política.
 
 #### P2 · Modularización residual
-- [~] Reducir responsabilidades de `frontend-react/src/pages/Training.jsx`: 1904 → ~1182 líneas; modales, quiz de empleado, quiz administrativo y journey del empleado ya extraídos. Pendiente separar el editor de módulos/lecciones y el bloque de asignaciones/resultados.
+- [x] Reducir responsabilidades de `frontend-react/src/pages/Training.jsx`: 1904 → 928 líneas; modales, quiz de empleado, quiz administrativo, journey del empleado, editor de módulos/lecciones y asignaciones/resultados extraídos.
 - [ ] Reducir responsabilidades de `tools/indeed_resume_agent/browser.py` (~74 KB).
 - [ ] Modularizar `frontend-react/src/pages/Jobs.jsx` (~58 KB).
 - [ ] Dividir `app/domains/training/asiati_preset.py` (~58 KB) en datos/configuración y builder.
@@ -241,8 +242,8 @@ Al actualizar este documento, mantener como mínimo:
 
 - **Fecha:** 2026-09-27
 - **Rama:** `main`
-- **Commit:** `4c1394e79a0f7982070755b09f244bd753f63b71`
-- **Último hito:** modularización del journey de Training y cierre validado de la ronda de dependencias Python, incluidos los majors `websockets` y `rpds-py`.
+- **Commit:** `cc42b3021b9bb96b9d788fae17b2b44dc9d8559a`
+- **Último hito:** cierre de la modularización residual de Training con editor de módulos/lecciones (#58) y asignaciones/resultados (#59), ambos validados por CI, E2E y CodeQL.
 
 ### Completado
 
@@ -256,6 +257,9 @@ Al actualizar este documento, mantener como mínimo:
 - Training: evaluación final del empleado extraída (#48).
 - Training: quiz administrativo extraído (#49).
 - Training: journey completo del empleado extraído (#53), reduciendo `Training.jsx` a ~1182 líneas.
+- Training: editor de módulos/lecciones extraído a `TrainingContentEditor` (#58), reduciendo `Training.jsx` a 980 líneas.
+- Training: asignaciones/resultados extraídos a `TrainingAssignmentsPanel` (#59), reduciendo `Training.jsx` a 928 líneas.
+- #58 y #59 pasaron backend, Postgres, frontend, E2E Chromium y CodeQL; ambos componentes nuevos cuentan con cobertura unitaria dedicada.
 - Dependencias Python: `websockets` 17.1 validado y mergeado (#55).
 - Dependencias Python: `rpds-py` 2026.6.3 validado y mergeado (#56).
 - Los majors Python de #55/#56 pasaron backend, Postgres, frontend, E2E, CodeQL y Resume Agent Linux/Windows con build + self-test del ejecutable.
@@ -269,16 +273,16 @@ Al actualizar este documento, mantener como mínimo:
 
 ### En progreso
 
-- Continuación de modularización de Training; siguientes candidatos: editor de módulos/lecciones o asignaciones/resultados.
 - Cierre de P2 residuales en archivos grandes y gobernanza de `main`.
+- Próximo foco de modularización: `tools/indeed_resume_agent/browser.py`; después `Jobs.jsx`, `asiati_preset.py` y `RankingView.jsx`.
 - Seguimiento del próximo PR de GitHub Actions que genere Dependabot con la política actual.
 
 ### Pendiente inmediato
 
-1. Continuar Training con el editor de módulos/lecciones como corte independiente.
-2. Extraer después asignaciones/resultados de Training si el primer corte queda estable.
+1. Reducir `tools/indeed_resume_agent/browser.py` con un primer corte pequeño, preservando idempotencia, recuperación y packaging.
+2. Continuar después con `Jobs.jsx`, `asiati_preset.py` y `RankingView.jsx`.
 3. Proteger `main` con checks obligatorios cuando haya acceso a la configuración administrativa correspondiente.
-4. Continuar con los demás P2 de archivos grandes: Resume Agent `browser.py`, `Jobs.jsx`, `asiati_preset.py` y `RankingView.jsx`.
+4. Mantener pruebas explícitas de regresiones críticas mientras se cierran los P2 restantes.
 
 ### Bloqueos / dependencias externas
 
@@ -295,7 +299,7 @@ Al actualizar este documento, mantener como mínimo:
 
 ### Próximo paso recomendado
 
-1. Continuar Training con un corte pequeño del editor de módulos/lecciones.
-2. Separar después asignaciones/resultados si el primer corte queda verde.
-3. Ejecutar tests unitarios + E2E en cada extracción.
-4. Mantener PRs pequeños con `handoff:update` y luego pasar al siguiente archivo P2 grande.
+1. Auditar responsabilidades e imports de `tools/indeed_resume_agent/browser.py` y elegir un primer corte autocontenido.
+2. Extraer una sola responsabilidad por PR y ejecutar tests del Resume Agent en Linux/Windows, build y self-test cuando aplique.
+3. Continuar después con `Jobs.jsx`, `asiati_preset.py` y `RankingView.jsx`.
+4. Mantener PRs pequeños, verificables y con actualización de handoff al cerrar hitos.
