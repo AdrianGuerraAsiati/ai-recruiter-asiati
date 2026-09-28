@@ -172,7 +172,7 @@ def test_score_bands_have_all_four_labels():
     )
 
 
-def test_lists_are_isolated_by_owner(
+def test_recruiting_lists_are_global_across_admin_creators(
     client,
     db_bundle,
 ):
@@ -194,7 +194,7 @@ def test_lists_are_isolated_by_owner(
     }
 
     assert job_a.id in job_ids
-    assert job_b.id not in job_ids
+    assert job_b.id in job_ids
 
     candidates = client.get(
         "/api/candidates",
@@ -202,7 +202,7 @@ def test_lists_are_isolated_by_owner(
     )
     assert candidates.status_code == 200
     candidate_payload = candidates.json()
-    assert candidate_payload["total"] == 1
+    assert candidate_payload["total"] == 2
 
     candidate_ids = {
         item["candidate_id"]
@@ -210,16 +210,16 @@ def test_lists_are_isolated_by_owner(
     }
 
     assert candidate_a.id in candidate_ids
-    assert candidate_b.id not in candidate_ids
+    assert candidate_b.id in candidate_ids
 
-    hidden = client.get(
+    visible = client.get(
         f"/api/candidates/{candidate_b.id}"
     )
 
-    assert hidden.status_code == 404
+    assert visible.status_code == 200
 
 
-def test_scope_all_only_uses_current_owner(
+def test_scope_all_uses_organization_candidate_pool(
     client,
     db_bundle,
     monkeypatch,
@@ -284,8 +284,7 @@ def test_scope_all_only_uses_current_owner(
 
     data = response.json()
 
-    # User A owns exactly one candidate.
-    assert data["total_candidates"] == 1
+    assert data["total_candidates"] == 2
 
     ranking = client.get(
         f"/api/jobs/{job_a.id}/ranking",
@@ -306,7 +305,7 @@ def test_scope_all_only_uses_current_owner(
     }
 
     assert candidate_a.id in ids
-    assert candidate_b.id not in ids
+    assert candidate_b.id in ids
 
 
 def test_structured_requirements_survive_round_trip(
