@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `1ca1620255f891a5d078f96caef1a2e14e5b7638`
+- **Último checkpoint conocido:** `2110be855bd44ec6235403d76ad1f99533314093`
 - **Fecha del checkpoint:** 2026-09-28
-- **Commit:** `fix: asignar onboarding ASIATI automáticamente (#83)`
+- **Commit:** `feat: agregar agenda de selección (#85)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -29,11 +29,11 @@ Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este co
 
 Mantener aiRecruiterAsiati como una plataforma de reclutamiento estable, modular y operable, con foco inmediato en:
 
-1. cerrar deuda técnica P2;
-2. mantener UI/UX consistente y accesible;
-3. fortalecer pruebas y observabilidad;
-4. evitar regresiones en Resume Agent, ingestión de candidatos, vacantes y onboarding;
-5. mantener infraestructura y operaciones verificables antes de habilitar cambios sensibles.
+1. consolidar el flujo de selección desde candidato/postulación hasta agenda, contratación y alta posterior en Odoo;
+2. definir e implementar el contrato de integración con Odoo sin replicar indiscriminadamente vacantes ni candidatos que todavía están en etapas tempranas;
+3. mantener la agenda de selección como herramienta operativa interna de Talento Humano para llamadas telefónicas y entrevistas presenciales;
+4. cerrar deuda técnica P2 sin romper reclutamiento, Resume Agent, onboarding ni los flujos críticos ya estabilizados;
+5. fortalecer pruebas, observabilidad, UI/UX e infraestructura antes de habilitar cambios sensibles en producción.
 
 ## Trabajo reciente completado
 
@@ -66,6 +66,18 @@ Mantener aiRecruiterAsiati como una plataforma de reclutamiento estable, modular
 - Feedback no bloqueante.
 - Animaciones accesibles para cargas, calificaciones y rankings.
 - Sustitución de errores genéricos por mensajes contextualizados y accionables.
+
+### Selección, agenda y contratación
+
+- PR #85 agregó una **Agenda de selección** interna dentro del reclutador para que Talento Humano programe directamente llamadas telefónicas y entrevistas presenciales.
+- Se agregó la etapa de postulación `SELECTED`; para Indeed se traduce a `POSITIVELY_SCREENED`.
+- La agenda persiste citas por vacante + candidato y soporta tipos `PHONE_CALL` y `ONSITE_INTERVIEW`.
+- Las citas soportan estados `SCHEDULED`, `COMPLETED` y `CANCELED`, edición, cancelación, marcado como realizada, vista mensual y panel de próximas citas.
+- Solo postulaciones en `SELECTED`, `INTERVIEW`, `OFFER` o `HIRED` son elegibles para agenda.
+- Se agregó el dominio backend `app/domains/recruitment_calendar`, la ruta de frontend de Agenda y la migración Alembic `027`.
+- El PR #85 pasó `CI — Tests & Build` y `Security — CodeQL` antes del merge.
+- La agenda es actualmente **fuente operativa interna de aiRecruiter**. La sincronización con Odoo todavía no está implementada.
+- Regla de producto para la integración futura: evitar poblar Odoo con todo el pipeline de reclutamiento; el envío debe ocurrir únicamente cuando el candidato haya avanzado a la etapa de negocio definida para selección/contratación.
 
 ### Onboarding
 
@@ -115,6 +127,23 @@ La ingestión no debe sobrescribir automáticamente una descripción generada po
 - La infraestructura genérica de asignaciones puede mantenerse para futuras capacitaciones opcionales o segmentadas, pero no debe exponerse como parte del flujo actual del onboarding corporativo.
 - No inventar contenido corporativo no respaldado por los materiales disponibles. Si un recurso fuente es genérico (por ejemplo, el video de Módulo 5), mantener una denominación neutral hasta contar con información corporativa adicional.
 
+### Agenda de selección
+
+- Talento Humano agenda manualmente llamadas y entrevistas presenciales desde aiRecruiter.
+- No se debe exigir que un administrador asigne una agenda o ruta de selección a otro usuario.
+- Una cita debe estar ligada a una postulación real `job_id + candidate_id`.
+- Candidatos en etapas tempranas no deben aparecer como elegibles para crear citas.
+- La agenda no debe crear por sí sola registros en Odoo mientras no exista el contrato de sincronización aprobado e implementado.
+- Las fechas persistidas deben conservar semántica de zona horaria y el backend debe seguir validando que `ends_at > starts_at`.
+
+### Integración Odoo
+
+- Odoo será un sistema posterior dentro del flujo, no el repositorio primario de todas las vacantes/candidatos del reclutador.
+- No enviar a Odoo candidatos que todavía están únicamente en etapas tempranas del pipeline.
+- Antes de implementar la sincronización deben definirse explícitamente: evento disparador, payload, mapeo de campos, idempotencia, reintentos, trazabilidad y comportamiento ante errores.
+- La agenda interna puede servir como contexto operativo, pero en esta fase no sincroniza llamadas ni entrevistas con Odoo.
+- La contratación/onboarding debe seguir funcionando aunque Odoo esté temporalmente no disponible; la futura integración no debe convertir una caída de Odoo en pérdida del estado local.
+
 ### Resume Agent
 
 El Resume Agent debe poder revisar vacantes y candidatos existentes y sincronizar el estado sin crear duplicados incorrectos ni dejar jobs permanentemente bloqueados.
@@ -126,10 +155,24 @@ El Resume Agent debe poder revisar vacantes y candidatos existentes y sincroniza
 - Ingestiones deben probar deduplicación por combinación candidato + vacante.
 - Cambios de UI deben conservar accesibilidad, responsive y feedback accionable.
 - No asumir que un deploy exitoso implica funcionamiento correcto: revisar health/readiness y journey crítico.
+- La integración con Odoo todavía es diseño pendiente: no asumir que existe sincronización de candidatos, agenda o contratación.
+- La futura sincronización con Odoo debe ser idempotente para evitar empleados/contactos duplicados ante reintentos.
+- Cambios en Agenda deben conservar elegibilidad por estado, zona horaria, permisos y relación vacante+candidato.
 
 ## Prioridad de trabajo
 
 ### TODO actual
+
+#### Flujo selección → contratación → Odoo
+- [x] Compartir vacantes/candidatos/postulaciones entre administradores autorizados (#79).
+- [x] Incorporar etapa `SELECTED` y agenda interna para llamadas/entrevistas (#85).
+- [x] Mantener el Onboarding ASIATI administrado y asignado automáticamente por el sistema (#81/#83).
+- [ ] Definir contrato de datos aiRecruiter → Odoo para candidatos que alcancen la etapa de negocio acordada.
+- [ ] Mapear los campos requeridos por Odoo y separar datos obligatorios, opcionales y derivados.
+- [ ] Definir el disparador exacto de alta/sincronización en Odoo y cómo se relaciona con `SELECTED`, `OFFER` y `HIRED`.
+- [ ] Implementar idempotencia y trazabilidad de sincronización con Odoo para evitar duplicados.
+- [ ] Diseñar reintentos/estado de error sin bloquear contratación ni onboarding local.
+- [ ] Decidir posteriormente si las citas internas también deben sincronizarse con calendario/Odoo; por ahora permanecen solo en aiRecruiter.
 
 #### P2 · Gobernanza y mantenimiento
 - [ ] Proteger `main` y exigir checks de CI/CodeQL antes de merge. Actualmente la rama no está protegida.
@@ -167,9 +210,15 @@ El Resume Agent debe poder revisar vacantes y candidatos existentes y sincroniza
 - [ ] Verificar IAM antes de activar las alarmas operativas por defecto.
 - [ ] Ejecutar el corte controlado del Resume Agent con una aplicación real, luego lote de 5–10 y finalmente backlog.
 
+### Fase activa
+
+La fase funcional activa es consolidar el flujo **selección → agenda → contratación → integración Odoo**. La deuda P2 sigue vigente y debe cerrarse en paralelo mediante PRs pequeños, pero no sustituye el objetivo funcional inmediato.
+
+Antes de construir la integración con Odoo debe verificarse el modelo actual de contratación y definirse un contrato explícito de sincronización. No implementar envíos generales de vacantes/candidatos a Odoo.
+
 ### P2 — continuar
 
-La fase activa es continuar cerrando P2 restantes detectados durante la auditoría senior.
+La fase técnica paralela continúa cerrando P2 restantes detectados durante la auditoría senior.
 
 Al comenzar una nueva sesión:
 
@@ -264,70 +313,60 @@ Al actualizar este documento, mantener como mínimo:
 
 - **Fecha:** 2026-09-28
 - **Rama:** `main`
-- **Commit:** `14a75abcee41fe8b508959b1b3d3b889a2a4e393`
-- **Último hito:** sexto corte de modularización de `Jobs.jsx` (#77), extrayendo el modal/formulario controlado de contratación; `Jobs.jsx` queda en 1021 líneas.
+- **Commit funcional de referencia:** `2110be855bd44ec6235403d76ad1f99533314093`
+- **Último hito:** PR #85 mergeado — Agenda de selección interna para llamadas telefónicas y entrevistas presenciales, con etapa `SELECTED`, persistencia, migración 027 y cobertura de CI/CodeQL.
 
 ### Completado
 
-- Auditoría y refactor UI/UX.
-- Motion y errores accionables.
-- Seguimiento de onboarding para ADMIN.
-- Hardening de código e infraestructura.
-- Observabilidad y DR.
-- Modularización inicial de Training y Resume Agent.
-- Training: modales de preview/crear curso extraídos (#47).
-- Training: evaluación final del empleado extraída (#48).
-- Training: quiz administrativo extraído (#49).
-- Training: journey completo del empleado extraído (#53), reduciendo `Training.jsx` a ~1182 líneas.
-- Training: editor de módulos/lecciones extraído a `TrainingContentEditor` (#58), reduciendo `Training.jsx` a 980 líneas.
-- Training: asignaciones/resultados extraídos a `TrainingAssignmentsPanel` (#59), reduciendo `Training.jsx` a 928 líneas.
-- #58 y #59 pasaron backend, Postgres, frontend, E2E Chromium y CodeQL; ambos componentes nuevos cuentan con cobertura unitaria dedicada.
-- Resume Agent: `browser_runtime.py` (#61), `browser_diagnostics.py` (#63/#69), `browser_responses.py` (#67) y `browser_page_state.py` (#68) extraídos, reduciendo `browser.py` de 2028 a 1692 líneas.
-- #67, #68 y #69 pasaron backend, Postgres, frontend, E2E, CodeQL, suite Resume Agent en Linux y Windows; cada uno validó build de producción Windows y self-test empaquetado.
-- Jobs: `jobUtils.js` (#71), `JobsPagination.jsx` (#72), `JobCard.jsx` (#73), `JobsListToolbar.jsx` (#74), `JobDeleteModal.jsx` (#76) y `JobHireModal.jsx` (#77) extraídos, reduciendo `Jobs.jsx` de 1244 a 1021 líneas.
-- #71–#74 y #76–#77 pasaron frontend lint/build/tests, E2E Chromium, backend, Postgres y CodeQL; los nuevos componentes/utilidades cuentan con cobertura unitaria dedicada.
-- Dependencias Python: `websockets` 17.1 validado y mergeado (#55).
-- Dependencias Python: `rpds-py` 2026.6.3 validado y mergeado (#56).
-- Los majors Python de #55/#56 pasaron backend, Postgres, frontend, E2E, CodeQL y Resume Agent Linux/Windows con build + self-test del ejecutable.
-- E2E Chromium + smoke de accesibilidad y responsive.
-- `docs/AI_HANDOFF.md` persistente y workflow automático de checkpoint.
-- Dependabot configurado para agrupar solo minor/patch y separar majors.
-- Test contractual del Resume Agent desacoplado de `upload-artifact@v4`.
-- Workflow del handoff reducido a eventos realmente necesarios.
-- Deploy de producción filtrado para no ejecutarse por documentación/configuración/test-only.
-- CodeQL filtrado para no ejecutarse por cambios puramente documentales.
+- Reclutamiento global entre administradores autorizados (#79): vacantes, candidatos, postulaciones, ranking, importaciones y contratación ya no están aislados por creador.
+- `owner_sub` permanece como procedencia/auditoría, no como frontera de acceso para datos de reclutamiento.
+- Onboarding ASIATI administrado por el sistema (#81), con contenido corporativo versionado y protegido de autoría manual.
+- Asignación automática e idempotente de Onboarding ASIATI para perfiles activos que lo requieren (#83); ADMIN/SUPER_ADMIN supervisan progreso y resultados, no asignan rutas.
+- Agenda de selección (#85) integrada al reclutador.
+- Nueva etapa `SELECTED` de postulaciones y mapeo a Indeed `POSITIVELY_SCREENED`.
+- Citas `PHONE_CALL` y `ONSITE_INTERVIEW` con estados `SCHEDULED`, `COMPLETED` y `CANCELED`.
+- Vista mensual, próximas citas, creación, edición, cancelación y marcado como realizada.
+- Elegibilidad de agenda limitada a postulaciones `SELECTED`, `INTERVIEW`, `OFFER` y `HIRED`.
+- Dominio backend `recruitment_calendar`, rutas API, modelo persistente y migración Alembic `027`.
+- PR #85 validado con `CI — Tests & Build` y `Security — CodeQL` en `success`.
+- Modularización previa de Training, Resume Agent y Jobs se conserva como base técnica.
+- E2E Chromium, smoke de accesibilidad/responsive, observabilidad, backups/DR y hardening de infraestructura continúan vigentes.
 
 ### En progreso
 
-- Cierre de P2 residuales en archivos grandes y gobernanza de `main`.
-- Modularización de `tools/indeed_resume_agent/browser.py` en progreso; ya se extrajeron runtime, parsing de respuestas, estado de página y construcción/sanitización de diagnósticos. Faltan lifecycle/persistencia de diagnóstico y los bloques de mayor riesgo de navegación/búsqueda/captura.
-- Modularización de `Jobs.jsx` en progreso: utilidades, paginación, card, toolbar y modales de eliminación/contratación ya extraídos. Continuar por subpaneles del detalle de vacante antes del formulario principal más stateful. Después: `asiati_preset.py` y `RankingView.jsx`.
-- Seguimiento del próximo PR de GitHub Actions que genere Dependabot con la política actual.
+- Diseño del siguiente tramo funcional: **selección → contratación → alta/sincronización con Odoo**.
+- Definición del contrato de integración para que Odoo reciba únicamente los candidatos que alcancen la etapa de negocio acordada, evitando duplicar todo el pipeline de reclutamiento.
+- Mapeo de los datos de contratación requeridos por Odoo y definición del disparador exacto de sincronización.
+- Cierre paralelo de P2 residuales en `Jobs.jsx`, `browser.py`, `asiati_preset.py` y `RankingView.jsx`.
 
 ### Pendiente inmediato
 
-1. Continuar `Jobs.jsx` con un subpanel presentacional del detalle de vacante (candidatos o integración Indeed) antes de intentar mover el modal completo o el formulario principal.
-2. Después cerrar `Jobs.jsx` o pasar a `asiati_preset.py`/`RankingView.jsx`; volver a `browser.py` solo con un PR dedicado para lifecycle/persistencia de diagnóstico antes de tocar matching, navegación crítica o descarga.
-3. Proteger `main` con checks obligatorios cuando haya acceso a la configuración administrativa correspondiente.
-4. Mantener pruebas explícitas de regresiones críticas mientras se cierran los P2 restantes.
+1. Revisar el flujo/modelo actual de contratación y los campos que ya captura aiRecruiter.
+2. Formalizar el payload aiRecruiter → Odoo a partir de los datos de contratación requeridos por la empresa.
+3. Definir cuándo se crea/sincroniza el registro en Odoo: no enviar candidatos de etapas tempranas.
+4. Diseñar idempotencia, estado de sincronización, reintentos, auditoría y recuperación ante indisponibilidad de Odoo.
+5. Mantener la Agenda como sistema interno de llamadas/entrevistas hasta decidir expresamente si esas citas también deben sincronizarse.
+6. Continuar P2 técnico mediante cambios pequeños y verificables sin mezclarlo con la primera integración Odoo.
 
 ### Bloqueos / dependencias externas
 
+- Falta cerrar el contrato funcional/técnico exacto de campos y disparador de alta en Odoo.
 - Verificación IAM de alarmas operativas.
 - Prueba real controlada del Resume Agent requiere workstation/sesión Indeed autorizada.
-- La protección de rama requiere acceso de administración de configuración de GitHub; no debe simularse solo con documentación.
+- La API de protección de `main` no es accesible actualmente desde la integración GitHub conectada; no asumir protección solo porque la cuenta tenga permisos administrativos generales.
 
 ### Riesgos
 
-- Los majors de frontend deben tratarse de forma independiente para aislar regresiones.
-- Los upgrades Python con cambios mayores (por ejemplo ORM/runtime) no deben agruparse con parches rutinarios.
-- Los archivos grandes restantes concentran demasiado estado y lógica y elevan el riesgo de regresión.
+- Enviar candidatos demasiado pronto a Odoo llenaría el ERP con registros que todavía pertenecen únicamente al proceso de reclutamiento.
+- Una sincronización sin clave idempotente puede duplicar empleados/contactos ante reintentos o fallos parciales.
+- La futura integración con Odoo no debe bloquear ni revertir el estado local de contratación/onboarding por una caída externa.
+- Los archivos grandes restantes concentran estado y lógica; mantener refactors separados de cambios funcionales de integración.
 - No eliminar UIs legacy del Resume Agent hasta demostrar ausencia de referencias en runtime, build y tests.
 
 ### Próximo paso recomendado
 
-1. Continuar `Jobs.jsx` por subpaneles del detalle de vacante; priorizar la sección de candidatos asignados o el panel de Indeed antes del formulario principal.
-2. Cuando se retome `browser.py`, aislar primero lifecycle/persistencia de diagnóstico; mantener fuera del mismo PR matching, navegación crítica y captura/descarga.
-3. Ejecutar tests del Resume Agent en Linux/Windows, build y self-test en cada cambio que afecte su runtime o packaging.
-4. Continuar después con `asiati_preset.py` y `RankingView.jsx`.
-5. Mantener PRs pequeños, verificables y con actualización de handoff al cerrar hitos.
+1. Inspeccionar el modelo/endpoint actual de contratación y enumerar los campos ya disponibles al pasar una postulación a contratación.
+2. Contrastar esos campos con los requeridos por Odoo y documentar el mapeo fuente → destino.
+3. Implementar primero el contrato y la persistencia de estado de sincronización/idempotencia; después conectar la llamada real a Odoo.
+4. Mantener llamadas e entrevistas en la Agenda interna en esta fase.
+5. Continuar posteriormente con P2 residual (`Jobs.jsx`, `asiati_preset.py`, `RankingView.jsx` y Resume Agent) en PRs separados.
