@@ -43,6 +43,19 @@ def _validated_base_url(value: str) -> str:
     return raw
 
 
+class _TimeoutSafeTransport(xmlrpc.client.SafeTransport):
+    """HTTPS transport with a bounded socket timeout."""
+
+    def __init__(self, timeout_seconds: float) -> None:
+        super().__init__()
+        self.timeout_seconds = float(timeout_seconds)
+
+    def make_connection(self, host):
+        connection = super().make_connection(host)
+        connection.timeout = self.timeout_seconds
+        return connection
+
+
 ProxyFactory = Callable[..., Any]
 
 
@@ -56,6 +69,7 @@ class OdooXmlRpcClient:
         database: str,
         username: str,
         api_key: str,
+        request_timeout_seconds: float = 15.0,
         proxy_factory: ProxyFactory | None = None,
     ) -> None:
         self.base_url = _validated_base_url(base_url)
@@ -64,7 +78,8 @@ class OdooXmlRpcClient:
         self._api_key = str(api_key or "").strip()
         if not self.database or not self.username or not self._api_key:
             raise OdooAuthenticationError("Odoo database, username and API key are required.")
-        self._proxy_factory = proxy_factory or xmlrpc.client.ServerProxy
+        self.request_timeout_seconds = max(1.0, float(request_timeout_seconds))
+        self._proxy_factory = proxy_factory
         self._common = self._proxy(
             f"{self.base_url}/xmlrpc/2/common"
         )
@@ -74,11 +89,13 @@ class OdooXmlRpcClient:
         self._uid: int | None = None
 
     def _proxy(self, url: str):
-        try:
+        if self._proxy_factory is not None:
             return self._proxy_factory(url, allow_none=True)
-        except TypeError:
-            # Simple test doubles may intentionally expose only one positional arg.
-            return self._proxy_factory(url)
+        return xmlrpc.client.ServerProxy(
+            url,
+            allow_none=True,
+            transport=_TimeoutSafeTransport(self.request_timeout_seconds),
+        )
 
     def server_version(self) -> dict:
         try:
