@@ -18,8 +18,8 @@ Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este co
 ## Checkpoint automático
 
 - **Última actualización automática:** 2026-09-27
-- **Merge commit:** `6858f68b6939b87b391c8e0405fd4150701ed904`
-- **PR:** [#51 — ci: revalidar Resume Agent ante cambios de dependencias Python](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/51)
+- **Merge commit:** `d849da3015e73ca2f0fb2cc593ff266a6275ee39`
+- **PR:** [#52 — chore(deps): actualizar dependencias Python minor/patch](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/52)
 - **Origen:** merge a `main` con etiqueta `handoff:update`
 
 > Este bloque es administrado por `.github/workflows/ai-handoff.yml`. No editarlo manualmente.
