@@ -135,20 +135,22 @@ export default function TrainingContentEditor({
                     onChange={(event) => setModuleEdit((current) => ({ ...current, description: event.target.value }))}
                     rows="3"
                   />
-                  <div className="training-inline-grid">
-                    <input
-                      aria-label={`Editar cargo objetivo de módulo ${module.position}`}
-                      placeholder="Cargo específico (opcional)"
-                      value={moduleEdit.audience_job_title}
-                      onChange={(event) => setModuleEdit((current) => ({ ...current, audience_job_title: event.target.value }))}
-                    />
-                    <input
-                      aria-label={`Editar área objetivo de módulo ${module.position}`}
-                      placeholder="Área específica (opcional)"
-                      value={moduleEdit.audience_department}
-                      onChange={(event) => setModuleEdit((current) => ({ ...current, audience_department: event.target.value }))}
-                    />
-                  </div>
+                  {!course.managed_by_system && (
+                    <div className="training-inline-grid">
+                      <input
+                        aria-label={`Editar cargo objetivo de módulo ${module.position}`}
+                        placeholder="Cargo específico (opcional)"
+                        value={moduleEdit.audience_job_title}
+                        onChange={(event) => setModuleEdit((current) => ({ ...current, audience_job_title: event.target.value }))}
+                      />
+                      <input
+                        aria-label={`Editar área objetivo de módulo ${module.position}`}
+                        placeholder="Área específica (opcional)"
+                        value={moduleEdit.audience_department}
+                        onChange={(event) => setModuleEdit((current) => ({ ...current, audience_department: event.target.value }))}
+                      />
+                    </div>
+                  )}
                   <div className="training-inline-grid">
                     <button className="btn btn-primary" type="submit" disabled={saving}>Guardar módulo</button>
                     <button
