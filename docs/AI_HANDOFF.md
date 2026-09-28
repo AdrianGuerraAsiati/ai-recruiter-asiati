@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `cd5897f33ca73d6893f07d5e00b7e5fb8858529a`
+- **Último checkpoint conocido:** `62bfeed546560e2cbd366976d23688a29ec518e6`
 - **Fecha del checkpoint:** 2026-09-28
-- **Commit:** `feat: editar equipo ASIATI desde administración (#94)`
+- **Commit:** `feat: cerrar onboarding corporativo y métricas del dashboard (#95)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -84,8 +84,10 @@ Mantener aiRecruiterAsiati como una plataforma de reclutamiento estable, modular
 - Seguimiento detallado del progreso de onboarding para ADMIN.
 - Filtro de empleados por estado de onboarding.
 - PR #81 convirtió `Onboarding ASIATI` en contenido administrado por el sistema: se provisiona/publica automáticamente y no depende de que un ADMIN cree el curso, módulos, lecciones, videos o quiz.
-- La ruta corporativa mantiene 7 módulos versionados: bienvenida, conoce ASIATI, conoce al equipo, permisos y vacaciones, contenido corporativo, cultura interna y lo que esperamos de ti; usa los videos disponibles en la carpeta `Final` de Drive.
-- PR #83 eliminó la asignación manual del onboarding: todos los perfiles `ACTIVE` que requieren onboarding reciben automáticamente la misma ruta `Onboarding ASIATI`; perfiles `NOT_REQUIRED` y `DISABLED` quedan excluidos.
+- La ruta corporativa mantiene exactamente 7 módulos versionados: bienvenida, conoce ASIATI, conoce al equipo, permisos y vacaciones, contenido corporativo, cultura interna y lo que esperamos de ti; usa los videos disponibles en la carpeta `Final` de Drive.
+- PR #95 eliminó el contenedor adicional `Tu cargo en ASIATI`: su checklist `Tu rol y tus primeros días` vive ahora dentro del Módulo 7, por lo que la ruta real y la UI coinciden en 7 módulos.
+- El quiz base del onboarding tiene 7 preguntas centradas en ASIATI, su ecosistema, equipo, permisos/vacaciones, cultura, primeros días y expectativas de incorporación. El preset migra el quiz legado de 5 preguntas solo si sigue intacto; quizzes personalizados por administradores no se sobrescriben.
+- PR #83 eliminó la asignación manual del onboarding y PR #95 reforzó el alta por defecto: perfiles activos nuevos o materializados desde Cognito nacen con onboarding requerido, la migración `030` convierte perfiles activos heredados en `PENDING` y la vista Equipo ASIATI recupera asignaciones faltantes de forma idempotente. Perfiles `NOT_REQUIRED` marcados posteriormente por un admin y perfiles `DISABLED` quedan excluidos.
 - ADMIN/SUPER_ADMIN no asignan la ruta. Su flujo administrativo es vista previa, seguimiento de progreso y resultados.
 - La vista **Empleados > Equipo ASIATI** permite editar cargo/área, rol y si el Onboarding ASIATI es requerido para cada integrante administrable.
 - ADMIN puede gestionar roles `EMPLOYEE` y `ADMIN`; `SUPER_ADMIN` permanece reservado para Dirección. Un ADMIN no puede administrar perfiles `SUPER_ADMIN`.
@@ -127,7 +129,9 @@ La ingestión no debe sobrescribir automáticamente una descripción generada po
 - Al abrir el catálogo administrativo de capacitación, el backend debe garantizar una única ruta `Onboarding ASIATI` publicada e idempotente.
 - Un ADMIN no debe necesitar botones de “Crear ruta ASIATI” ni “Crear curso” para que exista el onboarding corporativo.
 - La ruta administrada por sistema debe ser de solo lectura en autoría y distribución; los administradores conservan seguimiento, resultados y vista previa.
-- La asignación del `Onboarding ASIATI` es automática e idempotente para perfiles activos que requieren onboarding. Altas, reactivaciones, contratación y acceso a Capacitación deben poder recuperar una asignación faltante sin intervención administrativa.
+- La asignación del `Onboarding ASIATI` es automática e idempotente para perfiles activos. Altas, materialización de usuarios Cognito, reactivaciones, contratación, acceso a Capacitación y apertura de Equipo ASIATI deben poder recuperar una asignación faltante sin intervención administrativa.
+- La ruta corporativa estándar debe permanecer en exactamente 7 módulos. El checklist específico del cargo forma parte del Módulo 7 y no debe volver a crear un octavo módulo.
+- El quiz corporativo base tiene 7 preguntas. Se puede actualizar automáticamente desde el quiz legado intacto de 5 preguntas, pero nunca sobrescribir un quiz que un administrador ya personalizó.
 - La infraestructura genérica de asignaciones puede mantenerse para futuras capacitaciones opcionales o segmentadas, pero no debe exponerse como parte del flujo actual del onboarding corporativo.
 - No inventar contenido corporativo no respaldado por los materiales disponibles. Si un recurso fuente es genérico (por ejemplo, el video de Módulo 5), mantener una denominación neutral hasta contar con información corporativa adicional.
 
@@ -172,6 +176,8 @@ El Resume Agent debe poder revisar vacantes y candidatos existentes y sincroniza
 - [x] Incorporar etapa `SELECTED` y agenda interna para llamadas/entrevistas (#85).
 - [x] Mantener el Onboarding ASIATI administrado y asignado automáticamente por el sistema (#81/#83).
 - [x] Permitir edición administrativa del Equipo ASIATI para cargo/área, rol EMPLOYEE↔ADMIN y requisito de onboarding (#94).
+- [x] Normalizar Onboarding ASIATI a exactamente 7 módulos, mejorar el quiz a 7 preguntas corporativas y asignarlo por defecto a perfiles activos (#95).
+- [x] Corregir dashboard: `Candidatos registrados` usa el total paginado real y la cobertura representa vacantes con al menos un candidato (#95).
 - [ ] Definir contrato de datos aiRecruiter → Odoo para candidatos que alcancen la etapa de negocio acordada.
 - [ ] Mapear los campos requeridos por Odoo y separar datos obligatorios, opcionales y derivados.
 - [ ] Definir el disparador exacto de alta/sincronización en Odoo y cómo se relaciona con `SELECTED`, `OFFER` y `HIRED`.
@@ -318,13 +324,16 @@ Al actualizar este documento, mantener como mínimo:
 
 - **Fecha:** 2026-09-28
 - **Rama:** `main`
-- **Commit funcional de referencia:** `cd5897f33ca73d6893f07d5e00b7e5fb8858529a`
-- **Último hito:** PR #94 mergeado — la vista Equipo ASIATI permite editar cargo/área, rol EMPLOYEE↔ADMIN y requisito de Onboarding ASIATI, manteniendo SUPER_ADMIN protegido y el progreso derivado de actividades reales.
+- **Commit funcional de referencia:** `62bfeed546560e2cbd366976d23688a29ec518e6`
+- **Último hito:** PR #95 mergeado — Onboarding ASIATI quedó normalizado a 7 módulos reales, quiz base de 7 preguntas, onboarding requerido por defecto para perfiles activos con backfill Alembic 030 y dashboard corregido para mostrar el total real de candidatos y cobertura por vacantes con candidatos.
 
 ### Completado
 
 - Reclutamiento global entre administradores autorizados (#79).
 - Onboarding ASIATI precargado y asignado automáticamente por el sistema (#81/#83), pero editable por administradores sobre módulos/lecciones existentes (#89).
+- Onboarding ASIATI normalizado a exactamente 7 módulos; el checklist de primeros días está dentro del Módulo 7 y el quiz base contiene 7 preguntas corporativas (#95).
+- Perfiles activos requieren onboarding por defecto; migración Alembic `030` hace backfill de estados heredados y Equipo ASIATI recupera asignaciones faltantes de forma idempotente (#95).
+- Dashboard administrativo corregido: `Candidatos registrados` usa `/candidates.total` y `Cobertura estimada` es el porcentaje de vacantes con `candidate_count > 0` (#95).
 - Agenda de selección interna para llamadas y entrevistas presenciales (#85).
 - Ranking solo muestra vacantes con `Number(candidate_count) > 0`; `0`, `null` o campo ausente quedan ocultos. Si todas quedan fuera, no selecciona ninguna ni consulta `/ranking` (#90/#91).
 - Etapa `SELECTED` y mapeo Indeed `POSITIVELY_SCREENED` (#85).
@@ -357,8 +366,8 @@ Al actualizar este documento, mantener como mínimo:
 - Resolución del CV canónico como adjunto al consumir el outbox.
 - Definición de una fuente canónica para teléfono cuando no venga en metadata.
 - Cierre paralelo de P2 residuales.
-- Prueba funcional del onboarding precargado desde dos perspectivas: admin editor y empleado asignado automáticamente.
-- Validación funcional de la edición del Equipo ASIATI: cargo/área, rol y requisito de onboarding desde la vista administrativa (#94).
+- Prueba funcional manual del onboarding precargado desde dos perspectivas: admin editor y empleado asignado automáticamente.
+- Validación manual de la edición del Equipo ASIATI: cargo/área, rol y requisito de onboarding desde la vista administrativa (#94/#95).
 
 ### Pendiente inmediato
 
