@@ -135,7 +135,7 @@ describe("TrainingContentEditor", () => {
     expect(screen.queryByRole("button", { name: /Agregar módulo/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Subir video")).not.toBeInTheDocument();
   });
-  it("lets admins edit the preloaded published onboarding without showing builders", async () => {
+  it("lets admins edit the preloaded published onboarding without showing builders", () => {
     const props = renderEditor({
       course: {
         status: "PUBLISHED",
@@ -173,6 +173,8 @@ describe("TrainingContentEditor", () => {
     expect(screen.queryByRole("button", { name: /Agregar módulo/ })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Editar módulo" }));
+    expect(screen.queryByLabelText("Editar cargo objetivo de módulo 1")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Editar área objetivo de módulo 1")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Editar título de módulo 1"), {
       target: { value: "Bienvenida actualizada" },
     });
