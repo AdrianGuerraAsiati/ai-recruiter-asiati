@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `f3741696dfab8f9772ad6f8d539a2fa4c4fe80ba`
+- **Último checkpoint conocido:** `1ca1620255f891a5d078f96caef1a2e14e5b7638`
 - **Fecha del checkpoint:** 2026-09-28
-- **Commit:** `fix: onboarding ASIATI administrado por el sistema (#81)`
+- **Commit:** `fix: asignar onboarding ASIATI automáticamente (#83)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -73,7 +73,8 @@ Mantener aiRecruiterAsiati como una plataforma de reclutamiento estable, modular
 - Filtro de empleados por estado de onboarding.
 - PR #81 convirtió `Onboarding ASIATI` en contenido administrado por el sistema: se provisiona/publica automáticamente y no depende de que un ADMIN cree el curso, módulos, lecciones, videos o quiz.
 - La ruta corporativa mantiene 7 módulos versionados: bienvenida, conoce ASIATI, conoce al equipo, permisos y vacaciones, contenido corporativo, cultura interna y lo que esperamos de ti; usa los videos disponibles en la carpeta `Final` de Drive.
-- ADMIN/SUPER_ADMIN gestionan asignaciones, vista previa, progreso y resultados; no construyen manualmente el onboarding ASIATI.
+- PR #83 eliminó la asignación manual del onboarding: todos los perfiles `ACTIVE` que requieren onboarding reciben automáticamente la misma ruta `Onboarding ASIATI`; perfiles `NOT_REQUIRED` y `DISABLED` quedan excluidos.
+- ADMIN/SUPER_ADMIN no asignan la ruta. Su flujo administrativo es vista previa, seguimiento de progreso y resultados.
 - `managed_by_system=true` identifica la ruta protegida y el backend rechaza mutaciones manuales sobre su contenido.
 
 ### Operación e infraestructura
@@ -109,7 +110,9 @@ La ingestión no debe sobrescribir automáticamente una descripción generada po
 - Los módulos corporativos los mantiene el sistema, no los administradores.
 - Al abrir el catálogo administrativo de capacitación, el backend debe garantizar una única ruta `Onboarding ASIATI` publicada e idempotente.
 - Un ADMIN no debe necesitar botones de “Crear ruta ASIATI” ni “Crear curso” para que exista el onboarding corporativo.
-- La ruta administrada por sistema debe ser de solo lectura en autoría; los administradores conservan asignación, seguimiento, resultados y vista previa.
+- La ruta administrada por sistema debe ser de solo lectura en autoría y distribución; los administradores conservan seguimiento, resultados y vista previa.
+- La asignación del `Onboarding ASIATI` es automática e idempotente para perfiles activos que requieren onboarding. Altas, reactivaciones, contratación y acceso a Capacitación deben poder recuperar una asignación faltante sin intervención administrativa.
+- La infraestructura genérica de asignaciones puede mantenerse para futuras capacitaciones opcionales o segmentadas, pero no debe exponerse como parte del flujo actual del onboarding corporativo.
 - No inventar contenido corporativo no respaldado por los materiales disponibles. Si un recurso fuente es genérico (por ejemplo, el video de Módulo 5), mantener una denominación neutral hasta contar con información corporativa adicional.
 
 ### Resume Agent
