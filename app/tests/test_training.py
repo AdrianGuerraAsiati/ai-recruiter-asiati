@@ -1293,6 +1293,51 @@ def test_asiati_onboarding_template_repairs_existing_draft_without_duplicate(db)
     assert all(module["title"] != "Así trabajamos" for module in payload["modules"])
 
 
+def test_asiati_onboarding_is_system_managed_and_published_automatically(db):
+    first = service.ensure_published_asiati_onboarding(
+        db,
+        created_by_sub="admin-sub",
+    )
+    second = service.ensure_published_asiati_onboarding(
+        db,
+        created_by_sub="other-admin-sub",
+    )
+
+    payload = service.get_course(db, first.id)
+
+    assert first.id == second.id
+    assert first.status == "PUBLISHED"
+    assert payload["managed_by_system"] is True
+    assert payload["is_onboarding"] is True
+    assert payload["module_count"] >= 7
+    assert db.query(TrainingCourse).filter(
+        TrainingCourse.title == "Onboarding ASIATI",
+        TrainingCourse.status == "PUBLISHED",
+    ).count() == 1
+
+
+def test_system_managed_asiati_onboarding_rejects_manual_content_changes(db):
+    course = service.create_asiati_onboarding_template(
+        db,
+        created_by_sub="admin-sub",
+    )
+
+    with pytest.raises(service.TrainingStateError, match="managed by the system"):
+        service.add_module(
+            db,
+            course_id=course.id,
+            title="Módulo manual",
+            description="No debe permitirse",
+        )
+
+    with pytest.raises(service.TrainingStateError, match="managed by the system"):
+        service.update_course(
+            db,
+            course.id,
+            title="Onboarding modificado",
+        )
+
+
 def test_asiati_onboarding_template_scaffolds_short_journey(db):
     course = service.create_asiati_onboarding_template(
         db,
