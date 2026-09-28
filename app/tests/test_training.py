@@ -1730,8 +1730,8 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
         for module in payload["modules"]
         if module["title"] == service.ASIATI_ONBOARDING_MODULE_7_TITLE
     )
-    assert module_seven["lesson_count"] == 2
-    assert module_seven["content_item_count"] == 2
+    assert module_seven["lesson_count"] == 3
+    assert module_seven["content_item_count"] == 3
 
     module_seven_video = next(
         lesson
