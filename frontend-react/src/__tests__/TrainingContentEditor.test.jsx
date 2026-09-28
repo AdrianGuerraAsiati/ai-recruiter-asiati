@@ -56,6 +56,8 @@ function renderEditor(overrides = {}) {
     onLessonFormChange: vi.fn(),
     onAddModule: vi.fn((event) => event.preventDefault()),
     onAddLesson: vi.fn((event) => event.preventDefault()),
+    onUpdateModule: vi.fn().mockResolvedValue({}),
+    onUpdateLesson: vi.fn().mockResolvedValue({}),
     onUploadLessonVideo: vi.fn(),
     uploadingLessonId: "",
     saving: false,
@@ -98,7 +100,7 @@ describe("TrainingContentEditor", () => {
     const props = renderEditor();
     const file = new File(["video"], "intro.mp4", { type: "video/mp4" });
 
-    fireEvent.change(screen.getByLabelText("Subir video"), {
+    fireEvent.change(screen.getByLabelText("Subir video de Introducción"), {
       target: { files: [file] },
     });
 
@@ -132,5 +134,69 @@ describe("TrainingContentEditor", () => {
     expect(screen.queryByRole("button", { name: "Agregar lección" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Agregar módulo/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Subir video")).not.toBeInTheDocument();
+  });
+  it("lets admins edit the preloaded published onboarding without showing builders", async () => {
+    const props = renderEditor({
+      course: {
+        status: "PUBLISHED",
+        managed_by_system: true,
+        modules: [
+          {
+            id: "module-1",
+            position: 1,
+            title: "Bienvenida",
+            description: "Primeros pasos",
+            audience_job_title: null,
+            audience_department: null,
+            lessons: [
+              {
+                id: "lesson-1",
+                title: "Introducción",
+                description: "Video inicial",
+                content_type: "VIDEO",
+                estimated_minutes: 5,
+                duration_seconds: 120,
+                is_optional: false,
+                video_url: "https://video.example.com/intro.mp4",
+                video_source: "external",
+                external_url: null,
+                checklist_items: [],
+                video_size_bytes: null,
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(screen.queryByRole("button", { name: "Agregar lección" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Agregar módulo/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar módulo" }));
+    fireEvent.change(screen.getByLabelText("Editar título de módulo 1"), {
+      target: { value: "Bienvenida actualizada" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar módulo" }));
+
+    expect(props.onUpdateModule).toHaveBeenCalledWith(
+      "module-1",
+      expect.objectContaining({ title: "Bienvenida actualizada" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar lección" }));
+    fireEvent.change(screen.getByLabelText("Editar título de lección Introducción"), {
+      target: { value: "Tu primer día" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar lección" }));
+
+    expect(props.onUpdateLesson).toHaveBeenCalledWith(
+      "lesson-1",
+      expect.objectContaining({
+        title: "Tu primer día",
+        content_type: "VIDEO",
+        duration_seconds: 120,
+      }),
+    );
+    expect(screen.getByLabelText("Reemplazar video de Introducción")).toBeInTheDocument();
   });
 });
