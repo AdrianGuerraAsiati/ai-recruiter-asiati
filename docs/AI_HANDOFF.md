@@ -18,8 +18,8 @@ Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este co
 ## Checkpoint automático
 
 - **Última actualización automática:** 2026-09-28
-- **Merge commit:** `bf57ff6e94788e83d49b34eb21f383feb70fd707`
-- **PR:** [#90 — fix: ocultar vacantes vacías del ranking](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/90)
+- **Merge commit:** `b016a62e2c0ea8849116599387a38cc8272123f5`
+- **PR:** [#91 — fix: exigir candidatos positivos en ranking](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/91)
 - **Origen:** merge a `main` con etiqueta `handoff:update`
 
 > Este bloque es administrado por `.github/workflows/ai-handoff.yml`. No editarlo manualmente.
