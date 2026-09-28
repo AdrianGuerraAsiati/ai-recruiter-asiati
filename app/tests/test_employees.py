@@ -243,14 +243,11 @@ def test_set_employee_role_replaces_previous_role(db):
     assert service.roles_for_profile(db, employee.id) == [ADMIN]
 
 
-def test_admin_can_assign_only_employee_role():
+def test_admin_can_assign_employee_or_admin_but_not_super_admin():
     principal = {"roles": [ADMIN], "profile": {"id": "admin-id"}}
 
     _enforce_assignable_role(principal, EMPLOYEE)
-
-    with pytest.raises(HTTPException) as admin_error:
-        _enforce_assignable_role(principal, ADMIN)
-    assert admin_error.value.status_code == 403
+    _enforce_assignable_role(principal, ADMIN)
 
     with pytest.raises(HTTPException) as super_error:
         _enforce_assignable_role(principal, SUPER_ADMIN)
@@ -265,8 +262,15 @@ def test_super_admin_can_assign_all_supported_roles():
     _enforce_assignable_role(principal, SUPER_ADMIN)
 
 
-def test_admin_cannot_manage_an_administrative_target(db):
+def test_admin_can_manage_an_admin_target(db):
     target = _profile(db, email="other-admin@asiati.com.co", role=ADMIN)
+    principal = {"roles": [ADMIN], "profile": {"id": "admin-id"}}
+
+    _enforce_target_manageable(db, principal, target.id)
+
+
+def test_admin_cannot_manage_super_admin_target(db):
+    target = _profile(db, email="director@asiati.com.co", role=SUPER_ADMIN)
     principal = {"roles": [ADMIN], "profile": {"id": "admin-id"}}
 
     with pytest.raises(HTTPException) as error:
@@ -330,3 +334,25 @@ def test_update_employee_can_change_hire_date(db):
     )
 
     assert updated.hire_date == date(2026, 9, 30)
+
+
+def test_update_employee_can_toggle_onboarding_requirement(db):
+    employee = _profile(db, email="onboarding@asiati.com.co", role=EMPLOYEE)
+    employee.onboarding_status = "IN_PROGRESS"
+    db.commit()
+
+    exempt = service.update_employee(
+        db,
+        employee.id,
+        changes={"onboarding_required": False},
+        cognito_client=FakeCognitoClient(),
+    )
+    assert exempt.onboarding_status == "NOT_REQUIRED"
+
+    required = service.update_employee(
+        db,
+        employee.id,
+        changes={"onboarding_required": True},
+        cognito_client=FakeCognitoClient(),
+    )
+    assert required.onboarding_status == "PENDING"
