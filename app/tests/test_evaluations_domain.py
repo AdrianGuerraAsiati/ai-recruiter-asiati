@@ -7,7 +7,7 @@ import pytest
 from app.domains.evaluations import service
 
 
-def test_owner_scoped_entrypoint_resolves_objects_then_delegates(monkeypatch):
+def test_global_entrypoint_resolves_objects_then_delegates(monkeypatch):
     candidate = SimpleNamespace(id="candidate-1", is_banned=False)
     job = SimpleNamespace(
         id="job-1",
@@ -44,12 +44,12 @@ def test_owner_scoped_entrypoint_resolves_objects_then_delegates(monkeypatch):
     assert result is expected
     assert events == [
         ("candidate", db, "candidate-1", "owner-1"),
-        ("job", db, "job-1", "owner-1"),
+        ("job", db, "job-1", None),
         ("evaluate", db, "candidate-1", "job-1"),
     ]
 
 
-def test_owner_scoped_entrypoint_propagates_candidate_not_found(monkeypatch):
+def test_global_entrypoint_propagates_candidate_not_found(monkeypatch):
     def missing_candidate(*args, **kwargs):
         raise service.CandidateNotFound("candidate-1")
 
@@ -68,7 +68,7 @@ def test_owner_scoped_entrypoint_propagates_candidate_not_found(monkeypatch):
         )
 
 
-def test_owner_scoped_entrypoint_raises_job_not_found(monkeypatch):
+def test_global_entrypoint_raises_job_not_found(monkeypatch):
     candidate = SimpleNamespace(id="candidate-1", is_banned=False)
     monkeypatch.setattr(
         service.candidates_service,
@@ -91,7 +91,7 @@ def test_owner_scoped_entrypoint_raises_job_not_found(monkeypatch):
 
 
 
-def test_owner_scoped_entrypoint_rejects_banned_candidate(monkeypatch):
+def test_global_entrypoint_rejects_banned_candidate(monkeypatch):
     candidate = SimpleNamespace(id="candidate-1", is_banned=True)
     monkeypatch.setattr(
         service.candidates_service,
