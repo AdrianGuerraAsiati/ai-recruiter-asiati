@@ -114,6 +114,11 @@ describe("Jobs Indeed integration", () => {
         country_code: "CO",
         city: "Bogotá",
         employment_type: "FULL_TIME",
+        response_time_business_days: 2,
+        phone_call_count: 1,
+        onsite_interview_count: 1,
+        offer_wait_days: 4,
+        offer_wait_reference: "AFTER_INTERVIEW",
         public_slug: "kam-colombia",
         evaluation_profile: null,
       });
