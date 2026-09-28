@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `9bb9f20c9de7fd3e8532f9bb5fcc995ce1011111`
+- **Último checkpoint conocido:** `bf57ff6e94788e83d49b34eb21f383feb70fd707`
 - **Fecha del checkpoint:** 2026-09-28
-- **Commit:** `fix: dejar onboarding precargado y editable (#89)`
+- **Commit:** `fix: ocultar vacantes vacías del ranking (#90)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -313,14 +313,15 @@ Al actualizar este documento, mantener como mínimo:
 
 - **Fecha:** 2026-09-28
 - **Rama:** `main`
-- **Commit funcional de referencia:** `9bb9f20c9de7fd3e8532f9bb5fcc995ce1011111`
-- **Último hito:** PR #89 mergeado — Onboarding ASIATI precargado, publicado y asignado automáticamente, con edición de módulos/lecciones existentes para administradores y sin constructor de estructura en esa ruta.
+- **Commit funcional de referencia:** `bf57ff6e94788e83d49b34eb21f383feb70fd707`
+- **Último hito:** PR #90 mergeado — las vacantes sin candidatos dejan de aparecer en Ranking; una vacante solo es rankeable cuando tiene al menos un candidato asignado.
 
 ### Completado
 
 - Reclutamiento global entre administradores autorizados (#79).
 - Onboarding ASIATI precargado y asignado automáticamente por el sistema (#81/#83), pero editable por administradores sobre módulos/lecciones existentes (#89).
 - Agenda de selección interna para llamadas y entrevistas presenciales (#85).
+- Ranking oculta vacantes con `candidate_count = 0`; si todas están vacías no selecciona ninguna ni consulta `/ranking` (#90).
 - Etapa `SELECTED` y mapeo Indeed `POSITIVELY_SCREENED` (#85).
 - Outbox de empleado Odoo `odoo_employee_syncs` al contratar, idempotente por empleado (#86, Alembic 028).
 - Outbox de postulante Odoo `odoo_applicant_syncs` al pasar a `SELECTED`, idempotente por postulación (#87, Alembic 029).
