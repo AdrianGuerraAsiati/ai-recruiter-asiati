@@ -18,6 +18,7 @@ const PAGE_SIZE = 25;
 const STATUS_OPTIONS = [
   ["APPLIED", "Aplicó"],
   ["SCREENING", "En filtro"],
+  ["SELECTED", "Seleccionado"],
   ["INTERVIEW", "Entrevista"],
   ["OFFER", "Oferta"],
   ["HIRED", "Contratado"],

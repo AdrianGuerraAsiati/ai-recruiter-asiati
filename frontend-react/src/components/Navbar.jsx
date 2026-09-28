@@ -12,6 +12,7 @@ const navItems = [
   { to: "/dashboard", label: "Inicio", icon: "home", section: "General" },
   { to: "/jobs", label: "Vacantes", icon: "briefcase", section: "Reclutamiento", permission: "jobs.read" },
   { to: "/applications", label: "Postulaciones", icon: "applications", section: "Reclutamiento", permission: "candidates.read" },
+  { to: "/calendar", label: "Agenda", icon: "calendar", section: "Reclutamiento", permission: "candidates.read" },
   { to: "/candidates", label: "Candidatos", icon: "users", section: "Reclutamiento", permission: "candidates.read" },
   { to: "/ranking", label: "Ranking IA", icon: "ranking", section: "Reclutamiento", permission: "ranking.read" },
   { to: "/employees", label: "Empleados", icon: "employee", section: "Equipo", permission: "employees.read" },

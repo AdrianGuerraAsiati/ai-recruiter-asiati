@@ -11,6 +11,7 @@ import { NoticeProvider } from "./context/NoticeContext";
 import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
 import Candidates from "./pages/Candidates";
+import RecruitmentCalendar from "./pages/RecruitmentCalendar";
 import Ranking from "./pages/Ranking";
 import CandidateDetail from "./pages/CandidateDetail";
 import Integrations from "./pages/Integrations";
@@ -66,6 +67,7 @@ function AppRoutes() {
       <Route path="/direction/scores" element={<ProtectedPage permission="employee_scores.read"><EmployeeScores /></ProtectedPage>} />
       <Route path="/jobs" element={<ProtectedPage permission="jobs.read"><Jobs /></ProtectedPage>} />
       <Route path="/applications" element={<ProtectedPage permission="candidates.read"><Applications /></ProtectedPage>} />
+      <Route path="/calendar" element={<ProtectedPage permission="candidates.read"><RecruitmentCalendar /></ProtectedPage>} />
       <Route path="/candidates" element={<ProtectedPage permission="candidates.read"><Candidates /></ProtectedPage>} />
       <Route path="/ranking" element={<ProtectedPage permission="ranking.read"><Ranking /></ProtectedPage>} />
       <Route path="/integrations" element={<ProtectedPage permission="integrations.manage"><Integrations /></ProtectedPage>} />

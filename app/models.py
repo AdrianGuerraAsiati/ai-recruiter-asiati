@@ -178,6 +178,66 @@ class JobCandidate(Base):
     employee = relationship("UserProfile", foreign_keys=[employee_id])
 
 
+class RecruitmentEvent(Base):
+    """Scheduled phone call or onsite interview for one job application."""
+
+    __tablename__ = "recruitment_events"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('PHONE_CALL', 'ONSITE_INTERVIEW')",
+            name="ck_recruitment_events_kind",
+        ),
+        CheckConstraint(
+            "status IN ('SCHEDULED', 'COMPLETED', 'CANCELED')",
+            name="ck_recruitment_events_status",
+        ),
+        CheckConstraint(
+            "ends_at > starts_at",
+            name="ck_recruitment_events_window",
+        ),
+        Index("idx_recruitment_events_start", "starts_at"),
+        Index("idx_recruitment_events_job_start", "job_id", "starts_at"),
+        Index("idx_recruitment_events_candidate_start", "candidate_id", "starts_at"),
+    )
+
+    id = Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    job_id = Column(
+        UUID(as_uuid=False),
+        ForeignKey("jobs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    candidate_id = Column(
+        UUID(as_uuid=False),
+        ForeignKey("candidates.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    kind = Column(Text, nullable=False)
+    starts_at = Column(DateTime(timezone=True), nullable=False)
+    ends_at = Column(DateTime(timezone=True), nullable=False)
+    location = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+    status = Column(Text, nullable=False, default="SCHEDULED")
+    created_by_sub = Column(Text, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    job = relationship("Job")
+    candidate = relationship("Candidate")
+
+
 class Evaluation(Base):
     __tablename__ = "evaluations"
     __table_args__ = (

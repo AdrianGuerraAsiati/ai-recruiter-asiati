@@ -34,6 +34,7 @@ CORE_TABLES = {
     "training_quiz_questions",
     "training_quiz_attempts",
     "candidate_restriction_events",
+    "recruitment_events",
 }
 
 
@@ -85,6 +86,7 @@ def test_alembic_head_builds_current_postgres_schema():
             "training_quiz_questions",
             "training_quiz_attempts",
             "candidate_restriction_events",
+            "recruitment_events",
         }.issubset(tables)
 
         for table_name in sorted(CORE_TABLES):
@@ -345,6 +347,6 @@ def test_alembic_head_builds_current_postgres_schema():
 
         assert admin_score_grants == 0
         assert admin_write_grants == {"candidates.manage", "ranking.recalculate"}
-        assert revision == "026"
+        assert revision == "027"
     finally:
         engine.dispose()

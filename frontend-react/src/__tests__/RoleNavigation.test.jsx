@@ -67,6 +67,7 @@ describe("role navigation", () => {
     expect(screen.queryByText("Vacantes")).not.toBeInTheDocument();
     expect(screen.queryByText("Postulaciones")).not.toBeInTheDocument();
     expect(screen.queryByText("Candidatos")).not.toBeInTheDocument();
+    expect(screen.queryByText("Agenda")).not.toBeInTheDocument();
     expect(screen.queryByText("Empleados")).not.toBeInTheDocument();
     expect(screen.queryByText("Calificación")).not.toBeInTheDocument();
     expect(screen.queryByText("Integraciones")).not.toBeInTheDocument();
@@ -87,6 +88,7 @@ describe("role navigation", () => {
       "Inicio",
       "Vacantes",
       "Postulaciones",
+      "Agenda",
       "Candidatos",
       "Ranking IA",
       "Empleados",
@@ -115,6 +117,7 @@ describe("role navigation", () => {
     ]);
 
     expect(screen.getByText("Postulaciones")).toBeInTheDocument();
+    expect(screen.getByText("Agenda")).toBeInTheDocument();
     expect(screen.getByText("Calificación")).toBeInTheDocument();
     expect(screen.getByText("Integraciones")).toBeInTheDocument();
     expect(screen.queryByText("Mi progreso")).not.toBeInTheDocument();
