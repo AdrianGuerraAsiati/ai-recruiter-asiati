@@ -18,8 +18,8 @@ Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este co
 ## Checkpoint automático
 
 - **Última actualización automática:** 2026-09-28
-- **Merge commit:** `944f791b7795a9cfc57c3592936be76b833b9d9b`
-- **PR:** [#67 — refactor: extraer parsing de respuestas del Resume Agent](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/67)
+- **Merge commit:** `6f607dbda8c9df05ba805ad4bafaa6e8740737e6`
+- **PR:** [#68 — refactor: extraer estado de página del Resume Agent](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/68)
 - **Origen:** merge a `main` con etiqueta `handoff:update`
 
 > Este bloque es administrado por `.github/workflows/ai-handoff.yml`. No editarlo manualmente.
