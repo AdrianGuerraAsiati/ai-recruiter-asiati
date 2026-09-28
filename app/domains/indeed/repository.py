@@ -56,7 +56,7 @@ def get_job_link_by_sourced_posting(
 
 
 def upsert_job_link(db: Session, *, job_id: str, owner_sub: str, sourced_posting_id: str, employer_job_id: str) -> IndeedJobLink:
-    link = get_job_link(db, job_id, owner_sub)
+    link = get_job_link(db, job_id)
     if link is None:
         link = IndeedJobLink(job_id=job_id, owner_sub=owner_sub)
         db.add(link)
