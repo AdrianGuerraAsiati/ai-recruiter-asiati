@@ -1202,12 +1202,15 @@ def test_asiati_onboarding_template_repairs_existing_draft_without_duplicate(db)
         created_by_sub="admin-sub",
         is_onboarding=True,
     )
-    service.add_module(
-        db,
-        course_id=course.id,
-        title="Evaluación final",
-        description="Placeholder anterior",
+    db.add(
+        TrainingModule(
+            course_id=course.id,
+            title="Evaluación final",
+            description="Placeholder anterior",
+            position=1,
+        )
     )
+    db.commit()
 
     repaired = service.create_asiati_onboarding_template(
         db,
