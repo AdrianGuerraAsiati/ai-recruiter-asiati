@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `14a75abcee41fe8b508959b1b3d3b889a2a4e393`
+- **Último checkpoint conocido:** `6cfaeed6a96b6da6283c1cd04dcecdb3c30c140b`
 - **Fecha del checkpoint:** 2026-09-28
-- **Commit:** `refactor: extraer modal de contratación de Jobs (#77)`
+- **Commit:** `fix: compartir vacantes y candidatos entre administradores (#79)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -47,6 +47,7 @@ Mantener aiRecruiterAsiati como una plataforma de reclutamiento estable, modular
 - Validaciones locales relacionadas con Cognito.
 - Hardening general de código e infraestructura.
 - Mejoras de RBAC, readiness, rollback, backups, CI y seguridad web.
+- PR #79 eliminó `owner_sub` como frontera de autorización para datos de reclutamiento: vacantes, candidatos, postulaciones, evaluaciones, rankings, importaciones ligadas a vacantes, contratación y acceso al CV canónico son compartidos entre administradores autorizados. `owner_sub` se conserva como procedencia/auditoría e identidad técnica de integraciones.
 - Dependabot agrupado por ecosistema.
 
 ### Testing
@@ -84,6 +85,8 @@ Mantener aiRecruiterAsiati como una plataforma de reclutamiento estable, modular
 
 ### Candidatos y vacantes
 
+- Vacantes, candidatos y postulaciones son datos globales de reclutamiento de la organización para usuarios con permisos administrativos correspondientes; no deben ocultarse por el `owner_sub` del creador.
+- `owner_sub` es procedencia/auditoría y no una frontera de acceso para estos datos. EMPLOYEE sigue restringido por RBAC.
 - Un mismo candidato puede existir en vacantes distintas.
 - Si el mismo candidato aparece varias veces para **la misma vacante**, debe prevalecer la postulación más reciente.
 - Esa deduplicación no debe bloquear al candidato ni eliminar sus postulaciones a otras vacantes.
@@ -139,6 +142,7 @@ El Resume Agent debe poder revisar vacantes y candidatos existentes y sincroniza
 
 #### P2 · Regresiones críticas
 - [ ] Mantener pruebas explícitas de deduplicación por candidato + vacante conservando la postulación más reciente.
+- [x] Mantener cobertura de visibilidad/operación global entre administradores para vacantes, candidatos, ranking, importaciones, contratación y CV canónico (#79).
 - [ ] Mantener pruebas de idempotencia y recuperación del Resume Agent.
 - [ ] Mantener pruebas de descripción Indeed vs descripción IA sin sobrescritura.
 - [ ] Ejecutar journey E2E, accesibilidad y responsive en refactors de frontend.
