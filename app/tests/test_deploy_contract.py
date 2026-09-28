@@ -121,6 +121,27 @@ def test_runtime_resource_configuration_comes_from_aws_secret(deploy_yml_content
 
 
 
+def test_odoo_runtime_configuration_is_optional_and_propagated():
+    workflow = _read(WORKFLOW)
+    api_script = _read(API_SCRIPT)
+    worker_script = _read(WORKER_SCRIPT)
+
+    for key in (
+        "ODOO_ENABLED",
+        "ODOO_BASE_URL",
+        "ODOO_DATABASE",
+        "ODOO_USERNAME",
+        "ODOO_SECRET_ID",
+        "ODOO_REQUEST_TIMEOUT_SECONDS",
+    ):
+        assert key in workflow
+        assert key in api_script
+        assert key in worker_script
+
+    assert 'ODOO_ENABLED="${ODOO_ENABLED:-false}"' in api_script
+    assert 'ODOO_SECRET_ID="${ODOO_SECRET_ID:-/ai-recruiter/prod/odoo}"' in api_script
+
+
 def test_api_deploy_has_automatic_rollback_and_readiness():
     script = _read(API_SCRIPT)
     assert "API_ROLLBACK_OK" in script
