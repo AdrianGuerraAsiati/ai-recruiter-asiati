@@ -1434,7 +1434,208 @@ function Training() {
                           )}
                         </section>
                       ))}
-                      <TrainingEmployeeQuiz
+                      {employeeCourse.course.has_quiz && (
+                        <button
+                          type="button"
+                          className={`training-journey-quiz-step ${selectedAssignment?.quiz_result?.passed ? "is-complete" : ""}`}
+                          onClick={openFinalQuiz}
+                        >
+                          <span>{selectedAssignment?.quiz_result?.passed ? "✓" : "?"}</span>
+                          <div>
+                            <strong>Evaluación final</strong>
+                            <small>
+                              {employeeCourse.course.completed_lessons < employeeCourse.course.lesson_count
+                                ? "Se habilita al completar la ruta"
+                                : selectedAssignment?.quiz_result?.passed
+                                  ? "Aprobada"
+                                  : "Lista para presentar"}
+                            </small>
+                          </div>
+                        </button>
+                      )}
+                    </aside>
+
+                    <article className="training-journey-focus">
+                      {activeJourneyLesson ? (
+                        <>
+                          <div className="training-journey-focus-meta">
+                            <span>{activeJourneyLesson.module.title}</span>
+                            <b>
+                              {lessonTypeLabel(activeJourneyLesson.content_type)}
+                              {activeJourneyLesson.estimated_minutes
+                                ? ` · ~${activeJourneyLesson.estimated_minutes} min`
+                                : " · duración por confirmar"}
+                            </b>
+                          </div>
+                          <h3>{activeJourneyLesson.title}</h3>
+                          {activeJourneyLesson.description && (
+                            <p className="training-journey-description">{activeJourneyLesson.description}</p>
+                          )}
+
+                          {activeJourneyLesson.video_url && (
+                            <div className={`training-video training-journey-video ${isPortraitOnboardingModule(activeJourneyLesson.module) ? "is-portrait" : ""}`}>
+                              {isDirectVideo(activeJourneyLesson.video_url) ? (
+                                <video controls preload="metadata">
+                                  <source src={activeJourneyLesson.video_url} />
+                                  Tu navegador no puede reproducir este video.
+                                </video>
+                              ) : googleDrivePreviewUrl(activeJourneyLesson.video_url) ? (
+                                <>
+                                  <iframe
+                                    className="training-drive-player"
+                                    src={googleDrivePreviewUrl(activeJourneyLesson.video_url)}
+                                    title={`Video: ${activeJourneyLesson.title}`}
+                                    allow="autoplay; encrypted-media"
+                                    allowFullScreen
+                                  />
+                                  <a
+                                    className="training-drive-fallback"
+                                    href={activeJourneyLesson.video_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    ¿No carga el video? Abrir en Google Drive ↗
+                                  </a>
+                                </>
+                              ) : (
+                                <a
+                                  className="btn btn-ghost"
+                                  href={activeJourneyLesson.video_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Abrir video ↗
+                                </a>
+                              )}
+                            </div>
+                          )}
+
+                          {activeJourneyLesson.external_url && (
+                            <a
+                              className="training-resource-card"
+                              href={activeJourneyLesson.external_url}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <span>↗</span>
+                              <div>
+                                <strong>Abrir recurso</strong>
+                                <small>Se abrirá en una pestaña nueva.</small>
+                              </div>
+                            </a>
+                          )}
+
+                          {activeJourneyLesson.content_type === "CHECKLIST" && (
+                            activeJourneyLesson.checklist_items?.length > 0 ? (
+                              <div className="training-checklist-card training-checklist-items">
+                                <div className="training-checklist-heading">
+                                  <strong>Tus primeros pasos</strong>
+                                  <span>
+                                    {(activeJourneyLesson.checklist_completed_items || []).length}
+                                    /{activeJourneyLesson.checklist_items.length}
+                                  </span>
+                                </div>
+                                {activeJourneyLesson.checklist_items.map((item, index) => {
+                                  const checked = (activeJourneyLesson.checklist_completed_items || []).includes(index);
+                                  return (
+                                    <label className={checked ? "is-checked" : ""} key={item}>
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        disabled={activeJourneyLesson.completed || checklistSavingLessonId === activeJourneyLesson.id}
+                                        onChange={(event) => {
+                                          void updateChecklistItem(
+                                            activeJourneyLesson,
+                                            index,
+                                            event.target.checked,
+                                          );
+                                        }}
+                                      />
+                                      <span>{item}</span>
+                                    </label>
+                                  );
+                                })}
+                                <small>
+                                  El avance se guarda automáticamente. Puedes salir y continuar después.
+                                </small>
+                              </div>
+                            ) : (
+                              <div className="training-checklist-card">
+                                <strong>Antes de continuar</strong>
+                                <span>Confirma que revisaste los puntos de esta actividad con tu líder o responsable.</span>
+                              </div>
+                            )
+                          )}
+
+                          <div className="training-journey-actions">
+                            <button
+                              className="btn btn-secondary"
+                              type="button"
+                              disabled={!previousJourneyLesson}
+                              onClick={() => previousJourneyLesson && setActiveLessonId(previousJourneyLesson.id)}
+                            >
+                              ← Anterior
+                            </button>
+                            <div>
+                              {activeJourneyLesson.completed ? (
+                                <span className="status-pill"><i /> Completada</span>
+                              ) : (
+                                activeJourneyLesson.content_type === "CHECKLIST"
+                                && activeJourneyLesson.checklist_items?.length > 0
+                              ) ? (
+                                <span className="training-checklist-progress-label">
+                                  Completa todos los puntos para continuar
+                                </span>
+                              ) : (
+                                <button
+                                  className="btn btn-primary"
+                                  type="button"
+                                  onClick={() => completeLesson(activeJourneyLesson.id)}
+                                  disabled={saving}
+                                >
+                                  {saving
+                                    ? "Guardando…"
+                                    : nextJourneyLesson
+                                      ? "Completar y continuar →"
+                                      : "Marcar completada"}
+                                </button>
+                              )}
+                              {activeJourneyLesson.completed && nextRequiredJourneyLesson && (
+                                <button
+                                  className="btn btn-primary"
+                                  type="button"
+                                  onClick={() => setActiveLessonId(nextRequiredJourneyLesson.id)}
+                                >
+                                  Continuar →
+                                </button>
+                              )}
+                              {activeJourneyLesson.completed
+                                && !nextRequiredJourneyLesson
+                                && employeeCourse.course.has_quiz
+                                && !selectedAssignment?.quiz_result?.passed && (
+                                  <button
+                                    className="btn btn-primary"
+                                    type="button"
+                                    onClick={openFinalQuiz}
+                                  >
+                                    Ir a evaluación final →
+                                  </button>
+                                )}
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <EmptyState
+                          compact
+                          icon="check"
+                          title="Ruta lista"
+                          description="No hay más actividades para mostrar."
+                        />
+                      )}
+                    </article>
+                  </div>
+
+                  <TrainingEmployeeQuiz
                     course={employeeCourse.course}
                     quiz={employeeQuiz}
                     answers={quizAnswers}
