@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `1a2c3b139eb922b66ece3c57bcec0c790aa68e6f`
+- **Último checkpoint conocido:** `256dcee3c26667ecd2cc89a0a14b01728271b945`
 - **Fecha del checkpoint:** 2026-09-27
-- **Commit:** `refactor: cerrar deuda P2 de arquitectura y calidad`
+- **Commit:** `ci: automatizar checkpoint de AI handoff`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -107,6 +107,33 @@ El Resume Agent debe poder revisar vacantes y candidatos existentes y sincroniza
 - No asumir que un deploy exitoso implica funcionamiento correcto: revisar health/readiness y journey crítico.
 
 ## Prioridad de trabajo
+
+### TODO actual
+
+#### P2 · Gobernanza y mantenimiento
+- [ ] Proteger `main` y exigir checks de CI/CodeQL antes de merge. Actualmente la rama no está protegida.
+- [ ] Revisar y resolver PR #35 de dependencias frontend.
+- [ ] Revisar y resolver PR #36 de GitHub Actions.
+- [ ] Revisar y resolver PR #37 de dependencias Python.
+- [ ] Verificar que el CI de `main` quede verde después de los cambios de handoff.
+
+#### P2 · Modularización residual
+- [ ] Reducir responsabilidades de `frontend-react/src/pages/Training.jsx` (~83 KB).
+- [ ] Reducir responsabilidades de `tools/indeed_resume_agent/browser.py` (~74 KB).
+- [ ] Modularizar `frontend-react/src/pages/Jobs.jsx` (~58 KB).
+- [ ] Dividir el preset ASIATI de `app/domains/training/asiati_preset.py` (~58 KB) en datos/configuración y builder.
+- [ ] Reducir `frontend-react/src/pages/RankingView.jsx` (~51 KB).
+- [ ] Revisar si `tools/indeed_resume_agent/ui.py` y `ui_v2.py` son legacy sin referencias; eliminarlos solo después de verificar imports/packaging/tests.
+
+#### P2 · Regresiones críticas
+- [ ] Mantener pruebas explícitas de deduplicación por candidato + vacante conservando la postulación más reciente.
+- [ ] Mantener pruebas de idempotencia y recuperación del Resume Agent.
+- [ ] Mantener pruebas de descripción Indeed vs descripción IA sin sobrescritura.
+- [ ] Ejecutar journey E2E, accesibilidad y responsive en refactors de frontend.
+
+#### Pendientes operativos externos
+- [ ] Verificar IAM antes de activar las alarmas operativas por defecto.
+- [ ] Ejecutar el corte controlado del Resume Agent con una aplicación real, luego lote de 5–10 y finalmente backlog.
 
 ### P2 — continuar
 
@@ -205,8 +232,8 @@ Al actualizar este documento, mantener como mínimo:
 
 - **Fecha:** 2026-09-27
 - **Rama:** `main`
-- **Commit:** `1a2c3b139eb922b66ece3c57bcec0c790aa68e6f`
-- **Último hito:** cierre de una parte importante de la deuda P2 de arquitectura y calidad.
+- **Commit:** `256dcee3c26667ecd2cc89a0a14b01728271b945`
+- **Último hito:** handoff persistente y actualización automática del checkpoint por PR etiquetado.
 
 ### Completado
 
@@ -215,28 +242,40 @@ Al actualizar este documento, mantener como mínimo:
 - Seguimiento de onboarding para ADMIN.
 - Hardening de código e infraestructura.
 - Observabilidad y DR.
-- Modularización de Training y Resume Agent.
+- Modularización inicial de Training y Resume Agent.
 - E2E Chromium + smoke de accesibilidad y responsive.
+- `docs/AI_HANDOFF.md` creado y versionado.
+- Workflow `.github/workflows/ai-handoff.yml` operativo; bootstrap de `handoff:update` verificado.
 
 ### En progreso
 
-- Continuación de P2 restantes.
-- Verificación de deuda residual posterior a los refactors recientes.
+- Cierre de deuda P2 residual.
+- Revisión de CI y dependencias automáticas.
+- Reducción de módulos todavía sobredimensionados.
 
-### Pendiente
+### Pendiente inmediato
 
-- Verificar IAM antes de activar alarmas operativas por defecto.
-- Continuar auditoría de deuda P2 y regresiones.
-- Mantener pruebas de flujos críticos durante los siguientes cambios.
+1. Confirmar CI verde en `main`.
+2. Revisar PRs Dependabot #35, #36 y #37 con sus checks.
+3. Resolver primero las actualizaciones de menor riesgo.
+4. Continuar modularización residual.
+5. Proteger `main` con checks obligatorios cuando la configuración de repositorio disponible permita aplicarlo.
 
-### Bloqueos
+### Bloqueos / dependencias externas
 
-- No habilitar dependencias operativas que requieran permisos AWS/IAM no verificados.
+- Verificación IAM de alarmas operativas.
+- Prueba real controlada del Resume Agent requiere workstation/sesión Indeed autorizada.
+- La protección de rama requiere acceso de administración de configuración de GitHub; no debe simularse solo con documentación.
+
+### Riesgos
+
+- Dependabot #37 agrupa 27 dependencias Python; requiere validar compatibilidad, especialmente saltos mayores.
+- Los archivos grandes restantes concentran demasiado estado y lógica y elevan el riesgo de regresión.
+- No eliminar UIs legacy del Resume Agent hasta demostrar ausencia de referencias en runtime, build y tests.
 
 ### Próximo paso recomendado
 
-1. Inspeccionar `main` desde este commit en adelante.
-2. Revisar CI y tests actuales.
-3. Enumerar P2 restantes con evidencia en código.
-4. Resolverlos por grupos pequeños con pruebas.
-5. Actualizar este checkpoint al cerrar el siguiente hito.
+1. Validar CI actual.
+2. Revisar y resolver Dependabot empezando por GitHub Actions.
+3. Atacar un módulo sobredimensionado por PR, con pruebas.
+4. Actualizar este checkpoint al cerrar cada bloque relevante.
