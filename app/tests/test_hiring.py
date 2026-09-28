@@ -9,7 +9,14 @@ from app.access_control import ensure_rbac_catalog
 from app.db import Base
 from app.domains.hiring import service as hiring_service
 from app.domains.training import service as training_service
-from app.models import Candidate, Job, JobCandidate, TrainingAssignment, UserProfile
+from app.models import (
+    Candidate,
+    Job,
+    JobCandidate,
+    OdooEmployeeSync,
+    TrainingAssignment,
+    UserProfile,
+)
 
 
 class FakeCognito:
@@ -122,6 +129,7 @@ def test_hire_creates_employee_marks_application_and_assigns_onboarding(db):
     db.refresh(link)
     employee = db.query(UserProfile).one()
     assignment = db.query(TrainingAssignment).one()
+    odoo_sync = db.query(OdooEmployeeSync).one()
 
     assert result["application_status"] == "HIRED"
     assert result["status_changed"] is True
@@ -140,6 +148,14 @@ def test_hire_creates_employee_marks_application_and_assigns_onboarding(db):
     assert assignment.course.status == "PUBLISHED"
     assert assignment.course.title == "Onboarding ASIATI"
     assert result["onboarding_assignment"]["course"]["progress_percent"] == 0
+    assert result["odoo_sync"]["status"] == "PENDING"
+    assert result["odoo_sync"]["idempotency_key"] == f"employee:{employee.id}"
+    assert odoo_sync.employee_id == employee.id
+    assert odoo_sync.source_job_candidate_id == link.id
+    assert odoo_sync.payload["operation"] == "UPSERT_EMPLOYEE"
+    assert odoo_sync.payload["source"]["candidate_id"] == candidate.id
+    assert odoo_sync.payload["source"]["job_id"] == job.id
+    assert odoo_sync.payload["employee"]["email"] == "ana@example.com"
     assert cognito.created == ["ana@example.com"]
 
 
@@ -207,6 +223,8 @@ def test_hire_is_idempotent_for_same_application(db):
     assert second["status_changed"] is False
     assert db.query(UserProfile).count() == 1
     assert db.query(TrainingAssignment).count() == 1
+    assert db.query(OdooEmployeeSync).count() == 1
+    assert first["odoo_sync"]["id"] == second["odoo_sync"]["id"]
     assert cognito.created == ["ana@example.com"]
     db.refresh(link)
     assert link.application_status == "HIRED"
@@ -260,6 +278,10 @@ def test_same_candidate_hired_for_two_jobs_reuses_employee_and_onboarding(db):
     assert second_link.hired_at is not None
     assert db.query(UserProfile).count() == 1
     assert db.query(TrainingAssignment).count() == 1
+    assert db.query(OdooEmployeeSync).count() == 1
+    odoo_sync = db.query(OdooEmployeeSync).one()
+    assert odoo_sync.source_job_candidate_id == second_link.id
+    assert odoo_sync.payload["source"]["job_id"] == second_job.id
     assert cognito.created == ["ana@example.com"]
 
 

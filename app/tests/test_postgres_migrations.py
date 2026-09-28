@@ -35,6 +35,7 @@ CORE_TABLES = {
     "training_quiz_attempts",
     "candidate_restriction_events",
     "recruitment_events",
+    "odoo_employee_syncs",
 }
 
 
@@ -87,6 +88,7 @@ def test_alembic_head_builds_current_postgres_schema():
             "training_quiz_attempts",
             "candidate_restriction_events",
             "recruitment_events",
+            "odoo_employee_syncs",
         }.issubset(tables)
 
         for table_name in sorted(CORE_TABLES):
@@ -345,8 +347,34 @@ def test_alembic_head_builds_current_postgres_schema():
         }
         assert {"employee_id", "hired_at"}.issubset(job_candidate_columns)
 
+        odoo_sync_columns = {
+            column["name"]
+            for column in inspector.get_columns("odoo_employee_syncs")
+        }
+        assert {
+            "employee_id",
+            "source_job_candidate_id",
+            "idempotency_key",
+            "payload",
+            "status",
+            "attempt_count",
+            "odoo_record_id",
+            "last_error",
+            "synced_at",
+            "created_at",
+            "updated_at",
+        }.issubset(odoo_sync_columns)
+        odoo_sync_uniques = {
+            constraint["name"]
+            for constraint in inspector.get_unique_constraints("odoo_employee_syncs")
+        }
+        assert {
+            "uq_odoo_employee_syncs_employee",
+            "uq_odoo_employee_syncs_idempotency_key",
+        }.issubset(odoo_sync_uniques)
+
         assert admin_score_grants == 0
         assert admin_write_grants == {"candidates.manage", "ranking.recalculate"}
-        assert revision == "027"
+        assert revision == "028"
     finally:
         engine.dispose()
