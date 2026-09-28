@@ -37,8 +37,13 @@ def list_courses(
     db: Session = Depends(get_db),
     principal: dict = Depends(require_permission("training.manage")),
 ):
-    service.ensure_published_asiati_onboarding(
+    course = service.ensure_published_asiati_onboarding(
         db,
+        created_by_sub=principal["sub"],
+    )
+    service.ensure_asiati_onboarding_for_active_employees(
+        db,
+        course=course,
         created_by_sub=principal["sub"],
     )
     items = service.list_courses(db)
@@ -68,6 +73,11 @@ def create_asiati_onboarding_preset(
 ):
     course = service.ensure_published_asiati_onboarding(
         db,
+        created_by_sub=principal["sub"],
+    )
+    service.ensure_asiati_onboarding_for_active_employees(
+        db,
+        course=course,
         created_by_sub=principal["sub"],
     )
     return service.get_course(db, course.id)
@@ -267,6 +277,11 @@ def my_training(
     db: Session = Depends(get_db),
     principal: dict = Depends(require_permission("training.read")),
 ):
+    service.ensure_employee_asiati_onboarding(
+        db,
+        employee_id=principal["profile"]["id"],
+        created_by_sub=principal["sub"],
+    )
     items = service.list_my_training(db, principal["profile"]["id"])
     return {"items": items, "total": len(items)}
 
