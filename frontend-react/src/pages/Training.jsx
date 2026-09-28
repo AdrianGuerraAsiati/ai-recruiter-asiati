@@ -6,7 +6,6 @@ import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
-import Icon from "../components/ui/Icon";
 import {
   EmptyState,
   FeedbackMessage,
@@ -17,10 +16,7 @@ import {
   TrainingCourseSidebar,
   TrainingQualityPanel,
 } from "../features/training/TrainingAdminPanels";
-import {
-  CreateTrainingCourseModal,
-  TrainingPreviewModal,
-} from "../features/training/TrainingModals";
+import { TrainingPreviewModal } from "../features/training/TrainingModals";
 import TrainingAdminQuiz from "../features/training/TrainingAdminQuiz";
 import TrainingAssignmentsPanel from "../features/training/TrainingAssignmentsPanel";
 import TrainingContentEditor from "../features/training/TrainingContentEditor";
@@ -47,14 +43,8 @@ function Training() {
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState("");
-  const [creatingCourse, setCreatingCourse] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingLessonId, setUploadingLessonId] = useState("");
-  const [courseForm, setCourseForm] = useState({
-    title: "",
-    description: "",
-    is_onboarding: false,
-  });
   const [moduleForm, setModuleForm] = useState({
     title: "",
     description: "",
@@ -76,7 +66,6 @@ function Training() {
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizResult, setQuizResult] = useState(null);
   const [activeLessonId, setActiveLessonId] = useState("");
-  const [creatingPreset, setCreatingPreset] = useState(false);
   const [checklistSavingLessonId, setChecklistSavingLessonId] = useState("");
   const [expandedModuleIds, setExpandedModuleIds] = useState([]);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -333,50 +322,6 @@ function Training() {
     setPreviewOpen(false);
     setPreviewEmployeeId("");
     setPreviewData(null);
-  }
-
-  async function createCourse(event) {
-    event.preventDefault();
-    setSaving(true);
-    setError("");
-    try {
-      const { data } = await api.post("/training/courses", {
-        title: courseForm.title.trim(),
-        description: courseForm.description.trim() || null,
-        is_onboarding: courseForm.is_onboarding,
-      });
-      setCourseForm({ title: "", description: "", is_onboarding: false });
-      setCreatingCourse(false);
-      await loadHome();
-      setSelectedCourseId(data.id);
-    } catch (err) {
-      setError(getApiErrorMessage(err, {
-        action: "crear el curso",
-        resource: "capacitación",
-        fallback: "El curso no se creó. Revisa título, descripción y configuración antes de volver a guardarlo.",
-      }));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function createAsiatiPreset() {
-    setCreatingPreset(true);
-    setError("");
-    try {
-      const { data } = await api.post("/training/courses/presets/asiati-onboarding");
-      await loadHome();
-      setSelectedCourseId(data.id);
-      setSelectedCourse(data);
-    } catch (err) {
-      setError(getApiErrorMessage(err, {
-        action: "crear la ruta de onboarding ASIATI",
-        resource: "onboarding",
-        fallback: "La ruta predeterminada no se creó. Verifica que no exista ya otra ruta equivalente antes de reintentar.",
-      }));
-    } finally {
-      setCreatingPreset(false);
-    }
   }
 
   async function publishCourse() {
@@ -770,29 +715,9 @@ function Training() {
       <PageHeader
         eyebrow="Aprendizaje interno"
         title="Capacitación"
-        description={`Hola, ${firstName}. Cursos, videos y progreso en un solo lugar.`}
-        actions={canManage ? (
-          <div className="training-header-actions">
-            <button
-              className="btn btn-secondary"
-              type="button"
-              onClick={createAsiatiPreset}
-              disabled={creatingPreset}
-            >
-              {creatingPreset ? "Preparando…" : "Crear ruta ASIATI"}
-            </button>
-            {!creatingCourse && (
-              <button
-                className="btn btn-primary"
-                type="button"
-                onClick={() => setCreatingCourse(true)}
-              >
-                <Icon name="plus" size={17} />
-                Crear curso
-              </button>
-            )}
-          </div>
-        ) : null}
+        description={canManage
+          ? `Hola, ${firstName}. La ruta ASIATI ya viene construida; aquí asignas empleados y revisas su progreso.`
+          : `Hola, ${firstName}. Cursos, videos y progreso en un solo lugar.`}
         className="split-header"
       />
 
@@ -863,8 +788,8 @@ function Training() {
                 <EmptyState
                   compact
                   icon="training"
-                  title="Selecciona o crea un curso"
-                  description="Desde aquí podrás construir sus módulos, videos y asignaciones."
+                  title="Selecciona una ruta"
+                  description="Los contenidos corporativos se provisionan automáticamente; desde aquí administras asignaciones y resultados."
                 />
               </section>
             )}
@@ -912,14 +837,6 @@ function Training() {
         data={previewData}
       />
 
-      <CreateTrainingCourseModal
-        open={creatingCourse}
-        onClose={() => setCreatingCourse(false)}
-        form={courseForm}
-        onChange={(patch) => setCourseForm((current) => ({ ...current, ...patch }))}
-        onSubmit={createCourse}
-        saving={saving}
-      />
     </div>
   );
 }

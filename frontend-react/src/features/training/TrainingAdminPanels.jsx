@@ -23,7 +23,7 @@ export function TrainingCourseSidebar({
           compact
           icon="training"
           title="Aún no hay cursos"
-          description="Crea el primer curso de inducción o capacitación."
+          description="La ruta corporativa aparecerá automáticamente cuando esté disponible."
         />
       ) : (
         <div className="training-course-list">
@@ -64,11 +64,13 @@ export function TrainingCourseOverview({
   return (
     <section className="panel training-course-overview">
       <div>
-        <span className="eyebrow">Editor de curso</span>
+        <span className="eyebrow">Ruta de capacitación</span>
         <h2>{course.title}</h2>
         <p>{course.description || "Sin descripción."}</p>
         {course.is_onboarding && (
-          <span className="training-onboarding-badge">Curso de inducción</span>
+          <span className="training-onboarding-badge">
+            {course.managed_by_system ? "Contenido administrado por el sistema" : "Curso de inducción"}
+          </span>
         )}
       </div>
       <div className="training-course-overview-actions">
@@ -82,7 +84,7 @@ export function TrainingCourseOverview({
               ? "Archivado"
               : "Borrador"}
         </span>
-        {course.status === "DRAFT" && (
+        {course.status === "DRAFT" && !course.managed_by_system && (
           <button
             className="btn btn-primary"
             type="button"
