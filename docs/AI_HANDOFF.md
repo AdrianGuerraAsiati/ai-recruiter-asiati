@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `8173a25052c9e84fb658a1b96e75bba3d28585db`
+- **Último checkpoint conocido:** `9bb9f20c9de7fd3e8532f9bb5fcc995ce1011111`
 - **Fecha del checkpoint:** 2026-09-28
-- **Commit:** `feat: agregar cliente de transporte Odoo (#88)`
+- **Commit:** `fix: dejar onboarding precargado y editable (#89)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -313,13 +313,13 @@ Al actualizar este documento, mantener como mínimo:
 
 - **Fecha:** 2026-09-28
 - **Rama:** `main`
-- **Commit funcional de referencia:** `8173a25052c9e84fb658a1b96e75bba3d28585db`
-- **Último hito:** PR #88 mergeado — cliente de transporte Odoo 18 sobre XML-RPC, credencial en AWS Secrets Manager, HTTPS, timeout configurable y pruebas completas del boundary externo.
+- **Commit funcional de referencia:** `9bb9f20c9de7fd3e8532f9bb5fcc995ce1011111`
+- **Último hito:** PR #89 mergeado — Onboarding ASIATI precargado, publicado y asignado automáticamente, con edición de módulos/lecciones existentes para administradores y sin constructor de estructura en esa ruta.
 
 ### Completado
 
 - Reclutamiento global entre administradores autorizados (#79).
-- Onboarding ASIATI administrado y asignado automáticamente por el sistema (#81/#83).
+- Onboarding ASIATI precargado y asignado automáticamente por el sistema (#81/#83), pero editable por administradores sobre módulos/lecciones existentes (#89).
 - Agenda de selección interna para llamadas y entrevistas presenciales (#85).
 - Etapa `SELECTED` y mapeo Indeed `POSITIVELY_SCREENED` (#85).
 - Outbox de empleado Odoo `odoo_employee_syncs` al contratar, idempotente por empleado (#86, Alembic 028).
@@ -345,17 +345,20 @@ Al actualizar este documento, mantener como mínimo:
 - Resolución del CV canónico como adjunto al consumir el outbox.
 - Definición de una fuente canónica para teléfono cuando no venga en metadata.
 - Cierre paralelo de P2 residuales.
+- Prueba funcional del onboarding precargado desde dos perspectivas: admin editor y empleado asignado automáticamente.
 
 ### Pendiente inmediato
 
-1. Inspeccionar de forma segura los modelos/campos disponibles en la instancia Odoo ASIATI usando `fields_get` una vez exista configuración runtime.
-2. Definir el mapeo exacto para vacante, postulante, empleado y adjunto de CV.
-3. Implementar consumidor de `odoo_applicant_syncs` con orden: upsert vacante → upsert postulante → adjuntar CV → guardar `odoo_job_id` / `odoo_applicant_id`.
-4. Implementar consumidor de `odoo_employee_syncs` y guardar `odoo_record_id`.
-5. Implementar reintentos, `attempt_count`, `last_error`, transición `FAILED ↔ PENDING` y observabilidad.
-6. Agregar permisos IAM mínimos para leer `ODOO_SECRET_ID` cuando se habilite la integración en runtime.
-7. Mantener `ODOO_ENABLED=false` hasta validar conexión y mapeo contra un entorno seguro.
-8. Mantener etapas previas a `SELECTED` exclusivamente en aiRecruiter y Agenda sin sincronización de citas hasta decisión posterior.
+1. Ejecutar prueba funcional del Onboarding ASIATI con un admin: abrir la ruta precargada, editar módulo/lección y reemplazar un video sin crear estructura nueva.
+2. Ejecutar prueba como empleado activo: confirmar asignación automática, avance, checklist y evaluación final.
+3. Inspeccionar de forma segura los modelos/campos disponibles en la instancia Odoo ASIATI usando `fields_get` una vez exista configuración runtime.
+4. Definir el mapeo exacto para vacante, postulante, empleado y adjunto de CV.
+5. Implementar consumidor de `odoo_applicant_syncs` con orden: upsert vacante → upsert postulante → adjuntar CV → guardar `odoo_job_id` / `odoo_applicant_id`.
+6. Implementar consumidor de `odoo_employee_syncs` y guardar `odoo_record_id`.
+7. Implementar reintentos, `attempt_count`, `last_error`, transición `FAILED ↔ PENDING` y observabilidad.
+8. Agregar permisos IAM mínimos para leer `ODOO_SECRET_ID` cuando se habilite la integración en runtime.
+9. Mantener `ODOO_ENABLED=false` hasta validar conexión y mapeo contra un entorno seguro.
+10. Mantener etapas previas a `SELECTED` exclusivamente en aiRecruiter y Agenda sin sincronización de citas hasta decisión posterior.
 
 ### Bloqueos / dependencias externas
 
