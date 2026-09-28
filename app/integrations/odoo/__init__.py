@@ -1,0 +1,1 @@
+"""Odoo external API integration."""

@@ -96,6 +96,48 @@ def test_gmail_settings_default_to_disabled_unconfigured(monkeypatch):
     assert settings.allowed_senders == ()
 
 
+def test_odoo_settings_default_to_disabled_unconfigured(monkeypatch):
+    for key in (
+        "ODOO_ENABLED",
+        "ODOO_BASE_URL",
+        "ODOO_DATABASE",
+        "ODOO_USERNAME",
+        "ODOO_SECRET_ID",
+        "ODOO_REQUEST_TIMEOUT_SECONDS",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+    settings = config.get_odoo_settings()
+
+    assert settings.enabled is False
+    assert settings.configured is False
+    assert settings.base_url == ""
+    assert settings.database == ""
+    assert settings.username == ""
+    assert settings.secret_id == "/ai-recruiter/prod/odoo"
+    assert settings.request_timeout_seconds == 15.0
+
+
+def test_odoo_settings_are_environment_driven_without_api_key(monkeypatch):
+    monkeypatch.setenv("ODOO_ENABLED", "true")
+    monkeypatch.setenv("ODOO_BASE_URL", "https://odoo.example.com/")
+    monkeypatch.setenv("ODOO_DATABASE", "asiati")
+    monkeypatch.setenv("ODOO_USERNAME", "integration@example.com")
+    monkeypatch.setenv("ODOO_SECRET_ID", "/custom/odoo")
+    monkeypatch.setenv("ODOO_REQUEST_TIMEOUT_SECONDS", "22")
+
+    settings = config.get_odoo_settings()
+
+    assert settings.enabled is True
+    assert settings.configured is True
+    assert settings.base_url == "https://odoo.example.com"
+    assert settings.database == "asiati"
+    assert settings.username == "integration@example.com"
+    assert settings.secret_id == "/custom/odoo"
+    assert settings.request_timeout_seconds == 22.0
+    assert not hasattr(settings, "api_key")
+
+
 def test_indeed_resume_agent_settings_defaults(monkeypatch):
     for key in (
         "INDEED_RESUME_AGENT_SECRET_ID",

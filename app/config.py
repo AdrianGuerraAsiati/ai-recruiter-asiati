@@ -85,6 +85,27 @@ class GmailOAuthSettings:
 
 
 @dataclass(frozen=True)
+class OdooSettings:
+    """Non-secret Odoo external API settings."""
+
+    enabled: bool
+    base_url: str
+    database: str
+    username: str
+    secret_id: str
+    request_timeout_seconds: float
+
+    @property
+    def configured(self) -> bool:
+        return bool(
+            self.base_url
+            and self.database
+            and self.username
+            and self.secret_id
+        )
+
+
+@dataclass(frozen=True)
 class IndeedResumeAgentSettings:
     """Non-secret settings for the machine that downloads Indeed resumes."""
 
@@ -224,6 +245,25 @@ def get_gmail_oauth_settings() -> GmailOAuthSettings:
         state_max_age_seconds=max(
             60,
             int(os.getenv("GMAIL_OAUTH_STATE_MAX_AGE_SECONDS", "600")),
+        ),
+    )
+
+
+def get_odoo_settings() -> OdooSettings:
+    """Return non-secret Odoo connection settings."""
+    return OdooSettings(
+        enabled=os.getenv("ODOO_ENABLED", "false").strip().lower()
+        in {"1", "true", "yes", "on"},
+        base_url=os.getenv("ODOO_BASE_URL", "").strip().rstrip("/"),
+        database=os.getenv("ODOO_DATABASE", "").strip(),
+        username=os.getenv("ODOO_USERNAME", "").strip(),
+        secret_id=os.getenv(
+            "ODOO_SECRET_ID",
+            "/ai-recruiter/prod/odoo",
+        ).strip(),
+        request_timeout_seconds=max(
+            1.0,
+            float(os.getenv("ODOO_REQUEST_TIMEOUT_SECONDS", "15")),
         ),
     )
 
