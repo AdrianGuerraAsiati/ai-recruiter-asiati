@@ -20,6 +20,9 @@ def test_create_app_exposes_critical_routes():
     assert "/api/jobs/{job_id}/integrations/indeed/status" in paths
     assert "/api/jobs/{job_id}/integrations/indeed/expire" in paths
     assert "/api/jobs/{job_id}/candidates/{candidate_id}/status" in paths
+    assert "/api/recruitment-calendar/events" in paths
+    assert "/api/recruitment-calendar/applications" in paths
+    assert "/api/recruitment-calendar/events/{event_id}" in paths
     assert "/api/jobs/{job_id}/candidates/{candidate_id}/integrations/indeed" in paths
     assert "/api/employees" in paths
     assert "/api/employees/summary" in paths
