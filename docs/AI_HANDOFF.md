@@ -87,6 +87,10 @@ Mantener aiRecruiterAsiati como una plataforma de reclutamiento estable, modular
 - La ruta corporativa mantiene 7 módulos versionados: bienvenida, conoce ASIATI, conoce al equipo, permisos y vacaciones, contenido corporativo, cultura interna y lo que esperamos de ti; usa los videos disponibles en la carpeta `Final` de Drive.
 - PR #83 eliminó la asignación manual del onboarding: todos los perfiles `ACTIVE` que requieren onboarding reciben automáticamente la misma ruta `Onboarding ASIATI`; perfiles `NOT_REQUIRED` y `DISABLED` quedan excluidos.
 - ADMIN/SUPER_ADMIN no asignan la ruta. Su flujo administrativo es vista previa, seguimiento de progreso y resultados.
+- La vista **Empleados > Equipo ASIATI** permite editar cargo/área, rol y si el Onboarding ASIATI es requerido para cada integrante administrable.
+- ADMIN puede gestionar roles `EMPLOYEE` y `ADMIN`; `SUPER_ADMIN` permanece reservado para Dirección. Un ADMIN no puede administrar perfiles `SUPER_ADMIN`.
+- El requisito de onboarding puede cambiarse entre requerido/no requerido, pero el progreso `PENDING` / `IN_PROGRESS` / `COMPLETED` sigue derivándose de actividades reales y no se marca manualmente.
+- Al marcar `NOT_REQUIRED`, la asignación histórica no se destruye, pero el onboarding deja de exponerse al empleado; al volver a requerirlo, se reutiliza y resincroniza la asignación existente.
 - `managed_by_system=true` identifica la ruta protegida y el backend rechaza mutaciones manuales sobre su contenido.
 
 ### Operación e infraestructura
@@ -167,6 +171,7 @@ El Resume Agent debe poder revisar vacantes y candidatos existentes y sincroniza
 - [x] Compartir vacantes/candidatos/postulaciones entre administradores autorizados (#79).
 - [x] Incorporar etapa `SELECTED` y agenda interna para llamadas/entrevistas (#85).
 - [x] Mantener el Onboarding ASIATI administrado y asignado automáticamente por el sistema (#81/#83).
+- [x] Permitir edición administrativa del Equipo ASIATI para cargo/área, rol EMPLOYEE↔ADMIN y requisito de onboarding (#94).
 - [ ] Definir contrato de datos aiRecruiter → Odoo para candidatos que alcancen la etapa de negocio acordada.
 - [ ] Mapear los campos requeridos por Odoo y separar datos obligatorios, opcionales y derivados.
 - [ ] Definir el disparador exacto de alta/sincronización en Odoo y cómo se relaciona con `SELECTED`, `OFFER` y `HIRED`.
@@ -353,6 +358,7 @@ Al actualizar este documento, mantener como mínimo:
 - Definición de una fuente canónica para teléfono cuando no venga en metadata.
 - Cierre paralelo de P2 residuales.
 - Prueba funcional del onboarding precargado desde dos perspectivas: admin editor y empleado asignado automáticamente.
+- Validación funcional de la edición del Equipo ASIATI: cargo/área, rol y requisito de onboarding desde la vista administrativa (#94).
 
 ### Pendiente inmediato
 

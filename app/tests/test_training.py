@@ -623,6 +623,29 @@ def _published_onboarding_course(db, *, with_quiz=False):
     return course, lesson, question
 
 
+def test_not_required_employee_cannot_access_existing_onboarding_assignment(db):
+    employee = _employee(db)
+    course, _, _ = _published_onboarding_course(db)
+
+    service.assign_course(
+        db,
+        course_id=course.id,
+        employee_id=employee.id,
+        assigned_by_sub="admin-sub",
+    )
+
+    employee.onboarding_status = "NOT_REQUIRED"
+    db.commit()
+
+    assert service.list_my_training(db, employee.id) == []
+    with pytest.raises(service.TrainingNotFound):
+        service.require_my_assignment(
+            db,
+            employee_id=employee.id,
+            course_id=course.id,
+        )
+
+
 def test_onboarding_assignment_stays_pending_until_employee_activity(db):
     employee = _employee(db)
     assert employee.onboarding_status == "PENDING"

@@ -91,6 +91,7 @@ def employee_payload(db: Session, profile: UserProfile) -> dict:
         "department": profile.department,
         "hire_date": profile.hire_date.isoformat() if profile.hire_date else None,
         "onboarding_status": profile.onboarding_status,
+        "onboarding_required": profile.onboarding_status != "NOT_REQUIRED",
         "onboarding_started_at": (
             profile.onboarding_started_at.isoformat()
             if profile.onboarding_started_at else None
@@ -303,6 +304,7 @@ def update_employee(
     cognito_client=None,
 ) -> UserProfile:
     profile = require_employee(db, employee_id)
+    onboarding_required = changes.pop("onboarding_required", None)
     allowed = {"first_name", "last_name", "job_title", "department", "hire_date"}
     changes = {key: value for key, value in changes.items() if key in allowed}
 
@@ -326,6 +328,12 @@ def update_employee(
 
     for key, value in changes.items():
         setattr(profile, key, value)
+
+    if onboarding_required is False:
+        profile.onboarding_status = "NOT_REQUIRED"
+    elif onboarding_required is True and profile.onboarding_status == "NOT_REQUIRED":
+        profile.onboarding_status = "PENDING"
+
     db.commit()
     db.refresh(profile)
     return profile
