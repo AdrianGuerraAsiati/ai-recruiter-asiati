@@ -33,12 +33,14 @@ def list_candidates(db: Session, owner_sub: str | None = None) -> list[Candidate
 def list_candidates_page(
     db: Session,
     *,
-    owner_sub: str,
+    owner_sub: str | None = None,
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[Candidate], int]:
-    """Return one stable owner-scoped candidate page and its total count."""
-    query = db.query(Candidate).filter(Candidate.owner_sub == owner_sub)
+    """Return one stable candidate page and its total count."""
+    query = db.query(Candidate)
+    if owner_sub is not None:
+        query = query.filter(Candidate.owner_sub == owner_sub)
     total = query.count() or 0
     items = (
         query.order_by(Candidate.created_at.desc(), Candidate.id.desc())
@@ -52,22 +54,23 @@ def list_candidates_page(
 def list_applications_page(
     db: Session,
     *,
-    owner_sub: str,
+    owner_sub: str | None = None,
     page: int = 1,
     page_size: int = 25,
     status: str = "",
     q: str = "",
 ):
-    """Return owner-scoped job applications with candidate and vacancy context."""
+    """Return job applications with candidate and vacancy context."""
     query = (
         db.query(JobCandidate, Candidate, Job)
         .join(Candidate, Candidate.id == JobCandidate.candidate_id)
         .join(Job, Job.id == JobCandidate.job_id)
-        .filter(
+    )
+    if owner_sub is not None:
+        query = query.filter(
             Candidate.owner_sub == owner_sub,
             Job.owner_sub == owner_sub,
         )
-    )
 
     normalized_status = str(status or "").strip().upper()
     if normalized_status:
@@ -101,10 +104,12 @@ def list_applications_page(
 def count_candidates(
     db: Session,
     *,
-    owner_sub: str,
+    owner_sub: str | None = None,
     include_banned: bool = False,
 ) -> int:
-    query = db.query(Candidate).filter(Candidate.owner_sub == owner_sub)
+    query = db.query(Candidate)
+    if owner_sub is not None:
+        query = query.filter(Candidate.owner_sub == owner_sub)
     if not include_banned:
         query = query.filter(Candidate.is_banned.is_(False))
     return int(query.count() or 0)
@@ -114,17 +119,16 @@ def count_candidates_for_job(
     db: Session,
     *,
     job_id: str,
-    owner_sub: str,
+    owner_sub: str | None = None,
     include_banned: bool = False,
 ) -> int:
     query = (
         db.query(Candidate)
         .join(JobCandidate, JobCandidate.candidate_id == Candidate.id)
-        .filter(
-            JobCandidate.job_id == job_id,
-            Candidate.owner_sub == owner_sub,
-        )
+        .filter(JobCandidate.job_id == job_id)
     )
+    if owner_sub is not None:
+        query = query.filter(Candidate.owner_sub == owner_sub)
     if not include_banned:
         query = query.filter(Candidate.is_banned.is_(False))
     return int(query.count() or 0)
