@@ -35,8 +35,12 @@ def _translate(exc: Exception):
 @router.get("/courses")
 def list_courses(
     db: Session = Depends(get_db),
-    _principal: dict = Depends(require_permission("training.manage")),
+    principal: dict = Depends(require_permission("training.manage")),
 ):
+    service.ensure_published_asiati_onboarding(
+        db,
+        created_by_sub=principal["sub"],
+    )
     items = service.list_courses(db)
     return {"items": items, "total": len(items)}
 
@@ -62,7 +66,7 @@ def create_asiati_onboarding_preset(
     db: Session = Depends(get_db),
     principal: dict = Depends(require_permission("training.manage")),
 ):
-    course = service.create_asiati_onboarding_template(
+    course = service.ensure_published_asiati_onboarding(
         db,
         created_by_sub=principal["sub"],
     )
