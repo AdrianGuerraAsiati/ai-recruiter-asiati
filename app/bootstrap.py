@@ -21,6 +21,7 @@ from app.domains.indeed.router import router as indeed_router
 from app.domains.hiring.router import router as hiring_router
 from app.domains.jobs.router import router as jobs_router
 from app.domains.ranking.router import router as ranking_router
+from app.domains.recruitment_calendar.router import router as recruitment_calendar_router
 from app.domains.training.router import router as training_router
 from app.health import router as health_router
 from app.observability import configure_logging, install_request_observability
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
     app.include_router(employees_router)
     app.include_router(hiring_router)
     app.include_router(ranking_router)
+    app.include_router(recruitment_calendar_router)
     app.include_router(training_router)
     app.include_router(candidate_imports_router)
     app.include_router(candidate_ingestion_router)
