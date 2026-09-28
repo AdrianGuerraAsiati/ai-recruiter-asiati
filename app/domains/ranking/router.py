@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/jobs", tags=["ranking"])
 
 
 def _require_job(db: Session, job_id: str, owner_sub: str):
-    job = crud.get_job(db, job_id, owner_sub=owner_sub)
+    job = crud.get_job(db, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Vacante no encontrada.")
     return job
@@ -39,25 +39,25 @@ def get_mass_evaluation_cost_estimate(
     if scope == "all":
         available = candidates_repository.count_candidates(
             db,
-            owner_sub=_user["sub"],
+            owner_sub=None,
             include_banned=False,
         )
         total_including_banned = candidates_repository.count_candidates(
             db,
-            owner_sub=_user["sub"],
+            owner_sub=None,
             include_banned=True,
         )
     else:
         available = candidates_repository.count_candidates_for_job(
             db,
             job_id=job_id,
-            owner_sub=_user["sub"],
+            owner_sub=None,
             include_banned=False,
         )
         total_including_banned = candidates_repository.count_candidates_for_job(
             db,
             job_id=job_id,
-            owner_sub=_user["sub"],
+            owner_sub=None,
             include_banned=True,
         )
 
@@ -133,7 +133,7 @@ def recalculate_ranking_endpoint(
         return recalculate_ranking(
             db,
             job_id=job_id,
-            owner_sub=_user["sub"],
+            owner_sub=None,
             mode=mode,
             scope=scope,
         )
@@ -150,7 +150,7 @@ def get_latest_ranking_endpoint(
     _user: dict = Depends(require_permission("ranking.read")),
 ):
     try:
-        return build_latest_ranking(db, job_id=job_id, owner_sub=_user["sub"])
+        return build_latest_ranking(db, job_id=job_id, owner_sub=None)
     except RankingJobNotFound as exc:
         raise HTTPException(status_code=404, detail=exc.message)
     except RankingNotFound as exc:
