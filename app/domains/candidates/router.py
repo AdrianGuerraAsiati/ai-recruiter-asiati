@@ -10,6 +10,7 @@ from app.domains.candidates import presenter, service
 from app.domains.candidates.exceptions import (
     CandidateNotFound,
     InvalidApplicationStatus,
+    HiringFlowRequired,
     JobCandidateNotFound,
     JobNotFound,
 )
@@ -157,6 +158,8 @@ def update_application_status(
         raise HTTPException(status_code=404, detail="Vacante no encontrada.")
     except (CandidateNotFound, JobCandidateNotFound):
         raise HTTPException(status_code=404, detail="Candidato no encontrado en esta vacante.")
+    except HiringFlowRequired as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     except InvalidApplicationStatus:
         raise HTTPException(status_code=422, detail="Estado de aplicacion no valido.")
 
