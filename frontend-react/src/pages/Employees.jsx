@@ -325,7 +325,7 @@ function Employees() {
                                 ? "Pendiente"
                                 : "No requerido"}
                         </span>
-                        {employee.onboarding && (
+                        {employee.onboarding && employee.onboarding_status !== "NOT_REQUIRED" && (
                           <div className="employee-onboarding-progress">
                             <ProgressBar value={employee.onboarding.progress_percent} />
                             <small>{Number(employee.onboarding.progress_percent || 0)}% completado</small>
