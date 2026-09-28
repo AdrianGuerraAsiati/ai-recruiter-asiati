@@ -57,7 +57,7 @@ def recalculate_ranking(
         RankingJobNotFound: if job not found or not accessible.
         RankingAlreadyRunning: if another recalculation is in progress.
     """
-    job = jobs_repository.get_job(db, job_id, owner_sub=owner_sub)
+    job = jobs_repository.get_job(db, job_id)
     if not job:
         raise RankingJobNotFound()
 
@@ -85,14 +85,14 @@ def recalculate_ranking(
         )
 
         if scope == "all":
-            ranking_candidates = candidates_repository.list_candidates(db, owner_sub=owner_sub)
+            ranking_candidates = candidates_repository.list_candidates(db)
         else:
             ranking_candidates, _ = candidates_repository.list_candidates_for_job(
                 db,
                 job_id,
                 page=1,
                 page_size=100000,
-                owner_sub=owner_sub,
+                owner_sub=None,
             )
 
         ranking_candidates = [
@@ -216,7 +216,7 @@ def materialize_ranking_from_evaluations(
     It is intended for asynchronous workflows that have completed evaluation
     before entering the ranking stage.
     """
-    job = jobs_repository.get_job(db, job_id, owner_sub=owner_sub)
+    job = jobs_repository.get_job(db, job_id)
     if not job:
         raise RankingJobNotFound()
 
@@ -240,7 +240,7 @@ def materialize_ranking_from_evaluations(
         if scope == "all":
             ranking_candidates = candidates_repository.list_candidates(
                 db,
-                owner_sub=owner_sub,
+                owner_sub=None,
             )
         else:
             ranking_candidates, _ = candidates_repository.list_candidates_for_job(
@@ -248,7 +248,7 @@ def materialize_ranking_from_evaluations(
                 job_id,
                 page=1,
                 page_size=100000,
-                owner_sub=owner_sub,
+                owner_sub=None,
             )
 
         ranking_candidates = [
@@ -336,7 +336,7 @@ def build_latest_ranking(
     """
     from app.domains.ranking.exceptions import RankingJobNotFound, RankingNotFound
 
-    job = jobs_repository.get_job(db, job_id, owner_sub=owner_sub)
+    job = jobs_repository.get_job(db, job_id)
     if not job:
         raise RankingJobNotFound()
 
