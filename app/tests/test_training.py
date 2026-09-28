@@ -1491,6 +1491,19 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
 
     assert payload["status"] == "DRAFT"
     assert payload["is_onboarding"] is True
+    core_modules = [
+        module
+        for module in payload["modules"]
+        if module["title"] in service.ASIATI_ONBOARDING_REQUIRED_MODULE_TITLES
+    ]
+    assert len(core_modules) == 7
+    assert all(
+        any(
+            lesson["content_type"] in {"VIDEO", "CHECKLIST", "ARTICLE", "RESOURCE"}
+            for lesson in module["lessons"]
+        )
+        for module in core_modules
+    )
     assert [module["title"] for module in payload["modules"]] == [
         "Módulo 1 · Bienvenida a ASIATI",
         "Módulo 2 · Conoce ASIATI",
