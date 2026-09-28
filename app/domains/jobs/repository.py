@@ -1,6 +1,6 @@
 """Jobs repository."""
 
-from sqlalchemy import and_, func
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import Candidate, Job, JobCandidate
