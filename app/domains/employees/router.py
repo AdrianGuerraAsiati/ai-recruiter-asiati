@@ -27,12 +27,12 @@ def _is_super_admin(principal: dict) -> bool:
 
 
 def _enforce_assignable_role(principal: dict, role_code: str) -> None:
-    if role_code == EMPLOYEE:
+    if role_code in {EMPLOYEE, "ADMIN"}:
         return
-    if not _is_super_admin(principal):
+    if role_code == SUPER_ADMIN and not _is_super_admin(principal):
         raise HTTPException(
             status_code=403,
-            detail="Solo Direccion puede asignar roles administrativos.",
+            detail="Solo Direccion puede asignar el rol SUPER_ADMIN.",
         )
 
 
@@ -53,10 +53,10 @@ def _enforce_target_manageable(
         return
     employee = service.require_employee(db, employee_id)
     target_roles = set(service.roles_for_profile(db, employee.id))
-    if target_roles - {EMPLOYEE}:
+    if SUPER_ADMIN in target_roles:
         raise HTTPException(
             status_code=403,
-            detail="Solo Direccion puede administrar perfiles administrativos.",
+            detail="Solo Direccion puede administrar perfiles SUPER_ADMIN.",
         )
 
 
@@ -193,6 +193,12 @@ def update_employee(
             employee_id,
             changes=body.model_dump(exclude_unset=True),
         )
+        if body.onboarding_required is True:
+            _ensure_automatic_onboarding(
+                db,
+                employee_id=employee.id,
+                created_by_sub=_principal.get("sub"),
+            )
         return service.employee_payload(db, employee)
     except Exception as exc:
         _translate_service_error(exc)
