@@ -141,7 +141,7 @@ def test_authentication_is_cached_without_exposing_key():
     assert factory.common.authenticate_calls == [
         ("asiati", "integration@example.com", "api-key", {}),
     ]
-    assert "api-key" not in repr(client.__dict__)
+    assert "api-key" not in repr(client)
 
 
 def test_rejected_credentials_raise_sanitized_auth_error():
