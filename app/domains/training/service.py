@@ -1428,7 +1428,7 @@ def create_quiz(
     created_by_sub: str,
 ) -> TrainingQuiz:
     course = require_course(db, course_id)
-    _ensure_course_editable(course)
+    _ensure_course_structure_mutable(course)
     if course.status != "DRAFT":
         raise TrainingStateError("Only draft courses can change their evaluation.")
     if course.quiz is not None:
@@ -1455,7 +1455,7 @@ def add_quiz_question(
     correct_option: int,
 ) -> TrainingQuizQuestion:
     quiz = require_quiz(db, quiz_id)
-    _ensure_course_editable(quiz.course)
+    _ensure_course_structure_mutable(quiz.course)
     if quiz.course.status != "DRAFT":
         raise TrainingStateError("Only draft courses can change their evaluation.")
     if correct_option < 0 or correct_option >= len(options):
