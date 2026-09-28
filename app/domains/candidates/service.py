@@ -9,6 +9,7 @@ from app.domains.candidates.exceptions import (
     CandidateNotFound,
     CandidateRetentionProtected,
     InvalidApplicationStatus,
+    HiringFlowRequired,
     JobCandidateNotFound,
     JobNotFound,
 )
@@ -177,6 +178,10 @@ def set_application_status(
         raise InvalidApplicationStatus(status)
     if link.application_status == normalized:
         return link, False
+    if normalized == "HIRED":
+        raise HiringFlowRequired(
+            "La contratación debe confirmarse desde el flujo de Contratar candidato."
+        )
 
     candidates_repository.set_job_candidate_status(db, link, status=normalized)
 
