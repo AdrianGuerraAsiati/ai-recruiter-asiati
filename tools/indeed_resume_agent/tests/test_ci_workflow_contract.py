@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[3]
 WORKFLOW = ROOT / ".github" / "workflows" / "indeed-resume-agent.yml"
@@ -30,7 +31,9 @@ def test_agent_workflow_builds_windows_onedir_and_uploads_artifact():
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "runs-on: windows-latest" in text
     assert "tools\\indeed_resume_agent\\build.ps1" in text
-    assert "actions/upload-artifact@v4" in text
+    artifact_action = re.search(r"actions/upload-artifact@v(\\d+)", text)
+    assert artifact_action is not None
+    assert int(artifact_action.group(1)) >= 4
     assert "ASIATI-Resume-Agent-Windows" in text
     assert "--self-test" in text
     assert "Execute packaged binary self-test" in text
