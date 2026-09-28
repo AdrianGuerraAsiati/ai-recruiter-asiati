@@ -105,7 +105,7 @@ describe("RecruitmentCalendar", () => {
   it("creates a phone call for an eligible application", async () => {
     render(<RecruitmentCalendar />);
 
-    await screen.findByText("Ana Pérez");
+    await screen.findAllByText("Ana Pérez");
     fireEvent.click(screen.getByRole("button", { name: "Agendar cita" }));
 
     fireEvent.change(screen.getByLabelText("Candidato y vacante"), {
@@ -132,7 +132,7 @@ describe("RecruitmentCalendar", () => {
 
     render(<RecruitmentCalendar />);
 
-    await screen.findByText("Ana Pérez");
+    await screen.findAllByText("Ana Pérez");
     expect(screen.queryByRole("button", { name: "Agendar cita" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Editar" })).not.toBeInTheDocument();
   });
