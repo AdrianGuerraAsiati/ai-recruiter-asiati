@@ -14,6 +14,17 @@
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
+<!-- AI_HANDOFF_AUTO_START -->
+## Checkpoint automático
+
+- **Última actualización automática:** pendiente del primer merge etiquetado
+- **Merge commit:** —
+- **PR:** —
+- **Origen:** merge a `main` con etiqueta `handoff:update`
+
+> Este bloque es administrado por `.github/workflows/ai-handoff.yml`. No editarlo manualmente.
+<!-- AI_HANDOFF_AUTO_END -->
+
 ## Objetivo actual
 
 Mantener aiRecruiterAsiati como una plataforma de reclutamiento estable, modular y operable, con foco inmediato en:
@@ -140,7 +151,9 @@ Nunca asumir que una afirmación de un chat sigue siendo cierta sin contrastarla
 
 ## Cuándo actualizar este archivo
 
-Actualizarlo cuando ocurra cualquiera de estos eventos:
+El bloque **Checkpoint automático** se actualiza solo cuando un PR con la etiqueta `handoff:update` se fusiona a `main`. El resto del documento sigue siendo deliberadamente manual para que riesgos, decisiones, bloqueos y próximos pasos reflejen el estado real del proyecto.
+
+Actualizar manualmente el contenido semántico cuando ocurra cualquiera de estos eventos:
 
 - merge importante;
 - cierre de una fase P0/P1/P2;
