@@ -83,7 +83,7 @@ def hire_candidate(
         db,
         job_id=job_id,
         candidate_id=candidate_id,
-        owner_sub=owner_sub,
+        owner_sub=None,
     )
     if link is None:
         raise candidates_service.JobCandidateNotFound(candidate_id)
