@@ -1,6 +1,6 @@
 // eslint-disable-next-line no-unused-vars
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import TrainingContentEditor from "../features/training/TrainingContentEditor";
@@ -135,7 +135,7 @@ describe("TrainingContentEditor", () => {
     expect(screen.queryByRole("button", { name: /Agregar módulo/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Subir video")).not.toBeInTheDocument();
   });
-  it("lets admins edit the preloaded published onboarding without showing builders", () => {
+  it("lets admins edit the preloaded published onboarding without showing builders", async () => {
     const props = renderEditor({
       course: {
         status: "PUBLISHED",
@@ -184,6 +184,9 @@ describe("TrainingContentEditor", () => {
       "module-1",
       expect.objectContaining({ title: "Bienvenida actualizada" }),
     );
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Guardar módulo" })).not.toBeInTheDocument();
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Editar lección" }));
     fireEvent.change(screen.getByLabelText("Editar título de lección Introducción"), {
@@ -199,6 +202,8 @@ describe("TrainingContentEditor", () => {
         duration_seconds: 120,
       }),
     );
-    expect(screen.getByLabelText("Reemplazar video de Introducción")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByLabelText("Reemplazar video de Introducción")).toBeInTheDocument();
+    });
   });
 });
