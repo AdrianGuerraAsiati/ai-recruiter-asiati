@@ -226,7 +226,7 @@ def test_existing_cognito_user_can_be_materialized_for_role_bootstrap(db):
 
     assert profile.email == "existing@asiati.com.co"
     assert profile.cognito_sub == "sub-existing@asiati.com.co"
-    assert profile.onboarding_status == "NOT_REQUIRED"
+    assert profile.onboarding_status == "PENDING"
     assert service.roles_for_profile(db, profile.id) == []
 
 
