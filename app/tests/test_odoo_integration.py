@@ -27,6 +27,7 @@ def _settings(**overrides):
         "database": "asiati",
         "username": "integration@example.com",
         "secret_id": "/ai-recruiter/prod/odoo",
+        "request_timeout_seconds": 19.0,
     }
     values.update(overrides)
     return OdooSettings(**values)
@@ -78,7 +79,8 @@ def test_build_client_combines_non_secret_settings_with_runtime_key():
     assert client.base_url == "https://odoo.example.com"
     assert client.database == "asiati"
     assert client.username == "integration@example.com"
-    assert "runtime-secret" not in repr(client.__dict__)
+    assert client.request_timeout_seconds == 19.0
+    assert "runtime-secret" not in repr(client)
 
 
 def test_connection_status_never_returns_api_key():
