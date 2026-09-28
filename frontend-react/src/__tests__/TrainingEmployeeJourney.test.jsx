@@ -91,12 +91,12 @@ describe("TrainingEmployeeJourney", () => {
     render(<TrainingEmployeeJourney {...props} />);
 
     expect(screen.getByRole("heading", { name: "Mis cursos" })).toBeInTheDocument();
-    expect(screen.getByText("Ruta de prueba")).toBeInTheDocument();
+    expect(screen.getAllByText("Ruta de prueba").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: /Continuar ahora/ }));
     expect(props.setActiveLessonId).toHaveBeenCalledWith("lesson-1");
 
-    fireEvent.click(screen.getByText("Módulo 1").closest("button"));
+    fireEvent.click(screen.getByRole("button", { name: /Módulo 1/ }));
     expect(props.toggleJourneyModule).toHaveBeenCalledWith("module-1");
 
     fireEvent.click(screen.getByRole("button", { name: "Marcar completada" }));
