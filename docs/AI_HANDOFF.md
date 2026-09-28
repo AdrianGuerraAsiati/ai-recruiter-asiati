@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `7866838171c435eb218ddf6b98cda69b1471fb9c`
+- **Último checkpoint conocido:** `cd5897f33ca73d6893f07d5e00b7e5fb8858529a`
 - **Fecha del checkpoint:** 2026-09-28
-- **Commit:** `feat: enviar empleados contratados a Odoo (#92)`
+- **Commit:** `feat: editar equipo ASIATI desde administración (#94)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -318,8 +318,8 @@ Al actualizar este documento, mantener como mínimo:
 
 - **Fecha:** 2026-09-28
 - **Rama:** `main`
-- **Commit funcional de referencia:** `7866838171c435eb218ddf6b98cda69b1471fb9c`
-- **Último hito:** PR #92 mergeado — POST explícito de empleado contratado hacia Odoo con upsert idempotente, introspección de campos y configuración runtime opcional.
+- **Commit funcional de referencia:** `cd5897f33ca73d6893f07d5e00b7e5fb8858529a`
+- **Último hito:** PR #94 mergeado — la vista Equipo ASIATI permite editar cargo/área, rol EMPLOYEE↔ADMIN y requisito de Onboarding ASIATI, manteniendo SUPER_ADMIN protegido y el progreso derivado de actividades reales.
 
 ### Completado
 
