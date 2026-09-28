@@ -35,7 +35,7 @@ import api from "../api/client";
 
 const jobs = [
   { job_id: "job-1", title: "Backend Engineer", candidate_count: 0 },
-  { job_id: "job-2", title: "Data Engineer", candidate_count: 0 },
+  { job_id: "job-2", title: "Data Engineer", candidate_count: 1 },
 ];
 
 function emptyRanking(scope = "assigned") {
