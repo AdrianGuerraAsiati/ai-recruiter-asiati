@@ -224,7 +224,6 @@ describe("Ranking page", () => {
 
     renderRanking();
 
-    const select = await screen.findByRole("combobox", { name: "" }).catch(() => null);
     await waitFor(() => {
       expect(screen.queryByRole("option", { name: "Vacante vacía 1" })).not.toBeInTheDocument();
       expect(screen.queryByRole("option", { name: "Vacante vacía 2" })).not.toBeInTheDocument();
@@ -232,7 +231,6 @@ describe("Ranking page", () => {
 
     expect(screen.getByRole("option", { name: "Seleccione vacante" })).toBeInTheDocument();
     expect(api.get.mock.calls.filter(([url]) => url.includes("/ranking"))).toHaveLength(0);
-    void select;
   });
 
   // ============================================================
