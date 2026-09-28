@@ -740,10 +740,25 @@ def update_module(
 ) -> TrainingModule:
     module = require_module(db, module_id)
     _ensure_existing_content_editable(module.course)
+    if _is_system_managed_course(module.course) and (
+        (audience_job_title or "").strip()
+        or (audience_department or "").strip()
+    ):
+        raise TrainingStateError(
+            "Onboarding ASIATI is currently shared by all employees and cannot be segmented by role or department."
+        )
     module.title = title.strip()
     module.description = (description or "").strip() or None
-    module.audience_job_title = (audience_job_title or "").strip() or None
-    module.audience_department = (audience_department or "").strip() or None
+    module.audience_job_title = (
+        None
+        if _is_system_managed_course(module.course)
+        else (audience_job_title or "").strip() or None
+    )
+    module.audience_department = (
+        None
+        if _is_system_managed_course(module.course)
+        else (audience_department or "").strip() or None
+    )
     db.commit()
     db.refresh(module)
     return module
