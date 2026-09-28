@@ -925,7 +925,7 @@ describe("Training platform", () => {
     expect(api.post).not.toHaveBeenCalledWith("/training/courses/presets/asiati-onboarding");
   });
 
-  it("shows assignments while keeping onboarding authoring out of the admin flow", async () => {
+  it("shows automatic onboarding progress without manual assignment controls", async () => {
     useSession.mockReturnValue({
       principal: {
         profile: { id: "admin-1", first_name: "Admin" },
@@ -990,6 +990,12 @@ describe("Training platform", () => {
     expect((await screen.findAllByText("Onboarding ASIATI")).length).toBeGreaterThan(0);
     expect(await screen.findByText("Ana Pérez")).toBeInTheDocument();
     expect(screen.getByText("50%")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Progreso del equipo" })).toBeInTheDocument();
+    expect(
+      screen.getByText(/se asigna automáticamente a todos los empleados activos/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Asignar curso" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Empleado para asignar")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Crear curso" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Agregar módulo/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Agregar lección" })).not.toBeInTheDocument();

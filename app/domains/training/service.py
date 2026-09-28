@@ -31,6 +31,8 @@ from app.domains.training.errors import (
 
 logger = logging.getLogger(__name__)
 
+SYSTEM_ONBOARDING_ACTOR = "system:asiati-onboarding"
+
 
 def require_course(db: Session, course_id: str) -> TrainingCourse:
     course = db.query(TrainingCourse).filter(TrainingCourse.id == course_id).one_or_none()
@@ -838,6 +840,125 @@ def _sync_employee_onboarding(db: Session, employee_id: str) -> UserProfile:
     return employee
 
 
+def _create_automatic_onboarding_assignment(
+    db: Session,
+    *,
+    course: TrainingCourse,
+    employee: UserProfile,
+) -> TrainingAssignment:
+    existing = (
+        db.query(TrainingAssignment)
+        .filter(
+            TrainingAssignment.course_id == course.id,
+            TrainingAssignment.employee_id == employee.id,
+        )
+        .one_or_none()
+    )
+    if existing is not None:
+        return existing
+
+    assignment = TrainingAssignment(
+        course_id=course.id,
+        employee_id=employee.id,
+        status="ASSIGNED",
+        assigned_by_sub=SYSTEM_ONBOARDING_ACTOR,
+    )
+    db.add(assignment)
+    db.flush()
+    _sync_employee_onboarding(db, employee.id)
+    return assignment
+
+
+def ensure_employee_asiati_onboarding(
+    db: Session,
+    *,
+    employee_id: str,
+    created_by_sub: str | None = None,
+) -> TrainingAssignment | None:
+    """Ensure one active employee receives the system-managed ASIATI onboarding."""
+
+    employee = require_employee(db, employee_id)
+    if employee.status != "ACTIVE" or employee.onboarding_status == "NOT_REQUIRED":
+        return None
+
+    course = ensure_published_asiati_onboarding(
+        db,
+        created_by_sub=created_by_sub or SYSTEM_ONBOARDING_ACTOR,
+    )
+    assignment = _create_automatic_onboarding_assignment(
+        db,
+        course=course,
+        employee=employee,
+    )
+    db.commit()
+    db.refresh(assignment)
+    return assignment
+
+
+def ensure_asiati_onboarding_for_active_employees(
+    db: Session,
+    *,
+    course: TrainingCourse | None = None,
+    created_by_sub: str | None = None,
+) -> int:
+    """Backfill the system onboarding for all active profiles that require onboarding."""
+
+    course = course or ensure_published_asiati_onboarding(
+        db,
+        created_by_sub=created_by_sub or SYSTEM_ONBOARDING_ACTOR,
+    )
+    if not _is_system_managed_course(course) or course.status != "PUBLISHED":
+        raise TrainingStateError("The automatic onboarding course is not available.")
+
+    employees = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.status == "ACTIVE",
+            UserProfile.onboarding_status != "NOT_REQUIRED",
+        )
+        .all()
+    )
+    if not employees:
+        return 0
+
+    employee_ids = [employee.id for employee in employees]
+    existing_ids = {
+        employee_id
+        for (employee_id,) in (
+            db.query(TrainingAssignment.employee_id)
+            .filter(
+                TrainingAssignment.course_id == course.id,
+                TrainingAssignment.employee_id.in_(employee_ids),
+            )
+            .all()
+        )
+    }
+
+    created = 0
+    created_employees: list[UserProfile] = []
+    for employee in employees:
+        if employee.id in existing_ids:
+            continue
+        db.add(
+            TrainingAssignment(
+                course_id=course.id,
+                employee_id=employee.id,
+                status="ASSIGNED",
+                assigned_by_sub=SYSTEM_ONBOARDING_ACTOR,
+            )
+        )
+        created += 1
+        created_employees.append(employee)
+
+    if created:
+        db.flush()
+        for employee in created_employees:
+            _sync_employee_onboarding(db, employee.id)
+        db.commit()
+
+    return created
+
+
 def assign_course(
     db: Session,
     *,
@@ -846,6 +967,10 @@ def assign_course(
     assigned_by_sub: str,
 ) -> TrainingAssignment:
     course = require_course(db, course_id)
+    if _is_system_managed_course(course):
+        raise TrainingAssignmentError(
+            "Onboarding ASIATI is assigned automatically to active employees."
+        )
     employee = require_employee(db, employee_id)
     if employee.status != "ACTIVE":
         raise TrainingAssignmentError("Disabled employees cannot receive new courses.")

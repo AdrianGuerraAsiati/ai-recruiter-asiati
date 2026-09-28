@@ -165,16 +165,20 @@ def hire_candidate(
         assigned_by_sub=created_by_sub,
     )
 
-    course = training_service.ensure_published_asiati_onboarding(
+    if employee.onboarding_status == "NOT_REQUIRED":
+        employee.onboarding_status = "PENDING"
+        db.commit()
+        db.refresh(employee)
+
+    assignment = training_service.ensure_employee_asiati_onboarding(
         db,
+        employee_id=employee.id,
         created_by_sub=created_by_sub,
     )
-    assignment = training_service.assign_course(
-        db,
-        course_id=course.id,
-        employee_id=employee.id,
-        assigned_by_sub=created_by_sub,
-    )
+    if assignment is None:
+        raise HiringConflictError(
+            "El empleado contratado no es elegible para el onboarding automático."
+        )
 
     link.employee_id = employee.id
     if link.hired_at is None:

@@ -1319,6 +1319,65 @@ def test_asiati_onboarding_is_system_managed_and_published_automatically(db):
     ).count() == 1
 
 
+def test_system_managed_asiati_onboarding_is_assigned_to_all_active_employees(db):
+    first = _employee(db, "first@asiati.com.co")
+    second = _employee(db, "second@asiati.com.co")
+    disabled = _employee(db, "disabled@asiati.com.co")
+    exempt = _employee(db, "exempt@asiati.com.co")
+    disabled.status = "DISABLED"
+    exempt.onboarding_status = "NOT_REQUIRED"
+    db.commit()
+
+    course = service.ensure_published_asiati_onboarding(
+        db,
+        created_by_sub="admin-sub",
+    )
+
+    created = service.ensure_asiati_onboarding_for_active_employees(
+        db,
+        course=course,
+        created_by_sub="admin-sub",
+    )
+    repeated = service.ensure_asiati_onboarding_for_active_employees(
+        db,
+        course=course,
+        created_by_sub="admin-sub",
+    )
+
+    assignments = (
+        db.query(TrainingAssignment)
+        .filter(TrainingAssignment.course_id == course.id)
+        .all()
+    )
+    assigned_employee_ids = {assignment.employee_id for assignment in assignments}
+
+    assert created == 2
+    assert repeated == 0
+    assert assigned_employee_ids == {first.id, second.id}
+    assert all(
+        assignment.assigned_by_sub == service.SYSTEM_ONBOARDING_ACTOR
+        for assignment in assignments
+    )
+    assert disabled.id not in assigned_employee_ids
+    assert exempt.id not in assigned_employee_ids
+
+
+def test_system_managed_asiati_onboarding_rejects_manual_assignment(db):
+    employee = _employee(db)
+    course = service.ensure_published_asiati_onboarding(
+        db,
+        created_by_sub="admin-sub",
+    )
+
+    with pytest.raises(service.TrainingAssignmentError, match="assigned automatically"):
+        service.assign_course(
+            db,
+            course_id=course.id,
+            employee_id=employee.id,
+            assigned_by_sub="admin-sub",
+        )
+
+
 def test_system_managed_asiati_onboarding_rejects_manual_content_changes(db):
     course = service.create_asiati_onboarding_template(
         db,

@@ -10,6 +10,7 @@ export default function TrainingAssignmentsPanel({
   onEmployeeChange,
   onAssignCourse,
   saving,
+  canAssign,
   canViewResults,
   assignments,
 }) {
@@ -17,37 +18,45 @@ export default function TrainingAssignmentsPanel({
     <section className="panel">
       <div className="panel-heading">
         <div>
-          <span className="eyebrow">Distribución</span>
-          <h2>Asignar a un empleado</h2>
+          <span className="eyebrow">{course.managed_by_system ? "Seguimiento" : "Distribución"}</span>
+          <h2>{course.managed_by_system ? "Progreso del equipo" : "Asignar a un empleado"}</h2>
         </div>
       </div>
 
-      <form className="training-assignment-form" onSubmit={onAssignCourse}>
-        <select
-          aria-label="Empleado para asignar"
-          value={employeeId}
-          onChange={(event) => onEmployeeChange(event.target.value)}
-          required
-        >
-          <option value="">Selecciona un empleado</option>
-          {employees.map((employee) => (
-            <option key={employee.id} value={employee.id}>
-              {[employee.first_name, employee.last_name].filter(Boolean).join(" ") || employee.email}
-            </option>
-          ))}
-        </select>
-        <button
-          className="btn btn-primary"
-          type="submit"
-          disabled={saving || course.status !== "PUBLISHED"}
-        >
-          Asignar curso
-        </button>
-      </form>
+      {course.managed_by_system ? (
+        <p className="training-form-note">
+          El Onboarding ASIATI se asigna automáticamente a todos los empleados activos.
+        </p>
+      ) : canAssign ? (
+        <>
+          <form className="training-assignment-form" onSubmit={onAssignCourse}>
+            <select
+              aria-label="Empleado para asignar"
+              value={employeeId}
+              onChange={(event) => onEmployeeChange(event.target.value)}
+              required
+            >
+              <option value="">Selecciona un empleado</option>
+              {employees.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {[employee.first_name, employee.last_name].filter(Boolean).join(" ") || employee.email}
+                </option>
+              ))}
+            </select>
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={saving || course.status !== "PUBLISHED"}
+            >
+              Asignar curso
+            </button>
+          </form>
 
-      {course.status !== "PUBLISHED" && (
-        <p className="training-form-note">Publica el curso antes de asignarlo.</p>
-      )}
+          {course.status !== "PUBLISHED" && (
+            <p className="training-form-note">Publica el curso antes de asignarlo.</p>
+          )}
+        </>
+      ) : null}
 
       {canViewResults && assignments.length > 0 && (
         <div className="training-results-list">

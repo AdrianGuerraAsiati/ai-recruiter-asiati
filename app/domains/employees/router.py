@@ -1,5 +1,6 @@
 """Employee administration HTTP routes."""
 
+import logging
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,8 +15,10 @@ from app.domains.employees.schemas import (
     SetEmployeeStatusRequest,
     UpdateEmployeeRequest,
 )
+from app.domains.training import service as training_service
 
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/employees", tags=["employees"])
 
 
@@ -56,6 +59,26 @@ def _enforce_target_manageable(
             detail="Solo Direccion puede administrar perfiles administrativos.",
         )
 
+
+
+def _ensure_automatic_onboarding(
+    db: Session,
+    *,
+    employee_id: str,
+    created_by_sub: str | None,
+) -> None:
+    try:
+        training_service.ensure_employee_asiati_onboarding(
+            db,
+            employee_id=employee_id,
+            created_by_sub=created_by_sub,
+        )
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Automatic ASIATI onboarding sync failed for employee %s",
+            employee_id,
+        )
 
 
 def _translate_service_error(exc: Exception):
@@ -146,6 +169,11 @@ def create_employee(
             role_code=body.role,
             created_by_sub=principal.get("sub"),
         )
+        _ensure_automatic_onboarding(
+            db,
+            employee_id=employee.id,
+            created_by_sub=principal.get("sub"),
+        )
         return service.employee_payload(db, employee)
     except Exception as exc:
         _translate_service_error(exc)
@@ -185,6 +213,12 @@ def update_employee_status(
             employee_id,
             status=body.status,
         )
+        if body.status == "ACTIVE":
+            _ensure_automatic_onboarding(
+                db,
+                employee_id=employee.id,
+                created_by_sub=principal.get("sub"),
+            )
         return service.employee_payload(db, employee)
     except Exception as exc:
         _translate_service_error(exc)

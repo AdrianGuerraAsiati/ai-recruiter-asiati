@@ -20,6 +20,7 @@ function renderPanel(overrides = {}) {
     onEmployeeChange: vi.fn(),
     onAssignCourse: vi.fn((event) => event.preventDefault()),
     saving: false,
+    canAssign: true,
     canViewResults: true,
     assignments: [],
     ...overrides,
@@ -47,6 +48,22 @@ describe("TrainingAssignmentsPanel", () => {
 
     expect(screen.getByRole("button", { name: "Asignar curso" })).toBeDisabled();
     expect(screen.getByText("Publica el curso antes de asignarlo.")).toBeInTheDocument();
+  });
+
+  it("shows automatic distribution for the system-managed onboarding", () => {
+    renderPanel({
+      course: {
+        status: "PUBLISHED",
+        managed_by_system: true,
+      },
+    });
+
+    expect(screen.getByRole("heading", { name: "Progreso del equipo" })).toBeInTheDocument();
+    expect(
+      screen.getByText(/se asigna automáticamente a todos los empleados activos/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Empleado para asignar")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Asignar curso" })).not.toBeInTheDocument();
   });
 
   it("renders assignment progress and quiz results when permitted", () => {
