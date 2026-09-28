@@ -193,6 +193,7 @@ def build_employee_upsert_payload(
         "candidate": {
             "name": candidate.name,
             "email": candidate.email,
+            "phone": _candidate_phone(candidate),
         },
         "job": {
             "title": job.title,

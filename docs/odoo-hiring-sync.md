@@ -13,7 +13,11 @@ Las vacantes y candidatos que continúan en etapas tempranas permanecen solo en 
 
 La integración se divide en estado durable y transporte.
 
-Este corte **no hace llamadas de red a Odoo**. La selección y la contratación terminan localmente aunque Odoo esté indisponible; un transporte posterior consumirá los registros pendientes.
+La selección y la contratación terminan localmente aunque Odoo esté indisponible. El empleado contratado queda primero en el outbox y puede enviarse explícitamente con:
+
+`POST /api/odoo/employees/{employee_id}/sync`
+
+El endpoint consume `odoo_employee_syncs` y hace un upsert idempotente sobre `hr.employee`. El transporte externo sigue desacoplado del commit de contratación, por lo que un fallo de Odoo no revierte `HIRED`, Cognito ni onboarding.
 
 ### Postulante seleccionado
 
@@ -77,20 +81,41 @@ Incluye:
 - cargo;
 - área/departamento;
 - fecha de ingreso;
+- teléfono del candidato cuando exista en metadata;
 - contexto básico de la vacante.
 
-## Pendiente antes del transporte real
+### Mapeo inicial a `hr.employee`
 
-No activar llamadas a Odoo hasta definir explícitamente:
+El transporte consulta primero `fields_get` y solo escribe campos disponibles y editables en la instancia real.
 
-- modelo(s) destino y nombres técnicos de campos en Odoo;
-- endpoint/base URL y mecanismo de autenticación;
-- fuente canónica de teléfono cuando no venga en metadata;
-- transferencia del CV canónico como adjunto;
-- campos contractuales o de nómina requeridos por Talento Humano;
-- política de reintentos y transición `FAILED → PENDING`;
-- orden de consumo postulante → empleado;
-- captura y reutilización de `odoo_job_id`, `odoo_applicant_id` y `odoo_record_id`.
+Mapeo v1:
+
+- `name` ← nombre completo;
+- `work_email` ← correo del empleado en aiRecruiter;
+- `job_title` ← cargo;
+- `private_phone` ← teléfono del candidato;
+- `employee_type = employee` solo si Odoo expone esa selección;
+- `department_id` solo si existe exactamente un departamento con el mismo nombre;
+- `job_id` solo si existe exactamente un puesto con el mismo nombre.
+
+No se crean automáticamente departamentos, puestos ni empresas. Si una relación no puede resolverse de forma inequívoca, se omite y el empleado puede sincronizarse con los campos restantes.
+
+La búsqueda idempotente usa primero `odoo_record_id` persistido y, si no existe, `work_email`. Dos empleados Odoo con el mismo correo detienen el intento para evitar actualizar el registro equivocado.
+
+## Pendiente antes de activar producción
+
+El transporte de empleado ya existe, pero `ODOO_ENABLED` debe permanecer en `false` hasta configurar y validar la conexión ASIATI.
+
+Pendiente:
+
+- cargar base URL, base de datos, usuario y secret ID en runtime;
+- guardar la API key únicamente en AWS Secrets Manager;
+- verificar IAM mínimo de lectura del secreto;
+- hacer `healthcheck` y prueba controlada sobre la instancia real;
+- completar transporte de postulante/vacante;
+- transferir el CV canónico como adjunto;
+- decidir si se incorporan más datos privados/contractuales;
+- automatizar el consumo de outboxes después de validar el POST manual.
 
 ## Regla de disponibilidad
 

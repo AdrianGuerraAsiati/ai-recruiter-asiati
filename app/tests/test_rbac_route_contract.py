@@ -43,6 +43,9 @@ WRITE_ROUTE_PERMISSIONS = {
         "create_import_batch": "candidates.manage",
         "complete_import_batch": "candidates.manage",
     },
+    "app/domains/odoo_sync/router.py": {
+        "sync_employee_to_odoo": "employees.update",
+    },
 }
 
 
