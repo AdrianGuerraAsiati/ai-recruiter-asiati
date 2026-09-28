@@ -1745,11 +1745,17 @@ ASIATI_ONBOARDING_REQUIRED_MODULE_TITLES = {
 
 
 def _is_current_asiati_onboarding(course: TrainingCourse) -> bool:
-    module_titles = {module.title for module in course.modules}
+    """Identify the provisioned onboarding without depending on editable labels.
+
+    Administrators may customize module/lesson titles after bootstrap. Once the
+    published route has the expected structural minimum, do not rebuild or repair
+    it on routine reads because that would overwrite intentional edits.
+    """
+
     return (
         course.title == "Onboarding ASIATI"
         and bool(course.is_onboarding)
-        and ASIATI_ONBOARDING_REQUIRED_MODULE_TITLES.issubset(module_titles)
+        and len(course.modules) >= 7
         and course.quiz is not None
         and len(course.quiz.questions) >= 5
     )
