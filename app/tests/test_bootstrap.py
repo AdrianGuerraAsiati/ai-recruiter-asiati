@@ -29,6 +29,7 @@ def test_create_app_exposes_critical_routes():
     assert "/api/employees/{employee_id}" in paths
     assert "/api/employees/{employee_id}/status" in paths
     assert "/api/employees/{employee_id}/role" in paths
+    assert "/api/odoo/employees/{employee_id}/sync" in paths
     assert "/api/direction/employee-scores" in paths
     assert "/api/direction/employee-scores/{employee_id}" in paths
     assert "/api/direction/employee-scores/{employee_id}/events" in paths
