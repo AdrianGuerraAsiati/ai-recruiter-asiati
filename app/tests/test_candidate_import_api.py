@@ -145,11 +145,11 @@ def test_admin_can_create_batch_for_job_created_by_another_admin(api, db_session
         },
     )
 
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Vacante no encontrada."}
+    assert response.status_code == 202
+    assert response.json()["batch_id"]
 
 
-def test_other_owner_cannot_read_batch(api, db_session):
+def test_admin_can_read_batch_created_by_another_admin(api, db_session):
     client, principal = api
     job = _seed_job(db_session, owner="owner-a")
     batch = ImportBatch(job_id=job.id, owner_sub="owner-a", upload_total=1)
