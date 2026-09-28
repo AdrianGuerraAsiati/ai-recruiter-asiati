@@ -65,12 +65,15 @@ def create_item(
     return item
 
 
-def get_batch(db: Session, batch_id: str, owner_sub: str) -> ImportBatch | None:
-    return (
-        db.query(ImportBatch)
-        .filter(ImportBatch.id == batch_id, ImportBatch.owner_sub == owner_sub)
-        .first()
-    )
+def get_batch(
+    db: Session,
+    batch_id: str,
+    owner_sub: str | None = None,
+) -> ImportBatch | None:
+    query = db.query(ImportBatch).filter(ImportBatch.id == batch_id)
+    if owner_sub is not None:
+        query = query.filter(ImportBatch.owner_sub == owner_sub)
+    return query.first()
 
 
 def get_batch_for_worker(db: Session, batch_id: str) -> ImportBatch | None:
@@ -207,19 +210,18 @@ def list_batch_items(
     db: Session,
     *,
     batch_id: str,
-    owner_sub: str,
-    page: int,
-    page_size: int,
+    owner_sub: str | None = None,
+    page: int = 1,
+    page_size: int = 100,
 ) -> tuple[list[ImportItem], int]:
     query = (
         db.query(ImportItem)
         .join(ImportBatch, ImportBatch.id == ImportItem.batch_id)
-        .filter(
-            ImportItem.batch_id == batch_id,
-            ImportBatch.owner_sub == owner_sub,
-        )
-        .order_by(ImportItem.created_at.asc(), ImportItem.id.asc())
+        .filter(ImportItem.batch_id == batch_id)
     )
+    if owner_sub is not None:
+        query = query.filter(ImportBatch.owner_sub == owner_sub)
+    query = query.order_by(ImportItem.created_at.asc(), ImportItem.id.asc())
     total = query.count()
     items = query.offset((page - 1) * page_size).limit(page_size).all()
     return items, total
@@ -229,35 +231,33 @@ def list_top_level_items(
     db: Session,
     *,
     batch_id: str,
-    owner_sub: str,
+    owner_sub: str | None = None,
 ) -> list[ImportItem]:
-    return (
+    query = (
         db.query(ImportItem)
         .join(ImportBatch, ImportBatch.id == ImportItem.batch_id)
         .filter(
             ImportItem.batch_id == batch_id,
             ImportItem.parent_item_id.is_(None),
-            ImportBatch.owner_sub == owner_sub,
         )
-        .order_by(ImportItem.created_at.asc(), ImportItem.id.asc())
-        .all()
     )
+    if owner_sub is not None:
+        query = query.filter(ImportBatch.owner_sub == owner_sub)
+    return query.order_by(ImportItem.created_at.asc(), ImportItem.id.asc()).all()
 
 
 def list_recent_batches(
     db: Session,
     *,
-    owner_sub: str,
+    owner_sub: str | None = None,
     job_id: str,
     limit: int,
 ) -> list[ImportBatch]:
+    query = db.query(ImportBatch).filter(ImportBatch.job_id == job_id)
+    if owner_sub is not None:
+        query = query.filter(ImportBatch.owner_sub == owner_sub)
     return (
-        db.query(ImportBatch)
-        .filter(
-            ImportBatch.owner_sub == owner_sub,
-            ImportBatch.job_id == job_id,
-        )
-        .order_by(ImportBatch.created_at.desc(), ImportBatch.id.desc())
+        query.order_by(ImportBatch.created_at.desc(), ImportBatch.id.desc())
         .limit(limit)
         .all()
     )
