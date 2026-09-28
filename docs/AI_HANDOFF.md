@@ -278,7 +278,7 @@ Al actualizar este documento, mantener como mínimo:
 
 - Cierre de P2 residuales en archivos grandes y gobernanza de `main`.
 - Modularización de `tools/indeed_resume_agent/browser.py` en progreso; ya se extrajeron runtime, parsing de respuestas, estado de página y construcción/sanitización de diagnósticos. Faltan lifecycle/persistencia de diagnóstico y los bloques de mayor riesgo de navegación/búsqueda/captura.
-- Después: `Jobs.jsx`, `asiati_preset.py` y `RankingView.jsx`.
+- Siguiente frente de bajo riesgo: `Jobs.jsx`; después `asiati_preset.py` y `RankingView.jsx`.
 - Seguimiento del próximo PR de GitHub Actions que genere Dependabot con la política actual.
 
 ### Pendiente inmediato
@@ -307,4 +307,4 @@ Al actualizar este documento, mantener como mínimo:
 2. Cuando se retome `browser.py`, aislar primero lifecycle/persistencia de diagnóstico; mantener fuera del mismo PR matching, navegación crítica y captura/descarga.
 3. Ejecutar tests del Resume Agent en Linux/Windows, build y self-test en cada cambio que afecte su runtime o packaging.
 4. Continuar después con `asiati_preset.py` y `RankingView.jsx`.
-4. Mantener PRs pequeños, verificables y con actualización de handoff al cerrar hitos.
+5. Mantener PRs pequeños, verificables y con actualización de handoff al cerrar hitos.
