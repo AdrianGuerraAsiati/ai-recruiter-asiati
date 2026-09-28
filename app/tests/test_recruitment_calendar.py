@@ -3,12 +3,28 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
+from app.db import Base
 from app.domains.recruitment_calendar import service
 from app.domains.recruitment_calendar.exceptions import (
     RecruitmentApplicationNotEligible,
 )
 from app.models import Candidate, Job, JobCandidate, RecruitmentEvent
+
+
+@pytest.fixture()
+def db():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
 
 
 def _application(db, *, status="SELECTED", suffix="one"):
