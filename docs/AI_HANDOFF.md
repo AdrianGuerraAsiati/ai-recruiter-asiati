@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `2110be855bd44ec6235403d76ad1f99533314093`
+- **Último checkpoint conocido:** `178a2a111c73bbfbc9d1433ee8a5046309c45f7d`
 - **Fecha del checkpoint:** 2026-09-28
-- **Commit:** `feat: agregar agenda de selección (#85)`
+- **Commit:** `feat: preparar postulantes seleccionados para Odoo (#87)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -29,11 +29,11 @@ Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este co
 
 Mantener aiRecruiterAsiati como una plataforma de reclutamiento estable, modular y operable, con foco inmediato en:
 
-1. consolidar el flujo de selección desde candidato/postulación hasta agenda, contratación y alta posterior en Odoo;
-2. definir e implementar el contrato de integración con Odoo sin replicar indiscriminadamente vacantes ni candidatos que todavía están en etapas tempranas;
+1. conectar el transporte real hacia Odoo sobre los outboxes ya persistidos para `SELECTED` y `HIRED`;
+2. mapear modelos/campos técnicos de Odoo, autenticación y adjunto de CV sin replicar indiscriminadamente etapas tempranas;
 3. mantener la agenda de selección como herramienta operativa interna de Talento Humano para llamadas telefónicas y entrevistas presenciales;
 4. cerrar deuda técnica P2 sin romper reclutamiento, Resume Agent, onboarding ni los flujos críticos ya estabilizados;
-5. fortalecer pruebas, observabilidad, UI/UX e infraestructura antes de habilitar cambios sensibles en producción.
+5. fortalecer pruebas, observabilidad, UI/UX e infraestructura antes de habilitar sincronización externa en producción.
 
 ## Trabajo reciente completado
 
@@ -313,60 +313,69 @@ Al actualizar este documento, mantener como mínimo:
 
 - **Fecha:** 2026-09-28
 - **Rama:** `main`
-- **Commit funcional de referencia:** `2110be855bd44ec6235403d76ad1f99533314093`
-- **Último hito:** PR #85 mergeado — Agenda de selección interna para llamadas telefónicas y entrevistas presenciales, con etapa `SELECTED`, persistencia, migración 027 y cobertura de CI/CodeQL.
+- **Commit funcional de referencia:** `178a2a111c73bbfbc9d1433ee8a5046309c45f7d`
+- **Último hito:** PR #87 mergeado — candidatos `SELECTED` ya generan un outbox idempotente `UPSERT_APPLICANT`; vacantes guardan el proceso de selección y `HIRED` mantiene el outbox `UPSERT_EMPLOYEE` de #86.
 
 ### Completado
 
-- Reclutamiento global entre administradores autorizados (#79): vacantes, candidatos, postulaciones, ranking, importaciones y contratación ya no están aislados por creador.
-- `owner_sub` permanece como procedencia/auditoría, no como frontera de acceso para datos de reclutamiento.
-- Onboarding ASIATI administrado por el sistema (#81), con contenido corporativo versionado y protegido de autoría manual.
-- Asignación automática e idempotente de Onboarding ASIATI para perfiles activos que lo requieren (#83); ADMIN/SUPER_ADMIN supervisan progreso y resultados, no asignan rutas.
-- Agenda de selección (#85) integrada al reclutador.
-- Nueva etapa `SELECTED` de postulaciones y mapeo a Indeed `POSITIVELY_SCREENED`.
-- Citas `PHONE_CALL` y `ONSITE_INTERVIEW` con estados `SCHEDULED`, `COMPLETED` y `CANCELED`.
-- Vista mensual, próximas citas, creación, edición, cancelación y marcado como realizada.
-- Elegibilidad de agenda limitada a postulaciones `SELECTED`, `INTERVIEW`, `OFFER` y `HIRED`.
-- Dominio backend `recruitment_calendar`, rutas API, modelo persistente y migración Alembic `027`.
-- PR #85 validado con `CI — Tests & Build` y `Security — CodeQL` en `success`.
-- Modularización previa de Training, Resume Agent y Jobs se conserva como base técnica.
-- E2E Chromium, smoke de accesibilidad/responsive, observabilidad, backups/DR y hardening de infraestructura continúan vigentes.
+- Reclutamiento global entre administradores autorizados (#79).
+- Onboarding ASIATI administrado y asignado automáticamente por el sistema (#81/#83).
+- Agenda de selección interna para llamadas y entrevistas presenciales (#85).
+- Etapa `SELECTED` y mapeo Indeed `POSITIVELY_SCREENED` (#85).
+- Outbox de empleado Odoo `odoo_employee_syncs` al contratar, idempotente por empleado (#86, Alembic 028).
+- Contrato `UPSERT_EMPLOYEE` v1 con IDs internos, fecha de contratación, nombre, correo, cargo, área y fecha de ingreso (#86).
+- Outbox de postulante Odoo `odoo_applicant_syncs` al pasar a `SELECTED`, idempotente por postulación (#87, Alembic 029).
+- Contratación `HIRED` garantiza también el outbox del postulante cuando se omite una transición manual previa por `SELECTED`.
+- Vacantes conservan proceso de selección editable:
+  - respuesta: 2 días hábiles por defecto;
+  - 1 llamada telefónica por defecto;
+  - 1 entrevista presencial por defecto;
+  - oferta: 4 días después de entrevista por defecto.
+- `UPSERT_APPLICANT` v1 incluye candidato, postulación, vacante, proceso, teléfono si existe en metadata y referencia al CV canónico.
+- La UI de Vacantes permite editar/ver esos datos de proceso.
+- Campos persistentes preparados para futuros IDs externos: `odoo_job_id`, `odoo_applicant_id` y `odoo_record_id`.
+- #86 y #87 pasaron backend, PostgreSQL, frontend, E2E Chromium y CodeQL.
+- El transporte real hacia Odoo permanece deliberadamente desacoplado: una caída de Odoo no bloquea selección, agenda, contratación ni onboarding.
 
 ### En progreso
 
-- Diseño del siguiente tramo funcional: **selección → contratación → alta/sincronización con Odoo**.
-- Definición del contrato de integración para que Odoo reciba únicamente los candidatos que alcancen la etapa de negocio acordada, evitando duplicar todo el pipeline de reclutamiento.
-- Mapeo de los datos de contratación requeridos por Odoo y definición del disparador exacto de sincronización.
+- Definición del adaptador/transporte real Odoo que consumirá `odoo_applicant_syncs` y `odoo_employee_syncs`.
+- Mapeo de modelos y nombres técnicos de campos en Odoo.
+- Definición del mecanismo de autenticación/base URL y política de reintentos.
+- Resolución del CV canónico como adjunto al consumir el outbox.
+- Definición de una fuente canónica para teléfono cuando no venga en metadata.
 - Cierre paralelo de P2 residuales en `Jobs.jsx`, `browser.py`, `asiati_preset.py` y `RankingView.jsx`.
 
 ### Pendiente inmediato
 
-1. Revisar el flujo/modelo actual de contratación y los campos que ya captura aiRecruiter.
-2. Formalizar el payload aiRecruiter → Odoo a partir de los datos de contratación requeridos por la empresa.
-3. Definir cuándo se crea/sincroniza el registro en Odoo: no enviar candidatos de etapas tempranas.
-4. Diseñar idempotencia, estado de sincronización, reintentos, auditoría y recuperación ante indisponibilidad de Odoo.
-5. Mantener la Agenda como sistema interno de llamadas/entrevistas hasta decidir expresamente si esas citas también deben sincronizarse.
-6. Continuar P2 técnico mediante cambios pequeños y verificables sin mezclarlo con la primera integración Odoo.
+1. Identificar modelos/campos técnicos destino en Odoo para vacante, postulante y empleado.
+2. Definir configuración segura de conexión: base URL, base de datos/tenant y autenticación, sin versionar secretos.
+3. Implementar cliente Odoo y consumidor de `odoo_applicant_syncs` con orden: upsert vacante → upsert postulante → adjuntar CV → guardar IDs externos.
+4. Implementar consumidor de `odoo_employee_syncs` condicionado a que el postulante correspondiente pueda resolverse/actualizarse.
+5. Implementar reintentos, `attempt_count`, `last_error`, `FAILED`, recuperación a `PENDING` y observabilidad.
+6. Mantener etapas previas a `SELECTED` exclusivamente en aiRecruiter.
+7. Mantener Agenda interna sin sincronizar citas a Odoo hasta una decisión explícita posterior.
 
 ### Bloqueos / dependencias externas
 
-- Falta cerrar el contrato funcional/técnico exacto de campos y disparador de alta en Odoo.
+- Falta conocer/confirmar los nombres técnicos de modelos/campos y el método de autenticación de la instancia Odoo ASIATI.
+- Falta confirmar cómo debe recibirse el CV en Odoo (attachment/campo técnico destino) antes de activar transporte.
 - Verificación IAM de alarmas operativas.
 - Prueba real controlada del Resume Agent requiere workstation/sesión Indeed autorizada.
-- La API de protección de `main` no es accesible actualmente desde la integración GitHub conectada; no asumir protección solo porque la cuenta tenga permisos administrativos generales.
+- La API de protección de `main` no es accesible actualmente desde la integración GitHub conectada.
 
 ### Riesgos
 
-- Enviar candidatos demasiado pronto a Odoo llenaría el ERP con registros que todavía pertenecen únicamente al proceso de reclutamiento.
-- Una sincronización sin clave idempotente puede duplicar empleados/contactos ante reintentos o fallos parciales.
-- La futura integración con Odoo no debe bloquear ni revertir el estado local de contratación/onboarding por una caída externa.
-- Los archivos grandes restantes concentran estado y lógica; mantener refactors separados de cambios funcionales de integración.
-- No eliminar UIs legacy del Resume Agent hasta demostrar ausencia de referencias en runtime, build y tests.
+- Un mapeo Odoo incorrecto podría crear registros duplicados o incompletos; por eso los IDs externos deben persistirse después de cada upsert confirmado.
+- Las URLs firmadas de CV expiran; el transporte debe resolver el documento canónico al ejecutar y no persistir una URL temporal.
+- El teléfono no tiene todavía una fuente canónica garantizada para todos los candidatos.
+- La sincronización externa no debe bloquear ni revertir estados locales ya confirmados.
+- Los archivos grandes restantes concentran estado y lógica; mantener refactors separados de la integración Odoo.
 
 ### Próximo paso recomendado
 
-1. Inspeccionar el modelo/endpoint actual de contratación y enumerar los campos ya disponibles al pasar una postulación a contratación.
-2. Contrastar esos campos con los requeridos por Odoo y documentar el mapeo fuente → destino.
-3. Implementar primero el contrato y la persistencia de estado de sincronización/idempotencia; después conectar la llamada real a Odoo.
-4. Mantener llamadas e entrevistas en la Agenda interna en esta fase.
-5. Continuar posteriormente con P2 residual (`Jobs.jsx`, `asiati_preset.py`, `RankingView.jsx` y Resume Agent) en PRs separados.
+1. Obtener el contrato técnico real de Odoo ASIATI: modelo de vacante, postulante, empleado, campos y autenticación.
+2. Implementar un cliente/adaptador Odoo sin lógica de negocio y probarlo contra un entorno seguro.
+3. Crear el worker/servicio que consuma primero `odoo_applicant_syncs` y después `odoo_employee_syncs`, con idempotencia y reintentos.
+4. Adjuntar el CV desde el documento canónico al ejecutar la sincronización.
+5. Mantener el sistema local plenamente funcional aunque Odoo esté indisponible.
