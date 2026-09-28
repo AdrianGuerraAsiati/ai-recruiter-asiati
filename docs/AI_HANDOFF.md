@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `e27b4e2c50c3ebc4ef9934d947a7bd4fa4344b9d`
+- **Último checkpoint conocido:** `f0dafce976bc437c24bff08473602d2fbccb7d43`
 - **Fecha del checkpoint:** 2026-09-27
-- **Commit:** `chore(deps): actualizar dependencias frontend minor/patch (#41)`
+- **Commit:** `refactor: extraer evaluación de empleado de Training (#48)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -125,7 +125,7 @@ El Resume Agent debe poder revisar vacantes y candidatos existentes y sincroniza
 - [ ] Confirmar CI verde en `main` después de los cambios actuales.
 
 #### P2 · Modularización residual
-- [ ] Reducir responsabilidades de `frontend-react/src/pages/Training.jsx` (~83 KB / ~1904 líneas).
+- [~] Reducir responsabilidades de `frontend-react/src/pages/Training.jsx`: 1904 → ~1686 líneas; modales y quiz de empleado ya extraídos. Pendiente editor/admin + journey del empleado.
 - [ ] Reducir responsabilidades de `tools/indeed_resume_agent/browser.py` (~74 KB).
 - [ ] Modularizar `frontend-react/src/pages/Jobs.jsx` (~58 KB).
 - [ ] Dividir `app/domains/training/asiati_preset.py` (~58 KB) en datos/configuración y builder.
@@ -250,6 +250,8 @@ Al actualizar este documento, mantener como mínimo:
 - Hardening de código e infraestructura.
 - Observabilidad y DR.
 - Modularización inicial de Training y Resume Agent.
+- Training: modales de preview/crear curso extraídos (#47).
+- Training: evaluación final del empleado extraída (#48).
 - E2E Chromium + smoke de accesibilidad y responsive.
 - `docs/AI_HANDOFF.md` persistente y workflow automático de checkpoint.
 - Dependabot configurado para agrupar solo minor/patch y separar majors.
@@ -262,7 +264,7 @@ Al actualizar este documento, mantener como mínimo:
 
 - Validación del nuevo conjunto de PRs de Dependabot; #41 ya está mergeado.
 - Confirmación de CI de `main`.
-- Preparación de la siguiente modularización de Training.
+- Continuación de modularización de Training; siguiente candidato: editor/admin o journey del empleado.
 
 ### Pendiente inmediato
 
@@ -288,6 +290,6 @@ Al actualizar este documento, mantener como mínimo:
 ### Próximo paso recomendado
 
 1. Cerrar la ronda de dependencias con CI verde.
-2. Extraer componentes del flujo de empleado/quiz/preview de `Training.jsx`.
-3. Ejecutar tests unitarios + E2E.
-4. Hacer PR pequeño con `handoff:update` si cambia el estado del proyecto.
+2. Continuar Training con un tercer corte pequeño: editor/admin o journey.
+3. Ejecutar tests unitarios + E2E en cada extracción.
+4. Mantener PRs pequeños con `handoff:update`.
