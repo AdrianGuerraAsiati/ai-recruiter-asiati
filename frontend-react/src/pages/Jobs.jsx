@@ -8,6 +8,7 @@ import Icon from "../components/ui/Icon";
 import { EmptyState, FeedbackMessage, LoadingState } from "../components/ui/StatePanel";
 import JobsPagination from "../features/jobs/JobsPagination";
 import JobCard from "../features/jobs/JobCard";
+import JobsListToolbar from "../features/jobs/JobsListToolbar";
 import {
   MAX_PAGES,
   PAGE_SIZE_OPTIONS,
@@ -795,48 +796,18 @@ function Jobs() {
       <section className="jobs-section">
         <div className="section-heading"><div><h2>Posiciones registradas</h2><p>{jobsPage.total} {jobsPage.total === 1 ? "vacante activa" : "vacantes activas"}</p></div></div>
 
-        <div className="jobs-list-toolbar">
-          <form className="jobs-search" onSubmit={submitJobSearch}>
-            <label className="jobs-filter jobs-search-filter">
-              <span>Buscar vacante</span>
-              <input
-                aria-label="Buscar vacante"
-                type="search"
-                placeholder="Título de la vacante"
-                value={jobSearch}
-                onChange={(event) => setJobSearch(event.target.value)}
-              />
-            </label>
-            <button type="submit" className="btn btn-secondary">Buscar</button>
-            {query && <button type="button" className="btn btn-ghost" onClick={clearJobSearch}>Limpiar</button>}
-          </form>
-
-          <div className="jobs-list-filters">
-            <label className="jobs-filter">
-              <span>Ordenar por</span>
-              <select
-                aria-label="Ordenar por"
-                value={sort}
-                onChange={(event) => updateListParams({ page: 1, sort: event.target.value })}
-              >
-                <option value="created_desc">Más recientes</option>
-                <option value="created_asc">Más antiguas</option>
-                <option value="candidates_desc">Más candidatos</option>
-                <option value="candidates_asc">Menos candidatos</option>
-              </select>
-            </label>
-            <label className="jobs-filter">
-              <span>Vacantes por página</span>
-              <select
-                aria-label="Vacantes por página"
-                value={String(pageSize)}
-                onChange={(event) => updateListParams({ page: 1, page_size: event.target.value })}
-              >
-                {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
-              </select>
-            </label>
-          </div>
-        </div>
+        <JobsListToolbar
+          searchValue={jobSearch}
+          hasActiveQuery={Boolean(query)}
+          sort={sort}
+          pageSize={pageSize}
+          pageSizeOptions={PAGE_SIZE_OPTIONS}
+          onSearchValueChange={setJobSearch}
+          onSearchSubmit={submitJobSearch}
+          onClearSearch={clearJobSearch}
+          onSortChange={(value) => updateListParams({ page: 1, sort: value })}
+          onPageSizeChange={(value) => updateListParams({ page: 1, page_size: value })}
+        />
 
         <div className="jobs-page-meta">
           <span>Mostrando {pageStart}–{pageEnd} de {jobsPage.total} vacantes</span>
