@@ -18,8 +18,8 @@ Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este co
 ## Checkpoint automático
 
 - **Última actualización automática:** 2026-09-27
-- **Merge commit:** `d849da3015e73ca2f0fb2cc593ff266a6275ee39`
-- **PR:** [#52 — chore(deps): actualizar dependencias Python minor/patch](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/52)
+- **Merge commit:** `3e2c9d992078152e22d736f3012fcb0ca1686e1e`
+- **PR:** [#53 — refactor: extraer journey de empleado de Training](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/53)
 - **Origen:** merge a `main` con etiqueta `handoff:update`
 
 > Este bloque es administrado por `.github/workflows/ai-handoff.yml`. No editarlo manualmente.
