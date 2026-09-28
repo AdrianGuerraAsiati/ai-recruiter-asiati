@@ -260,7 +260,7 @@ def ensure_user_profile(
         profile = UserProfile(
             cognito_sub=sub,
             email=email,
-            onboarding_status="NOT_REQUIRED",
+            onboarding_status="PENDING",
             status="ACTIVE",
         )
         db.add(profile)

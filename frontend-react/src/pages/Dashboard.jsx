@@ -26,7 +26,7 @@ function Dashboard() {
   const canRecruit = hasPermission("jobs.read") && hasPermission("candidates.read");
   const canManageEmployees = hasPermission("employees.read");
   const [jobs, setJobs] = useState([]);
-  const [candidates, setCandidates] = useState([]);
+  const [candidateTotal, setCandidateTotal] = useState(0);
   const [trainingAssignments, setTrainingAssignments] = useState([]);
   const [employeeSummary, setEmployeeSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -56,7 +56,14 @@ function Dashboard() {
           const jobsData = jobsResponse.data;
           const candidatesData = candidatesResponse.data;
           setJobs(Array.isArray(jobsData) ? jobsData : jobsData.jobs || []);
-          setCandidates(Array.isArray(candidatesData) ? candidatesData : candidatesData.candidates || []);
+          const candidateItems = Array.isArray(candidatesData)
+            ? candidatesData
+            : candidatesData.items || candidatesData.candidates || [];
+          setCandidateTotal(
+            Array.isArray(candidatesData)
+              ? candidatesData.length
+              : Number(candidatesData.total ?? candidateItems.length),
+          );
           if (canManageEmployees && employeeSummaryResponse) {
             setEmployeeSummary(employeeSummaryResponse.data);
           }
@@ -145,7 +152,8 @@ function Dashboard() {
     );
   }
 
-  const coverage = jobs.length ? Math.min(100, Math.round((candidates.length / jobs.length) * 20)) : 0;
+  const coveredJobs = jobs.filter((job) => Number(job.candidate_count || 0) > 0).length;
+  const coverage = jobs.length ? Math.round((coveredJobs / jobs.length) * 100) : 0;
 
   return (
     <div className="page dashboard-page">
@@ -162,8 +170,8 @@ function Dashboard() {
 
       <section className="metrics-grid" aria-label="Indicadores principales">
         <MetricCard icon="briefcase" label="Vacantes activas" value={jobs.length} detail="Procesos en seguimiento" tone="blue" live />
-        <MetricCard icon="users" label="Talento disponible" value={candidates.length} detail="Perfiles centralizados" tone="cyan" live />
-        <MetricCard icon="ranking" label="Cobertura estimada" value={`${coverage}%`} detail="Candidatos por vacante" tone="violet" live />
+        <MetricCard icon="users" label="Candidatos registrados" value={candidateTotal} detail="Perfiles centralizados" tone="cyan" live />
+        <MetricCard icon="ranking" label="Cobertura estimada" value={`${coverage}%`} detail="Vacantes con candidatos" tone="violet" live />
       </section>
 
       {canManageEmployees && employeeSummary && (

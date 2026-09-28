@@ -1248,7 +1248,7 @@ def test_asiati_onboarding_template_repairs_existing_draft_without_duplicate(db)
     )
     assert payload["quiz"]["title"] == "Evaluación final"
     assert payload["quiz"]["passing_score"] == 70
-    assert payload["quiz"]["question_count"] == 5
+    assert payload["quiz"]["question_count"] == 7
     module_one = next(
         module
         for module in payload["modules"]
@@ -1317,6 +1317,41 @@ def test_asiati_onboarding_template_repairs_existing_draft_without_duplicate(db)
     assert module_seven["lessons"][0]["duration_seconds"] == 55
     assert module_seven["lessons"][1]["checklist_items"] == service.ASIATI_ONBOARDING_MODULE_7_ACK_ITEMS
     assert all(module["title"] != "Así trabajamos" for module in payload["modules"])
+
+
+def test_published_asiati_onboarding_upgrades_legacy_default_quiz(db):
+    from app.domains.training import asiati_preset
+
+    course = service.ensure_published_asiati_onboarding(
+        db,
+        created_by_sub="admin-sub",
+    )
+    quiz = course.quiz
+    questions = sorted(quiz.questions, key=lambda item: item.position)
+
+    for question, (prompt, options, correct_option) in zip(
+        questions[:5],
+        asiati_preset.ASIATI_ONBOARDING_LEGACY_QUIZ,
+    ):
+        question.prompt = prompt
+        question.options = list(options)
+        question.correct_option = correct_option
+    for question in questions[5:]:
+        db.delete(question)
+    db.commit()
+    db.refresh(quiz)
+    assert len(quiz.questions) == 5
+
+    repaired = service.ensure_published_asiati_onboarding(
+        db,
+        created_by_sub="other-admin-sub",
+    )
+    repaired_questions = sorted(repaired.quiz.questions, key=lambda item: item.position)
+
+    assert repaired.id == course.id
+    assert len(repaired_questions) == 7
+    assert repaired_questions[0].prompt == "Según la inducción, ¿qué describe mejor a ASIATI?"
+    assert repaired_questions[-1].prompt.startswith("Al finalizar el onboarding")
 
 
 def test_asiati_onboarding_is_system_managed_and_published_automatically(db):
@@ -1522,13 +1557,12 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
         "Módulo 5 · Contenido corporativo",
         "Módulo 6 · Cultura interna",
         "Módulo 7 · Lo que esperamos de ti",
-        "Tu cargo en ASIATI",
     ]
     assert payload["quiz"]["title"] == "Evaluación final"
     assert payload["quiz"]["passing_score"] == 70
-    assert payload["quiz"]["question_count"] == 5
-    assert payload["quiz"]["questions"][0]["prompt"].startswith(
-        "¿Cuál es el sitio web corporativo oficial"
+    assert payload["quiz"]["question_count"] == 7
+    assert payload["quiz"]["questions"][0]["prompt"] == (
+        "Según la inducción, ¿qué describe mejor a ASIATI?"
     )
 
     role_checklist = next(
@@ -1696,8 +1730,8 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
         for module in payload["modules"]
         if module["title"] == service.ASIATI_ONBOARDING_MODULE_7_TITLE
     )
-    assert module_seven["lesson_count"] == 2
-    assert module_seven["content_item_count"] == 2
+    assert module_seven["lesson_count"] == 3
+    assert module_seven["content_item_count"] == 3
 
     module_seven_video = next(
         lesson
