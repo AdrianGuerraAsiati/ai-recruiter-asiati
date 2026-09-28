@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `b016a62e2c0ea8849116599387a38cc8272123f5`
+- **Último checkpoint conocido:** `7866838171c435eb218ddf6b98cda69b1471fb9c`
 - **Fecha del checkpoint:** 2026-09-28
-- **Commit:** `fix: exigir candidatos positivos en ranking (#91)`
+- **Commit:** `feat: enviar empleados contratados a Odoo (#92)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -29,8 +29,8 @@ Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este co
 
 Mantener aiRecruiterAsiati como una plataforma de reclutamiento estable, modular y operable, con foco inmediato en:
 
-1. implementar el consumidor real de los outboxes `odoo_applicant_syncs` y `odoo_employee_syncs` usando el cliente Odoo ya disponible;
-2. mapear modelos/campos técnicos de Odoo y adjunto de CV sin replicar indiscriminadamente etapas tempranas;
+1. completar el consumidor real de `odoo_applicant_syncs`; el envío explícito de `odoo_employee_syncs` ya existe vía POST;
+2. validar el mapeo real de empleado contra Odoo ASIATI y completar postulante/vacante + adjunto de CV;
 3. mantener la agenda de selección como herramienta operativa interna de Talento Humano para llamadas telefónicas y entrevistas presenciales;
 4. cerrar deuda técnica P2 sin romper reclutamiento, Resume Agent, onboarding ni los flujos críticos ya estabilizados;
 5. fortalecer pruebas, observabilidad, UI/UX e infraestructura antes de habilitar sincronización externa en producción.
@@ -313,8 +313,8 @@ Al actualizar este documento, mantener como mínimo:
 
 - **Fecha:** 2026-09-28
 - **Rama:** `main`
-- **Commit funcional de referencia:** `b016a62e2c0ea8849116599387a38cc8272123f5`
-- **Último hito:** PR #91 mergeado y desplegado — Ranking exige `candidate_count > 0` explícito; vacantes con 0, null o sin conteo quedan ocultas.
+- **Commit funcional de referencia:** `7866838171c435eb218ddf6b98cda69b1471fb9c`
+- **Último hito:** PR #92 mergeado — POST explícito de empleado contratado hacia Odoo con upsert idempotente, introspección de campos y configuración runtime opcional.
 
 ### Completado
 
@@ -326,6 +326,12 @@ Al actualizar este documento, mantener como mínimo:
 - Outbox de empleado Odoo `odoo_employee_syncs` al contratar, idempotente por empleado (#86, Alembic 028).
 - Outbox de postulante Odoo `odoo_applicant_syncs` al pasar a `SELECTED`, idempotente por postulación (#87, Alembic 029).
 - Vacantes conservan proceso de selección editable y `UPSERT_APPLICANT` v1 incluye candidato, vacante, proceso y referencia al CV canónico (#87).
+- POST `/api/odoo/employees/{employee_id}/sync` agregado (#92): consume el outbox de empleado, hace upsert sobre `hr.employee` y persiste estado/ID externo.
+- El mapper de empleado usa `fields_get` para escribir solo campos soportados/editables.
+- Mapeo inicial: nombre, correo de trabajo, cargo, teléfono privado, tipo Employee cuando esté disponible y relaciones existentes de departamento/puesto.
+- Idempotencia: primero `odoo_record_id`; en ausencia, `work_email`. Correos Odoo duplicados detienen el intento.
+- No se crean automáticamente departamentos, puestos ni empresas desde aiRecruiter.
+- Configuración Odoo opcional ya se propaga a API/worker en deploy; `ODOO_ENABLED` permanece `false` por defecto.
 - Cliente `OdooXmlRpcClient` agregado (#88) sobre:
   - `/xmlrpc/2/common` para versión/autenticación;
   - `/xmlrpc/2/object` para operaciones de modelos.
@@ -342,7 +348,7 @@ Al actualizar este documento, mantener como mínimo:
 ### En progreso
 
 - Mapeo técnico real entre los contratos `UPSERT_APPLICANT` / `UPSERT_EMPLOYEE` y los modelos/campos de Odoo ASIATI.
-- Diseño del consumidor de outbox con reintentos y persistencia de IDs externos.
+- Diseño/implementación del consumidor de outbox de postulante; empleado ya tiene POST explícito e idempotente (#92).
 - Resolución del CV canónico como adjunto al consumir el outbox.
 - Definición de una fuente canónica para teléfono cuando no venga en metadata.
 - Cierre paralelo de P2 residuales.
@@ -352,14 +358,13 @@ Al actualizar este documento, mantener como mínimo:
 
 1. Ejecutar prueba funcional del Onboarding ASIATI con un admin: abrir la ruta precargada, editar módulo/lección y reemplazar un video sin crear estructura nueva.
 2. Ejecutar prueba como empleado activo: confirmar asignación automática, avance, checklist y evaluación final.
-3. Inspeccionar de forma segura los modelos/campos disponibles en la instancia Odoo ASIATI usando `fields_get` una vez exista configuración runtime.
-4. Definir el mapeo exacto para vacante, postulante, empleado y adjunto de CV.
+3. Configurar conexión Odoo ASIATI y ejecutar `healthcheck` + prueba controlada del POST de empleado.
+4. Validar en la instancia real los campos `name`, `work_email`, `job_title`, `private_phone`, `employee_type`, `department_id` y `job_id`.
 5. Implementar consumidor de `odoo_applicant_syncs` con orden: upsert vacante → upsert postulante → adjuntar CV → guardar `odoo_job_id` / `odoo_applicant_id`.
-6. Implementar consumidor de `odoo_employee_syncs` y guardar `odoo_record_id`.
-7. Implementar reintentos, `attempt_count`, `last_error`, transición `FAILED ↔ PENDING` y observabilidad.
-8. Agregar permisos IAM mínimos para leer `ODOO_SECRET_ID` cuando se habilite la integración en runtime.
-9. Mantener `ODOO_ENABLED=false` hasta validar conexión y mapeo contra un entorno seguro.
-10. Mantener etapas previas a `SELECTED` exclusivamente en aiRecruiter y Agenda sin sincronización de citas hasta decisión posterior.
+6. Automatizar reintentos/consumo de outboxes después de validar el POST manual.
+7. Agregar permisos IAM mínimos para leer `ODOO_SECRET_ID` cuando se habilite la integración en runtime.
+8. Mantener `ODOO_ENABLED=false` hasta validar conexión y mapeo contra un entorno seguro.
+9. Mantener etapas previas a `SELECTED` exclusivamente en aiRecruiter y Agenda sin sincronización de citas hasta decisión posterior.
 
 ### Bloqueos / dependencias externas
 
