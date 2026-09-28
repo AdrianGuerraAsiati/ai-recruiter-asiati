@@ -133,18 +133,23 @@ def test_canonical_resume_route_returns_short_lived_url(api, db_session, monkeyp
     }
 
 
-def test_canonical_resume_route_is_owner_scoped(api, db_session, monkeypatch):
+def test_canonical_resume_route_is_shared_across_admins(api, db_session, monkeypatch):
     client, _principal = api
     job, candidate, _link, _task = _seed(db_session, owner_sub="owner-2")
     monkeypatch.setattr(
         storage,
         "create_canonical_candidate_download",
-        lambda *_a, **_k: pytest.fail("must not issue cross-tenant URL"),
+        lambda candidate_id, expires_in=300: {
+            "url": "https://canonical.invalid/shared-download",
+            "expires_in": expires_in,
+            "key": f"documents/cv-{candidate_id}.pdf",
+        },
     )
 
     response = client.get(f"/api/jobs/{job.id}/candidates/{candidate.id}/resume")
 
-    assert response.status_code == 404
+    assert response.status_code == 200
+    assert response.json()["url"] == "https://canonical.invalid/shared-download"
 
 
 def test_canonical_resume_route_returns_404_when_canonical_document_missing(api, db_session, monkeypatch):
