@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `7cf58a6d459d3874ba5f15d2797fad783e98884d`
+- **Último checkpoint conocido:** `e27b4e2c50c3ebc4ef9934d947a7bd4fa4344b9d`
 - **Fecha del checkpoint:** 2026-09-27
-- **Commit:** `ci: omitir CodeQL en cambios solo documentales`
+- **Commit:** `chore(deps): actualizar dependencias frontend minor/patch (#41)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -117,10 +117,11 @@ El Resume Agent debe poder revisar vacantes y candidatos existentes y sincroniza
 - [x] Reducir ejecuciones innecesarias del workflow de AI handoff.
 - [x] Evitar deploys de producción para cambios solo documentales, handoff, Dependabot o tests.
 - [x] Omitir CodeQL en cambios puramente documentales/configuración de handoff.
-- [ ] Revisar PR #41: frontend minor/patch (11 actualizaciones).
-- [ ] Revisar PR #42: jsdom 26 → 30 como major independiente.
-- [ ] Revisar PR #43: Vitest 3 → 5 como major independiente.
-- [ ] Revisar los PR de Python y GitHub Actions que genere Dependabot con la nueva política.
+- [x] PR #41 frontend minor/patch validado con CI + CodeQL y mergeado.
+- [ ] Revisar PR #42: jsdom 26 → 30 como major independiente (Dependabot ya lo rebasó sobre el nuevo `main`).
+- [ ] Revisar PR #43: Vitest 3 → 5 como major independiente; revalidar después del rebase sobre `main`.
+- [ ] Revisar PR #44 Python minor/patch y los majors separados #45 (`websockets`) y #46 (`rpds-py`).
+- [ ] Revisar el PR de GitHub Actions cuando Dependabot lo regenere con la nueva política.
 - [ ] Confirmar CI verde en `main` después de los cambios actuales.
 
 #### P2 · Modularización residual
@@ -238,8 +239,8 @@ Al actualizar este documento, mantener como mínimo:
 
 - **Fecha:** 2026-09-27
 - **Rama:** `main`
-- **Commit:** `7cf58a6d459d3874ba5f15d2797fad783e98884d`
-- **Último hito:** saneamiento del flujo de mantenimiento/CI y preparación del siguiente bloque P2.
+- **Commit:** `e27b4e2c50c3ebc4ef9934d947a7bd4fa4344b9d`
+- **Último hito:** saneamiento del flujo de mantenimiento/CI y merge validado de dependencias frontend minor/patch.
 
 ### Completado
 
@@ -259,16 +260,16 @@ Al actualizar este documento, mantener como mínimo:
 
 ### En progreso
 
-- Validación del nuevo conjunto de PRs de Dependabot.
+- Validación del nuevo conjunto de PRs de Dependabot; #41 ya está mergeado.
 - Confirmación de CI de `main`.
 - Preparación de la siguiente modularización de Training.
 
 ### Pendiente inmediato
 
-1. Validar y resolver #41 antes que los majors.
+1. Confirmar la validación post-merge de `main` para #41.
 2. Revisar #42 y #43 por separado.
-3. Revisar los PR nuevos de Python y GitHub Actions cuando terminen de generarse.
-4. Empezar el siguiente refactor de `Training.jsx` desde una base verde.
+3. Revisar #44, #45 y #46 con sus checks.
+4. Extraer primero los modales de `Training.jsx` como refactor de bajo riesgo.
 5. Proteger `main` con checks obligatorios cuando haya acceso a la configuración administrativa correspondiente.
 
 ### Bloqueos / dependencias externas
