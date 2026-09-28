@@ -1,0 +1,217 @@
+.recruitment-calendar-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 20px;
+  align-items: start;
+}
+
+.recruitment-calendar-panel { overflow: hidden; }
+
+.recruitment-calendar-toolbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.calendar-month-title { text-transform: capitalize; }
+
+.calendar-nav-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.recruitment-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--border);
+  gap: 1px;
+}
+
+.calendar-weekday {
+  padding: 10px 8px;
+  background: var(--surface-soft);
+  color: var(--ink-faint);
+  font-size: .7rem;
+  font-weight: 800;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.calendar-day {
+  min-height: 132px;
+  padding: 9px;
+  background: var(--surface);
+}
+
+.calendar-day.is-outside { background: var(--surface-soft); opacity: .58; }
+
+.calendar-day.is-today {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--blue) 48%, transparent);
+}
+
+.calendar-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  margin-bottom: 6px;
+  color: var(--ink-soft);
+  font-size: .76rem;
+  font-weight: 800;
+}
+
+.calendar-day-header button {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--blue);
+  cursor: pointer;
+}
+
+.calendar-day-header button:hover { background: var(--surface-soft); }
+
+.calendar-day-events {
+  display: grid;
+  gap: 5px;
+}
+
+.calendar-event {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: #eef5ff;
+  color: #244d86;
+  cursor: pointer;
+  text-align: left;
+}
+
+.calendar-event--onsite_interview {
+  background: #eaf9f7;
+  color: #14736f;
+}
+
+.calendar-event.is-muted {
+  opacity: .5;
+  text-decoration: line-through;
+}
+
+.calendar-event strong { font-size: .66rem; }
+.calendar-event span {
+  overflow: hidden;
+  font-size: .68rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recruitment-upcoming-panel h2 { margin-bottom: 18px; }
+
+.recruitment-upcoming-list {
+  display: grid;
+  gap: 12px;
+}
+
+.recruitment-upcoming-item {
+  display: grid;
+  gap: 7px;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface-soft);
+}
+
+.recruitment-upcoming-item > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.recruitment-upcoming-item strong { font-size: .88rem; }
+.recruitment-upcoming-item small,
+.recruitment-upcoming-item time {
+  color: var(--ink-soft);
+  font-size: .72rem;
+}
+
+.calendar-event-kind {
+  color: var(--blue);
+  font-size: .65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.calendar-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 4px;
+}
+
+.recruitment-calendar-modal {
+  width: min(680px, calc(100vw - 30px));
+}
+
+.calendar-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+}
+
+.recruitment-calendar-modal textarea { min-height: 100px; }
+
+.recruitment-calendar-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.recruitment-calendar-modal-actions .btn-danger { margin-right: auto; }
+
+.calendar-status-note {
+  margin-right: auto;
+  align-self: center;
+  color: var(--ink-soft);
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+[data-theme="dark"] .calendar-event {
+  background: rgba(52,120,246,.14);
+  color: #9fc0ff;
+}
+
+[data-theme="dark"] .calendar-event--onsite_interview {
+  background: rgba(22,199,194,.12);
+  color: #7be2de;
+}
+
+@media (max-width: 1050px) {
+  .recruitment-calendar-layout { grid-template-columns: 1fr; }
+  .recruitment-upcoming-panel { order: -1; }
+}
+
+@media (max-width: 760px) {
+  .recruitment-calendar-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .recruitment-calendar-panel {
+    padding: 18px 12px;
+    overflow-x: auto;
+  }
+
+  .recruitment-calendar-grid { min-width: 760px; }
+  .calendar-form-grid { grid-template-columns: 1fr; }
+}
