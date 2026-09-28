@@ -53,3 +53,52 @@ def test_create_app_exposes_critical_routes():
 
 def test_main_app_uses_same_public_contract():
     assert _critical_paths(app) == _critical_paths(create_app())
+
+
+def test_production_startup_provisions_published_onboarding(monkeypatch):
+    import app.bootstrap as bootstrap
+
+    calls = []
+    fake_course = type("Course", (), {"modules": [object()] * 8})()
+
+    class FakeDb:
+        def commit(self):
+            calls.append("commit")
+
+        def close(self):
+            calls.append("close")
+
+    monkeypatch.setattr(bootstrap, "get_database_url", lambda: "postgresql://prod")
+    monkeypatch.setattr(bootstrap, "SessionLocal", lambda: FakeDb())
+    monkeypatch.setattr(
+        bootstrap,
+        "ensure_rbac_catalog",
+        lambda db: calls.append("rbac"),
+    )
+    monkeypatch.setattr(
+        bootstrap.training_service,
+        "ensure_published_asiati_onboarding",
+        lambda db, created_by_sub: (
+            calls.append(("course", created_by_sub)) or fake_course
+        ),
+    )
+    monkeypatch.setattr(
+        bootstrap.training_service,
+        "ensure_asiati_onboarding_for_active_employees",
+        lambda db, course, created_by_sub: (
+            calls.append(("assign", course, created_by_sub)) or 3
+        ),
+    )
+
+    application = bootstrap.create_app()
+    startup = application.router.on_startup[0]
+    startup()
+
+    assert "rbac" in calls
+    assert ("course", bootstrap.training_service.SYSTEM_ONBOARDING_ACTOR) in calls
+    assert (
+        "assign",
+        fake_course,
+        bootstrap.training_service.SYSTEM_ONBOARDING_ACTOR,
+    ) in calls
+    assert "close" in calls
