@@ -41,7 +41,7 @@ protobuf==7.36.2
 pyasn1==0.6.4
 pycparser==3.0
 pydantic==2.13.5
-pydantic_core==2.46.5
+pydantic_core==2.49.0
 pymupdf==1.28.2
 python-dateutil==2.9.0.post0
 python-docx==1.2.0
@@ -65,9 +65,9 @@ typing-inspection==0.4.4
 typing_extensions==4.16.0
 urllib3==2.8.0
 uuid_utils==0.17.0
-uvicorn==0.53.0
+uvicorn==0.54.0
 websockets==17.1
 xxhash==4.0.1
 zstandard==0.25.0
-sqlalchemy==2.0.36
+sqlalchemy==2.1.0
 psycopg2-binary==2.9.13
