@@ -31,6 +31,11 @@ class FakeOdooClient:
             "work_email": {"readonly": False, "type": "char"},
             "job_title": {"readonly": False, "type": "char"},
             "private_phone": {"readonly": False, "type": "char"},
+            "employee_type": {
+                "readonly": False,
+                "type": "selection",
+                "selection": [["employee", "Employee"], ["contractor", "Contractor"]],
+            },
             "legal_name": {"readonly": True, "type": "char"},
         }
         if self.include_relations:
@@ -164,6 +169,7 @@ def test_sync_creates_employee_with_safe_available_fields(db):
             "work_email": "ana@asiati.com.co",
             "job_title": "Backend Developer",
             "private_phone": "+57 300 123 4567",
+            "employee_type": "employee",
             "department_id": 11,
             "job_id": 22,
         }
