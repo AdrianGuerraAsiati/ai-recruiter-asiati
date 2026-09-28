@@ -608,6 +608,7 @@ from app.domains.training.asiati_preset import (
     ASIATI_ONBOARDING_MODULE_7_TITLE,
     ASIATI_ONBOARDING_MODULE_7_VIDEO_TITLE,
     ASIATI_ONBOARDING_MODULE_7_VIDEO_URL,
+    ASIATI_ONBOARDING_REQUIRED_MODULE_TITLES,
     ASIATI_ROLE_CHECKLIST_ITEMS,
     create_asiati_onboarding_template,
     ensure_published_asiati_onboarding,
