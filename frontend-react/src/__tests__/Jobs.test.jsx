@@ -72,6 +72,43 @@ describe("Jobs page", () => {
     expect(screen.getByText("Frontend Developer")).toBeInTheDocument();
   });
 
+  it("creates a vacancy with the editable selection process", async () => {
+    renderJobs();
+    await screen.findByText("Backend Developer");
+
+    fireEvent.click(screen.getByRole("button", { name: /Nueva vacante/i }));
+    fireEvent.change(screen.getByLabelText("Título de la vacante"), {
+      target: { value: "Data Engineer" },
+    });
+    fireEvent.change(screen.getByLabelText("Descripción y requisitos"), {
+      target: { value: "Python y pipelines" },
+    });
+
+    expect(screen.getByLabelText("Tiempo para responder (días hábiles)")).toHaveValue(2);
+    expect(screen.getByLabelText("Llamadas telefónicas")).toHaveValue(1);
+    expect(screen.getByLabelText("Entrevistas presenciales")).toHaveValue(1);
+    expect(screen.getByLabelText("Oferta después de entrevista (días)")).toHaveValue(4);
+
+    fireEvent.change(screen.getByLabelText("Tiempo para responder (días hábiles)"), {
+      target: { value: "3" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Crear vacante/i }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        "/jobs",
+        expect.objectContaining({
+          title: "Data Engineer",
+          response_time_business_days: 3,
+          phone_call_count: 1,
+          onsite_interview_count: 1,
+          offer_wait_days: 4,
+          offer_wait_reference: "AFTER_INTERVIEW",
+        }),
+      );
+    });
+  });
+
   it("each vacante has Ver, Agregar candidatos, Editar, Eliminar buttons", async () => {
     renderJobs();
     await screen.findByText("Backend Developer");
