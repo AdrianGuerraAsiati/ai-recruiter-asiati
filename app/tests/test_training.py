@@ -1463,6 +1463,24 @@ def test_admin_can_edit_published_asiati_onboarding_without_preset_overwrite(db)
     ).count() == 1
 
 
+def test_system_managed_onboarding_cannot_be_segmented_by_role(db):
+    course = service.ensure_published_asiati_onboarding(
+        db,
+        created_by_sub="admin-sub",
+    )
+    module = course.modules[0]
+
+    with pytest.raises(service.TrainingStateError, match="shared by all employees"):
+        service.update_module(
+            db,
+            module.id,
+            title=module.title,
+            description=module.description,
+            audience_job_title="Developer",
+            audience_department=None,
+        )
+
+
 def test_asiati_onboarding_template_scaffolds_short_journey(db):
     course = service.create_asiati_onboarding_template(
         db,
