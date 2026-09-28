@@ -661,8 +661,8 @@ def test_recalculate_all_then_get_all_returns_all_candidates(
 
     assert get_data["scope_mismatch"] is False
     assert get_data["ranking_scope"] == "all"
-    assert get_data["ranking_total"] == 2
-    assert get_data["total"] == 2
+    assert get_data["ranking_total"] == 3
+    assert get_data["total"] == 3
     assert len(get_data["candidates"]) == 2
 
     candidate_ids = {c["candidate_id"] for c in get_data["candidates"]}
@@ -833,10 +833,10 @@ def test_ranking_scope_transition_replaces_items_correctly(
     assert get4.json()["candidates"][0]["candidate_id"] == assigned.id
 
 
-def test_scope_all_excludes_other_tenant_candidates(
+def test_scope_all_includes_candidates_from_other_admin_creators(
     client, db_session, monkeypatch,
 ):
-    """Multi-tenant: User A scope=all should NOT see User B's candidates."""
+    """Recruiting data is organization-wide for authorized admins."""
     import app.evaluation as evaluation_module
 
     job = _seed_job(db_session, title="Job A")
@@ -882,7 +882,7 @@ def test_scope_all_excludes_other_tenant_candidates(
         params={"mode": "full", "scope": "all"},
     )
     assert post_resp.status_code == 200
-    assert post_resp.json()["total_candidates"] == 2  # Only User A's candidates
+    assert post_resp.json()["total_candidates"] == 3
 
     # GET scope=all
     get_resp = client.get(
@@ -897,7 +897,7 @@ def test_scope_all_excludes_other_tenant_candidates(
     candidate_ids = {c["candidate_id"] for c in get_data["candidates"]}
     assert cand_a1.id in candidate_ids
     assert cand_a2.id in candidate_ids
-    assert cand_b.id not in candidate_ids  # User B's candidate excluded
+    assert cand_b.id in candidate_ids
 
 
 def test_insert_ranking_items_replaces_previous_items(db_session):
