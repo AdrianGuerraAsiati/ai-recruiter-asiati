@@ -74,6 +74,7 @@ def _ensure_automatic_onboarding(
             created_by_sub=created_by_sub,
         )
     except Exception:
+        db.rollback()
         logger.exception(
             "Automatic ASIATI onboarding sync failed for employee %s",
             employee_id,
