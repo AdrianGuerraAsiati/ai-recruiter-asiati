@@ -18,6 +18,11 @@ from .browser_diagnostics import (
     safe_diagnostic_text as _safe_diagnostic_text,
     safe_diagnostic_url as _safe_diagnostic_url,
 )
+from .browser_page_state import (
+    is_generic_recruiting_landing as _page_is_generic_recruiting_landing,
+    requires_human as _page_requires_human,
+    url_requires_human as _url_requires_human,
+)
 from .browser_responses import (
     is_resume_download_response as _parse_is_resume_download_response,
     response_document as _parse_response_document,
@@ -80,21 +85,6 @@ _DOWNLOAD_NAME = re.compile(
     r")$",
     re.IGNORECASE,
 )
-_CHALLENGE_MARKERS = (
-    "sign in",
-    "log in",
-    "iniciar sesión",
-    "iniciar sesion",
-    "verification",
-    "verificación",
-    "verificacion",
-    "captcha",
-    "security challenge",
-    "mfa",
-    "two-step",
-    "two factor",
-)
-_URL_CHALLENGE_MARKERS = ("/login", "/signin", "challenge", "captcha", "verify")
 _INDEED_EMPLOYER_HOME = "https://employers.indeed.com/"
 _INDEED_CANDIDATES_HOME = "https://employers.indeed.com/candidates"
 
@@ -324,51 +314,10 @@ class IndeedBrowser:
     _response_filename_raw = staticmethod(_parse_response_filename_raw)
     _response_filename = staticmethod(_parse_response_filename)
 
-    @staticmethod
-    def _requires_human(page) -> bool:
-        url = str(getattr(page, "url", "") or "").casefold()
-        if any(marker in url for marker in _URL_CHALLENGE_MARKERS):
-            return True
-
-        # CAPTCHA/security challenges are often rendered inside an iframe after
-        # the top-level document has already loaded. Checking only body text can
-        # therefore miss the challenge and leave Diagnostic mode pumping the
-        # automated page indefinitely.
-        try:
-            for frame in list(getattr(page, "frames", []) or []):
-                frame_url = str(getattr(frame, "url", "") or "").casefold()
-                if any(marker in frame_url for marker in _URL_CHALLENGE_MARKERS):
-                    return True
-        except Exception:
-            pass
-
-        try:
-            challenge_nodes = page.locator(
-                'iframe[src*="captcha" i], iframe[src*="challenge" i], '
-                'iframe[src*="recaptcha" i], iframe[src*="hcaptcha" i], '
-                '[id*="captcha" i], [class*="captcha" i]'
-            )
-            if int(challenge_nodes.count()) > 0:
-                return True
-        except Exception:
-            pass
-
-        try:
-            text = str(page.locator("body").inner_text(timeout=2000) or "").casefold()
-        except Exception:
-            text = ""
-        return any(marker in text for marker in _CHALLENGE_MARKERS)
-
-    @staticmethod
-    def _is_generic_recruiting_landing(page) -> bool:
-        try:
-            parsed = urlsplit(str(getattr(page, "url", "") or ""))
-        except Exception:
-            return False
-        host = str(parsed.hostname or "").casefold()
-        path = str(parsed.path or "").rstrip("/")
-        return host == "resumes.indeed.com" and path in {"", "/"}
-
+    _requires_human = staticmethod(_page_requires_human)
+    _is_generic_recruiting_landing = staticmethod(
+        _page_is_generic_recruiting_landing
+    )
 
     def _wait_for_download_control(self, page):
         # Indeed Employers is a client-rendered SPA. domcontentloaded only
@@ -389,8 +338,7 @@ class IndeedBrowser:
                 return control
 
             try:
-                url = str(getattr(page, "url", "") or "").casefold()
-                if any(marker in url for marker in _URL_CHALLENGE_MARKERS):
+                if _url_requires_human(getattr(page, "url", "")):
                     return None
                 if hasattr(page, "is_closed") and page.is_closed():
                     return None
