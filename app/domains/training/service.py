@@ -21,7 +21,6 @@ from app.models import (
     UserProfile,
 )
 
-
 from app.domains.training.errors import (
     TrainingAssignmentError,
     TrainingNotFound,
@@ -1187,12 +1186,10 @@ def list_course_assignments(db: Session, course_id: str) -> list[dict]:
 
 
 def list_my_training(db: Session, employee_id: str) -> list[dict]:
-    assignments = (
-        db.query(TrainingAssignment)
-        .filter(TrainingAssignment.employee_id == employee_id)
-        .order_by(TrainingAssignment.assigned_at.desc())
-        .all()
-    )
+    query = db.query(TrainingAssignment).filter(TrainingAssignment.employee_id == employee_id)
+    if require_employee(db, employee_id).onboarding_status == "NOT_REQUIRED":
+        query = query.join(TrainingCourse).filter(TrainingCourse.is_onboarding.is_(False))
+    assignments = query.order_by(TrainingAssignment.assigned_at.desc()).all()
     return [assignment_payload(db, assignment) for assignment in assignments]
 
 
