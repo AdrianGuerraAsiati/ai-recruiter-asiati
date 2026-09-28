@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
 import {
   lessonTypeIcon,
@@ -58,14 +58,18 @@ export default function TrainingContentEditor({
   async function saveModule(event, module) {
     event.preventDefault();
     if (!moduleEdit) return;
-    await onUpdateModule(module.id, {
-      title: moduleEdit.title.trim(),
-      description: moduleEdit.description.trim() || null,
-      audience_job_title: moduleEdit.audience_job_title.trim() || null,
-      audience_department: moduleEdit.audience_department.trim() || null,
-    });
-    setEditingModuleId("");
-    setModuleEdit(null);
+    try {
+      await onUpdateModule(module.id, {
+        title: moduleEdit.title.trim(),
+        description: moduleEdit.description.trim() || null,
+        audience_job_title: moduleEdit.audience_job_title.trim() || null,
+        audience_department: moduleEdit.audience_department.trim() || null,
+      });
+      setEditingModuleId("");
+      setModuleEdit(null);
+    } catch {
+      // Parent surfaces the API error; keep the form open so the admin can retry.
+    }
   }
 
   function beginLessonEdit(lesson) {
@@ -82,24 +86,28 @@ export default function TrainingContentEditor({
     const estimatedMinutes = lessonEdit.estimated_minutes
       ? Number.parseInt(lessonEdit.estimated_minutes, 10)
       : null;
-    await onUpdateLesson(lesson.id, {
-      title: lessonEdit.title.trim(),
-      description: lessonEdit.description.trim() || null,
-      video_url: lessonEdit.video_url.trim() || null,
-      duration_seconds: Number.isInteger(duration) ? duration : null,
-      content_type: lessonEdit.content_type,
-      external_url: lessonEdit.external_url.trim() || null,
-      estimated_minutes: Number.isInteger(estimatedMinutes) ? estimatedMinutes : null,
-      checklist_items: lessonEdit.content_type === "CHECKLIST"
-        ? lessonEdit.checklist_items
-            .split("\n")
-            .map((item) => item.trim())
-            .filter(Boolean)
-        : [],
-      is_optional: Boolean(lessonEdit.is_optional),
-    });
-    setEditingLessonId("");
-    setLessonEdit(null);
+    try {
+      await onUpdateLesson(lesson.id, {
+        title: lessonEdit.title.trim(),
+        description: lessonEdit.description.trim() || null,
+        video_url: lessonEdit.video_url.trim() || null,
+        duration_seconds: Number.isInteger(duration) ? duration : null,
+        content_type: lessonEdit.content_type,
+        external_url: lessonEdit.external_url.trim() || null,
+        estimated_minutes: Number.isInteger(estimatedMinutes) ? estimatedMinutes : null,
+        checklist_items: lessonEdit.content_type === "CHECKLIST"
+          ? lessonEdit.checklist_items
+              .split("\n")
+              .map((item) => item.trim())
+              .filter(Boolean)
+          : [],
+        is_optional: Boolean(lessonEdit.is_optional),
+      });
+      setEditingLessonId("");
+      setLessonEdit(null);
+    } catch {
+      // Parent surfaces the API error; keep the form open so the admin can retry.
+    }
   }
 
   return (
