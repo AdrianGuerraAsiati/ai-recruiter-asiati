@@ -426,17 +426,25 @@ describe("Jobs page", () => {
   });
 
   it("hires a candidate and assigns onboarding from the vacancy", async () => {
-    api.post.mockResolvedValueOnce({
-      data: {
-        hired_at: "2026-09-25T18:00:00Z",
-        employee_created: true,
-        employee: { id: "employee-1" },
-        onboarding_assignment: {
-          id: "assignment-1",
-          course: { id: "course-1", progress_percent: 0 },
+    api.post
+      .mockResolvedValueOnce({
+        data: {
+          hired_at: "2026-09-25T18:00:00Z",
+          employee_created: true,
+          employee: { id: "employee-1" },
+          onboarding_assignment: {
+            id: "assignment-1",
+            course: { id: "course-1", progress_percent: 0 },
+          },
         },
-      },
-    });
+      })
+      .mockResolvedValueOnce({
+        data: {
+          status: "SYNCED",
+          action: "CREATED",
+          odoo_record_id: "101",
+        },
+      });
 
     renderJobs();
     await screen.findByText("Backend Developer");
@@ -468,23 +476,34 @@ describe("Jobs page", () => {
         }),
       );
     });
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        "/odoo/employees/employee-1/sync",
+      );
+    });
     expect(
-      await screen.findByText(/Ana Pérez fue contratado\. Acceso creado y onboarding asignado \(0%\)\./i),
+      await screen.findByText(
+        /Ana Pérez fue contratado\. Acceso creado y onboarding asignado \(0%\)\. Odoo sincronizado \(creado\)\./i,
+      ),
     ).toBeInTheDocument();
   });
 
   it("reports when an existing employee is reused during hiring", async () => {
-    api.post.mockResolvedValueOnce({
-      data: {
-        hired_at: "2026-09-25T18:00:00Z",
-        employee_created: false,
-        employee: { id: "employee-1" },
-        onboarding_assignment: {
-          id: "assignment-1",
-          course: { id: "course-1", progress_percent: 35 },
+    api.post
+      .mockResolvedValueOnce({
+        data: {
+          hired_at: "2026-09-25T18:00:00Z",
+          employee_created: false,
+          employee: { id: "employee-1" },
+          onboarding_assignment: {
+            id: "assignment-1",
+            course: { id: "course-1", progress_percent: 35 },
+          },
         },
-      },
-    });
+      })
+      .mockRejectedValueOnce({
+        response: { status: 503, data: { detail: "Odoo synchronization is disabled." } },
+      });
 
     renderJobs();
     await screen.findByText("Backend Developer");
@@ -495,7 +514,7 @@ describe("Jobs page", () => {
 
     expect(
       await screen.findByText(
-        /Ana Pérez fue contratado\. Empleado existente reutilizado y onboarding asignado \(35%\)\./i,
+        /Ana Pérez fue contratado\. Empleado existente reutilizado y onboarding asignado \(35%\)\. Odoo pendiente de configuración\./i,
       ),
     ).toBeInTheDocument();
   });
