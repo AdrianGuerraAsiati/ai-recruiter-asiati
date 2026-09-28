@@ -1378,13 +1378,14 @@ def test_system_managed_asiati_onboarding_rejects_manual_assignment(db):
         )
 
 
-def test_system_managed_asiati_onboarding_rejects_manual_content_changes(db):
-    course = service.create_asiati_onboarding_template(
+def test_system_managed_asiati_onboarding_rejects_new_structure(db):
+    course = service.ensure_published_asiati_onboarding(
         db,
         created_by_sub="admin-sub",
     )
+    first_module = course.modules[0]
 
-    with pytest.raises(service.TrainingStateError, match="managed by the system"):
+    with pytest.raises(service.TrainingStateError, match="preloaded by the system"):
         service.add_module(
             db,
             course_id=course.id,
@@ -1392,12 +1393,74 @@ def test_system_managed_asiati_onboarding_rejects_manual_content_changes(db):
             description="No debe permitirse",
         )
 
-    with pytest.raises(service.TrainingStateError, match="managed by the system"):
+    with pytest.raises(service.TrainingStateError, match="preloaded by the system"):
+        service.add_lesson(
+            db,
+            module_id=first_module.id,
+            title="Lección manual",
+            description=None,
+            video_url=None,
+            duration_seconds=None,
+            content_type="ARTICLE",
+            estimated_minutes=2,
+        )
+
+    with pytest.raises(service.TrainingStateError, match="preloaded by the system"):
         service.update_course(
             db,
             course.id,
             title="Onboarding modificado",
         )
+
+
+def test_admin_can_edit_published_asiati_onboarding_without_preset_overwrite(db):
+    course = service.ensure_published_asiati_onboarding(
+        db,
+        created_by_sub="admin-sub",
+    )
+    module = course.modules[0]
+    lesson = module.lessons[0]
+
+    service.update_module(
+        db,
+        module.id,
+        title="Bienvenida personalizada",
+        description="Texto ajustado por Talento Humano.",
+        audience_job_title=None,
+        audience_department=None,
+    )
+    service.update_lesson(
+        db,
+        lesson.id,
+        title="Tu primer día en ASIATI",
+        description="Contenido ajustado para la prueba interna.",
+        video_url=lesson.video_url,
+        duration_seconds=lesson.duration_seconds,
+        content_type=lesson.content_type,
+        external_url=lesson.external_url,
+        estimated_minutes=2,
+        checklist_items=list(lesson.checklist_items or []),
+        is_optional=False,
+    )
+
+    repeated = service.ensure_published_asiati_onboarding(
+        db,
+        created_by_sub="other-admin-sub",
+    )
+    payload = service.get_course(db, repeated.id)
+    edited_module = next(item for item in payload["modules"] if item["id"] == module.id)
+    edited_lesson = next(item for item in edited_module["lessons"] if item["id"] == lesson.id)
+
+    assert repeated.id == course.id
+    assert edited_module["title"] == "Bienvenida personalizada"
+    assert edited_module["description"] == "Texto ajustado por Talento Humano."
+    assert edited_lesson["title"] == "Tu primer día en ASIATI"
+    assert edited_lesson["description"] == "Contenido ajustado para la prueba interna."
+    assert edited_lesson["estimated_minutes"] == 2
+    assert db.query(TrainingCourse).filter(
+        TrainingCourse.title == "Onboarding ASIATI",
+        TrainingCourse.status == "PUBLISHED",
+    ).count() == 1
 
 
 def test_asiati_onboarding_template_scaffolds_short_journey(db):
