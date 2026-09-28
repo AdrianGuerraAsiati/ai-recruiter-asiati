@@ -31,7 +31,7 @@ def test_agent_workflow_builds_windows_onedir_and_uploads_artifact():
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "runs-on: windows-latest" in text
     assert "tools\\indeed_resume_agent\\build.ps1" in text
-    artifact_action = re.search(r"actions/upload-artifact@v(\\d+)", text)
+    artifact_action = re.search(r"actions/upload-artifact@v([0-9]+)", text)
     assert artifact_action is not None
     assert int(artifact_action.group(1)) >= 4
     assert "ASIATI-Resume-Agent-Windows" in text
@@ -46,3 +46,8 @@ def test_primary_ci_skips_agent_jobs_when_agent_paths_are_unchanged():
     assert "if: needs.changes.outputs.resume_agent == 'true'" in text
     assert "Resume Agent tests (Linux)" in text
     assert "Resume Agent (Windows + Chrome)" in text
+
+
+def test_primary_ci_revalidates_agent_when_root_python_dependencies_change():
+    text = CI_WORKFLOW.read_text(encoding="utf-8")
+    assert "requirements[.]txt$" in text
