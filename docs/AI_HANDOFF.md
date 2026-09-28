@@ -17,9 +17,9 @@ Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este co
 <!-- AI_HANDOFF_AUTO_START -->
 ## Checkpoint automático
 
-- **Última actualización automática:** pendiente del primer merge etiquetado
-- **Merge commit:** —
-- **PR:** —
+- **Última actualización automática:** 2026-09-27
+- **Merge commit:** `a4f1cd6e15da27dff4935262606c6345918f0c4d`
+- **PR:** [#47 — refactor: extraer modales de Training](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/47)
 - **Origen:** merge a `main` con etiqueta `handoff:update`
 
 > Este bloque es administrado por `.github/workflows/ai-handoff.yml`. No editarlo manualmente.
