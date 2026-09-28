@@ -15,6 +15,9 @@ from pathlib import Path
 from urllib.parse import quote_plus, urlsplit
 
 from .browser_diagnostics import (
+    diagnostic_controls as _diagnostic_controls_payload,
+    diagnostic_request_event as _diagnostic_request_event,
+    diagnostic_response_event as _diagnostic_response_event,
     safe_diagnostic_text as _safe_diagnostic_text,
     safe_diagnostic_url as _safe_diagnostic_url,
 )
@@ -1036,63 +1039,13 @@ class IndeedBrowser:
 
     def _on_diagnostic_request(self, request) -> None:
         try:
-            self._record_diagnostic_event(
-                {
-                    "kind": "request",
-                    "method": str(getattr(request, "method", "") or "")[:16],
-                    "resource_type": str(getattr(request, "resource_type", "") or "")[:40],
-                    "url": _safe_diagnostic_url(getattr(request, "url", "")),
-                }
-            )
+            self._record_diagnostic_event(_diagnostic_request_event(request))
         except Exception:
             pass
 
     def _on_diagnostic_response(self, response) -> None:
         try:
-            request = getattr(response, "request", None)
-            headers = getattr(response, "headers", {}) or {}
-            content_type = str(
-                headers.get("content-type") or headers.get("Content-Type") or ""
-            )[:200]
-            content_disposition = _safe_diagnostic_text(
-                headers.get("content-disposition")
-                or headers.get("Content-Disposition")
-                or "",
-                limit=300,
-            )
-            safe_url = _safe_diagnostic_url(getattr(response, "url", ""))
-            event = {
-                "kind": "response",
-                "status": int(getattr(response, "status", 0) or 0),
-                "resource_type": str(
-                    getattr(request, "resource_type", "") or ""
-                )[:40],
-                "url": safe_url,
-                "content_type": content_type,
-                "content_disposition": content_disposition,
-                "content_length": str(
-                    headers.get("content-length")
-                    or headers.get("Content-Length")
-                    or ""
-                )[:40],
-            }
-
-            relevant = any(
-                marker in safe_url.casefold()
-                for marker in ("resume", "candidate", "download", ".pdf")
-            ) or any(
-                marker in content_type.casefold()
-                for marker in ("pdf", "octet-stream")
-            )
-            if relevant and event["status"] < 400:
-                try:
-                    body = bytes(response.body() or b"")
-                    event["body_size"] = len(body)
-                    event["starts_with_pdf"] = body.startswith(b"%PDF-")
-                    event["first_bytes_hex"] = body[:24].hex()
-                except Exception as exc:
-                    event["body_probe_error"] = _safe_diagnostic_text(exc, limit=160)
-            self._record_diagnostic_event(event)
+            self._record_diagnostic_event(_diagnostic_response_event(response))
         except Exception:
             pass
 
@@ -1328,49 +1281,7 @@ class IndeedBrowser:
             except Exception:
                 continue
 
-    @staticmethod
-    def _diagnostic_controls(page) -> list[dict[str, str]]:
-        controls: list[dict[str, str]] = []
-        try:
-            items = page.locator('button, a, [role="button"], iframe, embed, object')
-            count = min(int(items.count()), 120)
-        except Exception:
-            return controls
-
-        for index in range(count):
-            try:
-                node = items.nth(index)
-                tag = str(node.evaluate("el => el.tagName.toLowerCase()") or "")[:30]
-                if tag not in {"iframe", "embed", "object"} and not node.is_visible():
-                    continue
-                href = (
-                    node.get_attribute("href")
-                    or node.get_attribute("src")
-                    or node.get_attribute("data")
-                    or ""
-                )
-                controls.append(
-                    {
-                        "tag": tag,
-                        "role": str(node.get_attribute("role") or "")[:80],
-                        "text": _safe_diagnostic_text(
-                            node.inner_text(timeout=500) if tag not in {"iframe", "embed", "object"} else "",
-                            limit=220,
-                        ),
-                        "aria_label": _safe_diagnostic_text(
-                            node.get_attribute("aria-label") or "",
-                            limit=220,
-                        ),
-                        "data_testid": _safe_diagnostic_text(
-                            node.get_attribute("data-testid") or "",
-                            limit=160,
-                        ),
-                        "target": _safe_diagnostic_url(href),
-                    }
-                )
-            except Exception:
-                continue
-        return controls
+    _diagnostic_controls = staticmethod(_diagnostic_controls_payload)
 
     def stop_diagnostic(self) -> str | None:
         """Persist a local sanitized JSON/screenshot bundle and stop capturing."""
