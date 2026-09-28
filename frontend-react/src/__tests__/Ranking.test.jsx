@@ -209,6 +209,26 @@ describe("Ranking page", () => {
     );
   });
 
+  it("hides jobs when candidate_count is missing", async () => {
+    api.get.mockImplementation((url) => {
+      if (url === "/jobs") {
+        return Promise.resolve({
+          data: [
+            { job_id: "job-unknown", title: "Vacante sin conteo" },
+            { job_id: "job-active", title: "Vacante activa", candidate_count: 1 },
+          ],
+        });
+      }
+      if (url.includes("/ranking")) return Promise.resolve(EMPTY_RANKING);
+      return Promise.resolve({ data: [] });
+    });
+
+    renderRanking();
+
+    expect(await screen.findByRole("option", { name: "Vacante activa" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Vacante sin conteo" })).not.toBeInTheDocument();
+  });
+
   it("keeps ranking unselected when every job is empty", async () => {
     api.get.mockImplementation((url) => {
       if (url === "/jobs") {
