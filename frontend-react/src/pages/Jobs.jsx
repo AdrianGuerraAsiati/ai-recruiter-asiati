@@ -70,6 +70,10 @@ function Jobs() {
   const [city, setCity] = useState("");
   const [employmentType, setEmploymentType] = useState("");
   const [publicSlug, setPublicSlug] = useState("");
+  const [responseTimeBusinessDays, setResponseTimeBusinessDays] = useState(2);
+  const [phoneCallCount, setPhoneCallCount] = useState(1);
+  const [onsiteInterviewCount, setOnsiteInterviewCount] = useState(1);
+  const [offerWaitDays, setOfferWaitDays] = useState(4);
   const [evaluationProfile, setEvaluationProfile] = useState(null);
   const [editingJob, setEditingJob] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -520,6 +524,11 @@ function Jobs() {
       country_code: countryCode,
       city,
       employment_type: employmentType,
+      response_time_business_days: responseTimeBusinessDays,
+      phone_call_count: phoneCallCount,
+      onsite_interview_count: onsiteInterviewCount,
+      offer_wait_days: offerWaitDays,
+      offer_wait_reference: "AFTER_INTERVIEW",
       public_slug: publicSlug,
       evaluation_profile: evaluationProfile,
     };
@@ -572,6 +581,10 @@ function Jobs() {
     setCountryCode(job.country_code || "");
     setCity(job.city || "");
     setEmploymentType(job.employment_type || "");
+    setResponseTimeBusinessDays(job.response_time_business_days ?? 2);
+    setPhoneCallCount(job.phone_call_count ?? 1);
+    setOnsiteInterviewCount(job.onsite_interview_count ?? 1);
+    setOfferWaitDays(job.offer_wait_days ?? 4);
     setPublicSlug(job.public_slug || "");
     setEvaluationProfile(job.evaluation_profile || null);
     setEnrichmentProposal(null);
@@ -591,6 +604,10 @@ function Jobs() {
     setCountryCode("");
     setCity("");
     setEmploymentType("");
+    setResponseTimeBusinessDays(2);
+    setPhoneCallCount(1);
+    setOnsiteInterviewCount(1);
+    setOfferWaitDays(4);
     setPublicSlug("");
     setEvaluationProfile(null);
     setEnrichmentProposal(null);
@@ -685,7 +702,7 @@ function Jobs() {
 
       {showForm && (
         <section className="panel job-form-panel">
-          <div className="panel-heading"><div><span className="eyebrow">{editingJob ? "Edición" : "Nueva posición"}</span><h2>{editingJob ? "Actualizar vacante" : "Define la vacante"}</h2></div><span className="step-badge">6 datos</span></div>
+          <div className="panel-heading"><div><span className="eyebrow">{editingJob ? "Edición" : "Nueva posición"}</span><h2>{editingJob ? "Actualizar vacante" : "Define la vacante"}</h2></div><span className="step-badge">Perfil completo</span></div>
           <form onSubmit={saveJob} className="job-form">
             <div className="form-group"><label htmlFor="job-title">Título de la vacante</label><input id="job-title" maxLength={75} placeholder="Ej. Cloud Engineer" value={title} onChange={(e) => setTitle(e.target.value)} required /></div>
             <section className="job-description-editor" aria-label="Versiones de la descripción">
@@ -783,6 +800,21 @@ function Jobs() {
             </div>
             <p className="muted job-publication-hint">Estos datos permiten publicar la misma vacante en asiaticorp.com/jobs e Indeed sin duplicarla.</p>
 
+            <section className="job-description-editor" aria-label="Proceso de selección">
+              <div className="job-description-source-header">
+                <div>
+                  <strong>Proceso de selección</strong>
+                  <p className="muted">Se envía a Odoo solo cuando un candidato avanza a Seleccionado y también guía la agenda interna.</p>
+                </div>
+              </div>
+              <div className="job-publication-grid">
+                <div className="form-group"><label htmlFor="job-response-days">Tiempo para responder (días hábiles)</label><input id="job-response-days" type="number" min="0" max="30" value={responseTimeBusinessDays} onChange={(e) => setResponseTimeBusinessDays(Number(e.target.value))} /></div>
+                <div className="form-group"><label htmlFor="job-phone-calls">Llamadas telefónicas</label><input id="job-phone-calls" type="number" min="0" max="10" value={phoneCallCount} onChange={(e) => setPhoneCallCount(Number(e.target.value))} /></div>
+                <div className="form-group"><label htmlFor="job-onsite-interviews">Entrevistas presenciales</label><input id="job-onsite-interviews" type="number" min="0" max="10" value={onsiteInterviewCount} onChange={(e) => setOnsiteInterviewCount(Number(e.target.value))} /></div>
+                <div className="form-group"><label htmlFor="job-offer-days">Oferta después de entrevista (días)</label><input id="job-offer-days" type="number" min="0" max="30" value={offerWaitDays} onChange={(e) => setOfferWaitDays(Number(e.target.value))} /></div>
+              </div>
+            </section>
+
             {editingJob && (editingJobData?.candidate_count || 0) > 0 && (
               <div className="job-reevaluation-note" role="note">
                 <strong>Esta vacante tiene candidatos evaluados.</strong>
@@ -864,6 +896,16 @@ function Jobs() {
                 <div><span className="muted">Fecha de creación</span><strong>{formatDate(viewJob.created_at)}</strong></div>
                 <div><span className="muted">Candidatos</span><strong>{viewJob.candidate_count || 0}</strong></div>
                 <div><span className="muted">Ubicación</span><strong>{[viewJob.city, viewJob.country_code].filter(Boolean).join(", ") || "Sin definir"}</strong></div>
+              </div>
+            </div>
+
+            <div className="job-detail-section">
+              <h3>Proceso de selección</h3>
+              <div className="job-detail-info-grid">
+                <div><span className="muted">Tiempo para responder</span><strong>{viewJob.response_time_business_days ?? 2} días hábiles</strong></div>
+                <div><span className="muted">Llamadas telefónicas</span><strong>{viewJob.phone_call_count ?? 1}</strong></div>
+                <div><span className="muted">Entrevistas presenciales</span><strong>{viewJob.onsite_interview_count ?? 1}</strong></div>
+                <div><span className="muted">Tiempo para oferta</span><strong>{viewJob.offer_wait_days ?? 4} días después de entrevista</strong></div>
               </div>
             </div>
 
