@@ -23,15 +23,17 @@ def list_jobs(db: Session, owner_sub: str | None = None) -> list[Job]:
 def list_jobs_page(
     db: Session,
     *,
-    owner_sub: str,
+    owner_sub: str | None = None,
     page: int,
     page_size: int,
     sort: str,
     q: str = "",
 ):
-    """Return one globally sorted page of jobs with owner-scoped candidate counts."""
+    """Return one globally sorted page of jobs with candidate counts."""
 
-    filters = [Job.owner_sub == owner_sub]
+    filters = []
+    if owner_sub is not None:
+        filters.append(Job.owner_sub == owner_sub)
     search = str(q or "").strip()
     if search:
         filters.append(Job.title.ilike(f"%{search}%"))
@@ -42,13 +44,7 @@ def list_jobs_page(
     query = (
         db.query(Job, candidate_count)
         .outerjoin(JobCandidate, JobCandidate.job_id == Job.id)
-        .outerjoin(
-            Candidate,
-            and_(
-                Candidate.id == JobCandidate.candidate_id,
-                Candidate.owner_sub == owner_sub,
-            ),
-        )
+        .outerjoin(Candidate, Candidate.id == JobCandidate.candidate_id)
         .filter(*filters)
         .group_by(Job.id)
     )
