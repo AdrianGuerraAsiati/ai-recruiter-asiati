@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `178a2a111c73bbfbc9d1433ee8a5046309c45f7d`
+- **Último checkpoint conocido:** `8173a25052c9e84fb658a1b96e75bba3d28585db`
 - **Fecha del checkpoint:** 2026-09-28
-- **Commit:** `feat: preparar postulantes seleccionados para Odoo (#87)`
+- **Commit:** `feat: agregar cliente de transporte Odoo (#88)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -29,8 +29,8 @@ Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este co
 
 Mantener aiRecruiterAsiati como una plataforma de reclutamiento estable, modular y operable, con foco inmediato en:
 
-1. conectar el transporte real hacia Odoo sobre los outboxes ya persistidos para `SELECTED` y `HIRED`;
-2. mapear modelos/campos técnicos de Odoo, autenticación y adjunto de CV sin replicar indiscriminadamente etapas tempranas;
+1. implementar el consumidor real de los outboxes `odoo_applicant_syncs` y `odoo_employee_syncs` usando el cliente Odoo ya disponible;
+2. mapear modelos/campos técnicos de Odoo y adjunto de CV sin replicar indiscriminadamente etapas tempranas;
 3. mantener la agenda de selección como herramienta operativa interna de Talento Humano para llamadas telefónicas y entrevistas presenciales;
 4. cerrar deuda técnica P2 sin romper reclutamiento, Resume Agent, onboarding ni los flujos críticos ya estabilizados;
 5. fortalecer pruebas, observabilidad, UI/UX e infraestructura antes de habilitar sincronización externa en producción.
@@ -313,8 +313,8 @@ Al actualizar este documento, mantener como mínimo:
 
 - **Fecha:** 2026-09-28
 - **Rama:** `main`
-- **Commit funcional de referencia:** `178a2a111c73bbfbc9d1433ee8a5046309c45f7d`
-- **Último hito:** PR #87 mergeado — candidatos `SELECTED` ya generan un outbox idempotente `UPSERT_APPLICANT`; vacantes guardan el proceso de selección y `HIRED` mantiene el outbox `UPSERT_EMPLOYEE` de #86.
+- **Commit funcional de referencia:** `8173a25052c9e84fb658a1b96e75bba3d28585db`
+- **Último hito:** PR #88 mergeado — cliente de transporte Odoo 18 sobre XML-RPC, credencial en AWS Secrets Manager, HTTPS, timeout configurable y pruebas completas del boundary externo.
 
 ### Completado
 
@@ -323,59 +323,61 @@ Al actualizar este documento, mantener como mínimo:
 - Agenda de selección interna para llamadas y entrevistas presenciales (#85).
 - Etapa `SELECTED` y mapeo Indeed `POSITIVELY_SCREENED` (#85).
 - Outbox de empleado Odoo `odoo_employee_syncs` al contratar, idempotente por empleado (#86, Alembic 028).
-- Contrato `UPSERT_EMPLOYEE` v1 con IDs internos, fecha de contratación, nombre, correo, cargo, área y fecha de ingreso (#86).
 - Outbox de postulante Odoo `odoo_applicant_syncs` al pasar a `SELECTED`, idempotente por postulación (#87, Alembic 029).
-- Contratación `HIRED` garantiza también el outbox del postulante cuando se omite una transición manual previa por `SELECTED`.
-- Vacantes conservan proceso de selección editable:
-  - respuesta: 2 días hábiles por defecto;
-  - 1 llamada telefónica por defecto;
-  - 1 entrevista presencial por defecto;
-  - oferta: 4 días después de entrevista por defecto.
-- `UPSERT_APPLICANT` v1 incluye candidato, postulación, vacante, proceso, teléfono si existe en metadata y referencia al CV canónico.
-- La UI de Vacantes permite editar/ver esos datos de proceso.
-- Campos persistentes preparados para futuros IDs externos: `odoo_job_id`, `odoo_applicant_id` y `odoo_record_id`.
-- #86 y #87 pasaron backend, PostgreSQL, frontend, E2E Chromium y CodeQL.
-- El transporte real hacia Odoo permanece deliberadamente desacoplado: una caída de Odoo no bloquea selección, agenda, contratación ni onboarding.
+- Vacantes conservan proceso de selección editable y `UPSERT_APPLICANT` v1 incluye candidato, vacante, proceso y referencia al CV canónico (#87).
+- Cliente `OdooXmlRpcClient` agregado (#88) sobre:
+  - `/xmlrpc/2/common` para versión/autenticación;
+  - `/xmlrpc/2/object` para operaciones de modelos.
+- Configuración no secreta: `ODOO_ENABLED`, `ODOO_BASE_URL`, `ODOO_DATABASE`, `ODOO_USERNAME`, `ODOO_SECRET_ID`, `ODOO_REQUEST_TIMEOUT_SECONDS`.
+- API key de Odoo fuera del repositorio, leída desde AWS Secrets Manager.
+- HTTPS obligatorio fuera de localhost.
+- Timeout Odoo configurable, 15 segundos por defecto.
+- Helpers genéricos disponibles: `fields_get`, `search_read`, `create`, `write`, `healthcheck`.
+- Errores de transporte sanitizados para no propagar detalles remotos/secretos.
+- Tests específicos para cliente XML-RPC, composición de integración, configuración y Secrets Manager.
+- PR #88 pasó backend pytest, PostgreSQL smoke, frontend, E2E Chromium y CodeQL.
+- No hay PRs abiertos después del merge.
 
 ### En progreso
 
-- Definición del adaptador/transporte real Odoo que consumirá `odoo_applicant_syncs` y `odoo_employee_syncs`.
-- Mapeo de modelos y nombres técnicos de campos en Odoo.
-- Definición del mecanismo de autenticación/base URL y política de reintentos.
+- Mapeo técnico real entre los contratos `UPSERT_APPLICANT` / `UPSERT_EMPLOYEE` y los modelos/campos de Odoo ASIATI.
+- Diseño del consumidor de outbox con reintentos y persistencia de IDs externos.
 - Resolución del CV canónico como adjunto al consumir el outbox.
 - Definición de una fuente canónica para teléfono cuando no venga en metadata.
-- Cierre paralelo de P2 residuales en `Jobs.jsx`, `browser.py`, `asiati_preset.py` y `RankingView.jsx`.
+- Cierre paralelo de P2 residuales.
 
 ### Pendiente inmediato
 
-1. Identificar modelos/campos técnicos destino en Odoo para vacante, postulante y empleado.
-2. Definir configuración segura de conexión: base URL, base de datos/tenant y autenticación, sin versionar secretos.
-3. Implementar cliente Odoo y consumidor de `odoo_applicant_syncs` con orden: upsert vacante → upsert postulante → adjuntar CV → guardar IDs externos.
-4. Implementar consumidor de `odoo_employee_syncs` condicionado a que el postulante correspondiente pueda resolverse/actualizarse.
-5. Implementar reintentos, `attempt_count`, `last_error`, `FAILED`, recuperación a `PENDING` y observabilidad.
-6. Mantener etapas previas a `SELECTED` exclusivamente en aiRecruiter.
-7. Mantener Agenda interna sin sincronizar citas a Odoo hasta una decisión explícita posterior.
+1. Inspeccionar de forma segura los modelos/campos disponibles en la instancia Odoo ASIATI usando `fields_get` una vez exista configuración runtime.
+2. Definir el mapeo exacto para vacante, postulante, empleado y adjunto de CV.
+3. Implementar consumidor de `odoo_applicant_syncs` con orden: upsert vacante → upsert postulante → adjuntar CV → guardar `odoo_job_id` / `odoo_applicant_id`.
+4. Implementar consumidor de `odoo_employee_syncs` y guardar `odoo_record_id`.
+5. Implementar reintentos, `attempt_count`, `last_error`, transición `FAILED ↔ PENDING` y observabilidad.
+6. Agregar permisos IAM mínimos para leer `ODOO_SECRET_ID` cuando se habilite la integración en runtime.
+7. Mantener `ODOO_ENABLED=false` hasta validar conexión y mapeo contra un entorno seguro.
+8. Mantener etapas previas a `SELECTED` exclusivamente en aiRecruiter y Agenda sin sincronización de citas hasta decisión posterior.
 
 ### Bloqueos / dependencias externas
 
-- Falta conocer/confirmar los nombres técnicos de modelos/campos y el método de autenticación de la instancia Odoo ASIATI.
-- Falta confirmar cómo debe recibirse el CV en Odoo (attachment/campo técnico destino) antes de activar transporte.
+- Falta configurar la conexión runtime Odoo ASIATI (base URL, database, username y API key en Secrets Manager) para inspeccionar modelos reales.
+- Falta confirmar el modelo/campo destino del CV en Odoo antes de habilitar escrituras.
+- La instancia conocida es Odoo 18 Enterprise con Reclutamiento instalado; no asumir nombres/campos custom sin inspección.
 - Verificación IAM de alarmas operativas.
 - Prueba real controlada del Resume Agent requiere workstation/sesión Indeed autorizada.
-- La API de protección de `main` no es accesible actualmente desde la integración GitHub conectada.
 
 ### Riesgos
 
-- Un mapeo Odoo incorrecto podría crear registros duplicados o incompletos; por eso los IDs externos deben persistirse después de cada upsert confirmado.
-- Las URLs firmadas de CV expiran; el transporte debe resolver el documento canónico al ejecutar y no persistir una URL temporal.
-- El teléfono no tiene todavía una fuente canónica garantizada para todos los candidatos.
-- La sincronización externa no debe bloquear ni revertir estados locales ya confirmados.
-- Los archivos grandes restantes concentran estado y lógica; mantener refactors separados de la integración Odoo.
+- No activar escrituras Odoo con un mapeo supuesto: primero usar `fields_get`/lecturas contra la instancia real.
+- Una API key no debe aparecer en Git, logs, responses ni variables de frontend.
+- El worker Odoo debe tener timeout y reintentos; una caída externa no puede bloquear estados locales.
+- Persistir los IDs externos solo después de confirmación del upsert para mantener idempotencia.
+- Las URLs firmadas de CV expiran; resolver el documento canónico al ejecutar, no guardar URL temporal.
+- El teléfono aún no tiene una fuente canónica garantizada para todos los candidatos.
 
 ### Próximo paso recomendado
 
-1. Obtener el contrato técnico real de Odoo ASIATI: modelo de vacante, postulante, empleado, campos y autenticación.
-2. Implementar un cliente/adaptador Odoo sin lógica de negocio y probarlo contra un entorno seguro.
-3. Crear el worker/servicio que consuma primero `odoo_applicant_syncs` y después `odoo_employee_syncs`, con idempotencia y reintentos.
-4. Adjuntar el CV desde el documento canónico al ejecutar la sincronización.
-5. Mantener el sistema local plenamente funcional aunque Odoo esté indisponible.
+1. Configurar de forma segura la conexión Odoo runtime sin habilitar escrituras automáticas.
+2. Ejecutar un diagnóstico de solo lectura: `healthcheck` + `fields_get` de los modelos de Reclutamiento/RRHH presentes.
+3. Documentar el mapeo real fuente → destino.
+4. Implementar el consumidor de outboxes con reintentos e idempotencia.
+5. Probar primero en entorno seguro antes de activar `ODOO_ENABLED` en producción.
