@@ -8,16 +8,22 @@ import time
 import unicodedata
 import zipfile
 from datetime import datetime, timezone
-from email.header import decode_header, make_header
 
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from urllib.parse import quote_plus, unquote, urlsplit
+from urllib.parse import quote_plus, urlsplit
 
 from .browser_diagnostics import (
     safe_diagnostic_text as _safe_diagnostic_text,
     safe_diagnostic_url as _safe_diagnostic_url,
+)
+from .browser_responses import (
+    is_resume_download_response as _parse_is_resume_download_response,
+    response_document as _parse_response_document,
+    response_filename as _parse_response_filename,
+    response_filename_raw as _parse_response_filename_raw,
+    response_pdf as _parse_response_pdf,
 )
 from .browser_runtime import (
     manual_browser_process_exists as _manual_browser_process_exists,
@@ -62,13 +68,6 @@ class BrowserFetchStageError(RuntimeError):
         super().__init__(self.code)
 
 
-_GENERIC_BINARY_CONTENT_TYPES = {
-    "",
-    "application/octet-stream",
-    "binary/octet-stream",
-}
-
-
 def _default_playwright_factory():
     from playwright.sync_api import sync_playwright
     return sync_playwright()
@@ -98,12 +97,6 @@ _CHALLENGE_MARKERS = (
 _URL_CHALLENGE_MARKERS = ("/login", "/signin", "challenge", "captcha", "verify")
 _INDEED_EMPLOYER_HOME = "https://employers.indeed.com/"
 _INDEED_CANDIDATES_HOME = "https://employers.indeed.com/candidates"
-_RESUME_DOWNLOAD_PATH = "/api/catws/resume/v2/download"
-_FILENAME_STAR = re.compile(r"filename\*=UTF-8''([^;]+)", re.IGNORECASE)
-_FILENAME_BASIC = re.compile(r'filename="?([^";]+)"?', re.IGNORECASE)
-
-
-
 
 class IndeedBrowser:
     def __init__(
@@ -325,110 +318,11 @@ class IndeedBrowser:
         ]
         self._manual_process = self._process_runner(command)
 
-    @staticmethod
-    def _response_document(response, *, probe_body: bool = True):
-        if response is None or int(getattr(response, "status", 0) or 0) != 200:
-            return None
-
-        headers = getattr(response, "headers", {}) or {}
-        content_type = str(
-            headers.get("content-type") or headers.get("Content-Type") or ""
-        ).split(";", 1)[0].strip().casefold()
-        content_disposition = str(
-            headers.get("content-disposition")
-            or headers.get("Content-Disposition")
-            or ""
-        )
-        response_url = str(getattr(response, "url", "") or "")
-        disposition_lower = content_disposition.casefold()
-
-        plausible_document = (
-            content_type in {PDF_CONTENT_TYPE, DOCX_CONTENT_TYPE}
-            or content_type in _GENERIC_BINARY_CONTENT_TYPES
-            or "attachment" in disposition_lower
-            or response_url.casefold().endswith((".pdf", ".docx"))
-        )
-        if not plausible_document and not probe_body:
-            return None
-
-        body = bytes(response.body() or b"")
-        filename = IndeedBrowser._response_filename_raw(response)
-        try:
-            canonical_type = validate_resume_document(
-                body,
-                filename=filename,
-                content_type=content_type,
-                max_bytes=15 * 1024 * 1024,
-            )
-        except InvalidResumeDocument:
-            # A declared supported resume must fail explicitly rather than being
-            # mistaken for an ordinary HTML response.
-            if (
-                content_type in {PDF_CONTENT_TYPE, DOCX_CONTENT_TYPE}
-                or response_url.casefold().endswith((".pdf", ".docx"))
-                or "attachment" in disposition_lower
-            ):
-                raise
-            return None
-
-        return (
-            body,
-            canonical_type,
-            normalize_resume_filename(filename, content_type=canonical_type),
-        )
-
-    @staticmethod
-    def _response_pdf(response, *, probe_body: bool = True) -> bytes | None:
-        """Compatibility helper retained for the existing test surface."""
-        document = IndeedBrowser._response_document(response, probe_body=probe_body)
-        if document is None:
-            return None
-        data, content_type, _filename = document
-        if content_type != PDF_CONTENT_TYPE:
-            return None
-        return data
-
-    @staticmethod
-    def _is_resume_download_response(response) -> bool:
-        try:
-            parsed = urlsplit(str(getattr(response, "url", "") or ""))
-        except Exception:
-            return False
-        host = str(parsed.hostname or "").casefold()
-        return (
-            host == "employers.indeed.com"
-            and parsed.path == _RESUME_DOWNLOAD_PATH
-            and int(getattr(response, "status", 0) or 0) == 200
-        )
-
-    @staticmethod
-    def _response_filename_raw(response) -> str:
-        headers = getattr(response, "headers", {}) or {}
-        disposition = str(
-            headers.get("content-disposition")
-            or headers.get("Content-Disposition")
-            or ""
-        )
-        candidate = ""
-        match = _FILENAME_STAR.search(disposition)
-        if match:
-            candidate = unquote(match.group(1))
-        else:
-            match = _FILENAME_BASIC.search(disposition)
-            if match:
-                candidate = match.group(1).strip()
-                try:
-                    candidate = str(make_header(decode_header(candidate)))
-                except Exception:
-                    pass
-        return candidate or "indeed-resume"
-
-    @staticmethod
-    def _response_filename(response, *, content_type: str = PDF_CONTENT_TYPE) -> str:
-        return normalize_resume_filename(
-            IndeedBrowser._response_filename_raw(response),
-            content_type=content_type,
-        )
+    _response_document = staticmethod(_parse_response_document)
+    _response_pdf = staticmethod(_parse_response_pdf)
+    _is_resume_download_response = staticmethod(_parse_is_resume_download_response)
+    _response_filename_raw = staticmethod(_parse_response_filename_raw)
+    _response_filename = staticmethod(_parse_response_filename)
 
     @staticmethod
     def _requires_human(page) -> bool:
