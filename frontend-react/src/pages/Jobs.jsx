@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
@@ -6,11 +6,11 @@ import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
 import Icon from "../components/ui/Icon";
 import { EmptyState, FeedbackMessage, LoadingState } from "../components/ui/StatePanel";
+import JobsPagination from "../features/jobs/JobsPagination";
 import {
   MAX_PAGES,
   PAGE_SIZE_OPTIONS,
   SORT_OPTIONS,
-  compactPageNumbers,
   formatDate,
   formatEnrichmentProposalDescription,
   indeedLifecycle,
@@ -660,7 +660,6 @@ function Jobs() {
   const editingJobData = editingJob ? jobs.find((job) => job.job_id === editingJob) : null;
   const pageStart = jobsPage.total ? ((page - 1) * pageSize) + 1 : 0;
   const pageEnd = jobsPage.total ? Math.min(page * pageSize, jobsPage.total) : 0;
-  const visiblePages = compactPageNumbers(jobsPage.total_pages, page);
 
   return (
     <div className="page">
@@ -873,45 +872,11 @@ function Jobs() {
           </div>
         )}
 
-        {jobsPage.total_pages > 1 && (
-          <nav className="jobs-pagination" aria-label="Paginación de vacantes">
-            <button
-              type="button"
-              className="jobs-page-button jobs-page-edge"
-              disabled={page <= 1}
-              onClick={() => goToPage(page - 1)}
-            >
-              ‹ Anterior
-            </button>
-            <div className="jobs-page-numbers">
-              {visiblePages.map((pageNumber, index) => {
-                const previous = visiblePages[index - 1];
-                return (
-                  <React.Fragment key={pageNumber}>
-                    {previous && pageNumber - previous > 1 && <span className="jobs-page-ellipsis" aria-hidden="true">…</span>}
-                    <button
-                      type="button"
-                      className={`jobs-page-button ${pageNumber === page ? "is-active" : ""}`}
-                      aria-current={pageNumber === page ? "page" : undefined}
-                      aria-label={`Página ${pageNumber}`}
-                      onClick={() => goToPage(pageNumber)}
-                    >
-                      {pageNumber}
-                    </button>
-                  </React.Fragment>
-                );
-              })}
-            </div>
-            <button
-              type="button"
-              className="jobs-page-button jobs-page-edge"
-              disabled={page >= jobsPage.total_pages}
-              onClick={() => goToPage(page + 1)}
-            >
-              Siguiente ›
-            </button>
-          </nav>
-        )}
+        <JobsPagination
+          currentPage={page}
+          totalPages={jobsPage.total_pages}
+          onPageChange={goToPage}
+        />
       </section>
 
       {viewJob && (
