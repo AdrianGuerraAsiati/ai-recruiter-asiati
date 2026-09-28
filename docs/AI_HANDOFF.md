@@ -18,8 +18,8 @@ Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este co
 ## Checkpoint automático
 
 - **Última actualización automática:** 2026-09-28
-- **Merge commit:** `2110be855bd44ec6235403d76ad1f99533314093`
-- **PR:** [#85 — feat: agregar agenda de selección](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/85)
+- **Merge commit:** `d123387a94a67ba8c70eab4d398fa406ae65109f`
+- **PR:** [#86 — feat: preparar contratación para sincronización Odoo](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/86)
 - **Origen:** merge a `main` con etiqueta `handoff:update`
 
 > Este bloque es administrado por `.github/workflows/ai-handoff.yml`. No editarlo manualmente.
