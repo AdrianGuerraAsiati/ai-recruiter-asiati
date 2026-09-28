@@ -7,6 +7,8 @@ from sqlalchemy.orm import sessionmaker
 
 from app.access_control import ensure_rbac_catalog
 from app.db import Base
+from app.domains.candidates import service as candidates_service
+from app.domains.candidates.exceptions import HiringFlowRequired
 from app.domains.hiring import service as hiring_service
 from app.domains.training import service as training_service
 from app.models import (
@@ -115,6 +117,24 @@ def _hire(db, *, cognito, job, candidate):
         department="Tecnología",
         cognito_client=cognito,
     )
+
+
+def test_generic_application_status_cannot_bypass_hiring_flow(db):
+    job, candidate, link = _application(db)
+
+    with pytest.raises(HiringFlowRequired, match="Contratar candidato"):
+        candidates_service.set_application_status(
+            db,
+            job_id=job.id,
+            candidate_id=candidate.id,
+            status="HIRED",
+            owner_sub="admin-sub",
+        )
+
+    db.refresh(link)
+    assert link.application_status == "OFFER"
+    assert db.query(UserProfile).count() == 0
+    assert db.query(OdooEmployeeSync).count() == 0
 
 
 def test_hire_creates_employee_marks_application_and_assigns_onboarding(db):
