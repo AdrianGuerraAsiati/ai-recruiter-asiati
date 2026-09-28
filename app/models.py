@@ -107,6 +107,11 @@ class Job(Base):
     country_code = Column(Text, nullable=True)
     city = Column(Text, nullable=True)
     employment_type = Column(Text, nullable=True)
+    response_time_business_days = Column(Integer, nullable=False, default=2)
+    phone_call_count = Column(Integer, nullable=False, default=1)
+    onsite_interview_count = Column(Integer, nullable=False, default=1)
+    offer_wait_days = Column(Integer, nullable=False, default=4)
+    offer_wait_reference = Column(Text, nullable=False, default="AFTER_INTERVIEW")
     public_slug = Column(Text, nullable=True)
     published_at = Column(DateTime(timezone=True), nullable=True)
     evaluation_version = Column(Integer, nullable=False, default=1)
@@ -873,6 +878,7 @@ class EmployeeScoreEvent(Base):
 
 
 # Odoo sync ORM models live with their domain and remain re-exported here.
+from app.domains.odoo_sync.models import OdooApplicantSync  # noqa: E402,F401
 from app.domains.odoo_sync.models import OdooEmployeeSync  # noqa: E402,F401
 
 

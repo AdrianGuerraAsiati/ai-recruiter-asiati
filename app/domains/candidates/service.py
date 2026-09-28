@@ -14,6 +14,7 @@ from app.domains.candidates.exceptions import (
 )
 from app.domains.evaluations import repository as evaluations_repository
 from app.domains.jobs import repository as jobs_repository
+from app.domains.odoo_sync import service as odoo_sync_service
 from app.infrastructure.imports.documents import (
     MAX_DOCUMENT_BYTES,
     DocumentImportError,
@@ -160,8 +161,8 @@ def set_application_status(
     status: str,
     owner_sub: str,
 ):
-    require_job(db, job_id, owner_sub)
-    require_candidate(db, candidate_id, owner_sub)
+    job = require_job(db, job_id, owner_sub)
+    candidate = require_candidate(db, candidate_id, owner_sub)
     link = candidates_repository.get_job_candidate(
         db,
         job_id=job_id,
@@ -191,6 +192,13 @@ def set_application_status(
         local_status=normalized,
         status_changed_at=link.status_changed_at,
     )
+    if normalized == "SELECTED":
+        odoo_sync_service.ensure_applicant_sync(
+            db,
+            candidate=candidate,
+            job=job,
+            application=link,
+        )
     db.commit()
     db.refresh(link)
     return link, True

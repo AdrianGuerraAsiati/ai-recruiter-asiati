@@ -19,6 +19,11 @@ def _publication_fields(body) -> dict:
         "country_code": body.country_code,
         "city": body.city,
         "employment_type": body.employment_type,
+        "response_time_business_days": body.response_time_business_days,
+        "phone_call_count": body.phone_call_count,
+        "onsite_interview_count": body.onsite_interview_count,
+        "offer_wait_days": body.offer_wait_days,
+        "offer_wait_reference": body.offer_wait_reference,
         "public_slug": body.public_slug,
         "published_at": body.published_at,
     }

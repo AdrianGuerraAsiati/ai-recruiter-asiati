@@ -193,6 +193,37 @@ def test_delete_job_payload_preserves_exact_public_contract():
     }
 
 
+def test_job_request_defaults_match_selection_process_contract():
+    request = CreateJobRequest(
+        title="Backend Developer",
+        description="Python APIs",
+    )
+
+    assert request.response_time_business_days == 2
+    assert request.phone_call_count == 1
+    assert request.onsite_interview_count == 1
+    assert request.offer_wait_days == 4
+    assert request.offer_wait_reference == "AFTER_INTERVIEW"
+
+
+def test_job_payload_exposes_selection_process_when_available():
+    payload = presenter.job_payload(
+        _job(
+            response_time_business_days=3,
+            phone_call_count=2,
+            onsite_interview_count=1,
+            offer_wait_days=5,
+            offer_wait_reference="AFTER_INTERVIEW",
+        )
+    )
+
+    assert payload["response_time_business_days"] == 3
+    assert payload["phone_call_count"] == 2
+    assert payload["onsite_interview_count"] == 1
+    assert payload["offer_wait_days"] == 5
+    assert payload["offer_wait_reference"] == "AFTER_INTERVIEW"
+
+
 def test_job_request_schemas_bound_prompt_sized_inputs():
     from pydantic import ValidationError
 

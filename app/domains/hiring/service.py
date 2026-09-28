@@ -201,6 +201,12 @@ def hire_candidate(
             status_changed_at=link.status_changed_at,
         )
 
+    applicant_sync = odoo_sync_service.ensure_applicant_sync(
+        db,
+        candidate=candidate,
+        job=job,
+        application=link,
+    )
     odoo_sync = odoo_sync_service.ensure_employee_sync(
         db,
         employee=employee,
@@ -223,5 +229,6 @@ def hire_candidate(
         "employee_created": employee_created,
         "employee": employees_service.employee_payload(db, employee),
         "onboarding_assignment": training_service.assignment_payload(db, assignment),
+        "odoo_applicant_sync": odoo_sync_service.applicant_sync_payload(applicant_sync),
         "odoo_sync": odoo_sync_service.sync_payload(odoo_sync),
     }

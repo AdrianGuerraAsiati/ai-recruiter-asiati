@@ -36,6 +36,7 @@ CORE_TABLES = {
     "candidate_restriction_events",
     "recruitment_events",
     "odoo_employee_syncs",
+    "odoo_applicant_syncs",
 }
 
 
@@ -89,6 +90,7 @@ def test_alembic_head_builds_current_postgres_schema():
             "candidate_restriction_events",
             "recruitment_events",
             "odoo_employee_syncs",
+            "odoo_applicant_syncs",
         }.issubset(tables)
 
         for table_name in sorted(CORE_TABLES):
@@ -268,7 +270,16 @@ def test_alembic_head_builds_current_postgres_schema():
         }.issubset(restriction_event_columns)
 
         job_columns = {column["name"] for column in inspector.get_columns("jobs")}
-        assert {"indeed_description", "ai_description", "active_description_source"}.issubset(job_columns)
+        assert {
+            "indeed_description",
+            "ai_description",
+            "active_description_source",
+            "response_time_business_days",
+            "phone_call_count",
+            "onsite_interview_count",
+            "offer_wait_days",
+            "offer_wait_reference",
+        }.issubset(job_columns)
 
         assert role_codes == {"SUPER_ADMIN", "ADMIN", "EMPLOYEE"}
         assert score_grants == {
@@ -373,8 +384,34 @@ def test_alembic_head_builds_current_postgres_schema():
             "uq_odoo_employee_syncs_idempotency_key",
         }.issubset(odoo_sync_uniques)
 
+        odoo_applicant_columns = {
+            column["name"]
+            for column in inspector.get_columns("odoo_applicant_syncs")
+        }
+        assert {
+            "job_candidate_id",
+            "idempotency_key",
+            "payload",
+            "status",
+            "attempt_count",
+            "odoo_job_id",
+            "odoo_applicant_id",
+            "last_error",
+            "synced_at",
+            "created_at",
+            "updated_at",
+        }.issubset(odoo_applicant_columns)
+        odoo_applicant_uniques = {
+            constraint["name"]
+            for constraint in inspector.get_unique_constraints("odoo_applicant_syncs")
+        }
+        assert {
+            "uq_odoo_applicant_syncs_application",
+            "uq_odoo_applicant_syncs_idempotency_key",
+        }.issubset(odoo_applicant_uniques)
+
         assert admin_score_grants == 0
         assert admin_write_grants == {"candidates.manage", "ranking.recalculate"}
-        assert revision == "028"
+        assert revision == "029"
     finally:
         engine.dispose()

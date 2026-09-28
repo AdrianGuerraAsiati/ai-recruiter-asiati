@@ -75,6 +75,11 @@ class CreateJobRequest(BaseModel):
     country_code: str | None = None
     city: str | None = None
     employment_type: str | None = None
+    response_time_business_days: int = Field(default=2, ge=0, le=30)
+    phone_call_count: int = Field(default=1, ge=0, le=10)
+    onsite_interview_count: int = Field(default=1, ge=0, le=10)
+    offer_wait_days: int = Field(default=4, ge=0, le=30)
+    offer_wait_reference: Literal["AFTER_INTERVIEW"] = "AFTER_INTERVIEW"
     public_slug: str | None = None
     published_at: datetime | None = None
     evaluation_profile: EvaluationProfile | None = None
@@ -89,6 +94,11 @@ class UpdateJobRequest(BaseModel):
     country_code: str | None = None
     city: str | None = None
     employment_type: str | None = None
+    response_time_business_days: int | None = Field(default=None, ge=0, le=30)
+    phone_call_count: int | None = Field(default=None, ge=0, le=10)
+    onsite_interview_count: int | None = Field(default=None, ge=0, le=10)
+    offer_wait_days: int | None = Field(default=None, ge=0, le=30)
+    offer_wait_reference: Literal["AFTER_INTERVIEW"] | None = None
     public_slug: str | None = None
     published_at: datetime | None = None
     evaluation_profile: EvaluationProfile | None = None
@@ -105,6 +115,11 @@ class JobResponse(BaseModel):
     country_code: str | None = None
     city: str | None = None
     employment_type: str | None = None
+    response_time_business_days: int = 2
+    phone_call_count: int = 1
+    onsite_interview_count: int = 1
+    offer_wait_days: int = 4
+    offer_wait_reference: Literal["AFTER_INTERVIEW"] = "AFTER_INTERVIEW"
     public_slug: str | None = None
     published_at: str | None = None
     created_at: str | None = None
