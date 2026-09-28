@@ -13,6 +13,7 @@ from app.models import (
     Candidate,
     Job,
     JobCandidate,
+    OdooApplicantSync,
     OdooEmployeeSync,
     TrainingAssignment,
     UserProfile,
@@ -129,6 +130,7 @@ def test_hire_creates_employee_marks_application_and_assigns_onboarding(db):
     db.refresh(link)
     employee = db.query(UserProfile).one()
     assignment = db.query(TrainingAssignment).one()
+    applicant_sync = db.query(OdooApplicantSync).one()
     odoo_sync = db.query(OdooEmployeeSync).one()
 
     assert result["application_status"] == "HIRED"
@@ -148,6 +150,10 @@ def test_hire_creates_employee_marks_application_and_assigns_onboarding(db):
     assert assignment.course.status == "PUBLISHED"
     assert assignment.course.title == "Onboarding ASIATI"
     assert result["onboarding_assignment"]["course"]["progress_percent"] == 0
+    assert result["odoo_applicant_sync"]["status"] == "PENDING"
+    assert result["odoo_applicant_sync"]["job_candidate_id"] == link.id
+    assert applicant_sync.payload["operation"] == "UPSERT_APPLICANT"
+    assert applicant_sync.payload["source"]["application_status"] == "HIRED"
     assert result["odoo_sync"]["status"] == "PENDING"
     assert result["odoo_sync"]["idempotency_key"] == f"employee:{employee.id}"
     assert odoo_sync.employee_id == employee.id
@@ -223,7 +229,9 @@ def test_hire_is_idempotent_for_same_application(db):
     assert second["status_changed"] is False
     assert db.query(UserProfile).count() == 1
     assert db.query(TrainingAssignment).count() == 1
+    assert db.query(OdooApplicantSync).count() == 1
     assert db.query(OdooEmployeeSync).count() == 1
+    assert first["odoo_applicant_sync"]["id"] == second["odoo_applicant_sync"]["id"]
     assert first["odoo_sync"]["id"] == second["odoo_sync"]["id"]
     assert cognito.created == ["ana@example.com"]
     db.refresh(link)
@@ -278,6 +286,7 @@ def test_same_candidate_hired_for_two_jobs_reuses_employee_and_onboarding(db):
     assert second_link.hired_at is not None
     assert db.query(UserProfile).count() == 1
     assert db.query(TrainingAssignment).count() == 1
+    assert db.query(OdooApplicantSync).count() == 2
     assert db.query(OdooEmployeeSync).count() == 1
     odoo_sync = db.query(OdooEmployeeSync).one()
     assert odoo_sync.source_job_candidate_id == second_link.id
