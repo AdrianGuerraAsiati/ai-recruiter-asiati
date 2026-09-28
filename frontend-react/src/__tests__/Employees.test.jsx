@@ -50,6 +50,7 @@ describe("Employees administration", () => {
             department: "Ventas",
             hire_date: "2026-09-24",
             onboarding_status: "IN_PROGRESS",
+            onboarding_required: true,
             onboarding: {
               assignment_id: "assignment-1",
               course_id: "course-1",
@@ -113,6 +114,7 @@ describe("Employees administration", () => {
           department: "Ventas",
           hire_date: "2026-09-24",
           onboarding_status: "IN_PROGRESS",
+          onboarding_required: true,
           onboarding: {
             assignment_id: "assignment-1",
             course_id: "course-1",
@@ -199,6 +201,42 @@ describe("Employees administration", () => {
         hire_date: expect.any(String),
         role: "EMPLOYEE",
       }));
+    });
+  });
+
+  it("lets an admin edit cargo, role and onboarding requirement", async () => {
+    api.put.mockResolvedValue({ data: {} });
+    renderPage();
+
+    await screen.findByText("Ana Pérez");
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+
+    expect(screen.getByRole("heading", { name: "Editar integrante" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Cargo"), {
+      target: { value: "Líder comercial" },
+    });
+    fireEvent.change(screen.getByLabelText("Rol"), {
+      target: { value: "ADMIN" },
+    });
+    fireEvent.change(screen.getByLabelText("Onboarding ASIATI"), {
+      target: { value: "NOT_REQUIRED" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith(
+        "/employees/employee-1/role",
+        { role: "ADMIN" },
+      );
+      expect(api.put).toHaveBeenCalledWith(
+        "/employees/employee-1",
+        {
+          job_title: "Líder comercial",
+          department: "Ventas",
+          onboarding_required: false,
+        },
+      );
     });
   });
 
