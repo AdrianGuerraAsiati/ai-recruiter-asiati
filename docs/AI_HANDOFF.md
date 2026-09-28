@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `bf57ff6e94788e83d49b34eb21f383feb70fd707`
+- **Último checkpoint conocido:** `b016a62e2c0ea8849116599387a38cc8272123f5`
 - **Fecha del checkpoint:** 2026-09-28
-- **Commit:** `fix: ocultar vacantes vacías del ranking (#90)`
+- **Commit:** `fix: exigir candidatos positivos en ranking (#91)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -313,15 +313,15 @@ Al actualizar este documento, mantener como mínimo:
 
 - **Fecha:** 2026-09-28
 - **Rama:** `main`
-- **Commit funcional de referencia:** `bf57ff6e94788e83d49b34eb21f383feb70fd707`
-- **Último hito:** PR #90 mergeado — las vacantes sin candidatos dejan de aparecer en Ranking; una vacante solo es rankeable cuando tiene al menos un candidato asignado.
+- **Commit funcional de referencia:** `b016a62e2c0ea8849116599387a38cc8272123f5`
+- **Último hito:** PR #91 mergeado y desplegado — Ranking exige `candidate_count > 0` explícito; vacantes con 0, null o sin conteo quedan ocultas.
 
 ### Completado
 
 - Reclutamiento global entre administradores autorizados (#79).
 - Onboarding ASIATI precargado y asignado automáticamente por el sistema (#81/#83), pero editable por administradores sobre módulos/lecciones existentes (#89).
 - Agenda de selección interna para llamadas y entrevistas presenciales (#85).
-- Ranking oculta vacantes con `candidate_count = 0`; si todas están vacías no selecciona ninguna ni consulta `/ranking` (#90).
+- Ranking solo muestra vacantes con `Number(candidate_count) > 0`; `0`, `null` o campo ausente quedan ocultos. Si todas quedan fuera, no selecciona ninguna ni consulta `/ranking` (#90/#91).
 - Etapa `SELECTED` y mapeo Indeed `POSITIVELY_SCREENED` (#85).
 - Outbox de empleado Odoo `odoo_employee_syncs` al contratar, idempotente por empleado (#86, Alembic 028).
 - Outbox de postulante Odoo `odoo_applicant_syncs` al pasar a `SELECTED`, idempotente por postulación (#87, Alembic 029).
