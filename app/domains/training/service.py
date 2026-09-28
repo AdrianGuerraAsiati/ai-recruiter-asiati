@@ -733,68 +733,58 @@ def update_module(
     db: Session,
     module_id: str,
     *,
-    title: str | None = None,
-    description: str | None = None,
-    audience_job_title: str | None = None,
-    audience_department: str | None = None,
+    title: str,
+    description: str | None,
+    audience_job_title: str | None,
+    audience_department: str | None,
 ) -> TrainingModule:
     module = require_module(db, module_id)
     _ensure_existing_content_editable(module.course)
-    if title is not None:
-        module.title = title.strip()
-    if description is not None:
-        module.description = description.strip() or None
-    if audience_job_title is not None:
-        module.audience_job_title = audience_job_title.strip() or None
-    if audience_department is not None:
-        module.audience_department = audience_department.strip() or None
+    module.title = title.strip()
+    module.description = (description or "").strip() or None
+    module.audience_job_title = (audience_job_title or "").strip() or None
+    module.audience_department = (audience_department or "").strip() or None
     db.commit()
     db.refresh(module)
     return module
-
 
 def update_lesson(
     db: Session,
     lesson_id: str,
     *,
-    title: str | None = None,
-    description: str | None = None,
-    video_url: str | None = None,
-    duration_seconds: int | None = None,
-    content_type: str | None = None,
-    external_url: str | None = None,
-    estimated_minutes: int | None = None,
-    checklist_items: list[str] | None = None,
-    is_optional: bool | None = None,
+    title: str,
+    description: str | None,
+    video_url: str | None,
+    duration_seconds: int | None,
+    content_type: str,
+    external_url: str | None,
+    estimated_minutes: int | None,
+    checklist_items: list[str],
+    is_optional: bool,
 ) -> TrainingLesson:
     lesson = require_lesson(db, lesson_id)
     _ensure_existing_content_editable(lesson.module.course)
-    if title is not None:
-        lesson.title = title.strip()
-    if description is not None:
-        lesson.description = description.strip() or None
-    if content_type is not None:
-        lesson.content_type = content_type.strip().upper()
-    if video_url is not None:
-        lesson.video_url = video_url.strip() or None
-        if lesson.video_url:
-            lesson.video_storage_key = None
-            lesson.video_content_type = None
-            lesson.video_size_bytes = None
-    if duration_seconds is not None:
-        lesson.duration_seconds = duration_seconds
-    if external_url is not None:
-        lesson.external_url = external_url.strip() or None
-    if estimated_minutes is not None:
-        lesson.estimated_minutes = estimated_minutes
-    if checklist_items is not None:
-        lesson.checklist_items = list(checklist_items)
-    if is_optional is not None:
-        lesson.is_optional = bool(is_optional)
+    lesson.title = title.strip()
+    lesson.description = (description or "").strip() or None
+    lesson.duration_seconds = duration_seconds
+    lesson.content_type = content_type.strip().upper()
+    lesson.external_url = (external_url or "").strip() or None
+    lesson.estimated_minutes = estimated_minutes
+    lesson.checklist_items = list(checklist_items)
+    lesson.is_optional = bool(is_optional)
+
+    normalized_video_url = (video_url or "").strip() or None
+    if normalized_video_url:
+        lesson.video_url = normalized_video_url
+        lesson.video_storage_key = None
+        lesson.video_content_type = None
+        lesson.video_size_bytes = None
+    elif not lesson.video_storage_key:
+        lesson.video_url = None
+
     db.commit()
     db.refresh(lesson)
     return lesson
-
 
 def create_lesson_video_upload(
     db: Session,
