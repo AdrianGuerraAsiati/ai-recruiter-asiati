@@ -11,6 +11,7 @@ from app.domains.candidates import repository as candidates_repository
 from app.domains.candidates import service as candidates_service
 from app.domains.employees import service as employees_service
 from app.domains.indeed import service as indeed_service
+from app.domains.odoo_sync import service as odoo_sync_service
 from app.domains.training import service as training_service
 from app.models import UserProfile
 
@@ -200,6 +201,14 @@ def hire_candidate(
             status_changed_at=link.status_changed_at,
         )
 
+    odoo_sync = odoo_sync_service.ensure_employee_sync(
+        db,
+        employee=employee,
+        candidate=candidate,
+        job=job,
+        application=link,
+    )
+
     db.commit()
     db.refresh(link)
     db.refresh(employee)
@@ -214,4 +223,5 @@ def hire_candidate(
         "employee_created": employee_created,
         "employee": employees_service.employee_payload(db, employee),
         "onboarding_assignment": training_service.assignment_payload(db, assignment),
+        "odoo_sync": odoo_sync_service.sync_payload(odoo_sync),
     }
