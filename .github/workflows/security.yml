@@ -3,8 +3,18 @@ name: Security — CodeQL
 on:
   pull_request:
     branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".github/dependabot.yml"
+      - ".github/workflows/ai-handoff.yml"
   push:
     branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".github/dependabot.yml"
+      - ".github/workflows/ai-handoff.yml"
   schedule:
     - cron: "23 7 * * 1"
   workflow_dispatch:
