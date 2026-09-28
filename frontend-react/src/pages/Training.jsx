@@ -716,7 +716,7 @@ function Training() {
         eyebrow="Aprendizaje interno"
         title="Capacitación"
         description={canManage
-          ? `Hola, ${firstName}. La ruta ASIATI ya viene construida; aquí asignas empleados y revisas su progreso.`
+          ? `Hola, ${firstName}. El Onboarding ASIATI se asigna automáticamente; aquí revisas progreso y resultados.`
           : `Hola, ${firstName}. Cursos, videos y progreso en un solo lugar.`}
         className="split-header"
       />
@@ -770,7 +770,7 @@ function Training() {
                   saving={saving}
                 />
 
-                {canAssign && (
+                {(canAssign || canViewResults) && (
                   <TrainingAssignmentsPanel
                     course={selectedCourse}
                     employees={employees}
@@ -778,6 +778,7 @@ function Training() {
                     onEmployeeChange={setAssignEmployeeId}
                     onAssignCourse={assignCourse}
                     saving={saving}
+                    canAssign={canAssign}
                     canViewResults={canViewResults}
                     assignments={courseAssignments}
                   />
@@ -789,7 +790,7 @@ function Training() {
                   compact
                   icon="training"
                   title="Selecciona una ruta"
-                  description="Los contenidos corporativos se provisionan automáticamente; desde aquí administras asignaciones y resultados."
+                  description="Los contenidos y asignaciones del onboarding se provisionan automáticamente; desde aquí revisas progreso y resultados."
                 />
               </section>
             )}
