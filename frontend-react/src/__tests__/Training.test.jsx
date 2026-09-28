@@ -997,7 +997,6 @@ describe("Training platform", () => {
 });
 
 
-describe("Training onboarding classification"});
 
 
 describe("Training onboarding classification", () => {
@@ -1031,7 +1030,6 @@ describe("Training onboarding classification", () => {
   });
 });
 
-describe("Focused onboarding sessions"});
 
 describe("Focused onboarding sessions", () => {
   it("recommends a short session and keeps non-active modules collapsed", async () => {
