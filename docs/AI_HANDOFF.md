@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `6cfaeed6a96b6da6283c1cd04dcecdb3c30c140b`
+- **Último checkpoint conocido:** `f3741696dfab8f9772ad6f8d539a2fa4c4fe80ba`
 - **Fecha del checkpoint:** 2026-09-28
-- **Commit:** `fix: compartir vacantes y candidatos entre administradores (#79)`
+- **Commit:** `fix: onboarding ASIATI administrado por el sistema (#81)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -71,6 +71,10 @@ Mantener aiRecruiterAsiati como una plataforma de reclutamiento estable, modular
 
 - Seguimiento detallado del progreso de onboarding para ADMIN.
 - Filtro de empleados por estado de onboarding.
+- PR #81 convirtió `Onboarding ASIATI` en contenido administrado por el sistema: se provisiona/publica automáticamente y no depende de que un ADMIN cree el curso, módulos, lecciones, videos o quiz.
+- La ruta corporativa mantiene 7 módulos versionados: bienvenida, conoce ASIATI, conoce al equipo, permisos y vacaciones, contenido corporativo, cultura interna y lo que esperamos de ti; usa los videos disponibles en la carpeta `Final` de Drive.
+- ADMIN/SUPER_ADMIN gestionan asignaciones, vista previa, progreso y resultados; no construyen manualmente el onboarding ASIATI.
+- `managed_by_system=true` identifica la ruta protegida y el backend rechaza mutaciones manuales sobre su contenido.
 
 ### Operación e infraestructura
 
@@ -99,6 +103,14 @@ Deben coexistir dos fuentes independientes:
 - descripción generada/mejorada por IA.
 
 La ingestión no debe sobrescribir automáticamente una descripción generada por IA. La UI debe permitir seleccionar cuál descripción utilizar.
+
+### Onboarding ASIATI
+
+- Los módulos corporativos los mantiene el sistema, no los administradores.
+- Al abrir el catálogo administrativo de capacitación, el backend debe garantizar una única ruta `Onboarding ASIATI` publicada e idempotente.
+- Un ADMIN no debe necesitar botones de “Crear ruta ASIATI” ni “Crear curso” para que exista el onboarding corporativo.
+- La ruta administrada por sistema debe ser de solo lectura en autoría; los administradores conservan asignación, seguimiento, resultados y vista previa.
+- No inventar contenido corporativo no respaldado por los materiales disponibles. Si un recurso fuente es genérico (por ejemplo, el video de Módulo 5), mantener una denominación neutral hasta contar con información corporativa adicional.
 
 ### Resume Agent
 
@@ -146,6 +158,7 @@ El Resume Agent debe poder revisar vacantes y candidatos existentes y sincroniza
 - [ ] Mantener pruebas de idempotencia y recuperación del Resume Agent.
 - [ ] Mantener pruebas de descripción Indeed vs descripción IA sin sobrescritura.
 - [ ] Ejecutar journey E2E, accesibilidad y responsive en refactors de frontend.
+- [x] Mantener regresiones de autoprovisionamiento/idempotencia y bloqueo de autoría manual del Onboarding ASIATI (#81).
 
 #### Pendientes operativos externos
 - [ ] Verificar IAM antes de activar las alarmas operativas por defecto.
