@@ -18,8 +18,8 @@ Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este co
 ## Checkpoint automático
 
 - **Última actualización automática:** 2026-09-28
-- **Merge commit:** `f3741696dfab8f9772ad6f8d539a2fa4c4fe80ba`
-- **PR:** [#81 — fix: onboarding ASIATI administrado por el sistema](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/81)
+- **Merge commit:** `1ca1620255f891a5d078f96caef1a2e14e5b7638`
+- **PR:** [#83 — fix: asignar onboarding ASIATI automáticamente](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/83)
 - **Origen:** merge a `main` con etiqueta `handoff:update`
 
 > Este bloque es administrado por `.github/workflows/ai-handoff.yml`. No editarlo manualmente.
