@@ -10,6 +10,7 @@ import JobsPagination from "../features/jobs/JobsPagination";
 import JobCard from "../features/jobs/JobCard";
 import JobsListToolbar from "../features/jobs/JobsListToolbar";
 import JobDeleteModal from "../features/jobs/JobDeleteModal";
+import JobHireModal from "../features/jobs/JobHireModal";
 import {
   MAX_PAGES,
   PAGE_SIZE_OPTIONS,
@@ -982,69 +983,23 @@ function Jobs() {
         </div>
       )}
 
-      {hireTarget && (
-        <div className="modal-overlay" onMouseDown={() => { if (!hiring) { setHireTarget(null); setHireError(""); } }}>
-          <section
-            className="modal job-hire-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="job-hire-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="modal-header">
-              <div>
-                <span className="eyebrow">Contratación</span>
-                <h2 id="job-hire-title">Contratar y crear empleado</h2>
-                <p>Se creará o reutilizará el acceso del empleado y se asignará automáticamente el onboarding ASIATI.</p>
-              </div>
-              <button className="btn-close" type="button" aria-label="Cerrar" disabled={hiring} onClick={() => { setHireTarget(null); setHireError(""); }}>×</button>
-            </div>
-
-            <form className="job-hire-form" onSubmit={confirmHire}>
-              <div className="job-hire-candidate">
-                <strong>{hireTarget.name || "Candidato"}</strong>
-                <span>{viewJob?.title || "Vacante"}</span>
-              </div>
-              {hireError && <div className="alert" role="alert">{hireError}</div>}
-              <div className="job-hire-grid">
-                <div className="form-group">
-                  <label htmlFor="hire-first-name">Nombre</label>
-                  <input id="hire-first-name" value={hireForm.first_name} onChange={(event) => setHireForm({ ...hireForm, first_name: event.target.value })} required />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="hire-last-name">Apellido</label>
-                  <input id="hire-last-name" value={hireForm.last_name} onChange={(event) => setHireForm({ ...hireForm, last_name: event.target.value })} required />
-                </div>
-              </div>
-              <div className="form-group">
-                <label htmlFor="hire-email">Correo de acceso</label>
-                <input id="hire-email" type="email" value={hireForm.email} onChange={(event) => setHireForm({ ...hireForm, email: event.target.value })} required />
-                <small>La invitación de Cognito se enviará a este correo.</small>
-              </div>
-              <div className="job-hire-grid">
-                <div className="form-group">
-                  <label htmlFor="hire-job-title">Cargo</label>
-                  <input id="hire-job-title" value={hireForm.job_title} onChange={(event) => setHireForm({ ...hireForm, job_title: event.target.value })} />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="hire-department">Área</label>
-                  <input id="hire-department" value={hireForm.department} onChange={(event) => setHireForm({ ...hireForm, department: event.target.value })} />
-                </div>
-              </div>
-              <div className="form-group">
-                <label htmlFor="hire-date">Fecha de ingreso</label>
-                <input id="hire-date" type="date" value={hireForm.hire_date} onChange={(event) => setHireForm({ ...hireForm, hire_date: event.target.value })} required />
-              </div>
-              <div className="form-actions">
-                <button className="btn btn-secondary" type="button" disabled={hiring} onClick={() => { setHireTarget(null); setHireError(""); }}>Cancelar</button>
-                <button className="btn btn-primary" type="submit" disabled={hiring}>
-                  {hiring ? "Contratando…" : "Confirmar contratación"}
-                </button>
-              </div>
-            </form>
-          </section>
-        </div>
-      )}
+      <JobHireModal
+        candidate={hireTarget}
+        jobTitle={viewJob?.title || "Vacante"}
+        form={hireForm}
+        hiring={hiring}
+        error={hireError}
+        onClose={() => {
+          if (!hiring) {
+            setHireTarget(null);
+            setHireError("");
+          }
+        }}
+        onFormChange={(field, value) => {
+          setHireForm((current) => ({ ...current, [field]: value }));
+        }}
+        onSubmit={confirmHire}
+      />
 
       <JobDeleteModal
         job={deleteJobTarget}
