@@ -7,6 +7,7 @@ import PageHeader from "../components/ui/PageHeader";
 import Icon from "../components/ui/Icon";
 import { EmptyState, FeedbackMessage, LoadingState } from "../components/ui/StatePanel";
 import JobsPagination from "../features/jobs/JobsPagination";
+import JobCard from "../features/jobs/JobCard";
 import {
   MAX_PAGES,
   PAGE_SIZE_OPTIONS,
@@ -853,21 +854,13 @@ function Jobs() {
         ) : (
           <div className="jobs-grid">
             {jobs.map((job) => (
-              <article className="job-card" key={job.job_id}>
-                <div className="job-card-top"><span className="job-card-icon" aria-hidden="true"><Icon name="briefcase" size={18} /></span><span className="status-pill"><i /> Activa</span></div>
-                <h3>{job.title}</h3><p>{job.description}</p>
-                <p className="job-description-source-meta">
-                  Descripción activa: <strong>{job.active_description_source === "ai" ? "IA" : "Indeed"}</strong>
-                </p>
-                {(job.city || job.country_code) && <p className="muted">{[job.city, job.country_code].filter(Boolean).join(" · ")}</p>}
-                <p className="muted">{job.candidate_count || 0} candidato{job.candidate_count === 1 ? "" : "s"} asignado{job.candidate_count === 1 ? "" : "s"}</p>
-                <div className="job-card-actions">
-                  <button type="button" className="btn btn-primary" onClick={() => openJobDetails(job)}>Ver</button>
-                  <Link className="btn btn-primary" to={`/candidates?job_id=${job.job_id}`}>Agregar candidatos</Link>
-                  <button className="btn btn-secondary" onClick={() => editJob(job)}>Editar</button>
-                  <button className="btn btn-danger" onClick={() => openDeleteJobModal(job)}>Eliminar</button>
-                </div>
-              </article>
+              <JobCard
+                key={job.job_id}
+                job={job}
+                onView={openJobDetails}
+                onEdit={editJob}
+                onDelete={openDeleteJobModal}
+              />
             ))}
           </div>
         )}
