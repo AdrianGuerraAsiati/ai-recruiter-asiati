@@ -161,7 +161,7 @@ def test_admin_can_read_batch_created_by_another_admin(api, db_session):
     response = client.get(f"/api/import-batches/{batch.id}")
 
     assert response.status_code == 200
-    assert response.json()["batch_id"] == batch.id
+    assert response.json()["id"] == batch.id
 
 
 def test_complete_is_idempotent_and_does_not_duplicate_queue_send(api, db_session, monkeypatch):
