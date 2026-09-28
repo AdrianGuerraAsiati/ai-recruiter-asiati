@@ -24,6 +24,7 @@ from app.domains.jobs.router import router as jobs_router
 from app.domains.ranking.router import router as ranking_router
 from app.domains.recruitment_calendar.router import router as recruitment_calendar_router
 from app.domains.training.router import router as training_router
+from app.domains.training import service as training_service
 from app.health import router as health_router
 from app.observability import configure_logging, install_request_observability
 
@@ -100,8 +101,22 @@ def create_app() -> FastAPI:
         try:
             ensure_rbac_catalog(db)
             db.commit()
+            course = training_service.ensure_published_asiati_onboarding(
+                db,
+                created_by_sub=training_service.SYSTEM_ONBOARDING_ACTOR,
+            )
+            assigned = training_service.ensure_asiati_onboarding_for_active_employees(
+                db,
+                course=course,
+                created_by_sub=training_service.SYSTEM_ONBOARDING_ACTOR,
+            )
         finally:
             db.close()
-        logger.info("RBAC catalog ready.")
+        logger.info(
+            "RBAC catalog ready; Onboarding ASIATI provisioned with %s modules; "
+            "%s automatic assignments created.",
+            len(course.modules),
+            assigned,
+        )
 
     return app
