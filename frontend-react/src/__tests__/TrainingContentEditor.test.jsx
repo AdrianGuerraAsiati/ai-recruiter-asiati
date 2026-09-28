@@ -81,7 +81,7 @@ describe("TrainingContentEditor", () => {
       { title: "Cultura ASIATI" },
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Agregar lección" }));
+    fireEvent.submit(screen.getByRole("button", { name: "Agregar lección" }).closest("form"));
     expect(props.onAddLesson).toHaveBeenCalledTimes(1);
     expect(props.onAddLesson.mock.calls[0][1]).toBe("module-1");
 
@@ -90,7 +90,7 @@ describe("TrainingContentEditor", () => {
     });
     expect(props.onModuleFormChange).toHaveBeenCalledWith({ title: "Seguridad" });
 
-    fireEvent.click(screen.getByRole("button", { name: /Agregar módulo/ }));
+    fireEvent.submit(screen.getByRole("button", { name: /Agregar módulo/ }).closest("form"));
     expect(props.onAddModule).toHaveBeenCalledTimes(1);
   });
 
