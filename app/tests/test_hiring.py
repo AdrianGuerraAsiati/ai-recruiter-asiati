@@ -87,6 +87,7 @@ def _application(db, *, email="ana@example.com", banned=False):
         name="Ana Pérez",
         email=email,
         owner_sub="admin-sub",
+        metadata_={"phone": "+57 300 123 4567"},
         is_banned=banned,
     )
     db.add_all([job, candidate])
@@ -162,6 +163,7 @@ def test_hire_creates_employee_marks_application_and_assigns_onboarding(db):
     assert odoo_sync.payload["source"]["candidate_id"] == candidate.id
     assert odoo_sync.payload["source"]["job_id"] == job.id
     assert odoo_sync.payload["employee"]["email"] == "ana@example.com"
+    assert odoo_sync.payload["candidate"]["phone"] == "+57 300 123 4567"
     assert cognito.created == ["ana@example.com"]
 
 
