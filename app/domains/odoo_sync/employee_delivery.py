@@ -55,12 +55,15 @@ def _exact_named_id(client, model: str, name: str | None) -> int | None:
     normalized = str(name or "").strip()
     if not normalized:
         return None
-    rows = client.search_read(
-        model,
-        [["name", "=ilike", normalized]],
-        fields=["id", "name"],
-        limit=10,
-    )
+    try:
+        rows = client.search_read(
+            model,
+            [["name", "=ilike", normalized]],
+            fields=["id", "name"],
+            limit=10,
+        )
+    except OdooClientError:
+        return None
     exact = [
         row
         for row in rows
@@ -190,8 +193,15 @@ def sync_employee_now(
     db.refresh(sync)
 
     try:
-        values, resolved = build_hr_employee_values(transport, dict(sync.payload or {}))
-        work_email = str(values.get("work_email") or "").strip()
+        payload = dict(sync.payload or {})
+        values, resolved = build_hr_employee_values(transport, payload)
+        employee_payload = dict(payload.get("employee") or {})
+        candidate_payload = dict(payload.get("candidate") or {})
+        work_email = str(
+            employee_payload.get("email")
+            or candidate_payload.get("email")
+            or ""
+        ).strip()
         existing_id = _find_existing_employee_id(
             transport,
             sync=sync,
