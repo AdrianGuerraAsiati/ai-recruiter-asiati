@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `f0dafce976bc437c24bff08473602d2fbccb7d43`
+- **Último checkpoint conocido:** `3e2c9d992078152e22d736f3012fcb0ca1686e1e`
 - **Fecha del checkpoint:** 2026-09-27
-- **Commit:** `refactor: extraer evaluación de empleado de Training (#48)`
+- **Commit:** `refactor: extraer journey de empleado de Training (#53)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -118,14 +118,15 @@ El Resume Agent debe poder revisar vacantes y candidatos existentes y sincroniza
 - [x] Evitar deploys de producción para cambios solo documentales, handoff, Dependabot o tests.
 - [x] Omitir CodeQL en cambios puramente documentales/configuración de handoff.
 - [x] PR #41 frontend minor/patch validado con CI + CodeQL y mergeado.
-- [ ] Revisar PR #42: jsdom 26 → 30 como major independiente (Dependabot ya lo rebasó sobre el nuevo `main`).
-- [ ] Revisar PR #43: Vitest 3 → 5 como major independiente; revalidar después del rebase sobre `main`.
-- [ ] Revisar PR #44 Python minor/patch y los majors separados #45 (`websockets`) y #46 (`rpds-py`).
+- [x] PR #42: jsdom 26 → 30 validado y mergeado.
+- [x] PR #43: Vitest 3 → 5 validado y mergeado.
+- [x] Lote Python minor/patch revalidado con cobertura del Resume Agent (#51) y mergeado vía #52.
+- [ ] Revisar los majors Python separados #45 (`websockets`) y #46 (`rpds-py`).
 - [ ] Revisar el PR de GitHub Actions cuando Dependabot lo regenere con la nueva política.
 - [ ] Confirmar CI verde en `main` después de los cambios actuales.
 
 #### P2 · Modularización residual
-- [~] Reducir responsabilidades de `frontend-react/src/pages/Training.jsx`: 1904 → ~1686 líneas; modales y quiz de empleado ya extraídos. Pendiente editor/admin + journey del empleado.
+- [~] Reducir responsabilidades de `frontend-react/src/pages/Training.jsx`: 1904 → ~1182 líneas; modales, quiz de empleado, quiz administrativo y journey del empleado ya extraídos. Pendiente separar el editor de módulos/lecciones y el bloque de asignaciones/resultados.
 - [ ] Reducir responsabilidades de `tools/indeed_resume_agent/browser.py` (~74 KB).
 - [ ] Modularizar `frontend-react/src/pages/Jobs.jsx` (~58 KB).
 - [ ] Dividir `app/domains/training/asiati_preset.py` (~58 KB) en datos/configuración y builder.
@@ -252,6 +253,8 @@ Al actualizar este documento, mantener como mínimo:
 - Modularización inicial de Training y Resume Agent.
 - Training: modales de preview/crear curso extraídos (#47).
 - Training: evaluación final del empleado extraída (#48).
+- Training: quiz administrativo extraído (#49).
+- Training: journey completo del empleado extraído (#53), reduciendo `Training.jsx` a ~1182 líneas.
 - E2E Chromium + smoke de accesibilidad y responsive.
 - `docs/AI_HANDOFF.md` persistente y workflow automático de checkpoint.
 - Dependabot configurado para agrupar solo minor/patch y separar majors.
@@ -262,17 +265,16 @@ Al actualizar este documento, mantener como mínimo:
 
 ### En progreso
 
-- Validación del nuevo conjunto de PRs de Dependabot; #41 ya está mergeado.
+- Revisión de los majors Python restantes de Dependabot: #45 (`websockets`) y #46 (`rpds-py`).
 - Confirmación de CI de `main`.
-- Continuación de modularización de Training; siguiente candidato: editor/admin o journey del empleado.
+- Continuación de modularización de Training; siguientes candidatos: editor de módulos/lecciones o asignaciones/resultados.
 
 ### Pendiente inmediato
 
-1. Confirmar la validación post-merge de `main` para #41.
-2. Revisar #42 y #43 por separado.
-3. Revisar #44, #45 y #46 con sus checks.
-4. Extraer primero los modales de `Training.jsx` como refactor de bajo riesgo.
-5. Proteger `main` con checks obligatorios cuando haya acceso a la configuración administrativa correspondiente.
+1. Revisar #45 y #46 por separado con sus checks y compatibilidad real.
+2. Confirmar la validación post-merge de `main`.
+3. Continuar Training con el editor de módulos/lecciones o asignaciones/resultados como cortes independientes.
+4. Proteger `main` con checks obligatorios cuando haya acceso a la configuración administrativa correspondiente.
 
 ### Bloqueos / dependencias externas
 
@@ -289,7 +291,7 @@ Al actualizar este documento, mantener como mínimo:
 
 ### Próximo paso recomendado
 
-1. Cerrar la ronda de dependencias con CI verde.
-2. Continuar Training con un tercer corte pequeño: editor/admin o journey.
+1. Cerrar #45 y #46 de forma independiente, validando compatibilidad además de CI.
+2. Continuar Training con cortes pequeños del editor de módulos/lecciones y asignaciones/resultados.
 3. Ejecutar tests unitarios + E2E en cada extracción.
 4. Mantener PRs pequeños con `handoff:update`.
