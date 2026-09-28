@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import re
-import shutil
 import subprocess
 import time
 import unicodedata
@@ -12,12 +10,15 @@ import zipfile
 from datetime import datetime, timezone
 from email.header import decode_header, make_header
 
-import psutil
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from urllib.parse import quote_plus, unquote, urlsplit
 
+from .browser_runtime import (
+    manual_browser_process_exists as _manual_browser_process_exists,
+    resolve_browser_executable as _resolve_browser_executable,
+)
 from .candidate_search import (
     candidate_search_queries,
     candidate_search_url,
@@ -67,72 +68,6 @@ _GENERIC_BINARY_CONTENT_TYPES = {
 def _default_playwright_factory():
     from playwright.sync_api import sync_playwright
     return sync_playwright()
-
-
-def _manual_browser_process_exists(
-    profile_dir: Path,
-    *,
-    process_name: str,
-) -> bool:
-    """Return True when the dedicated profile is owned by the selected browser."""
-    target = os.path.normcase(os.path.normpath(str(profile_dir)))
-    expected_process = str(process_name or "").casefold()
-    for process in psutil.process_iter(["name", "cmdline"]):
-        try:
-            info = process.info
-            if str(info.get("name") or "").casefold() != expected_process:
-                continue
-            args = [str(value) for value in (info.get("cmdline") or [])]
-            if any(arg.startswith("--type=") for arg in args):
-                continue
-            for arg in args:
-                if not arg.casefold().startswith("--user-data-dir="):
-                    continue
-                value = arg.split("=", 1)[1].strip().strip('"')
-                candidate = os.path.normcase(os.path.normpath(value))
-                if candidate == target:
-                    return True
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            continue
-    return False
-
-
-def _resolve_browser_executable(browser_name: str) -> str:
-    browser = str(browser_name or "").strip().casefold()
-    if browser == "chrome":
-        executable_name = "chrome.exe"
-        shutil_names = ("chrome", "chrome.exe")
-        relative_paths = (
-            Path("Google") / "Chrome" / "Application" / executable_name,
-        )
-        display_name = "Google Chrome"
-    elif browser == "edge":
-        executable_name = "msedge.exe"
-        shutil_names = ("msedge", "msedge.exe")
-        relative_paths = (
-            Path("Microsoft") / "Edge" / "Application" / executable_name,
-        )
-        display_name = "Microsoft Edge"
-    else:
-        raise RuntimeError(f"Navegador no soportado: {browser_name}")
-
-    for candidate_name in shutil_names:
-        discovered = shutil.which(candidate_name)
-        if discovered:
-            return discovered
-
-    candidates: list[Path] = []
-    for key in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
-        root = str(os.environ.get(key, "")).strip()
-        if not root:
-            continue
-        for relative_path in relative_paths:
-            candidates.append(Path(root) / relative_path)
-
-    for candidate in candidates:
-        if candidate.is_file():
-            return str(candidate)
-    raise RuntimeError(f"{display_name} no está instalado o no pudo localizarse.")
 
 
 _DOWNLOAD_NAME = re.compile(
