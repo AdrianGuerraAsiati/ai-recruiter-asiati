@@ -879,7 +879,7 @@ describe("Training platform", () => {
     });
   });
 
-  it("lets an ADMIN scaffold the ASIATI onboarding journey", async () => {
+  it("shows the system-managed ASIATI onboarding without creation actions", async () => {
     useSession.mockReturnValue({
       principal: {
         profile: { id: "admin-1", first_name: "Admin" },
@@ -892,36 +892,40 @@ describe("Training platform", () => {
       ].includes(permission),
     });
 
+    const managedCourse = {
+      id: "preset-1",
+      title: "Onboarding ASIATI",
+      description: "Ruta corporativa",
+      is_onboarding: true,
+      managed_by_system: true,
+      status: "PUBLISHED",
+      module_count: 7,
+      lesson_count: 20,
+      modules: [],
+      quality: null,
+    };
+
     api.get.mockImplementation((url) => {
       if (url === "/training/me") return Promise.resolve({ data: { items: [] } });
-      if (url === "/training/courses") return Promise.resolve({ data: { items: [] } });
+      if (url === "/training/courses") return Promise.resolve({ data: { items: [managedCourse] } });
       if (url === "/employees") return Promise.resolve({ data: { items: [] } });
+      if (url === "/training/courses/preset-1") return Promise.resolve({ data: managedCourse });
+      if (url === "/training/courses/preset-1/assignments") {
+        return Promise.resolve({ data: { items: [] } });
+      }
       return Promise.reject(new Error(`Unexpected GET ${url}`));
-    });
-
-    api.post.mockResolvedValueOnce({
-      data: {
-        id: "preset-1",
-        title: "Onboarding ASIATI",
-        description: "Ruta corporativa",
-        is_onboarding: true,
-        status: "DRAFT",
-        modules: [],
-      },
     });
 
     renderPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Crear ruta ASIATI" }));
-
-    await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith(
-        "/training/courses/presets/asiati-onboarding",
-      );
-    });
+    expect((await screen.findAllByText("Onboarding ASIATI")).length).toBeGreaterThan(0);
+    expect(screen.getByText("Contenido administrado por el sistema")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Crear ruta ASIATI" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Crear curso" })).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalledWith("/training/courses/presets/asiati-onboarding");
   });
 
-  it("shows course administration to an ADMIN and creates a course", async () => {
+  it("shows assignments while keeping onboarding authoring out of the admin flow", async () => {
     useSession.mockReturnValue({
       principal: {
         profile: { id: "admin-1", first_name: "Admin" },
@@ -934,31 +938,26 @@ describe("Training platform", () => {
       ].includes(permission),
     });
 
-    const draftCourse = {
+    const managedCourse = {
       id: "course-1",
-      title: "Inducción ASIATI",
+      title: "Onboarding ASIATI",
       description: "Base",
-      status: "DRAFT",
-      module_count: 0,
-      lesson_count: 0,
+      is_onboarding: true,
+      managed_by_system: true,
+      status: "PUBLISHED",
+      module_count: 7,
+      lesson_count: 20,
       progress_percent: 0,
+      modules: [],
+      quality: null,
+      quiz: null,
     };
 
     api.get.mockImplementation((url) => {
-      if (url === "/training/me") {
-        return Promise.resolve({ data: { items: [] } });
-      }
-      if (url === "/training/courses") {
-        return Promise.resolve({ data: { items: [draftCourse] } });
-      }
-      if (url === "/employees") {
-        return Promise.resolve({ data: { items: [] } });
-      }
-      if (url === "/training/courses/course-1") {
-        return Promise.resolve({
-          data: { ...draftCourse, modules: [] },
-        });
-      }
+      if (url === "/training/me") return Promise.resolve({ data: { items: [] } });
+      if (url === "/training/courses") return Promise.resolve({ data: { items: [managedCourse] } });
+      if (url === "/employees") return Promise.resolve({ data: { items: [] } });
+      if (url === "/training/courses/course-1") return Promise.resolve({ data: managedCourse });
       if (url === "/training/courses/course-1/assignments") {
         return Promise.resolve({
           data: {
@@ -975,8 +974,7 @@ describe("Training platform", () => {
                   department: "Ventas",
                 },
                 course: {
-                  ...draftCourse,
-                  status: "PUBLISHED",
+                  ...managedCourse,
                   progress_percent: 50,
                 },
               },
@@ -987,45 +985,23 @@ describe("Training platform", () => {
       return Promise.reject(new Error(`Unexpected GET ${url}`));
     });
 
-    api.post.mockResolvedValueOnce({
-      data: {
-        id: "course-2",
-        title: "Seguridad",
-        description: "Curso interno",
-        status: "DRAFT",
-        modules: [],
-      },
-    });
-
     renderPage();
 
-    expect(await screen.findByRole("button", { name: "Crear curso" })).toBeInTheDocument();
-    expect((await screen.findAllByText("Inducción ASIATI")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Onboarding ASIATI")).length).toBeGreaterThan(0);
     expect(await screen.findByText("Ana Pérez")).toBeInTheDocument();
     expect(screen.getByText("50%")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Crear curso" }));
-    fireEvent.change(screen.getByLabelText("Título"), {
-      target: { value: "Seguridad" },
-    });
-    fireEvent.change(screen.getByLabelText("Descripción"), {
-      target: { value: "Curso interno" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Crear curso" }));
-
-    await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith("/training/courses", {
-        title: "Seguridad",
-        description: "Curso interno",
-        is_onboarding: false,
-      });
-    });
+    expect(screen.queryByRole("button", { name: "Crear curso" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Agregar módulo/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Agregar lección" })).not.toBeInTheDocument();
   });
 });
 
 
+describe("Training onboarding classification"});
+
+
 describe("Training onboarding classification", () => {
-  it("lets any training administrator create an onboarding course", async () => {
+  it("does not expose onboarding construction controls to training administrators", async () => {
     vi.clearAllMocks();
     useSession.mockReturnValue({
       principal: {
@@ -1046,38 +1022,16 @@ describe("Training onboarding classification", () => {
       return Promise.reject(new Error(`Unexpected GET ${url}`));
     });
 
-    api.post.mockResolvedValueOnce({
-      data: {
-        id: "onboarding-course",
-        title: "Inducción ASIATI",
-        description: "Bienvenida",
-        is_onboarding: true,
-        status: "DRAFT",
-        modules: [],
-      },
-    });
-
     renderPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Crear curso" }));
-    fireEvent.change(screen.getByLabelText("Título"), {
-      target: { value: "Inducción ASIATI" },
-    });
-    fireEvent.change(screen.getByLabelText("Descripción"), {
-      target: { value: "Bienvenida" },
-    });
-    fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.click(screen.getByRole("button", { name: "Crear curso" }));
-
-    await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith("/training/courses", {
-        title: "Inducción ASIATI",
-        description: "Bienvenida",
-        is_onboarding: true,
-      });
-    });
+    expect(await screen.findByText("Selecciona una ruta")).toBeInTheDocument();
+    expect(screen.getByText(/se provisionan automáticamente/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Crear curso" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Crear ruta ASIATI" })).not.toBeInTheDocument();
   });
 });
+
+describe("Focused onboarding sessions"});
 
 describe("Focused onboarding sessions", () => {
   it("recommends a short session and keeps non-active modules collapsed", async () => {
