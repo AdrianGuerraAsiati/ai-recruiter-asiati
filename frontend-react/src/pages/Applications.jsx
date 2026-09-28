@@ -184,13 +184,24 @@ function Applications() {
                       <select
                         aria-label={`Estado de ${application.candidate.name}`}
                         value={application.application_status}
-                        disabled={savingId === application.id}
+                        disabled={
+                          savingId === application.id
+                          || application.application_status === "HIRED"
+                        }
                         onChange={(event) => void updateStatus(application, event.target.value)}
                       >
-                        {STATUS_OPTIONS.map(([value, label]) => (
-                          <option key={value} value={value}>{label}</option>
-                        ))}
+                        {STATUS_OPTIONS
+                          .filter(([value]) => (
+                            value !== "HIRED"
+                            || application.application_status === "HIRED"
+                          ))
+                          .map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
                       </select>
+                      {application.application_status !== "HIRED" && (
+                        <small>Para contratar, usa “Contratar candidato” desde Vacantes.</small>
+                      )}
                     </td>
                     <td>
                       {application.status_changed_at
