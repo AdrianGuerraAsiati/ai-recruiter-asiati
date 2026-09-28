@@ -1295,49 +1295,68 @@ def _ensure_asiati_role_checklist(
     *,
     course: TrainingCourse,
 ) -> None:
+    """Keep the role checklist inside module 7 so the default route has 7 modules."""
+
+    module_seven = next(
+        (
+            module
+            for module in course.modules
+            if module.title == ASIATI_ONBOARDING_MODULE_7_TITLE
+        ),
+        None,
+    )
+    if module_seven is None:
+        return
+
     changed = False
-    for module in course.modules:
-        for lesson in module.lessons:
-            if (
-                lesson.title == "Tu rol y tus primeros días"
-                and str(lesson.content_type or "").upper() == "CHECKLIST"
-                and not list(lesson.checklist_items or [])
-            ):
-                lesson.checklist_items = list(ASIATI_ROLE_CHECKLIST_ITEMS)
-                changed = True
+    role_lesson = next(
+        (
+            lesson
+            for module in course.modules
+            for lesson in module.lessons
+            if lesson.title == "Tu rol y tus primeros días"
+            and str(lesson.content_type or "").upper() == "CHECKLIST"
+        ),
+        None,
+    )
+    if role_lesson is not None:
+        if role_lesson.module_id != module_seven.id:
+            role_lesson.module_id = module_seven.id
+            role_lesson.module = module_seven
+            changed = True
+        if not list(role_lesson.checklist_items or []):
+            role_lesson.checklist_items = list(ASIATI_ROLE_CHECKLIST_ITEMS)
+            changed = True
+        if role_lesson.position != 3:
+            role_lesson.position = 3
+            changed = True
+
+    role_module = next(
+        (module for module in course.modules if module.title == "Tu cargo en ASIATI"),
+        None,
+    )
+    if role_module is not None and not role_module.lessons:
+        db.delete(role_module)
+        changed = True
+
     if changed:
         db.commit()
 
 
-ASIATI_ONBOARDING_BASE_QUIZ = [
+ASIATI_ONBOARDING_LEGACY_QUIZ = [
     (
         "¿Cuál es el sitio web corporativo oficial incluido en la inducción?",
-        [
-            "asiaticorp.com",
-            "El Retrovisor",
-            "Wiilog",
-            "Origen Vital",
-        ],
+        ["asiaticorp.com", "El Retrovisor", "Wiilog", "Origen Vital"],
         0,
     ),
     (
         "¿Cuál de estas iniciativas aparece dentro del ecosistema ASIATI presentado en la ruta?",
-        [
-            "Wiilog",
-            "Coursera",
-            "LinkedIn Learning",
-            "Udemy",
-        ],
+        ["Wiilog", "Coursera", "LinkedIn Learning", "Udemy"],
         0,
     ),
     (
         "¿En qué plataforma se presenta El Retrovisor dentro de los recursos del onboarding?",
-        [
-            "YouTube",
-            "Canva",
-            "Portal de vacaciones",
-            "Google Calendar",
-        ],
+        ["YouTube", "Canva", "Portal de vacaciones", "Google Calendar"],
         0,
     ),
     (
@@ -1362,23 +1381,108 @@ ASIATI_ONBOARDING_BASE_QUIZ = [
     ),
 ]
 
+ASIATI_ONBOARDING_BASE_QUIZ = [
+    (
+        "Según la inducción, ¿qué describe mejor a ASIATI?",
+        [
+            "Una compañía que conecta operación, logística y tecnología",
+            "Una plataforma dedicada únicamente a cursos virtuales",
+            "Una agencia enfocada exclusivamente en redes sociales",
+            "Un portal interno para solicitar vacaciones",
+        ],
+        0,
+    ),
+    (
+        "¿Cuál de estas iniciativas del ecosistema ASIATI está relacionada con logística?",
+        ["Wiilog", "Coursera", "LinkedIn Learning", "Google Calendar"],
+        0,
+    ),
+    (
+        "¿Cuál es el propósito principal del módulo 'Conoce al equipo'?",
+        [
+            "Identificar a las personas y entender cómo se conecta su trabajo con la compañía",
+            "Memorizar únicamente los nombres del equipo",
+            "Elegir quién aprobará las vacaciones",
+            "Aprender a publicar vacantes",
+        ],
+        0,
+    ),
+    (
+        "Antes de enviar una solicitud de permiso o vacaciones, ¿qué hace parte del procedimiento?",
+        [
+            "Usar el formato correspondiente, completar la información y confirmar la aprobación del líder",
+            "Enviar únicamente un mensaje informal sin formato",
+            "Registrar primero una vacante en el sistema",
+            "Esperar a que Talento Humano complete toda la solicitud",
+        ],
+        0,
+    ),
+    (
+        "Según el módulo de cultura interna, ¿cómo se vive la cultura de ASIATI?",
+        [
+            "A través de comportamientos y hábitos cotidianos en la forma de trabajar",
+            "Únicamente asistiendo a reuniones mensuales",
+            "Solo mediante publicaciones en redes sociales",
+            "Exclusivamente leyendo documentos corporativos",
+        ],
+        0,
+    ),
+    (
+        "En tus primeros días, ¿qué deberías revisar con tu líder o punto de apoyo?",
+        [
+            "El alcance del cargo, responsabilidades, herramientas y objetivos de la primera semana",
+            "Solo el nombre exacto de tu cargo",
+            "Únicamente las redes sociales de ASIATI",
+            "Solo el calendario de vacaciones",
+        ],
+        0,
+    ),
+    (
+        "Al finalizar el onboarding, ¿qué deberías tener claro?",
+        [
+            "Las expectativas para tu incorporación y cómo se conecta tu trabajo con ASIATI",
+            "Que todos los cargos tienen exactamente las mismas responsabilidades",
+            "Que el onboarding reemplaza el acompañamiento de tu líder",
+            "Que los recursos opcionales son obligatorios para terminar la ruta",
+        ],
+        0,
+    ),
+]
+
 
 def _ensure_asiati_onboarding_quiz_questions(
     db: Session,
     *,
     quiz: TrainingQuiz,
 ) -> None:
-    if quiz.questions:
+    questions = sorted(quiz.questions, key=lambda item: item.position)
+    legacy_prompts = [prompt for prompt, _, _ in ASIATI_ONBOARDING_LEGACY_QUIZ]
+    current_prompts = [question.prompt for question in questions]
+
+    if questions and current_prompts != legacy_prompts:
         return
 
-    for prompt, options, correct_option in ASIATI_ONBOARDING_BASE_QUIZ:
-        add_quiz_question(
-            db,
-            quiz_id=quiz.id,
-            prompt=prompt,
-            options=options,
-            correct_option=correct_option,
-        )
+    for position, (prompt, options, correct_option) in enumerate(
+        ASIATI_ONBOARDING_BASE_QUIZ,
+        start=1,
+    ):
+        if position <= len(questions):
+            question = questions[position - 1]
+            question.prompt = prompt
+            question.options = list(options)
+            question.correct_option = correct_option
+            question.position = position
+        else:
+            db.add(
+                TrainingQuizQuestion(
+                    quiz_id=quiz.id,
+                    prompt=prompt,
+                    options=list(options),
+                    correct_option=correct_option,
+                    position=position,
+                )
+            )
+    db.commit()
 
 
 def create_asiati_onboarding_template(
@@ -1783,7 +1887,9 @@ def ensure_published_asiati_onboarding(
         None,
     )
     if current is not None:
-        return current
+        _ensure_asiati_role_checklist(db, course=current)
+        _ensure_asiati_onboarding_quiz_questions(db, quiz=current.quiz)
+        return require_course(db, current.id)
 
     course = create_asiati_onboarding_template(
         db,
