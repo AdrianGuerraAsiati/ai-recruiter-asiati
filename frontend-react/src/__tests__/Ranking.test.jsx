@@ -162,7 +162,7 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") {
-        return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+        return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       }
       if (url.includes("/ranking")) {
         return Promise.resolve(EMPTY_RANKING);
@@ -207,6 +207,26 @@ describe("Ranking page", () => {
       "/jobs/job-empty/ranking",
       expect.anything(),
     );
+  });
+
+  it("hides jobs when candidate_count is missing", async () => {
+    api.get.mockImplementation((url) => {
+      if (url === "/jobs") {
+        return Promise.resolve({
+          data: [
+            { job_id: "job-unknown", title: "Vacante sin conteo" },
+            { job_id: "job-active", title: "Vacante activa", candidate_count: 1 },
+          ],
+        });
+      }
+      if (url.includes("/ranking")) return Promise.resolve(EMPTY_RANKING);
+      return Promise.resolve({ data: [] });
+    });
+
+    renderRanking();
+
+    expect(await screen.findByRole("option", { name: "Vacante activa" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Vacante sin conteo" })).not.toBeInTheDocument();
   });
 
   it("keeps ranking unselected when every job is empty", async () => {
@@ -274,7 +294,7 @@ describe("Ranking page", () => {
   it("Evaluar candidatos uses the selected rankingScope", async () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) return Promise.resolve({ data: { candidates: [], ranking_generated_at: null, ranking_version: null, ranking_scope: "all", ranking_total: 0, total: 0, total_pages: 0, page: 1, page_size: 10, pending_candidates: 0 } });
       return Promise.resolve({ data: [] });
     });
@@ -321,7 +341,7 @@ describe("Ranking page", () => {
   it("Actualizar ranking uses rankingScope for the GET", async () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) return Promise.resolve({ data: { candidates: [], ranking_generated_at: null, ranking_version: null, ranking_scope: "all", ranking_total: 0, total: 0, total_pages: 0, page: 1, page_size: 10, pending_candidates: 0 } });
       return Promise.resolve({ data: [] });
     });
@@ -383,7 +403,7 @@ describe("Ranking page", () => {
   it("Recalcular ranking uses the selected rankingScope", async () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) return Promise.resolve({ data: { candidates: [], ranking_generated_at: null, ranking_version: null, ranking_scope: "all", ranking_total: 0, total: 0, total_pages: 0, page: 1, page_size: 10, pending_candidates: 0 } });
       return Promise.resolve({ data: [] });
     });
@@ -411,7 +431,7 @@ describe("Ranking page", () => {
     api.post.mockImplementation(() => new Promise((resolve) => { resolvePost = resolve; }));
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) return Promise.resolve(EMPTY_RANKING);
       return Promise.resolve({ data: [] });
     });
@@ -439,7 +459,7 @@ describe("Ranking page", () => {
     let rankingCount = 0;
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) {
         rankingCount += 1;
         if (rankingCount <= 1) {
@@ -472,7 +492,7 @@ describe("Ranking page", () => {
     api.post.mockImplementation(() => new Promise((resolve) => { resolvePost = resolve; }));
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) return Promise.resolve(EMPTY_RANKING);
       return Promise.resolve({ data: [] });
     });
@@ -499,7 +519,7 @@ describe("Ranking page", () => {
     let rankingCalls = 0;
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -526,7 +546,7 @@ describe("Ranking page", () => {
     let rankingCalls = 0;
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -570,7 +590,7 @@ describe("Ranking page", () => {
     let rankingCalls = 0;
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -597,7 +617,7 @@ describe("Ranking page", () => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") {
         return Promise.resolve({
-          data: [{ job_id: "job-1", title: "Dev Python" }],
+          data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }],
         });
       }
 
@@ -643,7 +663,7 @@ describe("Ranking page", () => {
   it("Recalcular ranking with scope=all sends correct POST", async () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) return Promise.resolve(ALL_CANDIDATES_RANKING);
       return Promise.resolve({ data: [] });
     });
@@ -666,7 +686,7 @@ describe("Ranking page", () => {
   it("Evaluar candidatos with scope=all sends correct POST", async () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) return Promise.resolve(ALL_CANDIDATES_RANKING);
       return Promise.resolve({ data: [] });
     });
@@ -690,7 +710,7 @@ describe("Ranking page", () => {
     let rankingCalls = 0;
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -710,7 +730,7 @@ describe("Ranking page", () => {
     let rankingCalls = 0;
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -752,7 +772,7 @@ describe("Ranking page", () => {
     };
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -775,7 +795,7 @@ describe("Ranking page", () => {
     let rankingCalls = 0;
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -799,7 +819,7 @@ describe("Ranking page", () => {
     let rankingCalls = 0;
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -820,7 +840,7 @@ describe("Ranking page", () => {
   it("does NOT show 'Ranking actualizado' when refresh returns scope_mismatch", async () => {
     api.get.mockImplementation((url, config) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) {
         const scope = config?.params?.scope || "assigned";
         if (scope === "all") return Promise.resolve(SCOPE_MISMATCH_RANKING);
@@ -845,7 +865,7 @@ describe("Ranking page", () => {
     let rankingCalls = 0;
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -864,7 +884,7 @@ describe("Ranking page", () => {
     let rankingCalls = 0;
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
-      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python" }] });
+      if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);

@@ -83,7 +83,7 @@ function Ranking() {
       const data = response.data;
       const loadedJobs = Array.isArray(data) ? data : data.jobs || [];
       const rankingJobs = loadedJobs.filter(
-        (job) => job.candidate_count == null || Number(job.candidate_count) > 0,
+        (job) => Number(job.candidate_count) > 0,
       );
       setJobs(rankingJobs);
 
