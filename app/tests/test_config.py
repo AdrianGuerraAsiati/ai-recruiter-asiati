@@ -103,6 +103,7 @@ def test_odoo_settings_default_to_disabled_unconfigured(monkeypatch):
         "ODOO_DATABASE",
         "ODOO_USERNAME",
         "ODOO_SECRET_ID",
+        "ODOO_REQUEST_TIMEOUT_SECONDS",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -114,6 +115,7 @@ def test_odoo_settings_default_to_disabled_unconfigured(monkeypatch):
     assert settings.database == ""
     assert settings.username == ""
     assert settings.secret_id == "/ai-recruiter/prod/odoo"
+    assert settings.request_timeout_seconds == 15.0
 
 
 def test_odoo_settings_are_environment_driven_without_api_key(monkeypatch):
@@ -122,6 +124,7 @@ def test_odoo_settings_are_environment_driven_without_api_key(monkeypatch):
     monkeypatch.setenv("ODOO_DATABASE", "asiati")
     monkeypatch.setenv("ODOO_USERNAME", "integration@example.com")
     monkeypatch.setenv("ODOO_SECRET_ID", "/custom/odoo")
+    monkeypatch.setenv("ODOO_REQUEST_TIMEOUT_SECONDS", "22")
 
     settings = config.get_odoo_settings()
 
@@ -131,6 +134,7 @@ def test_odoo_settings_are_environment_driven_without_api_key(monkeypatch):
     assert settings.database == "asiati"
     assert settings.username == "integration@example.com"
     assert settings.secret_id == "/custom/odoo"
+    assert settings.request_timeout_seconds == 22.0
     assert not hasattr(settings, "api_key")
 
 
