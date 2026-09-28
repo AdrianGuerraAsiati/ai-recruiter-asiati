@@ -8,9 +8,9 @@
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `cc42b3021b9bb96b9d788fae17b2b44dc9d8559a`
+- **Último checkpoint conocido:** `b84e5f26465f397365c74a43aabc9d191d48e8b8`
 - **Fecha del checkpoint:** 2026-09-27
-- **Commit:** `refactor: extraer asignaciones y resultados de Training (#59)`
+- **Commit:** `refactor: extraer runtime de navegador del Resume Agent (#61)`
 
 Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
 
@@ -41,6 +41,7 @@ Mantener aiRecruiterAsiati como una plataforma de reclutamiento estable, modular
 
 - Modularización de Training y Resume Agent.
 - Training reducido de ~1904 a 928 líneas mediante extracción progresiva de modales, quizzes, journey de empleado, editor de contenido y asignaciones/resultados.
+- Resume Agent: runtime de navegador (detección de proceso + resolución de Chrome/Edge) extraído de `browser.py` a `browser_runtime.py` (#61).
 - Separación de modelos y responsabilidades.
 - Validaciones locales relacionadas con Cognito.
 - Hardening general de código e infraestructura.
@@ -129,7 +130,7 @@ El Resume Agent debe poder revisar vacantes y candidatos existentes y sincroniza
 
 #### P2 · Modularización residual
 - [x] Reducir responsabilidades de `frontend-react/src/pages/Training.jsx`: 1904 → 928 líneas; modales, quiz de empleado, quiz administrativo, journey del empleado, editor de módulos/lecciones y asignaciones/resultados extraídos.
-- [ ] Reducir responsabilidades de `tools/indeed_resume_agent/browser.py` (~74 KB).
+- [~] Reducir responsabilidades de `tools/indeed_resume_agent/browser.py`: 2028 → 1963 líneas; runtime de navegador extraído. Pendiente separar más responsabilidades de navegación/búsqueda, diagnóstico y captura de CV.
 - [ ] Modularizar `frontend-react/src/pages/Jobs.jsx` (~58 KB).
 - [ ] Dividir `app/domains/training/asiati_preset.py` (~58 KB) en datos/configuración y builder.
 - [ ] Reducir `frontend-react/src/pages/RankingView.jsx` (~51 KB).
@@ -242,8 +243,8 @@ Al actualizar este documento, mantener como mínimo:
 
 - **Fecha:** 2026-09-27
 - **Rama:** `main`
-- **Commit:** `cc42b3021b9bb96b9d788fae17b2b44dc9d8559a`
-- **Último hito:** cierre de la modularización residual de Training con editor de módulos/lecciones (#58) y asignaciones/resultados (#59), ambos validados por CI, E2E y CodeQL.
+- **Commit:** `b84e5f26465f397365c74a43aabc9d191d48e8b8`
+- **Último hito:** primer corte de modularización de `browser.py` del Resume Agent (#61), extrayendo runtime de navegador y validando Linux, Windows, build empaquetado y self-test.
 
 ### Completado
 
@@ -260,6 +261,8 @@ Al actualizar este documento, mantener como mínimo:
 - Training: editor de módulos/lecciones extraído a `TrainingContentEditor` (#58), reduciendo `Training.jsx` a 980 líneas.
 - Training: asignaciones/resultados extraídos a `TrainingAssignmentsPanel` (#59), reduciendo `Training.jsx` a 928 líneas.
 - #58 y #59 pasaron backend, Postgres, frontend, E2E Chromium y CodeQL; ambos componentes nuevos cuentan con cobertura unitaria dedicada.
+- Resume Agent: `browser_runtime.py` extraído (#61), reduciendo `browser.py` de 2028 a 1963 líneas.
+- #61 pasó backend, Postgres, frontend, E2E, CodeQL, suite Resume Agent en Linux y Windows, build de producción Windows y self-test del ejecutable.
 - Dependencias Python: `websockets` 17.1 validado y mergeado (#55).
 - Dependencias Python: `rpds-py` 2026.6.3 validado y mergeado (#56).
 - Los majors Python de #55/#56 pasaron backend, Postgres, frontend, E2E, CodeQL y Resume Agent Linux/Windows con build + self-test del ejecutable.
@@ -274,12 +277,13 @@ Al actualizar este documento, mantener como mínimo:
 ### En progreso
 
 - Cierre de P2 residuales en archivos grandes y gobernanza de `main`.
-- Próximo foco de modularización: `tools/indeed_resume_agent/browser.py`; después `Jobs.jsx`, `asiati_preset.py` y `RankingView.jsx`.
+- Modularización de `tools/indeed_resume_agent/browser.py` en progreso; el runtime ya fue extraído y faltan responsabilidades de navegación/búsqueda, diagnóstico y captura de CV.
+- Después: `Jobs.jsx`, `asiati_preset.py` y `RankingView.jsx`.
 - Seguimiento del próximo PR de GitHub Actions que genere Dependabot con la política actual.
 
 ### Pendiente inmediato
 
-1. Reducir `tools/indeed_resume_agent/browser.py` con un primer corte pequeño, preservando idempotencia, recuperación y packaging.
+1. Continuar `tools/indeed_resume_agent/browser.py` con otro corte pequeño y autocontenido; priorizar utilidades de diagnóstico o parsing antes de tocar el flujo principal de candidatos/descarga.
 2. Continuar después con `Jobs.jsx`, `asiati_preset.py` y `RankingView.jsx`.
 3. Proteger `main` con checks obligatorios cuando haya acceso a la configuración administrativa correspondiente.
 4. Mantener pruebas explícitas de regresiones críticas mientras se cierran los P2 restantes.
@@ -299,7 +303,7 @@ Al actualizar este documento, mantener como mínimo:
 
 ### Próximo paso recomendado
 
-1. Auditar responsabilidades e imports de `tools/indeed_resume_agent/browser.py` y elegir un primer corte autocontenido.
-2. Extraer una sola responsabilidad por PR y ejecutar tests del Resume Agent en Linux/Windows, build y self-test cuando aplique.
+1. Continuar la reducción de `tools/indeed_resume_agent/browser.py` con un segundo corte autocontenido; evitar por ahora cambios en matching, navegación crítica o descarga.
+2. Ejecutar tests del Resume Agent en Linux/Windows, build y self-test en cada cambio que afecte su runtime o packaging.
 3. Continuar después con `Jobs.jsx`, `asiati_preset.py` y `RankingView.jsx`.
 4. Mantener PRs pequeños, verificables y con actualización de handoff al cerrar hitos.
