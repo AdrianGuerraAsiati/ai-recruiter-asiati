@@ -385,8 +385,26 @@ function Jobs() {
       const employeeAction = data?.employee_created
         ? "Acceso creado"
         : "Empleado existente reutilizado";
+
+      let odooMessage = "Odoo pendiente.";
+      const employeeId = data?.employee?.id;
+      if (employeeId) {
+        try {
+          const { data: odooSync } = await api.post(
+            `/odoo/employees/${employeeId}/sync`,
+          );
+          odooMessage = odooSync?.status === "SYNCED"
+            ? `Odoo sincronizado (${odooSync.action === "CREATED" ? "creado" : "actualizado"}).`
+            : "Odoo pendiente de sincronización.";
+        } catch (odooError) {
+          odooMessage = odooError.response?.status === 503
+            ? "Odoo pendiente de configuración."
+            : "Odoo pendiente de reintento.";
+        }
+      }
+
       setSuccessMessage(
-        `${hireTarget.name || "Candidato"} fue contratado. ${employeeAction} y onboarding asignado (${progress}%).`,
+        `${hireTarget.name || "Candidato"} fue contratado. ${employeeAction} y onboarding asignado (${progress}%). ${odooMessage}`,
       );
       setHireTarget(null);
       setTimeout(() => setSuccessMessage(""), 6000);
