@@ -97,8 +97,39 @@ describe("TrainingEmployeeJourney", () => {
     fireEvent.click(screen.getByRole("button", { name: /Módulo 1/ }));
     expect(props.setActiveLessonId).toHaveBeenCalledWith("lesson-1");
 
-    fireEvent.click(screen.getByRole("button", { name: "Marcar completada" }));
+    fireEvent.click(screen.getByRole("button", { name: "✓ Marcar lección como completada" }));
     expect(props.completeLesson).toHaveBeenCalledWith("lesson-1");
+  });
+
+  it("separates lesson confirmation from navigation", () => {
+    const props = buildProps();
+    const completedLesson = {
+      ...props.activeJourneyLesson,
+      completed: true,
+    };
+    const nextLesson = {
+      id: "lesson-2",
+      title: "Siguiente lección",
+      content_type: "ARTICLE",
+      completed: false,
+      is_optional: false,
+    };
+
+    render(
+      <TrainingEmployeeJourney
+        {...props}
+        activeJourneyLesson={completedLesson}
+        nextRequiredJourneyLesson={nextLesson}
+      />,
+    );
+
+    expect(screen.getByText("Lección completada")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Marcar lección como completada/ }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Continuar →" }));
+    expect(props.setActiveLessonId).toHaveBeenCalledWith("lesson-2");
   });
 
   it("renders the empty assignment state without course detail", () => {
