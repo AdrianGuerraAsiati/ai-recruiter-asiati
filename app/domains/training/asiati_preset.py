@@ -9,6 +9,7 @@ from __future__ import annotations
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.domains.training.asiati_media import migrate_default_onboarding_videos_to_s3
 from app.domains.training.errors import TrainingNotFound, TrainingStateError
 from app.models import (
     TrainingCourse,
@@ -2388,6 +2389,8 @@ def ensure_published_asiati_onboarding(
     if current is not None:
         _upgrade_published_asiati_recruiter_experience(db, course=current)
         current = require_course(db, current.id)
+        migrate_default_onboarding_videos_to_s3(db, course=current)
+        current = require_course(db, current.id)
         _ensure_asiati_role_checklist(db, course=current)
         _ensure_asiati_onboarding_quiz_questions(db, quiz=current.quiz)
         return require_course(db, current.id)
@@ -2402,4 +2405,5 @@ def ensure_published_asiati_onboarding(
             course.id,
             status="PUBLISHED",
         )
-    return course
+    migrate_default_onboarding_videos_to_s3(db, course=course)
+    return require_course(db, course.id)
