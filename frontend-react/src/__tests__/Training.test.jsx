@@ -719,12 +719,31 @@ describe("Training platform", () => {
       },
     };
 
+    let homeReads = 0;
+    let courseReads = 0;
+    let resolveHomeRefresh;
+    let resolveCourseRefresh;
+    const homeRefresh = new Promise((resolve) => {
+      resolveHomeRefresh = resolve;
+    });
+    const courseRefresh = new Promise((resolve) => {
+      resolveCourseRefresh = resolve;
+    });
+
     api.get.mockImplementation((url) => {
       if (url === "/training/me") {
-        return Promise.resolve({ data: { items: [checklistAssignment] } });
+        homeReads += 1;
+        if (homeReads === 1) {
+          return Promise.resolve({ data: { items: [checklistAssignment] } });
+        }
+        return homeRefresh;
       }
       if (url === "/training/me/courses/course-1") {
-        return Promise.resolve({ data: currentDetail });
+        courseReads += 1;
+        if (courseReads === 1) {
+          return Promise.resolve({ data: currentDetail });
+        }
+        return courseRefresh;
       }
       return Promise.reject(new Error(`Unexpected GET ${url}`));
     });
@@ -776,6 +795,19 @@ describe("Training platform", () => {
         { completed_items: [0, 1] },
       );
     });
+    await waitFor(() => {
+      expect(homeReads).toBe(2);
+      expect(courseReads).toBe(2);
+    });
+
+    expect(screen.queryByText("Preparando capacitación…")).not.toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Sé quién es mi líder o punto de apoyo."),
+    ).toBeInTheDocument();
+
+    resolveHomeRefresh({ data: { items: [checklistAssignment] } });
+    resolveCourseRefresh({ data: currentDetail });
+
     expect(await screen.findByText("2/2")).toBeInTheDocument();
   });
 
