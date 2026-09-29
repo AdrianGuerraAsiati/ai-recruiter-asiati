@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import {
   lessonTypeIcon,
@@ -46,22 +46,12 @@ export default function TrainingContentEditor({
   const [moduleEdit, setModuleEdit] = useState(null);
   const [editingLessonId, setEditingLessonId] = useState("");
   const [lessonEdit, setLessonEdit] = useState(null);
-  const [activeModuleId, setActiveModuleId] = useState(course.modules?.[0]?.id || "");
+  const [activeModuleId, setActiveModuleId] = useState("");
 
   const canEditExisting = course.status === "DRAFT" || Boolean(course.managed_by_system);
   const modules = course.modules || [];
   const activeModule = modules.find((module) => module.id === activeModuleId) || modules[0] || null;
   const visibleModules = activeModule ? [activeModule] : [];
-
-  useEffect(() => {
-    if (!modules.length) {
-      setActiveModuleId("");
-      return;
-    }
-    if (!modules.some((module) => module.id === activeModuleId)) {
-      setActiveModuleId(modules[0].id);
-    }
-  }, [course.id, modules, activeModuleId]);
   const canCreateContent = course.status === "DRAFT" && !course.managed_by_system;
 
   function beginModuleEdit(module) {
