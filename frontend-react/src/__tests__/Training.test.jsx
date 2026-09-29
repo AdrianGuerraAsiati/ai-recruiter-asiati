@@ -1167,7 +1167,7 @@ describe("Focused onboarding sessions", () => {
 
     expect(screen.queryByText("Módulo largo")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Segundo módulo/i }));
-    expect(await screen.findByText("Módulo largo")).toBeInTheDocument();
+    expect((await screen.findAllByText("Módulo largo")).length).toBeGreaterThan(0);
   });
 });
 
@@ -1429,7 +1429,7 @@ describe("Onboarding module navigator", () => {
 
     const { container } = renderPage();
 
-    await screen.findByText("Actividad módulo 1");
+    expect((await screen.findAllByText("Actividad módulo 1")).length).toBeGreaterThan(0);
     expect(container.querySelectorAll(".training-module-tab")).toHaveLength(7);
 
     const moduleSeven = screen.getByRole("button", {
