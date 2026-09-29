@@ -1259,7 +1259,7 @@ def test_asiati_onboarding_template_repairs_existing_draft_without_duplicate(db)
     module_two = next(
         module
         for module in payload["modules"]
-        if module["title"] == "Módulo 2 · Conoce ASIATI"
+        if module["title"] == service.ASIATI_ONBOARDING_MODULE_2_TITLE
     )
     assert any(
         lesson["title"] == "Quiénes somos y qué hacemos"
@@ -1291,19 +1291,23 @@ def test_asiati_onboarding_template_repairs_existing_draft_without_duplicate(db)
         for module in payload["modules"]
         if module["title"] == service.ASIATI_ONBOARDING_MODULE_5_TITLE
     )
-    assert len(module_five["lessons"]) == 1
+    assert len(module_five["lessons"]) == 2
     assert module_five["lessons"][0]["title"] == service.ASIATI_ONBOARDING_MODULE_5_VIDEO_TITLE
     assert module_five["lessons"][0]["video_url"] == service.ASIATI_ONBOARDING_MODULE_5_VIDEO_URL
     assert module_five["lessons"][0]["duration_seconds"] is None
+    assert module_five["lessons"][1]["title"] == service.ASIATI_ONBOARDING_MODULE_5_SECURITY_TITLE
+    assert module_five["lessons"][1]["checklist_items"] == service.ASIATI_ONBOARDING_MODULE_5_SECURITY_ITEMS
     module_six = next(
         module
         for module in payload["modules"]
         if module["title"] == service.ASIATI_ONBOARDING_MODULE_6_TITLE
     )
-    assert len(module_six["lessons"]) == 1
+    assert len(module_six["lessons"]) == 2
     assert module_six["lessons"][0]["title"] == service.ASIATI_ONBOARDING_MODULE_6_VIDEO_TITLE
     assert module_six["lessons"][0]["video_url"] == service.ASIATI_ONBOARDING_MODULE_6_VIDEO_URL
     assert module_six["lessons"][0]["duration_seconds"] == 29
+    assert module_six["lessons"][1]["title"] == service.ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_TITLE
+    assert module_six["lessons"][1]["checklist_items"] == service.ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_ITEMS
     module_seven = next(
         module
         for module in payload["modules"]
@@ -1317,6 +1321,73 @@ def test_asiati_onboarding_template_repairs_existing_draft_without_duplicate(db)
     assert module_seven["lessons"][0]["duration_seconds"] == 55
     assert module_seven["lessons"][1]["checklist_items"] == service.ASIATI_ONBOARDING_MODULE_7_ACK_ITEMS
     assert all(module["title"] != "Así trabajamos" for module in payload["modules"])
+
+
+def test_published_asiati_onboarding_upgrades_previous_seven_question_quiz(db):
+    from app.domains.training import asiati_preset
+
+    course = service.ensure_published_asiati_onboarding(
+        db,
+        created_by_sub="admin-sub",
+    )
+    questions = sorted(course.quiz.questions, key=lambda item: item.position)
+
+    for question, (prompt, options, correct_option) in zip(
+        questions,
+        asiati_preset.ASIATI_ONBOARDING_PREVIOUS_QUIZ,
+    ):
+        question.prompt = prompt
+        question.options = list(options)
+        question.correct_option = correct_option
+    db.commit()
+
+    repaired = service.ensure_published_asiati_onboarding(
+        db,
+        created_by_sub="other-admin-sub",
+    )
+    repaired_questions = sorted(repaired.quiz.questions, key=lambda item: item.position)
+
+    assert len(repaired_questions) == 7
+    assert repaired_questions[0].prompt.startswith("Tienes una tarea bloqueada")
+    assert repaired_questions[-1].prompt.startswith("¿Cuándo se considera")
+
+
+def test_published_onboarding_adds_employee_readiness_checklists(db):
+    course = service.ensure_published_asiati_onboarding(
+        db,
+        created_by_sub="admin-sub",
+    )
+    payload = service.get_course(db, course.id)
+
+    assert service.ASIATI_ONBOARDING_MODULE_2_TITLE in {
+        module["title"] for module in payload["modules"]
+    }
+    assert service.ASIATI_ONBOARDING_MODULE_4_TITLE in {
+        module["title"] for module in payload["modules"]
+    }
+    assert service.ASIATI_ONBOARDING_MODULE_7_TITLE in {
+        module["title"] for module in payload["modules"]
+    }
+
+    lessons = [
+        lesson
+        for module in payload["modules"]
+        for lesson in module["lessons"]
+    ]
+    by_title = {lesson["title"]: lesson for lesson in lessons}
+
+    assert by_title[service.ASIATI_ONBOARDING_MODULE_5_SECURITY_TITLE]["checklist_items"] == (
+        service.ASIATI_ONBOARDING_MODULE_5_SECURITY_ITEMS
+    )
+    assert by_title[service.ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_TITLE]["checklist_items"] == (
+        service.ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_ITEMS
+    )
+    assert by_title[service.ASIATI_ONBOARDING_MODULE_7_ACK_TITLE]["checklist_items"] == (
+        service.ASIATI_ONBOARDING_MODULE_7_ACK_ITEMS
+    )
+    assert by_title["Tu rol y tus primeros días"]["checklist_items"] == (
+        service.ASIATI_ROLE_CHECKLIST_ITEMS
+    )
 
 
 def test_published_asiati_onboarding_upgrades_legacy_default_quiz(db):
@@ -1350,8 +1421,8 @@ def test_published_asiati_onboarding_upgrades_legacy_default_quiz(db):
 
     assert repaired.id == course.id
     assert len(repaired_questions) == 7
-    assert repaired_questions[0].prompt == "Según la inducción, ¿qué describe mejor a ASIATI?"
-    assert repaired_questions[-1].prompt.startswith("Al finalizar el onboarding")
+    assert repaired_questions[0].prompt.startswith("Tienes una tarea bloqueada")
+    assert repaired_questions[-1].prompt.startswith("¿Cuándo se considera")
 
 
 def test_asiati_onboarding_is_system_managed_and_published_automatically(db):
@@ -1551,18 +1622,18 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
     assert payload["is_onboarding"] is True
     assert [module["title"] for module in payload["modules"]] == [
         "Módulo 1 · Bienvenida a ASIATI",
-        "Módulo 2 · Conoce ASIATI",
+        service.ASIATI_ONBOARDING_MODULE_2_TITLE,
         "Módulo 3 · Conoce al equipo",
-        "Módulo 4 · Permisos y vacaciones",
-        "Módulo 5 · Contenido corporativo",
-        "Módulo 6 · Cultura interna",
-        "Módulo 7 · Lo que esperamos de ti",
+        service.ASIATI_ONBOARDING_MODULE_4_TITLE,
+        service.ASIATI_ONBOARDING_MODULE_5_TITLE,
+        service.ASIATI_ONBOARDING_MODULE_6_TITLE,
+        service.ASIATI_ONBOARDING_MODULE_7_TITLE,
     ]
     assert payload["quiz"]["title"] == "Evaluación final"
     assert payload["quiz"]["passing_score"] == 70
     assert payload["quiz"]["question_count"] == 7
     assert payload["quiz"]["questions"][0]["prompt"] == (
-        "Según la inducción, ¿qué describe mejor a ASIATI?"
+        "Tienes una tarea bloqueada y ves riesgo de no cumplir la fecha acordada. ¿Qué deberías hacer?"
     )
 
     role_checklist = next(
@@ -1629,7 +1700,7 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
     module_two = next(
         module
         for module in payload["modules"]
-        if module["title"] == "Módulo 2 · Conoce ASIATI"
+        if module["title"] == service.ASIATI_ONBOARDING_MODULE_2_TITLE
     )
     module_two_video = next(
         lesson
@@ -1700,30 +1771,52 @@ def test_asiati_onboarding_template_scaffolds_short_journey(db):
         for module in payload["modules"]
         if module["title"] == service.ASIATI_ONBOARDING_MODULE_5_TITLE
     )
-    assert module_five["lesson_count"] == 1
-    assert module_five["content_item_count"] == 1
-    module_five_video = module_five["lessons"][0]
-    assert module_five_video["title"] == service.ASIATI_ONBOARDING_MODULE_5_VIDEO_TITLE
+    assert module_five["lesson_count"] == 2
+    assert module_five["content_item_count"] == 2
+    module_five_video = next(
+        lesson
+        for lesson in module_five["lessons"]
+        if lesson["title"] == service.ASIATI_ONBOARDING_MODULE_5_VIDEO_TITLE
+    )
     assert module_five_video["video_url"] == service.ASIATI_ONBOARDING_MODULE_5_VIDEO_URL
     assert module_five_video["duration_seconds"] is None
     assert module_five_video["estimated_minutes"] is None
     assert module_five_video["duration_known"] is False
     assert module_five_video["is_optional"] is False
+    module_five_security = next(
+        lesson
+        for lesson in module_five["lessons"]
+        if lesson["title"] == service.ASIATI_ONBOARDING_MODULE_5_SECURITY_TITLE
+    )
+    assert module_five_security["content_type"] == "CHECKLIST"
+    assert module_five_security["checklist_items"] == service.ASIATI_ONBOARDING_MODULE_5_SECURITY_ITEMS
+    assert module_five_security["is_optional"] is False
 
     module_six = next(
         module
         for module in payload["modules"]
         if module["title"] == service.ASIATI_ONBOARDING_MODULE_6_TITLE
     )
-    assert module_six["lesson_count"] == 1
-    assert module_six["content_item_count"] == 1
-    module_six_video = module_six["lessons"][0]
-    assert module_six_video["title"] == service.ASIATI_ONBOARDING_MODULE_6_VIDEO_TITLE
+    assert module_six["lesson_count"] == 2
+    assert module_six["content_item_count"] == 2
+    module_six_video = next(
+        lesson
+        for lesson in module_six["lessons"]
+        if lesson["title"] == service.ASIATI_ONBOARDING_MODULE_6_VIDEO_TITLE
+    )
     assert module_six_video["video_url"] == service.ASIATI_ONBOARDING_MODULE_6_VIDEO_URL
     assert module_six_video["duration_seconds"] == 29
     assert module_six_video["estimated_minutes"] == 1
     assert module_six_video["duration_known"] is True
     assert module_six_video["is_optional"] is False
+    module_six_behavior = next(
+        lesson
+        for lesson in module_six["lessons"]
+        if lesson["title"] == service.ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_TITLE
+    )
+    assert module_six_behavior["content_type"] == "CHECKLIST"
+    assert module_six_behavior["checklist_items"] == service.ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_ITEMS
+    assert module_six_behavior["is_optional"] is False
 
     module_seven = next(
         module
