@@ -282,7 +282,7 @@ describe("Training platform", () => {
                 id: "team-jersson",
                 title: "Jersson",
                 description: "Conoce a Jersson.",
-                video_url: "https://drive.google.com/file/d/1BQ38kuCqmh_XSXfATXlzhz0vSAqLsX6j/view?usp=drivesdk",
+                video_url: "https://cdn.example.com/team/jersson.mp4",
                 duration_seconds: 37,
                 content_type: "VIDEO",
                 external_url: null,
@@ -295,7 +295,7 @@ describe("Training platform", () => {
                 id: "team-valentina",
                 title: "Valentina",
                 description: "Conoce a Valentina.",
-                video_url: "https://drive.google.com/file/d/166XnHlEoAV3rpQKAwhHj0wHUYxts0DOk/view?usp=drivesdk",
+                video_url: "https://cdn.example.com/team/valentina.mp4",
                 duration_seconds: 37,
                 content_type: "VIDEO",
                 external_url: null,
@@ -325,11 +325,21 @@ describe("Training platform", () => {
     expect((await screen.findAllByText("Módulo 3 · Conoce al equipo")).length).toBeGreaterThan(0);
     expect(container.querySelector(".training-team-grid")).toBeInTheDocument();
     expect(container.querySelectorAll(".training-team-card")).toHaveLength(2);
-    expect(await screen.findByTitle("Video: Jersson")).toBeInTheDocument();
+    const jerssonPlayer = await screen.findByLabelText("Video: Jersson");
+    expect(jerssonPlayer).toHaveAttribute(
+      "src",
+      "https://cdn.example.com/team/jersson.mp4",
+    );
     expect(container.querySelector(".training-journey-video.is-portrait")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Valentina/i }));
-    expect(await screen.findByTitle("Video: Valentina")).toBeInTheDocument();
+
+    const valentinaPlayer = await screen.findByLabelText("Video: Valentina");
+    expect(valentinaPlayer).toHaveAttribute(
+      "src",
+      "https://cdn.example.com/team/valentina.mp4",
+    );
+    expect(valentinaPlayer).not.toBe(jerssonPlayer);
   });
 
   it("renders module 4 permissions video in portrait and exposes its checklist", async () => {
