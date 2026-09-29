@@ -76,12 +76,16 @@ export function TrainingCourseOverview({
   async function saveCourse(event) {
     event.preventDefault();
     if (!draft) return;
-    await onUpdateCourse({
-      title: draft.title.trim(),
-      description: draft.description.trim() || null,
-    });
-    setEditing(false);
-    setDraft(null);
+    try {
+      await onUpdateCourse({
+        title: draft.title.trim(),
+        description: draft.description.trim() || null,
+      });
+      setEditing(false);
+      setDraft(null);
+    } catch {
+      // The page surfaces the API error; keep the form open so the admin can retry.
+    }
   }
 
   return (
