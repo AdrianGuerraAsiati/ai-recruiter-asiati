@@ -72,8 +72,8 @@ function Training() {
   const [previewData, setPreviewData] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  const loadHome = useCallback(async () => {
-    setLoading(true);
+  const loadHome = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError("");
     try {
       const requests = [api.get("/training/me")];
@@ -116,7 +116,7 @@ function Training() {
         fallback: "No se pudo completar la vista de capacitación. Recarga la página para consultar nuevamente cursos, asignaciones y progreso.",
       }));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [canAssign, canManage]);
 
@@ -203,13 +203,13 @@ function Training() {
     });
   }
 
-  const loadEmployeeCourse = useCallback(async (courseId) => {
+  const loadEmployeeCourse = useCallback(async (courseId, { silent = false } = {}) => {
     if (!courseId) {
       setEmployeeCourse(null);
       setEmployeeQuiz(null);
       return;
     }
-    setDetailLoading(true);
+    if (!silent) setDetailLoading(true);
     try {
       const { data } = await api.get(`/training/me/courses/${courseId}`);
       setEmployeeCourse(data);
@@ -242,7 +242,7 @@ function Training() {
         fallback: "El curso está asignado, pero su contenido no se pudo abrir. Recarga la capacitación antes de continuar.",
       }));
     } finally {
-      setDetailLoading(false);
+      if (!silent) setDetailLoading(false);
     }
   }, [canTakeQuiz]);
 
@@ -590,8 +590,8 @@ function Training() {
       const nextRequiredId = data.course?.next_lesson_id || "";
       setEmployeeCourse(data);
       await Promise.all([
-        loadHome(),
-        loadEmployeeCourse(data.course.id),
+        loadHome({ silent: true }),
+        loadEmployeeCourse(data.course.id, { silent: true }),
       ]);
       if (nextRequiredId) setActiveLessonId(nextRequiredId);
     } catch (err) {
@@ -626,8 +626,8 @@ function Training() {
       );
       setEmployeeCourse(data);
       await Promise.all([
-        loadHome(),
-        loadEmployeeCourse(data.course.id),
+        loadHome({ silent: true }),
+        loadEmployeeCourse(data.course.id, { silent: true }),
       ]);
       if (willComplete && nextId) setActiveLessonId(nextId);
     } catch (err) {
