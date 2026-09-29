@@ -344,7 +344,7 @@ def _ensure_asiati_module_1(
     return require_course(db, course.id)
 
 
-ASIATI_ONBOARDING_MODULE_2_TITLE = "Módulo 2 · Conoce ASIATI"
+ASIATI_ONBOARDING_MODULE_2_TITLE = "Módulo 2 · Entiende el negocio"
 ASIATI_ONBOARDING_MODULE_2_LESSON_TITLE = "Quiénes somos y qué hacemos"
 ASIATI_ONBOARDING_MODULE_2_VIDEO_URL = (
     "https://drive.google.com/file/d/"
@@ -352,8 +352,9 @@ ASIATI_ONBOARDING_MODULE_2_VIDEO_URL = (
 )
 ASIATI_ONBOARDING_MODULE_2_DURATION_SECONDS = 38
 ASIATI_ONBOARDING_MODULE_2_DESCRIPTION = (
-    "Conoce el alcance de ASIATI, cómo conectamos operación, logística y "
-    "tecnología, y la presencia que construimos como compañía."
+    "Entiende qué hace ASIATI, cómo conectamos operación, logística y tecnología, "
+    "qué iniciativas forman parte del ecosistema y cómo tu trabajo se conecta con "
+    "el valor que entregamos como compañía."
 )
 ASIATI_ONBOARDING_MODULE_2_LESSON_DESCRIPTION = (
     "Un recorrido breve por ASIATI: nuestra operación, alcance y las marcas "
@@ -651,7 +652,7 @@ def _ensure_asiati_module_3(
     return require_course(db, course.id)
 
 
-ASIATI_ONBOARDING_MODULE_4_TITLE = "Módulo 4 · Permisos y vacaciones"
+ASIATI_ONBOARDING_MODULE_4_TITLE = "Módulo 4 · Cómo trabajamos · permisos y vacaciones"
 ASIATI_ONBOARDING_MODULE_4_VIDEO_TITLE = "Permisos y vacaciones"
 ASIATI_ONBOARDING_MODULE_4_VIDEO_URL = (
     "https://drive.google.com/file/d/"
@@ -659,19 +660,26 @@ ASIATI_ONBOARDING_MODULE_4_VIDEO_URL = (
 )
 ASIATI_ONBOARDING_MODULE_4_DURATION_SECONDS = 105
 ASIATI_ONBOARDING_MODULE_4_DESCRIPTION = (
-    "Aprende el flujo interno para tramitar permisos y vacaciones: formato, "
-    "aprobaciones y puntos de control antes de enviar tu solicitud."
+    "Aterriza cómo se trabaja en el día a día: comunicación oportuna, coordinación "
+    "con tu líder y el flujo interno para tramitar permisos y vacaciones."
 )
 ASIATI_ONBOARDING_MODULE_4_VIDEO_DESCRIPTION = (
     "Revisa el procedimiento corporativo de permisos y vacaciones y los "
     "formatos que debes usar para cada solicitud."
 )
 ASIATI_ONBOARDING_MODULE_4_CHECKLIST_TITLE = "Antes de enviar tu solicitud"
+ASIATI_ONBOARDING_MODULE_4_LEGACY_CHECKLIST_ITEMS = [
+    "Identifiqué el formato que corresponde a mi solicitud.",
+    "Sé que debo diligenciar la información solicitada antes de enviarla.",
+    "Confirmaré la aprobación de mi líder de acuerdo con el procedimiento.",
+    "Para vacaciones, revisaré el checklist correspondiente antes de cerrar la solicitud.",
+]
 ASIATI_ONBOARDING_MODULE_4_CHECKLIST_ITEMS = [
     "Identifiqué el formato que corresponde a mi solicitud.",
     "Sé que debo diligenciar la información solicitada antes de enviarla.",
     "Confirmaré la aprobación de mi líder de acuerdo con el procedimiento.",
     "Para vacaciones, revisaré el checklist correspondiente antes de cerrar la solicitud.",
+    "Tengo claro con mi líder cómo comunicar a tiempo una ausencia, novedad o bloqueo que afecte mi trabajo.",
 ]
 
 
@@ -684,7 +692,10 @@ def _ensure_asiati_module_4(
         (
             module
             for module in course.modules
-            if module.title == ASIATI_ONBOARDING_MODULE_4_TITLE
+            if module.title in {
+                "Módulo 4 · Permisos y vacaciones",
+                ASIATI_ONBOARDING_MODULE_4_TITLE,
+            }
         ),
         None,
     )
@@ -718,6 +729,9 @@ def _ensure_asiati_module_4(
         )
 
     changed = False
+    if module_four.title != ASIATI_ONBOARDING_MODULE_4_TITLE:
+        module_four.title = ASIATI_ONBOARDING_MODULE_4_TITLE
+        changed = True
     if module_four.description != ASIATI_ONBOARDING_MODULE_4_DESCRIPTION:
         module_four.description = ASIATI_ONBOARDING_MODULE_4_DESCRIPTION
         changed = True
@@ -855,6 +869,13 @@ ASIATI_ONBOARDING_MODULE_5_DESCRIPTION = (
 ASIATI_ONBOARDING_MODULE_5_VIDEO_DESCRIPTION = (
     "Contenido corporativo correspondiente al Módulo 5 de la inducción ASIATI."
 )
+ASIATI_ONBOARDING_MODULE_5_SECURITY_TITLE = "Recursos y seguridad · confirma con tu líder"
+ASIATI_ONBOARDING_MODULE_5_SECURITY_ITEMS = [
+    "Sé que mis credenciales son personales y no debo compartirlas.",
+    "Confirmé cuáles son las herramientas y accesos autorizados que necesito para mi cargo.",
+    "Sé a quién acudir si pierdo un acceso o detecto un posible incidente de seguridad.",
+    "Entiendo que la información de clientes y de la empresa debe usarse únicamente para fines autorizados.",
+]
 
 
 def _ensure_asiati_module_5(
@@ -964,6 +985,50 @@ def _ensure_asiati_module_5(
                 setattr(video, field, value)
                 changed = True
 
+    security_checklist = next(
+        (
+            lesson
+            for lesson in module_five.lessons
+            if lesson.title == ASIATI_ONBOARDING_MODULE_5_SECURITY_TITLE
+        ),
+        None,
+    )
+    if security_checklist is None:
+        add_lesson(
+            db,
+            module_id=module_five.id,
+            title=ASIATI_ONBOARDING_MODULE_5_SECURITY_TITLE,
+            description=(
+                "Antes de empezar a operar, confirma con tu líder los accesos, "
+                "herramientas y reglas básicas para proteger la información."
+            ),
+            video_url=None,
+            duration_seconds=None,
+            content_type="CHECKLIST",
+            estimated_minutes=2,
+            checklist_items=ASIATI_ONBOARDING_MODULE_5_SECURITY_ITEMS,
+            is_optional=False,
+        )
+    else:
+        desired_values = {
+            "description": (
+                "Antes de empezar a operar, confirma con tu líder los accesos, "
+                "herramientas y reglas básicas para proteger la información."
+            ),
+            "video_url": None,
+            "duration_seconds": None,
+            "content_type": "CHECKLIST",
+            "external_url": None,
+            "estimated_minutes": 2,
+            "checklist_items": list(ASIATI_ONBOARDING_MODULE_5_SECURITY_ITEMS),
+            "is_optional": False,
+            "position": 2,
+        }
+        for field, value in desired_values.items():
+            if getattr(security_checklist, field) != value:
+                setattr(security_checklist, field, value)
+                changed = True
+
     if changed:
         db.commit()
     return require_course(db, course.id)
@@ -983,6 +1048,14 @@ ASIATI_ONBOARDING_MODULE_6_DESCRIPTION = (
 ASIATI_ONBOARDING_MODULE_6_VIDEO_DESCRIPTION = (
     "Un vistazo breve a la forma de vivir la cultura de ASIATI en el día a día."
 )
+ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_TITLE = "Cómo actuar en el día a día"
+ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_ITEMS = [
+    "Si una tarea se bloquea o está en riesgo, lo comunicaré a tiempo con contexto e impacto.",
+    "Pediré ayuda cuando la necesite en lugar de dejar avanzar un bloqueo sin comunicarlo.",
+    "Si cometo un error, lo informaré y participaré en la solución.",
+    "Documentaré las decisiones relevantes para que el equipo pueda darles continuidad.",
+    "Mantendré una comunicación respetuosa y orientada a resolver problemas.",
+]
 
 
 def _ensure_asiati_module_6(
@@ -1092,12 +1165,56 @@ def _ensure_asiati_module_6(
                 setattr(video, field, value)
                 changed = True
 
+    behavior_checklist = next(
+        (
+            lesson
+            for lesson in module_six.lessons
+            if lesson.title == ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_TITLE
+        ),
+        None,
+    )
+    if behavior_checklist is None:
+        add_lesson(
+            db,
+            module_id=module_six.id,
+            title=ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_TITLE,
+            description=(
+                "Convierte la cultura en decisiones concretas frente a bloqueos, "
+                "errores, colaboración y comunicación."
+            ),
+            video_url=None,
+            duration_seconds=None,
+            content_type="CHECKLIST",
+            estimated_minutes=2,
+            checklist_items=ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_ITEMS,
+            is_optional=False,
+        )
+    else:
+        desired_values = {
+            "description": (
+                "Convierte la cultura en decisiones concretas frente a bloqueos, "
+                "errores, colaboración y comunicación."
+            ),
+            "video_url": None,
+            "duration_seconds": None,
+            "content_type": "CHECKLIST",
+            "external_url": None,
+            "estimated_minutes": 2,
+            "checklist_items": list(ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_ITEMS),
+            "is_optional": False,
+            "position": 2,
+        }
+        for field, value in desired_values.items():
+            if getattr(behavior_checklist, field) != value:
+                setattr(behavior_checklist, field, value)
+                changed = True
+
     if changed:
         db.commit()
     return require_course(db, course.id)
 
 
-ASIATI_ONBOARDING_MODULE_7_TITLE = "Módulo 7 · Lo que esperamos de ti"
+ASIATI_ONBOARDING_MODULE_7_TITLE = "Módulo 7 · Tu rol y tus primeros días"
 ASIATI_ONBOARDING_MODULE_7_VIDEO_TITLE = "Lo que esperamos de ti"
 ASIATI_ONBOARDING_MODULE_7_VIDEO_URL = (
     "https://drive.google.com/file/d/"
@@ -1105,15 +1222,25 @@ ASIATI_ONBOARDING_MODULE_7_VIDEO_URL = (
 )
 ASIATI_ONBOARDING_MODULE_7_DURATION_SECONDS = 55
 ASIATI_ONBOARDING_MODULE_7_DESCRIPTION = (
-    "Cierra la inducción corporativa con las expectativas que ASIATI presenta "
-    "para esta nueva etapa dentro del equipo."
+    "Cierra la inducción aterrizando tu cargo: alcance, responsabilidades, "
+    "herramientas, apoyos, prioridades y objetivos de tus primeros días."
 )
 ASIATI_ONBOARDING_MODULE_7_VIDEO_DESCRIPTION = (
     "Mensaje de cierre sobre las expectativas para tu incorporación a ASIATI."
 )
-ASIATI_ONBOARDING_MODULE_7_ACK_TITLE = "Confirmación de comprensión"
-ASIATI_ONBOARDING_MODULE_7_ACK_ITEMS = [
+ASIATI_ONBOARDING_MODULE_7_ACK_TITLE = "Antes de comenzar"
+ASIATI_ONBOARDING_MODULE_7_LEGACY_ACK_ITEMS = [
     "He visto el módulo y entiendo las expectativas presentadas para mi incorporación a ASIATI.",
+]
+ASIATI_ONBOARDING_MODULE_7_ACK_ITEMS = [
+    "Puedo explicar, a nivel general, qué hace ASIATI y cómo mi trabajo aporta al equipo.",
+    "Sé quién es mi líder o punto de apoyo y a quién acudir cuando necesito orientación.",
+    "Tengo claros los canales que debo usar para comunicar avances, dudas, bloqueos o novedades.",
+    "Conozco el procedimiento básico para permisos y vacaciones.",
+    "Confirmé las herramientas y accesos que necesito para trabajar.",
+    "Entiendo las reglas básicas de cuidado de credenciales e información.",
+    "Tengo claros mis objetivos y prioridades de la primera semana.",
+    "Sé que debo comunicar a tiempo un problema o riesgo en lugar de esperar a que escale.",
 ]
 
 
@@ -1126,7 +1253,10 @@ def _ensure_asiati_module_7(
         (
             module
             for module in course.modules
-            if module.title == ASIATI_ONBOARDING_MODULE_7_TITLE
+            if module.title in {
+                "Módulo 7 · Lo que esperamos de ti",
+                ASIATI_ONBOARDING_MODULE_7_TITLE,
+            }
         ),
         None,
     )
@@ -1158,6 +1288,9 @@ def _ensure_asiati_module_7(
         )
 
     changed = False
+    if module_seven.title != ASIATI_ONBOARDING_MODULE_7_TITLE:
+        module_seven.title = ASIATI_ONBOARDING_MODULE_7_TITLE
+        changed = True
     if module_seven.description != ASIATI_ONBOARDING_MODULE_7_DESCRIPTION:
         module_seven.description = ASIATI_ONBOARDING_MODULE_7_DESCRIPTION
         changed = True
@@ -1226,7 +1359,10 @@ def _ensure_asiati_module_7(
         (
             lesson
             for lesson in module_seven.lessons
-            if lesson.title == ASIATI_ONBOARDING_MODULE_7_ACK_TITLE
+            if lesson.title in {
+                "Confirmación de comprensión",
+                ASIATI_ONBOARDING_MODULE_7_ACK_TITLE,
+            }
         ),
         None,
     )
@@ -1235,7 +1371,10 @@ def _ensure_asiati_module_7(
             db,
             module_id=module_seven.id,
             title=ASIATI_ONBOARDING_MODULE_7_ACK_TITLE,
-            description="Confirma que completaste y comprendiste el mensaje de cierre.",
+            description=(
+                "Comprueba que tienes la información mínima para empezar a trabajar "
+                "con claridad y sabes qué debes confirmar con tu líder."
+            ),
             video_url=None,
             duration_seconds=None,
             content_type="CHECKLIST",
@@ -1245,7 +1384,11 @@ def _ensure_asiati_module_7(
         )
     else:
         desired_values = {
-            "description": "Confirma que completaste y comprendiste el mensaje de cierre.",
+            "title": ASIATI_ONBOARDING_MODULE_7_ACK_TITLE,
+            "description": (
+                "Comprueba que tienes la información mínima para empezar a trabajar "
+                "con claridad y sabes qué debes confirmar con tu líder."
+            ),
             "video_url": None,
             "duration_seconds": None,
             "content_type": "CHECKLIST",
@@ -1281,12 +1424,21 @@ def _ensure_asiati_module_7(
     return require_course(db, course.id)
 
 
-ASIATI_ROLE_CHECKLIST_ITEMS = [
+ASIATI_ROLE_LEGACY_CHECKLIST_ITEMS = [
     "Conozco el alcance principal de mi cargo.",
     "Sé cuáles son mis responsabilidades prioritarias.",
     "Tengo identificadas las herramientas y accesos que necesito.",
     "Sé quién es mi líder o punto de apoyo.",
     "Entiendo los objetivos de mi primera semana.",
+]
+ASIATI_ROLE_CHECKLIST_ITEMS = [
+    "Conozco el alcance principal de mi cargo.",
+    "Sé cuáles son mis responsabilidades prioritarias y qué temas debo escalar.",
+    "Tengo identificadas las herramientas y accesos que necesito.",
+    "Sé quién es mi líder o punto de apoyo.",
+    "Entiendo los objetivos de mi primera semana.",
+    "Acordé cuáles son mis primeros entregables o resultados esperados.",
+    "Sé cómo y con quién revisaré mi progreso durante las primeras semanas.",
 ]
 
 
@@ -1324,7 +1476,8 @@ def _ensure_asiati_role_checklist(
             role_lesson.module_id = module_seven.id
             role_lesson.module = module_seven
             changed = True
-        if not list(role_lesson.checklist_items or []):
+        current_items = list(role_lesson.checklist_items or [])
+        if not current_items or current_items == ASIATI_ROLE_LEGACY_CHECKLIST_ITEMS:
             role_lesson.checklist_items = list(ASIATI_ROLE_CHECKLIST_ITEMS)
             changed = True
         if role_lesson.position != 3:
@@ -1381,7 +1534,7 @@ ASIATI_ONBOARDING_LEGACY_QUIZ = [
     ),
 ]
 
-ASIATI_ONBOARDING_BASE_QUIZ = [
+ASIATI_ONBOARDING_PREVIOUS_QUIZ = [
     (
         "Según la inducción, ¿qué describe mejor a ASIATI?",
         [
@@ -1449,6 +1602,79 @@ ASIATI_ONBOARDING_BASE_QUIZ = [
     ),
 ]
 
+ASIATI_ONBOARDING_BASE_QUIZ = [
+    (
+        "Tienes una tarea bloqueada y ves riesgo de no cumplir la fecha acordada. ¿Qué deberías hacer?",
+        [
+            "Comunicarlo a tiempo a tu líder o punto de apoyo, explicando el bloqueo y su impacto",
+            "Esperar hasta la fecha de entrega para informar que no fue posible",
+            "Ocultar el problema mientras intentas resolverlo sin avisar",
+            "Cambiar la fecha por tu cuenta sin comunicarlo",
+        ],
+        0,
+    ),
+    (
+        "Necesitas solicitar un permiso o vacaciones. ¿Cuál es la actuación correcta?",
+        [
+            "Seguir el procedimiento, completar la información requerida y confirmar la aprobación correspondiente",
+            "Asumir que la solicitud está aprobada con solo comentarla informalmente",
+            "Ausentarte y diligenciar el formato después",
+            "Pedir a un compañero que haga la solicitud por ti",
+        ],
+        0,
+    ),
+    (
+        "No sabes quién debe ayudarte con una decisión de tu trabajo. ¿Qué haces primero?",
+        [
+            "Identificas a tu líder o punto de apoyo y escalas la duda con el contexto necesario",
+            "Tomas cualquier decisión sin consultar para no interrumpir a nadie",
+            "Esperas indefinidamente a que alguien note el bloqueo",
+            "Envías la duda a toda la empresa sin contexto",
+        ],
+        0,
+    ),
+    (
+        "Recibes o manejas información de clientes o de la empresa. ¿Qué principio debes aplicar?",
+        [
+            "Usarla solo para fines autorizados, proteger los accesos y reportar cualquier incidente",
+            "Compartir credenciales si eso acelera una tarea",
+            "Copiar la información a cuentas personales para trabajar más rápido",
+            "Ignorar un acceso sospechoso si el sistema sigue funcionando",
+        ],
+        0,
+    ),
+    (
+        "Cometes un error que puede afectar una tarea o a otra persona del equipo. ¿Qué se espera de ti?",
+        [
+            "Informarlo oportunamente, asumir responsabilidad y participar en la solución",
+            "Ocultarlo mientras exista la posibilidad de que nadie lo note",
+            "Esperar a que otra persona lo descubra",
+            "Eliminar cualquier evidencia antes de comunicarlo",
+        ],
+        0,
+    ),
+    (
+        "Durante tu primera semana, ¿qué deberías validar con tu líder?",
+        [
+            "Alcance del cargo, prioridades, herramientas, primeros entregables y forma de seguimiento",
+            "Únicamente el nombre formal de tu cargo",
+            "Solo el calendario de vacaciones",
+            "Únicamente las redes sociales de la empresa",
+        ],
+        0,
+    ),
+    (
+        "¿Cuándo se considera que el onboarding te dejó listo para empezar con claridad?",
+        [
+            "Cuando entiendes el negocio, tu rol, a quién acudir, cómo trabajar, los procedimientos básicos y tus primeros objetivos",
+            "Cuando memorizas nombres y enlaces aunque no sepas cómo actuar",
+            "Cuando terminas los videos aunque no tengas claros tus accesos ni prioridades",
+            "Cuando puedes trabajar sin volver a pedir ayuda a nadie",
+        ],
+        0,
+    ),
+]
+
 
 def _ensure_asiati_onboarding_quiz_questions(
     db: Session,
@@ -1457,9 +1683,13 @@ def _ensure_asiati_onboarding_quiz_questions(
 ) -> None:
     questions = sorted(quiz.questions, key=lambda item: item.position)
     legacy_prompts = [prompt for prompt, _, _ in ASIATI_ONBOARDING_LEGACY_QUIZ]
-    current_prompts = [question.prompt for question in questions]
+    previous_prompts = [prompt for prompt, _, _ in ASIATI_ONBOARDING_PREVIOUS_QUIZ]
+    current_prompts = tuple(question.prompt for question in questions)
 
-    if questions and current_prompts != legacy_prompts:
+    if questions and current_prompts not in {
+        tuple(legacy_prompts),
+        tuple(previous_prompts),
+    }:
         return
 
     for position, (prompt, options, correct_option) in enumerate(
@@ -1560,8 +1790,9 @@ def create_asiati_onboarding_template(
         db,
         title="Onboarding ASIATI",
         description=(
-            "Ruta de inducción corporativa en bloques cortos: ASIATI, ecosistema, "
-            "forma de trabajo, rol y evaluación final."
+            "Ruta de inducción para empezar con claridad: entiende ASIATI, conoce "
+            "al equipo, aprende cómo actuar en el día a día, confirma accesos y "
+            "procedimientos, aterriza tu rol y valida lo aprendido."
         ),
         created_by_sub=created_by_sub,
         is_onboarding=True,
@@ -1721,6 +1952,21 @@ def create_asiati_onboarding_template(
         estimated_minutes=None,
         is_optional=False,
     )
+    add_lesson(
+        db,
+        module_id=module_five.id,
+        title=ASIATI_ONBOARDING_MODULE_5_SECURITY_TITLE,
+        description=(
+            "Antes de empezar a operar, confirma con tu líder los accesos, "
+            "herramientas y reglas básicas para proteger la información."
+        ),
+        video_url=None,
+        duration_seconds=None,
+        content_type="CHECKLIST",
+        estimated_minutes=2,
+        checklist_items=ASIATI_ONBOARDING_MODULE_5_SECURITY_ITEMS,
+        is_optional=False,
+    )
 
     module_six = add_module(
         db,
@@ -1737,6 +1983,21 @@ def create_asiati_onboarding_template(
         duration_seconds=ASIATI_ONBOARDING_MODULE_6_DURATION_SECONDS,
         content_type="VIDEO",
         estimated_minutes=1,
+        is_optional=False,
+    )
+    add_lesson(
+        db,
+        module_id=module_six.id,
+        title=ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_TITLE,
+        description=(
+            "Convierte la cultura en decisiones concretas frente a bloqueos, "
+            "errores, colaboración y comunicación."
+        ),
+        video_url=None,
+        duration_seconds=None,
+        content_type="CHECKLIST",
+        estimated_minutes=2,
+        checklist_items=ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_ITEMS,
         is_optional=False,
     )
 
@@ -1839,12 +2100,12 @@ def create_asiati_onboarding_template(
 
 ASIATI_ONBOARDING_REQUIRED_MODULE_TITLES = {
     "Módulo 1 · Bienvenida a ASIATI",
-    "Módulo 2 · Conoce ASIATI",
+    ASIATI_ONBOARDING_MODULE_2_TITLE,
     "Módulo 3 · Conoce al equipo",
-    "Módulo 4 · Permisos y vacaciones",
+    ASIATI_ONBOARDING_MODULE_4_TITLE,
     "Módulo 5 · Contenido corporativo",
     "Módulo 6 · Cultura interna",
-    "Módulo 7 · Lo que esperamos de ti",
+    ASIATI_ONBOARDING_MODULE_7_TITLE,
 }
 
 
