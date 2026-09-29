@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 
 from sqlalchemy.orm import Session
@@ -116,6 +117,9 @@ def migrate_default_onboarding_videos_to_s3(
     course: TrainingCourse,
 ) -> None:
     """Replace untouched Drive defaults with their private S3 media keys."""
+
+    if not os.getenv("TRAINING_CONTENT_BUCKET"):
+        return
 
     changed = False
     for module in course.modules:
