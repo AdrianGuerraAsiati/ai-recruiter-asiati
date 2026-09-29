@@ -1,4 +1,4 @@
-"""Managed S3 media mapping for the system ASIATI onboarding route."""
+"""Managed private S3 media mapping for the system ASIATI onboarding route."""
 
 from __future__ import annotations
 
