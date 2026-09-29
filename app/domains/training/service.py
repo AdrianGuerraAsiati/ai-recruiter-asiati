@@ -270,7 +270,7 @@ def _course_counts(
 
 
 def _is_system_managed_course(course: TrainingCourse) -> bool:
-    return (
+    return bool(getattr(course, "managed_by_system", False)) or (
         bool(course.is_onboarding)
         and str(course.title or "").strip() == "Onboarding ASIATI"
     )
@@ -573,11 +573,13 @@ def create_course(
     description: str | None,
     created_by_sub: str,
     is_onboarding: bool = False,
+    managed_by_system: bool = False,
 ) -> TrainingCourse:
     course = TrainingCourse(
         title=title.strip(),
         description=(description or "").strip() or None,
         is_onboarding=is_onboarding,
+        managed_by_system=managed_by_system,
         status="DRAFT",
         created_by_sub=created_by_sub,
     )
@@ -624,17 +626,28 @@ def update_course(
     status: str | None = None,
 ) -> TrainingCourse:
     course = require_course(db, course_id)
-    _ensure_course_structure_mutable(course)
+    managed_by_system = _is_system_managed_course(course)
+
     if title is not None:
         course.title = title.strip()
     if description is not None:
         course.description = description.strip() or None
+
     if is_onboarding is not None:
-        if course.status != "DRAFT":
+        if managed_by_system and bool(is_onboarding) != bool(course.is_onboarding):
+            raise TrainingStateError(
+                "The corporate onboarding classification is managed by the system."
+            )
+        if course.status != "DRAFT" and bool(is_onboarding) != bool(course.is_onboarding):
             raise TrainingStateError("Only draft courses can change onboarding classification.")
         course.is_onboarding = is_onboarding
+
     if status is not None:
         normalized = status.upper()
+        if managed_by_system and normalized != course.status:
+            raise TrainingStateError(
+                "The corporate onboarding publication status is managed by the system."
+            )
         allowed_transitions = {
             "DRAFT": {"DRAFT", "PUBLISHED", "ARCHIVED"},
             "PUBLISHED": {"PUBLISHED", "ARCHIVED"},
@@ -649,6 +662,7 @@ def update_course(
             if course.quiz is not None and not course.quiz.questions:
                 raise TrainingStateError("A course quiz needs at least one question before publishing.")
         course.status = normalized
+
     db.commit()
     db.refresh(course)
     return course
