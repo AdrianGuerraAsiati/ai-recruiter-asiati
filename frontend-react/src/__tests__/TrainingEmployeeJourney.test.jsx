@@ -132,6 +132,56 @@ describe("TrainingEmployeeJourney", () => {
     expect(props.setActiveLessonId).toHaveBeenCalledWith("lesson-2");
   });
 
+  it("switches team videos from the member list without requiring Continue", () => {
+    const props = buildProps();
+    const jersson = {
+      ...props.activeJourneyLesson,
+      id: "team-jersson",
+      title: "Jersson",
+      video_url: "https://cdn.example.com/team/jersson.mp4",
+      completed: true,
+    };
+    const valentina = {
+      ...props.activeJourneyLesson,
+      id: "team-valentina",
+      title: "Valentina",
+      video_url: "https://cdn.example.com/team/valentina.mp4",
+      completed: false,
+    };
+    const teamModule = {
+      ...props.employeeCourse.course.modules[0],
+      id: "module-team",
+      title: "Módulo 3 · Conoce al equipo",
+      position: 3,
+      lesson_count: 2,
+      completed_lessons: 1,
+      lessons: [jersson, valentina],
+    };
+    const teamCourse = {
+      ...props.employeeCourse.course,
+      modules: [teamModule],
+      lesson_count: 2,
+      completed_lessons: 1,
+      next_lesson_id: valentina.id,
+    };
+
+    render(
+      <TrainingEmployeeJourney
+        {...props}
+        employeeCourse={{ course: teamCourse }}
+        activeLessonId={jersson.id}
+        activeJourneyLesson={{ ...jersson, module: teamModule }}
+        nextRequiredJourneyLesson={valentina}
+      />,
+    );
+
+    expect(screen.getByText("Video completado")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continuar →" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Valentina/i }));
+    expect(props.setActiveLessonId).toHaveBeenCalledWith("team-valentina");
+  });
+
   it("renders the empty assignment state without course detail", () => {
     const props = buildProps();
 
