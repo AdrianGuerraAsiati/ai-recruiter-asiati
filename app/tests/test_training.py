@@ -1441,6 +1441,7 @@ def test_asiati_onboarding_is_system_managed_and_published_automatically(db):
 
     assert first.id == second.id
     assert first.status == "PUBLISHED"
+    assert first.managed_by_system is True
     assert payload["managed_by_system"] is True
     assert payload["is_onboarding"] is True
     assert payload["module_count"] >= 7
@@ -1536,12 +1537,54 @@ def test_system_managed_asiati_onboarding_rejects_new_structure(db):
             estimated_minutes=2,
         )
 
-    with pytest.raises(service.TrainingStateError, match="preloaded by the system"):
+    with pytest.raises(service.TrainingStateError, match="publication status is managed"):
         service.update_course(
             db,
             course.id,
-            title="Onboarding modificado",
+            status="ARCHIVED",
         )
+
+    with pytest.raises(service.TrainingStateError, match="classification is managed"):
+        service.update_course(
+            db,
+            course.id,
+            is_onboarding=False,
+        )
+
+
+def test_admin_can_edit_managed_course_metadata_without_losing_system_identity(db):
+    course = service.ensure_published_asiati_onboarding(
+        db,
+        created_by_sub="admin-sub",
+    )
+
+    updated = service.update_course(
+        db,
+        course.id,
+        title="Inducción ASIATI",
+        description="Ruta corporativa personalizada por Talento Humano.",
+    )
+
+    assert updated.id == course.id
+    assert updated.title == "Inducción ASIATI"
+    assert updated.description == "Ruta corporativa personalizada por Talento Humano."
+    assert updated.managed_by_system is True
+    assert updated.is_onboarding is True
+    assert updated.status == "PUBLISHED"
+
+    repeated = service.ensure_published_asiati_onboarding(
+        db,
+        created_by_sub="other-admin-sub",
+    )
+    payload = service.get_course(db, repeated.id)
+
+    assert repeated.id == course.id
+    assert repeated.title == "Inducción ASIATI"
+    assert payload["managed_by_system"] is True
+    assert db.query(TrainingCourse).filter(
+        TrainingCourse.managed_by_system.is_(True),
+        TrainingCourse.status == "PUBLISHED",
+    ).count() == 1
 
 
 def test_admin_can_edit_published_asiati_onboarding_without_preset_overwrite(db):
