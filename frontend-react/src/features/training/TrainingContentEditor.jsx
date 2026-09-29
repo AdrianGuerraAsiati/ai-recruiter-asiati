@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   lessonTypeIcon,
@@ -46,8 +46,22 @@ export default function TrainingContentEditor({
   const [moduleEdit, setModuleEdit] = useState(null);
   const [editingLessonId, setEditingLessonId] = useState("");
   const [lessonEdit, setLessonEdit] = useState(null);
+  const [activeModuleId, setActiveModuleId] = useState(course.modules?.[0]?.id || "");
 
   const canEditExisting = course.status === "DRAFT" || Boolean(course.managed_by_system);
+  const modules = course.modules || [];
+  const activeModule = modules.find((module) => module.id === activeModuleId) || modules[0] || null;
+  const visibleModules = activeModule ? [activeModule] : [];
+
+  useEffect(() => {
+    if (!modules.length) {
+      setActiveModuleId("");
+      return;
+    }
+    if (!modules.some((module) => module.id === activeModuleId)) {
+      setActiveModuleId(modules[0].id);
+    }
+  }, [course.id, modules, activeModuleId]);
   const canCreateContent = course.status === "DRAFT" && !course.managed_by_system;
 
   function beginModuleEdit(module) {
@@ -124,8 +138,35 @@ export default function TrainingContentEditor({
         </div>
       </div>
 
-      <div className="training-module-list">
-        {course.modules?.map((module) => (
+      {modules.length > 0 && (
+        <div className="training-admin-module-switcher" aria-label="Módulos del curso">
+          {modules.map((module) => (
+            <button
+              className={`training-admin-module-tab ${module.id === activeModule?.id ? "active" : ""}`}
+              key={module.id}
+              type="button"
+              aria-pressed={module.id === activeModule?.id}
+              onClick={() => {
+                setActiveModuleId(module.id);
+                setEditingModuleId("");
+                setModuleEdit(null);
+                setEditingLessonId("");
+                setLessonEdit(null);
+              }}
+            >
+              <span>{module.position}</span>
+              <div>
+                <small>Módulo {module.position}</small>
+                <strong>{module.title.replace(/^Módulo\s+\d+\s*[·.-]\s*/i, "")}</strong>
+              </div>
+              <b>{module.lessons?.length || 0}</b>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="training-module-list is-focused">
+        {visibleModules.map((module) => (
           <article className="training-module-card" key={module.id}>
             <div className="training-module-header">
               {editingModuleId === module.id && moduleEdit ? (
