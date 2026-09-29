@@ -3121,6 +3121,245 @@ select { appearance: none; padding-right: 42px; background-image: linear-gradien
   text-decoration: underline;
 }
 
+/* Focused onboarding workspace: keep every module one click away. */
+.training-module-switcher-shell {
+  position: sticky;
+  top: 12px;
+  z-index: 8;
+  margin: 0 0 14px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(10px);
+}
+
+.training-module-switcher {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(118px, 1fr));
+  gap: 7px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.training-module-tab {
+  display: grid;
+  min-width: 0;
+  min-height: 68px;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition: border-color .16s ease, background .16s ease, transform .16s ease;
+}
+
+.training-module-tab:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+  background: var(--surface);
+}
+
+.training-module-tab.active {
+  border-color: rgba(24, 90, 219, .32);
+  background: rgba(24, 90, 219, .08);
+  box-shadow: inset 0 -3px 0 var(--blue);
+}
+
+.training-module-tab.is-complete:not(.active) {
+  border-color: rgba(22, 163, 74, .16);
+}
+
+.training-module-tab:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.training-module-tab > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: .66rem;
+  font-weight: 900;
+}
+
+.training-module-tab.is-complete > span {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.training-module-tab > div {
+  min-width: 0;
+}
+
+.training-module-tab small,
+.training-module-tab strong {
+  display: block;
+}
+
+.training-module-tab small {
+  color: var(--ink-faint);
+  font-size: .56rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.training-module-tab strong {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: .67rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.training-module-tab > b {
+  color: var(--ink-faint);
+  font-size: .58rem;
+  font-weight: 800;
+}
+
+.training-active-module-panel {
+  position: sticky;
+  top: 102px;
+  display: flex;
+  max-height: calc(100vh - 122px);
+  flex-direction: column;
+  overflow: hidden;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--surface-soft);
+}
+
+.training-active-module-heading {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.training-active-module-heading > span,
+.training-active-module-heading > strong,
+.training-active-module-heading > small {
+  display: block;
+}
+
+.training-active-module-heading > span {
+  color: var(--blue);
+  font-size: .62rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.training-active-module-heading > strong {
+  margin-top: 4px;
+  color: var(--ink);
+  font-family: "Manrope", sans-serif;
+  font-size: .9rem;
+  line-height: 1.35;
+}
+
+.training-active-module-heading > small {
+  margin-top: 4px;
+  color: var(--ink-faint);
+  font-size: .64rem;
+  line-height: 1.4;
+}
+
+.training-active-module-lessons {
+  min-height: 0;
+  max-height: calc(100vh - 315px);
+  margin-top: 10px;
+  padding: 0 4px 0 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.training-active-module-lessons.training-team-grid {
+  grid-template-columns: 1fr;
+}
+
+.training-active-module-panel .training-journey-quiz-step {
+  flex: 0 0 auto;
+  margin-top: 12px;
+}
+
+.training-journey-focus {
+  scroll-margin-top: 104px;
+}
+
+.training-journey-video.is-portrait .training-drive-player,
+.training-journey-video.is-portrait video {
+  width: auto;
+  height: min(54vh, 560px);
+  max-width: 100%;
+  max-height: 560px;
+  aspect-ratio: 9 / 16;
+  object-fit: contain;
+}
+
+@media (max-width: 1180px) {
+  .training-module-switcher {
+    grid-template-columns: repeat(7, minmax(132px, 1fr));
+    scroll-snap-type: x proximity;
+  }
+}
+
+@media (max-width: 960px) {
+  .training-module-switcher-shell {
+    top: 8px;
+  }
+
+  .training-active-module-panel {
+    position: static;
+    max-height: none;
+  }
+
+  .training-active-module-lessons {
+    max-height: 320px;
+  }
+
+  .training-journey-video.is-portrait .training-drive-player,
+  .training-journey-video.is-portrait video {
+    height: min(58vh, 520px);
+  }
+}
+
+@media (max-width: 620px) {
+  .training-module-switcher-shell {
+    margin-inline: -4px;
+    padding: 6px;
+  }
+
+  .training-module-switcher {
+    grid-template-columns: repeat(7, minmax(126px, 1fr));
+  }
+
+  .training-module-tab {
+    min-height: 62px;
+    padding: 8px;
+  }
+
+  .training-active-module-lessons {
+    max-height: 280px;
+  }
+}
+
 /* ============================================================
    ONBOARDING QUALITY + PREVIEW
    ============================================================ */

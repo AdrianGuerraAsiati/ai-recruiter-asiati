@@ -67,7 +67,6 @@ function Training() {
   const [quizResult, setQuizResult] = useState(null);
   const [activeLessonId, setActiveLessonId] = useState("");
   const [checklistSavingLessonId, setChecklistSavingLessonId] = useState("");
-  const [expandedModuleIds, setExpandedModuleIds] = useState([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewEmployeeId, setPreviewEmployeeId] = useState("");
   const [previewData, setPreviewData] = useState(null);
@@ -196,16 +195,6 @@ function Training() {
     ),
     [employeeCourse?.course?.next_lesson_id, journeyLessons],
   );
-
-  const activeModuleId = activeJourneyLesson?.module?.id || "";
-
-  function toggleJourneyModule(moduleId) {
-    setExpandedModuleIds((current) => (
-      current.includes(moduleId)
-        ? current.filter((id) => id !== moduleId)
-        : [...current, moduleId]
-    ));
-  }
 
   function openFinalQuiz() {
     document.getElementById("training-final-quiz")?.scrollIntoView({
@@ -850,9 +839,6 @@ function Training() {
         currentRecommendedSession={currentRecommendedSession}
         selectedAssignment={selectedAssignment}
         setActiveLessonId={setActiveLessonId}
-        expandedModuleIds={expandedModuleIds}
-        activeModuleId={activeModuleId}
-        toggleJourneyModule={toggleJourneyModule}
         activeLessonId={activeLessonId}
         activeJourneyLesson={activeJourneyLesson}
         checklistSavingLessonId={checklistSavingLessonId}

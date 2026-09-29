@@ -28,9 +28,6 @@ export default function TrainingEmployeeJourney({
   currentRecommendedSession,
   selectedAssignment,
   setActiveLessonId,
-  expandedModuleIds,
-  activeModuleId,
-  toggleJourneyModule,
   activeLessonId,
   activeJourneyLesson,
   checklistSavingLessonId,
@@ -47,6 +44,27 @@ export default function TrainingEmployeeJourney({
   quizResult,
   submitQuiz,
 }) {
+  const modules = employeeCourse?.course?.modules || [];
+  const activeModule = modules.find(
+    (module) => module.id === activeJourneyLesson?.module?.id,
+  ) || modules[0] || null;
+
+  function moduleLabel(module) {
+    return String(module?.title || "")
+      .replace(/^Módulo\s+\d+\s*·\s*/i, "")
+      .trim();
+  }
+
+  function openModule(module) {
+    const lessons = module?.lessons || [];
+    const nextLesson = lessons.find(
+      (lesson) => !lesson.completed && !lesson.is_optional,
+    )
+      || lessons.find((lesson) => !lesson.completed)
+      || lessons[0];
+    if (nextLesson) setActiveLessonId(nextLesson.id);
+  }
+
   return (
       <section className={`training-learning-section ${canManage ? "training-learning-after-admin" : ""}`}>
         <div className="training-section-heading">
@@ -186,83 +204,105 @@ export default function TrainingEmployeeJourney({
                     </div>
                   </section>
 
-                  <div className="training-journey-layout">
-                    <aside className="training-journey-steps" aria-label="Ruta del curso">
-                      {employeeCourse.course.modules?.map((module) => (
-                        <section
-                          className={`training-journey-module ${module.is_complete ? "is-complete" : ""}`}
-                          key={module.id}
-                        >
+                  <nav
+                    className="training-module-switcher-shell"
+                    aria-label="Módulos del curso"
+                  >
+                    <div className="training-module-switcher">
+                      {modules.map((module) => {
+                        const isActive = activeModule?.id === module.id;
+                        return (
                           <button
-                            className="training-journey-module-heading"
+                            key={module.id}
                             type="button"
-                            aria-expanded={expandedModuleIds.includes(module.id) || activeModuleId === module.id}
-                            onClick={() => toggleJourneyModule(module.id)}
+                            className={`training-module-tab ${isActive ? "active" : ""} ${module.is_complete ? "is-complete" : ""}`}
+                            aria-current={isActive ? "step" : undefined}
+                            onClick={() => openModule(module)}
+                            disabled={!module.lessons?.length}
                           >
                             <span>{module.is_complete ? "✓" : module.position}</span>
                             <div>
-                              <strong>{module.title}</strong>
-                              <small>
-                                {module.completed_lessons}/{module.lesson_count}
-                                {module.has_unknown_duration
-                                  ? ` · ~${module.estimated_minutes} min + contenido por confirmar`
-                                  : ` · ~${module.estimated_minutes} min`}
-                              </small>
+                              <small>Módulo {module.position}</small>
+                              <strong>{moduleLabel(module)}</strong>
                             </div>
-                            <i aria-hidden="true">
-                              {expandedModuleIds.includes(module.id) || activeModuleId === module.id ? "−" : "+"}
-                            </i>
+                            <b>{module.completed_lessons}/{module.lesson_count}</b>
                           </button>
-                          {(expandedModuleIds.includes(module.id) || activeModuleId === module.id) && (
-                            <div className={`training-journey-lessons ${isTeamModule(module) ? "training-team-grid" : ""}`}>
-                              {module.lessons?.map((lesson) => (
-                                <button
-                                  key={lesson.id}
-                                  type="button"
-                                  className={`training-journey-lesson-button ${isTeamModule(module) ? "training-team-card" : ""} ${lesson.id === activeLessonId ? "active" : ""} ${lesson.completed ? "is-complete" : ""}`}
-                                  onClick={() => setActiveLessonId(lesson.id)}
-                                >
-                                  <span className={isTeamModule(module) ? "training-team-avatar" : ""}>
-                                    {lesson.completed
-                                      ? "✓"
-                                      : isTeamModule(module)
-                                        ? teamInitials(lesson.title)
-                                        : lessonTypeIcon(lesson.content_type)}
-                                  </span>
-                                  <div>
-                                    <strong>{lesson.title}</strong>
-                                    <small>
-                                      {isTeamModule(module) ? "Conoce al equipo" : lessonTypeLabel(lesson.content_type)}
-                                      {lesson.estimated_minutes
-                                        ? ` · ~${lesson.estimated_minutes} min`
-                                        : " · duración por confirmar"}
-                                      {lesson.is_optional ? " · opcional" : ""}
-                                    </small>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </section>
-                      ))}
-                      {employeeCourse.course.has_quiz && (
-                        <button
-                          type="button"
-                          className={`training-journey-quiz-step ${selectedAssignment?.quiz_result?.passed ? "is-complete" : ""}`}
-                          onClick={openFinalQuiz}
-                        >
-                          <span>{selectedAssignment?.quiz_result?.passed ? "✓" : "?"}</span>
-                          <div>
-                            <strong>Evaluación final</strong>
+                        );
+                      })}
+                    </div>
+                  </nav>
+
+                  <div className="training-journey-layout">
+                    <aside className="training-active-module-panel" aria-label="Contenido del módulo activo">
+                      {activeModule ? (
+                        <>
+                          <div className="training-active-module-heading">
+                            <span>Módulo {activeModule.position} de {modules.length}</span>
+                            <strong>{moduleLabel(activeModule)}</strong>
                             <small>
-                              {employeeCourse.course.completed_lessons < employeeCourse.course.lesson_count
-                                ? "Se habilita al completar la ruta"
-                                : selectedAssignment?.quiz_result?.passed
-                                  ? "Aprobada"
-                                  : "Lista para presentar"}
+                              {activeModule.completed_lessons}/{activeModule.lesson_count} completadas
+                              {activeModule.has_unknown_duration
+                                ? ` · ~${activeModule.estimated_minutes} min + contenido por confirmar`
+                                : ` · ~${activeModule.estimated_minutes} min`}
                             </small>
                           </div>
-                        </button>
+
+                          <div className={`training-journey-lessons training-active-module-lessons ${isTeamModule(activeModule) ? "training-team-grid" : ""}`}>
+                            {activeModule.lessons?.map((lesson) => (
+                              <button
+                                key={lesson.id}
+                                type="button"
+                                className={`training-journey-lesson-button ${isTeamModule(activeModule) ? "training-team-card" : ""} ${lesson.id === activeLessonId ? "active" : ""} ${lesson.completed ? "is-complete" : ""}`}
+                                onClick={() => setActiveLessonId(lesson.id)}
+                              >
+                                <span className={isTeamModule(activeModule) ? "training-team-avatar" : ""}>
+                                  {lesson.completed
+                                    ? "✓"
+                                    : isTeamModule(activeModule)
+                                      ? teamInitials(lesson.title)
+                                      : lessonTypeIcon(lesson.content_type)}
+                                </span>
+                                <div>
+                                  <strong>{lesson.title}</strong>
+                                  <small>
+                                    {isTeamModule(activeModule) ? "Conoce al equipo" : lessonTypeLabel(lesson.content_type)}
+                                    {lesson.estimated_minutes
+                                      ? ` · ~${lesson.estimated_minutes} min`
+                                      : " · duración por confirmar"}
+                                    {lesson.is_optional ? " · opcional" : ""}
+                                  </small>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+
+                          {employeeCourse.course.has_quiz && (
+                            <button
+                              type="button"
+                              className={`training-journey-quiz-step ${selectedAssignment?.quiz_result?.passed ? "is-complete" : ""}`}
+                              onClick={openFinalQuiz}
+                            >
+                              <span>{selectedAssignment?.quiz_result?.passed ? "✓" : "?"}</span>
+                              <div>
+                                <strong>Evaluación final</strong>
+                                <small>
+                                  {employeeCourse.course.completed_lessons < employeeCourse.course.lesson_count
+                                    ? "Se habilita al completar la ruta"
+                                    : selectedAssignment?.quiz_result?.passed
+                                      ? "Aprobada"
+                                      : "Lista para presentar"}
+                                </small>
+                              </div>
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <EmptyState
+                          compact
+                          icon="training"
+                          title="Sin módulos"
+                          description="Este curso todavía no tiene contenido disponible."
+                        />
                       )}
                     </aside>
 
