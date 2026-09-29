@@ -191,7 +191,7 @@ def app_page(browser_page: Page) -> Page:
 
 def _login(page: Page) -> None:
     page.goto(f"{BASE_URL}/login")
-    expect(page.get_by_role("heading", name="Bienvenido de nuevo")).to_be_visible()
+    expect(page.get_by_role("heading", name="Bienvenido", exact=True)).to_be_visible()
     page.get_by_label("Correo electrónico").fill("admin@asiati.com.co")
     page.get_by_label("Contraseña").fill("secret-password")
     page.get_by_role("button", name="Iniciar sesión").click()
