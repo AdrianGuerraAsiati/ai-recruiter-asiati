@@ -3993,3 +3993,205 @@ select { appearance: none; padding-right: 42px; background-image: linear-gradien
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ============================================================
+   TALENT INTELLIGENCE LOGIN
+   Reflect the full product: recruitment, people and development.
+   ============================================================ */
+
+.auth-talent-story {
+  background:
+    radial-gradient(circle at 78% 28%, rgba(24, 90, 219, .28), transparent 30%),
+    radial-gradient(circle at 16% 88%, rgba(22, 199, 194, .12), transparent 26%),
+    linear-gradient(145deg, #071426 0%, #0a2340 62%, #0a2a43 100%);
+}
+
+.auth-talent-story-content {
+  max-width: 720px;
+  padding: 54px 0 46px;
+}
+
+.auth-talent-story h1 {
+  max-width: 720px;
+  font-size: clamp(2.75rem, 4.5vw, 4.75rem);
+  line-height: 1.01;
+}
+
+.auth-talent-story-content > p {
+  max-width: 650px;
+  margin-top: 22px;
+  color: #afc0d3;
+  font-size: clamp(.96rem, 1.15vw, 1.08rem);
+  line-height: 1.68;
+}
+
+.auth-capability-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 34px;
+}
+
+.auth-capability-grid article {
+  min-width: 0;
+  min-height: 142px;
+  padding: 18px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 16px;
+  background: rgba(255,255,255,.045);
+  backdrop-filter: blur(8px);
+}
+
+.auth-capability-grid article > span {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-bottom: 18px;
+  border: 1px solid rgba(115,229,224,.28);
+  border-radius: 50%;
+  color: #73e5e0;
+  font-size: .62rem;
+  font-weight: 900;
+}
+
+.auth-capability-grid strong,
+.auth-capability-grid small {
+  display: block;
+}
+
+.auth-capability-grid strong {
+  color: #f7fbff;
+  font-size: .82rem;
+  line-height: 1.35;
+}
+
+.auth-capability-grid small {
+  margin-top: 6px;
+  color: #89a1bd;
+  font-size: .68rem;
+  line-height: 1.5;
+}
+
+.auth-product-summary {
+  position: absolute;
+  z-index: 1;
+  right: -94px;
+  bottom: 54px;
+  display: grid;
+  width: 300px;
+  height: 300px;
+  place-items: center;
+  opacity: .34;
+  pointer-events: none;
+}
+
+.auth-product-summary::before,
+.auth-product-summary::after {
+  content: "";
+  position: absolute;
+  border: 1px solid rgba(115,229,224,.24);
+  border-radius: 50%;
+}
+
+.auth-product-summary::before { inset: 0; }
+.auth-product-summary::after { inset: 52px; }
+
+.auth-product-summary-orbit {
+  display: grid;
+  width: 126px;
+  height: 126px;
+  place-items: center;
+  align-content: center;
+  border-radius: 50%;
+  background: rgba(4,18,34,.7);
+  box-shadow: 0 0 70px rgba(24,90,219,.24);
+}
+
+.auth-product-summary-orbit span {
+  color: #87a5c5;
+  font-size: .58rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.auth-product-summary-orbit strong {
+  color: white;
+  font-family: "Manrope", sans-serif;
+  font-size: 1.7rem;
+}
+
+.auth-product-summary > span {
+  position: absolute;
+  padding: 5px 9px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 999px;
+  background: rgba(7,20,38,.72);
+  color: #b9cbe0;
+  font-size: .58rem;
+  font-weight: 800;
+}
+
+.auth-product-summary > span:nth-of-type(1) { top: 23px; left: 94px; }
+.auth-product-summary > span:nth-of-type(2) { right: 15px; bottom: 85px; }
+.auth-product-summary > span:nth-of-type(3) { left: 4px; bottom: 72px; }
+
+.auth-login-heading {
+  margin-bottom: 28px;
+}
+
+.auth-login-heading h2 {
+  margin-bottom: 8px;
+}
+
+.auth-login-heading > p {
+  max-width: 390px;
+  line-height: 1.55;
+}
+
+.auth-role-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 18px;
+}
+
+.auth-role-strip span {
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--ink-soft);
+  font-size: .64rem;
+  font-weight: 800;
+}
+
+@media (max-width: 1180px) {
+  .auth-capability-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-capability-grid article {
+    display: grid;
+    min-height: 0;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+    padding: 13px 14px;
+  }
+
+  .auth-capability-grid article > span {
+    margin-bottom: 0;
+  }
+
+  .auth-product-summary {
+    display: none;
+  }
+}
+
+@media (max-width: 820px) {
+  .auth-role-strip {
+    margin-top: 15px;
+  }
+}
