@@ -21,6 +21,15 @@ ALLOWED_VIDEO_TYPES = {
     "video/ogg": ".ogv",
 }
 
+PLAYBACK_PREFIXES = (
+    "training/lessons/",
+    "training/onboarding/",
+)
+
+
+def _is_managed_video_key(key: str) -> bool:
+    return any(key.startswith(prefix) for prefix in PLAYBACK_PREFIXES)
+
 
 def _s3_client():
     return get_cached_session().client("s3", region_name=get_aws_region())
@@ -131,7 +140,7 @@ def create_video_playback_url(
 ) -> str:
     """Return a short-lived private playback URL."""
 
-    if not key.startswith("training/lessons/"):
+    if not _is_managed_video_key(key):
         raise ValueError("invalid training video key")
     bounded_expiry = max(60, min(int(expires_in), 3600))
     return _s3_client().generate_presigned_url(
@@ -145,7 +154,7 @@ def create_video_playback_url(
 
 
 def delete_video_object(key: str) -> None:
-    if not key.startswith("training/lessons/"):
+    if not _is_managed_video_key(key):
         raise ValueError("invalid training video key")
     _s3_client().delete_object(
         Bucket=get_training_content_bucket(),

@@ -93,3 +93,14 @@ def test_private_playback_url_is_short_lived(fake_s3):
 
     assert url.endswith("?expires=3600")
     assert "training/lessons/lesson-1/" in url
+
+
+
+def test_private_playback_url_accepts_system_onboarding_media(fake_s3):
+    url = training_media.create_video_playback_url(
+        "training/onboarding/module-7/lo-que-esperamos-de-ti.mp4",
+        expires_in=600,
+    )
+
+    assert url.endswith("?expires=600")
+    assert "training/onboarding/module-7/" in url

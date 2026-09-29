@@ -23,6 +23,7 @@ from app.domains.odoo_sync.router import router as odoo_sync_router
 from app.domains.jobs.router import router as jobs_router
 from app.domains.ranking.router import router as ranking_router
 from app.domains.recruitment_calendar.router import router as recruitment_calendar_router
+from app.domains.training.asiati_media import migrate_latest_published_onboarding_media
 from app.domains.training.router import router as training_router
 from app.health import router as health_router
 from app.observability import configure_logging, install_request_observability
@@ -100,6 +101,8 @@ def create_app() -> FastAPI:
         try:
             ensure_rbac_catalog(db)
             db.commit()
+            media_result = migrate_latest_published_onboarding_media(db)
+            logger.info("ASIATI onboarding media ready: %s", media_result)
         finally:
             db.close()
         logger.info("RBAC catalog ready.")
