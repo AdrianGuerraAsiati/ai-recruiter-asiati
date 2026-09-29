@@ -12,6 +12,9 @@ from app.integrations.odoo.client import OdooClientError
 from app.models import OdooEmployeeSync
 
 
+ODOO_COMPANY_NAME = "ASIATI"
+
+
 class OdooEmployeeSyncNotFound(LookupError):
     pass
 
@@ -116,11 +119,24 @@ def build_hr_employee_values(client, payload: dict) -> tuple[dict, dict]:
         values["employee_type"] = "employee"
 
     resolved = {
+        "company_id": None,
         "department_id": None,
         "job_id": None,
+        "company_matched": False,
         "department_matched": False,
         "job_matched": False,
     }
+
+    if "company_id" in writable:
+        company_id = _exact_named_id(client, "res.company", ODOO_COMPANY_NAME)
+        if company_id is not None:
+            values["company_id"] = company_id
+            resolved["company_id"] = company_id
+            resolved["company_matched"] = True
+        elif bool((writable.get("company_id") or {}).get("required")):
+            raise OdooEmployeeDeliveryError(
+                "Odoo company ASIATI could not be resolved unambiguously."
+            )
 
     if department and "department_id" in writable:
         department_id = _exact_named_id(client, "hr.department", department)
