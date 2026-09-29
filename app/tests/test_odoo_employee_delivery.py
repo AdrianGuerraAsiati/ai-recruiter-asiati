@@ -36,6 +36,12 @@ class FakeOdooClient:
                 "type": "selection",
                 "selection": [["employee", "Employee"], ["contractor", "Contractor"]],
             },
+            "company_id": {
+                "readonly": False,
+                "required": True,
+                "type": "many2one",
+                "relation": "res.company",
+            },
             "legal_name": {"readonly": True, "type": "char"},
         }
         if self.include_relations:
@@ -57,6 +63,8 @@ class FakeOdooClient:
 
     def search_read(self, model, domain, *, fields=None, limit=None):
         self.searches.append((model, domain, fields, limit))
+        if model == "res.company":
+            return [{"id": 1, "name": "ASIATI"}]
         if model == "hr.department":
             return [{"id": 11, "name": "Tecnología"}]
         if model == "hr.job":
@@ -161,6 +169,8 @@ def test_sync_creates_employee_with_safe_available_fields(db):
     assert result["action"] == "CREATED"
     assert result["odoo_record_id"] == "101"
     assert result["attempt_count"] == 1
+    assert result["relations"]["company_id"] == 1
+    assert result["relations"]["company_matched"] is True
     assert result["relations"]["department_id"] == 11
     assert result["relations"]["job_id"] == 22
     assert client.created == [
@@ -170,6 +180,7 @@ def test_sync_creates_employee_with_safe_available_fields(db):
             "job_title": "Backend Developer",
             "private_phone": "+57 300 123 4567",
             "employee_type": "employee",
+            "company_id": 1,
             "department_id": 11,
             "job_id": 22,
         }
