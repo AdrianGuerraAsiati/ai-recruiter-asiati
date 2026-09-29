@@ -18,8 +18,8 @@ Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este co
 ## Checkpoint automático
 
 - **Última actualización automática:** 2026-09-29
-- **Merge commit:** `a45ae3ff1e3a30d58f5f45fa0c7f1c7311cdda6c`
-- **PR:** [#98 — feat: convertir onboarding en una ruta de preparación real](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/98)
+- **Merge commit:** `81180fe2ae7363a1a962d5946ddc19356a11a1fa`
+- **PR:** [#99 — feat: navegación rápida entre módulos del onboarding](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/99)
 - **Origen:** merge a `main` con etiqueta `handoff:update`
 
 > Este bloque es administrado por `.github/workflows/ai-handoff.yml`. No editarlo manualmente.
