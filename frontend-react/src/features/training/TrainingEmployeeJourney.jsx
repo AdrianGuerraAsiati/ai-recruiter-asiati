@@ -44,6 +44,7 @@ export default function TrainingEmployeeJourney({
   submitQuiz,
 }) {
   const modules = employeeCourse?.course?.modules || [];
+  const isSingleCourse = myAssignments.length === 1;
   const activeModule = modules.find(
     (module) => module.id === activeJourneyLesson?.module?.id,
   ) || modules[0] || null;
@@ -84,9 +85,10 @@ export default function TrainingEmployeeJourney({
             />
           </section>
         ) : (
-          <div className="training-learning-layout">
-            <aside className="training-assignment-list">
-              {myAssignments.map((assignment) => (
+          <div className={`training-learning-layout ${isSingleCourse ? "is-single-course" : ""}`}>
+            {!isSingleCourse && (
+              <aside className="training-assignment-list">
+                {myAssignments.map((assignment) => (
                 <button
                   key={assignment.id}
                   type="button"
@@ -108,8 +110,9 @@ export default function TrainingEmployeeJourney({
                     <ProgressBar value={courseProgress(assignment.course)} />
                   </div>
                 </button>
-              ))}
-            </aside>
+                ))}
+              </aside>
+            )}
 
             <section className="panel training-player-panel">
               {detailLoading && !employeeCourse ? (
@@ -231,7 +234,7 @@ export default function TrainingEmployeeJourney({
                     </div>
                   </nav>
 
-                  <div className="training-journey-layout">
+                  <div className={`training-journey-layout ${isTeamModule(activeModule) ? "is-team-module" : ""}`}>
                     <aside className="training-active-module-panel" aria-label="Contenido del módulo activo">
                       {activeModule ? (
                         <>
@@ -264,7 +267,7 @@ export default function TrainingEmployeeJourney({
                                 <div>
                                   <strong>{lesson.title}</strong>
                                   <small>
-                                    {isTeamModule(activeModule) ? "Conoce al equipo" : lessonTypeLabel(lesson.content_type)}
+                                    {isTeamModule(activeModule) ? "Video" : lessonTypeLabel(lesson.content_type)}
                                     {lesson.estimated_minutes
                                       ? ` · ~${lesson.estimated_minutes} min`
                                       : " · duración por confirmar"}
@@ -423,14 +426,16 @@ export default function TrainingEmployeeJourney({
                           )}
 
                           <div className="training-journey-actions">
-                            <button
-                              className="btn btn-secondary"
-                              type="button"
-                              disabled={!previousJourneyLesson}
-                              onClick={() => previousJourneyLesson && setActiveLessonId(previousJourneyLesson.id)}
-                            >
-                              ← Anterior
-                            </button>
+                            {!isTeamModule(activeModule) && (
+                              <button
+                                className="btn btn-secondary"
+                                type="button"
+                                disabled={!previousJourneyLesson}
+                                onClick={() => previousJourneyLesson && setActiveLessonId(previousJourneyLesson.id)}
+                              >
+                                ← Anterior
+                              </button>
+                            )}
                             <div>
                               {activeJourneyLesson.completed ? (
                                 <span className="status-pill">
@@ -452,7 +457,9 @@ export default function TrainingEmployeeJourney({
                                 >
                                   {saving
                                     ? "Guardando…"
-                                    : "✓ Marcar lección como completada"}
+                                    : isTeamModule(activeModule)
+                                      ? "✓ Marcar video como visto"
+                                      : "✓ Marcar lección como completada"}
                                 </button>
                               )}
                               {activeJourneyLesson.completed
