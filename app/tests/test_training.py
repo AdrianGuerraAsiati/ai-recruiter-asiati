@@ -1316,10 +1316,12 @@ def test_asiati_onboarding_template_repairs_existing_draft_without_duplicate(db)
     assert [lesson["title"] for lesson in module_seven["lessons"]] == [
         service.ASIATI_ONBOARDING_MODULE_7_VIDEO_TITLE,
         service.ASIATI_ONBOARDING_MODULE_7_ACK_TITLE,
+        "Tu rol y tus primeros días",
     ]
     assert module_seven["lessons"][0]["video_url"] == service.ASIATI_ONBOARDING_MODULE_7_VIDEO_URL
     assert module_seven["lessons"][0]["duration_seconds"] == 55
     assert module_seven["lessons"][1]["checklist_items"] == service.ASIATI_ONBOARDING_MODULE_7_ACK_ITEMS
+    assert module_seven["lessons"][2]["checklist_items"] == service.ASIATI_ROLE_CHECKLIST_ITEMS
     assert all(module["title"] != "Así trabajamos" for module in payload["modules"])
 
 
