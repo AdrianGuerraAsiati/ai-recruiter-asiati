@@ -47,34 +47,66 @@ function Login() {
 
   return (
     <main className="auth-page">
-      <section className="auth-story" aria-label="Presentación de ASIATI Talent Intelligence">
+      <section className="auth-story auth-talent-story" aria-label="Presentación de ASIATI Talent Intelligence">
         <AuthBrand />
-        <div className="auth-story-content">
-          <span className="eyebrow eyebrow-dark"><i /> Talento que impulsa el cambio</span>
-          <h1>Convierte cada CV en una <em>decisión con criterio.</em></h1>
-          <p>Centraliza candidatos, evalúa afinidad con IA y prioriza el talento que mejor encaja con cada vacante de ASIATI.</p>
+        <div className="auth-story-content auth-talent-story-content">
+          <span className="eyebrow eyebrow-dark"><i /> Plataforma de talento ASIATI</span>
+          <h1>Del primer contacto al <em>crecimiento de cada persona.</em></h1>
+          <p>
+            Talent Intelligence conecta selección, gestión de equipo y desarrollo
+            en una sola experiencia para tomar mejores decisiones sobre las personas.
+          </p>
 
-          <div className="auth-proof">
-            <div><strong>01</strong><span>Centraliza perfiles</span></div>
-            <div><strong>02</strong><span>Evalúa con IA</span></div>
-            <div><strong>03</strong><span>Decide con datos</span></div>
+          <div className="auth-capability-grid" aria-label="Capacidades de Talent Intelligence">
+            <article>
+              <span>01</span>
+              <div>
+                <strong>Reclutamiento inteligente</strong>
+                <small>Vacantes, postulaciones, candidatos, ranking IA y agenda.</small>
+              </div>
+            </article>
+            <article>
+              <span>02</span>
+              <div>
+                <strong>Gestión de personas</strong>
+                <small>Empleados, seguimiento y evaluación desde un mismo lugar.</small>
+              </div>
+            </article>
+            <article>
+              <span>03</span>
+              <div>
+                <strong>Desarrollo y onboarding</strong>
+                <small>Capacitación, progreso y acompañamiento desde el primer día.</small>
+              </div>
+            </article>
           </div>
         </div>
-        <div className="auth-signal" aria-hidden="true">
-          <span className="signal-ring signal-ring-one" />
-          <span className="signal-ring signal-ring-two" />
-          <span className="signal-core">94<small>% match</small></span>
+
+        <div className="auth-product-summary" aria-hidden="true">
+          <div className="auth-product-summary-orbit">
+            <span>Talent</span>
+            <strong>360°</strong>
+          </div>
+          <span>Selección</span>
+          <span>Equipo</span>
+          <span>Desarrollo</span>
         </div>
-        <p className="auth-story-footer">ASIATI · Talent Intelligence · Powered by AWS</p>
+
+        <p className="auth-story-footer">ASIATI · Talent Intelligence · Selección · Equipo · Desarrollo</p>
       </section>
 
       <section className="auth-panel">
         <div className="auth-mobile-brand"><AuthBrand /></div>
         <div className="auth-card">
-          <div className="auth-heading">
-            <span className="eyebrow">Acceso seguro</span>
-            <h2>Bienvenido de nuevo</h2>
-            <p>Ingresa al espacio de selección de ASIATI.</p>
+          <div className="auth-heading auth-login-heading">
+            <span className="eyebrow">Talent Intelligence</span>
+            <h2>Bienvenido</h2>
+            <p>Accede a tu espacio de reclutamiento, equipo o aprendizaje según tu rol.</p>
+            <div className="auth-role-strip" aria-label="Áreas de la plataforma">
+              <span>Reclutamiento</span>
+              <span>Personas</span>
+              <span>Capacitación</span>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit}>
@@ -95,8 +127,8 @@ function Login() {
             </button>
           </form>
 
-          <p className="login-register">Los accesos son creados por el equipo autorizado de ASIATI.</p>
-          <p className="auth-security"><span aria-hidden="true">●</span> Tus datos están protegidos por AWS Cognito</p>
+          <p className="login-register">El acceso es administrado por el equipo autorizado de ASIATI.</p>
+          <p className="auth-security"><span aria-hidden="true">●</span> Acceso corporativo protegido</p>
         </div>
       </section>
     </main>
