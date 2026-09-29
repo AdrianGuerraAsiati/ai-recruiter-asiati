@@ -30,6 +30,14 @@ class CanonicalWriteResult:
     changed: bool
 
 
+@dataclass(frozen=True)
+class CanonicalCandidateDocument:
+    key: str
+    filename: str
+    content_type: str
+    data: bytes
+
+
 def _s3_client():
     return get_cached_session().client("s3", region_name=get_aws_region())
 
@@ -187,8 +195,10 @@ def _canonical_metadata(candidate_id: str, candidate_name: str) -> bytes:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
-def read_existing_canonical_document(candidate_id: str) -> bytes | None:
-    """Return a legacy canonical PDF/DOCX for identity backfill when present."""
+def read_canonical_candidate_document(
+    candidate_id: str,
+) -> CanonicalCandidateDocument | None:
+    """Return the canonical candidate CV with deterministic metadata."""
     client = _s3_client()
     bucket = _require_canonical_bucket()
     for extension in (".pdf", ".docx"):
@@ -196,8 +206,19 @@ def read_existing_canonical_document(candidate_id: str) -> bytes | None:
         if _head_or_none(bucket, key) is None:
             continue
         response = client.get_object(Bucket=bucket, Key=key)
-        return response["Body"].read()
+        return CanonicalCandidateDocument(
+            key=key,
+            filename=key.rsplit("/", 1)[-1],
+            content_type=_content_type_for_extension(extension),
+            data=response["Body"].read(),
+        )
     return None
+
+
+def read_existing_canonical_document(candidate_id: str) -> bytes | None:
+    """Return a legacy canonical PDF/DOCX for identity backfill when present."""
+    document = read_canonical_candidate_document(candidate_id)
+    return document.data if document is not None else None
 
 
 def write_canonical_candidate_document(
