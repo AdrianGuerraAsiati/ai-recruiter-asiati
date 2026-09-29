@@ -33,7 +33,7 @@ Estados:
 - `SYNCED`: Odoo confirmó el upsert;
 - `FAILED`: el último intento falló y conserva contexto para reintento.
 
-Cuando exista transporte real, `odoo_job_id` y `odoo_applicant_id` conservarán los IDs externos para actualizaciones posteriores.
+`odoo_job_id` y `odoo_applicant_id` conservan los IDs externos para actualizaciones posteriores. El transporte explícito usa `POST /api/odoo/applications/{application_id}/sync` y ejecuta vacante → postulante → CV canónico.
 
 ### Empleado contratado
 
@@ -102,20 +102,37 @@ No se crean automáticamente departamentos, puestos ni empresas. Si una relació
 
 La búsqueda idempotente usa primero `odoo_record_id` persistido y, si no existe, `work_email`. Dos empleados Odoo con el mismo correo detienen el intento para evitar actualizar el registro equivocado.
 
+## Conexión ASIATI validada
+
+Validación realizada contra Odoo 18 Enterprise:
+
+- base URL XML-RPC: `https://www.asiaticorp.com`;
+- base de datos: `snva-proyectos-master-asiati-main-24854823`;
+- usuario técnico: `sistemas@asiati.com.co`;
+- secreto: `/ai-recruiter/prod/odoo` en AWS Secrets Manager;
+- autenticación XML-RPC validada con UID 99;
+- compañía objetivo: `ASIATI` (ID observado 1);
+- permisos READ/CREATE/WRITE confirmados para `hr.employee`, `hr.applicant`, `hr.job` e `ir.attachment`;
+- no existen campos personalizados `x_*` en esos modelos.
+
+Etapas de reclutamiento observadas: `New`, `Initial Qualification`, `First Interview`, `Second Interview`, `Contract Proposal`, `Contract Signed`. Un `SELECTED` de aiRecruiter se envía inicialmente a `Initial Qualification` cuando esa etapa existe; la agenda de entrevistas sigue siendo interna y no mueve etapas Odoo automáticamente.
+
+El transporte de postulante resuelve/reutiliza la vacante por nombre exacto dentro de ASIATI, crea/actualiza `hr.applicant` usando `partner_name`, `email_from`, `partner_phone`, `job_id`, `company_id` y `stage_id`, y adjunta el CV canónico mediante `ir.attachment.datas`. El transporte de empleado fija también `company_id` a ASIATI cuando el campo está disponible.
+
 ## Pendiente antes de activar producción
 
-El transporte de empleado ya existe, pero `ODOO_ENABLED` debe permanecer en `false` hasta configurar y validar la conexión ASIATI.
+`ODOO_ENABLED` debe permanecer en `false` hasta desplegar y completar una prueba controlada.
 
 Pendiente:
 
-- cargar base URL, base de datos, usuario y secret ID en runtime;
-- guardar la API key únicamente en AWS Secrets Manager;
-- verificar IAM mínimo de lectura del secreto;
-- hacer `healthcheck` y prueba controlada sobre la instancia real;
-- completar transporte de postulante/vacante;
-- transferir el CV canónico como adjunto;
+- cargar los valores no secretos en `/ai-recruiter/prod/runtime-config`;
+- verificar que el runtime tenga IAM mínimo de lectura sobre `/ai-recruiter/prod/odoo`;
+- desplegar el transporte de postulante;
+- ejecutar un POST manual controlado sobre una postulación `SELECTED`;
+- comprobar en Odoo vacante, postulante y CV;
+- ejecutar después una contratación controlada para validar `hr.employee`;
 - decidir si se incorporan más datos privados/contractuales;
-- automatizar el consumo de outboxes después de validar el POST manual.
+- automatizar el consumo de outboxes únicamente después de validar ambos POST manuales.
 
 ## Regla de disponibilidad
 
