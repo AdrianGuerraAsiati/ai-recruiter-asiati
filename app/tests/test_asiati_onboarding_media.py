@@ -19,10 +19,10 @@ def test_default_onboarding_video_moves_to_managed_storage(monkeypatch):
     try:
         course = service.create_course(
             db,
-            title="Onboarding ASIATI",
+            title="Ruta de prueba",
             description="Ruta",
             created_by_sub="system",
-            is_onboarding=True,
+            is_onboarding=False,
         )
         module = service.add_module(
             db,
