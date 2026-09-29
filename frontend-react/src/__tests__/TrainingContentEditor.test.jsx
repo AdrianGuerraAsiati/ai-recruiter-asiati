@@ -72,7 +72,7 @@ describe("TrainingContentEditor", () => {
   it("keeps module and lesson editing controlled by the parent", () => {
     const props = renderEditor();
 
-    expect(screen.getByText("Bienvenida")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Bienvenida" })).toBeInTheDocument();
     expect(screen.getByText("Introducción")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Título de lección para Bienvenida"), {
