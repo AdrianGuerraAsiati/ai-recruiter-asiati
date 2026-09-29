@@ -429,7 +429,7 @@ export default function TrainingEmployeeJourney({
                             </button>
                             <div>
                               {activeJourneyLesson.completed ? (
-                                <span className="status-pill"><i /> Completada</span>
+                                <span className="status-pill"><i /> Lección completada</span>
                               ) : (
                                 activeJourneyLesson.content_type === "CHECKLIST"
                                 && activeJourneyLesson.checklist_items?.length > 0
@@ -446,9 +446,7 @@ export default function TrainingEmployeeJourney({
                                 >
                                   {saving
                                     ? "Guardando…"
-                                    : nextJourneyLesson
-                                      ? "Completar y continuar →"
-                                      : "Marcar completada"}
+                                    : "✓ Marcar lección como completada"}
                                 </button>
                               )}
                               {activeJourneyLesson.completed && nextRequiredJourneyLesson && (
