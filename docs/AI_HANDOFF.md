@@ -17,9 +17,9 @@ Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este co
 <!-- AI_HANDOFF_AUTO_START -->
 ## Checkpoint automático
 
-- **Última actualización automática:** 2026-09-28
-- **Merge commit:** `62bfeed546560e2cbd366976d23688a29ec518e6`
-- **PR:** [#95 — feat: cerrar onboarding corporativo y métricas del dashboard](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/95)
+- **Última actualización automática:** 2026-09-29
+- **Merge commit:** `a45ae3ff1e3a30d58f5f45fa0c7f1c7311cdda6c`
+- **PR:** [#98 — feat: convertir onboarding en una ruta de preparación real](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/98)
 - **Origen:** merge a `main` con etiqueta `handoff:update`
 
 > Este bloque es administrado por `.github/workflows/ai-handoff.yml`. No editarlo manualmente.
