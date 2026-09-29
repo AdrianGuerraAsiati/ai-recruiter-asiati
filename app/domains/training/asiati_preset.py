@@ -1471,7 +1471,24 @@ def _ensure_asiati_role_checklist(
         ),
         None,
     )
-    if role_lesson is not None:
+    if role_lesson is None:
+        db.add(
+            TrainingLesson(
+                module_id=module_seven.id,
+                title="Tu rol y tus primeros días",
+                description=(
+                    "Revisa con tu líder el alcance de tu cargo, responsabilidades, "
+                    "herramientas, primeros entregables y objetivos iniciales."
+                ),
+                content_type="CHECKLIST",
+                estimated_minutes=5,
+                checklist_items=list(ASIATI_ROLE_CHECKLIST_ITEMS),
+                is_optional=False,
+                position=3,
+            )
+        )
+        changed = True
+    else:
         if role_lesson.module_id != module_seven.id:
             role_lesson.module_id = module_seven.id
             role_lesson.module = module_seven
@@ -1479,6 +1496,16 @@ def _ensure_asiati_role_checklist(
         current_items = list(role_lesson.checklist_items or [])
         if not current_items or current_items == ASIATI_ROLE_LEGACY_CHECKLIST_ITEMS:
             role_lesson.checklist_items = list(ASIATI_ROLE_CHECKLIST_ITEMS)
+            changed = True
+        if role_lesson.description in {
+            None,
+            "",
+            "Revisa con tu líder el alcance de tu cargo, responsabilidades, herramientas y objetivos de la primera semana.",
+        }:
+            role_lesson.description = (
+                "Revisa con tu líder el alcance de tu cargo, responsabilidades, "
+                "herramientas, primeros entregables y objetivos iniciales."
+            )
             changed = True
         if role_lesson.position != 3:
             role_lesson.position = 3
