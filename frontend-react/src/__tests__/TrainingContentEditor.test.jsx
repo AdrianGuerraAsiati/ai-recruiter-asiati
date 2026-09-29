@@ -135,6 +135,55 @@ describe("TrainingContentEditor", () => {
     expect(screen.queryByRole("button", { name: /Agregar módulo/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Subir video")).not.toBeInTheDocument();
   });
+  it("switches admin modules without stacking the full route", () => {
+    renderEditor({
+      course: {
+        id: "course-1",
+        status: "PUBLISHED",
+        managed_by_system: true,
+        modules: [
+          {
+            id: "module-1",
+            position: 1,
+            title: "Módulo 1 · Bienvenida a ASIATI",
+            lessons: [
+              {
+                id: "lesson-1",
+                title: "Bienvenida",
+                content_type: "ARTICLE",
+                estimated_minutes: 2,
+                is_optional: false,
+              },
+            ],
+          },
+          {
+            id: "module-2",
+            position: 2,
+            title: "Módulo 2 · Entiende el negocio",
+            lessons: [
+              {
+                id: "lesson-2",
+                title: "Cómo funciona ASIATI",
+                content_type: "ARTICLE",
+                estimated_minutes: 3,
+                is_optional: false,
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(document.querySelectorAll(".training-admin-module-tab")).toHaveLength(2);
+    expect(screen.getByText("Bienvenida")).toBeInTheDocument();
+    expect(screen.queryByText("Cómo funciona ASIATI")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Módulo 2.*Entiende el negocio/i }));
+
+    expect(screen.getByText("Cómo funciona ASIATI")).toBeInTheDocument();
+    expect(screen.queryByText("Bienvenida")).not.toBeInTheDocument();
+  });
+
   it("lets admins edit the preloaded published onboarding without showing builders", async () => {
     const props = renderEditor({
       course: {
