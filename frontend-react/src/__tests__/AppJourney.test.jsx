@@ -109,7 +109,10 @@ describe("application journey", () => {
   it("moves from anonymous login to admin dashboard and candidate directory", async () => {
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "Bienvenido de nuevo" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Bienvenido" })).toBeInTheDocument();
+    expect(screen.getByText("Reclutamiento inteligente")).toBeInTheDocument();
+    expect(screen.getByText("Gestión de personas")).toBeInTheDocument();
+    expect(screen.getByText("Desarrollo y onboarding")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Correo electrónico"), {
       target: { value: "admin@asiati.com.co" },
