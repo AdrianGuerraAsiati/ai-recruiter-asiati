@@ -2022,7 +2022,10 @@ def create_asiati_onboarding_template(
         db,
         module_id=module_seven.id,
         title=ASIATI_ONBOARDING_MODULE_7_ACK_TITLE,
-        description="Confirma que completaste y comprendiste el mensaje de cierre.",
+        description=(
+            "Comprueba que tienes la información mínima para empezar a trabajar "
+            "con claridad y sabes qué debes confirmar con tu líder."
+        ),
         video_url=None,
         duration_seconds=None,
         content_type="CHECKLIST",
@@ -2109,6 +2112,214 @@ ASIATI_ONBOARDING_REQUIRED_MODULE_TITLES = {
 }
 
 
+def _upgrade_published_asiati_recruiter_experience(
+    db: Session,
+    *,
+    course: TrainingCourse,
+) -> None:
+    """Upgrade untouched system defaults without overwriting admin customizations."""
+
+    changed = False
+
+    legacy_course_description = (
+        "Ruta de inducción corporativa en bloques cortos: ASIATI, ecosistema, "
+        "forma de trabajo, rol y evaluación final."
+    )
+    desired_course_description = (
+        "Ruta de inducción para empezar con claridad: entiende ASIATI, conoce "
+        "al equipo, aprende cómo actuar en el día a día, confirma accesos y "
+        "procedimientos, aterriza tu rol y valida lo aprendido."
+    )
+    if course.description == legacy_course_description:
+        course.description = desired_course_description
+        changed = True
+
+    module_two = next(
+        (
+            module
+            for module in course.modules
+            if module.title in {
+                "Módulo 2 · Conoce ASIATI",
+                ASIATI_ONBOARDING_MODULE_2_TITLE,
+            }
+        ),
+        None,
+    )
+    if module_two is not None:
+        if module_two.title == "Módulo 2 · Conoce ASIATI":
+            module_two.title = ASIATI_ONBOARDING_MODULE_2_TITLE
+            changed = True
+        legacy_description = (
+            "Conoce el alcance de ASIATI, cómo conectamos operación, logística y "
+            "tecnología, y la presencia que construimos como compañía."
+        )
+        if module_two.description == legacy_description:
+            module_two.description = ASIATI_ONBOARDING_MODULE_2_DESCRIPTION
+            changed = True
+
+    module_four = next(
+        (
+            module
+            for module in course.modules
+            if module.title in {
+                "Módulo 4 · Permisos y vacaciones",
+                ASIATI_ONBOARDING_MODULE_4_TITLE,
+            }
+        ),
+        None,
+    )
+    if module_four is not None:
+        if module_four.title == "Módulo 4 · Permisos y vacaciones":
+            module_four.title = ASIATI_ONBOARDING_MODULE_4_TITLE
+            changed = True
+        legacy_description = (
+            "Aprende el flujo interno para tramitar permisos y vacaciones: formato, "
+            "aprobaciones y puntos de control antes de enviar tu solicitud."
+        )
+        if module_four.description == legacy_description:
+            module_four.description = ASIATI_ONBOARDING_MODULE_4_DESCRIPTION
+            changed = True
+        checklist = next(
+            (
+                lesson
+                for lesson in module_four.lessons
+                if lesson.title == ASIATI_ONBOARDING_MODULE_4_CHECKLIST_TITLE
+            ),
+            None,
+        )
+        if checklist is not None:
+            items = list(checklist.checklist_items or [])
+            if not items or items == ASIATI_ONBOARDING_MODULE_4_LEGACY_CHECKLIST_ITEMS:
+                checklist.checklist_items = list(ASIATI_ONBOARDING_MODULE_4_CHECKLIST_ITEMS)
+                changed = True
+
+    module_five = next(
+        (
+            module
+            for module in course.modules
+            if module.title == ASIATI_ONBOARDING_MODULE_5_TITLE
+        ),
+        None,
+    )
+    if module_five is not None:
+        security = next(
+            (
+                lesson
+                for lesson in module_five.lessons
+                if lesson.title == ASIATI_ONBOARDING_MODULE_5_SECURITY_TITLE
+            ),
+            None,
+        )
+        if security is None:
+            db.add(
+                TrainingLesson(
+                    module_id=module_five.id,
+                    title=ASIATI_ONBOARDING_MODULE_5_SECURITY_TITLE,
+                    description=(
+                        "Antes de empezar a operar, confirma con tu líder los accesos, "
+                        "herramientas y reglas básicas para proteger la información."
+                    ),
+                    content_type="CHECKLIST",
+                    estimated_minutes=2,
+                    checklist_items=list(ASIATI_ONBOARDING_MODULE_5_SECURITY_ITEMS),
+                    is_optional=False,
+                    position=max(
+                        [lesson.position for lesson in module_five.lessons] or [0]
+                    ) + 1,
+                )
+            )
+            changed = True
+
+    module_six = next(
+        (
+            module
+            for module in course.modules
+            if module.title == ASIATI_ONBOARDING_MODULE_6_TITLE
+        ),
+        None,
+    )
+    if module_six is not None:
+        behavior = next(
+            (
+                lesson
+                for lesson in module_six.lessons
+                if lesson.title == ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_TITLE
+            ),
+            None,
+        )
+        if behavior is None:
+            db.add(
+                TrainingLesson(
+                    module_id=module_six.id,
+                    title=ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_TITLE,
+                    description=(
+                        "Convierte la cultura en decisiones concretas frente a bloqueos, "
+                        "errores, colaboración y comunicación."
+                    ),
+                    content_type="CHECKLIST",
+                    estimated_minutes=2,
+                    checklist_items=list(ASIATI_ONBOARDING_MODULE_6_BEHAVIOR_ITEMS),
+                    is_optional=False,
+                    position=max(
+                        [lesson.position for lesson in module_six.lessons] or [0]
+                    ) + 1,
+                )
+            )
+            changed = True
+
+    module_seven = next(
+        (
+            module
+            for module in course.modules
+            if module.title in {
+                "Módulo 7 · Lo que esperamos de ti",
+                ASIATI_ONBOARDING_MODULE_7_TITLE,
+            }
+        ),
+        None,
+    )
+    if module_seven is not None:
+        if module_seven.title == "Módulo 7 · Lo que esperamos de ti":
+            module_seven.title = ASIATI_ONBOARDING_MODULE_7_TITLE
+            changed = True
+        legacy_description = (
+            "Cierra la inducción corporativa con las expectativas que ASIATI presenta "
+            "para esta nueva etapa dentro del equipo."
+        )
+        if module_seven.description == legacy_description:
+            module_seven.description = ASIATI_ONBOARDING_MODULE_7_DESCRIPTION
+            changed = True
+
+        acknowledgement = next(
+            (
+                lesson
+                for lesson in module_seven.lessons
+                if lesson.title in {
+                    "Confirmación de comprensión",
+                    ASIATI_ONBOARDING_MODULE_7_ACK_TITLE,
+                }
+            ),
+            None,
+        )
+        if acknowledgement is not None:
+            items = list(acknowledgement.checklist_items or [])
+            if acknowledgement.title == "Confirmación de comprensión":
+                acknowledgement.title = ASIATI_ONBOARDING_MODULE_7_ACK_TITLE
+                changed = True
+            if not items or items == ASIATI_ONBOARDING_MODULE_7_LEGACY_ACK_ITEMS:
+                acknowledgement.description = (
+                    "Comprueba que tienes la información mínima para empezar a trabajar "
+                    "con claridad y sabes qué debes confirmar con tu líder."
+                )
+                acknowledgement.checklist_items = list(
+                    ASIATI_ONBOARDING_MODULE_7_ACK_ITEMS
+                )
+                changed = True
+
+    if changed:
+        db.commit()
+
+
 def _is_current_asiati_onboarding(course: TrainingCourse) -> bool:
     """Identify the provisioned onboarding without depending on editable labels.
 
@@ -2148,6 +2359,8 @@ def ensure_published_asiati_onboarding(
         None,
     )
     if current is not None:
+        _upgrade_published_asiati_recruiter_experience(db, course=current)
+        current = require_course(db, current.id)
         _ensure_asiati_role_checklist(db, course=current)
         _ensure_asiati_onboarding_quiz_questions(db, quiz=current.quiz)
         return require_course(db, current.id)
