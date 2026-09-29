@@ -3715,3 +3715,281 @@ select { appearance: none; padding-right: 42px; background-image: linear-gradien
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ============================================================
+   TRAINING EMPLOYEE WORKSPACE V2
+   Reduce duplicate chrome and prioritize the active lesson.
+   ============================================================ */
+
+.training-page {
+  width: min(1480px, 100%);
+}
+
+.training-page .page-header {
+  margin-bottom: 24px;
+}
+
+.training-learning-section > .training-section-heading {
+  margin-bottom: 12px;
+}
+
+.training-learning-layout.is-single-course {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.training-learning-layout.is-single-course .training-player-panel {
+  padding: 22px;
+}
+
+.training-learning-layout.is-single-course .training-player-heading {
+  margin-bottom: 12px;
+}
+
+.training-learning-layout.is-single-course .training-player-heading p {
+  max-width: 820px;
+  margin-top: 6px;
+  font-size: .82rem;
+}
+
+.training-learning-layout.is-single-course .training-player-heading > strong {
+  font-size: 1.65rem;
+}
+
+.training-learning-layout.is-single-course .training-journey-overview {
+  margin: 10px 0 12px;
+  padding: 12px 14px;
+  border-radius: 13px;
+}
+
+.training-learning-layout.is-single-course .training-journey-progress-copy > strong {
+  font-size: 1.45rem;
+}
+
+.training-learning-layout.is-single-course .training-focus-session {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "copy actions"
+    "items actions";
+  gap: 7px 18px;
+  margin: 12px 0 14px;
+  padding: 12px 14px;
+  border-radius: 13px;
+}
+
+.training-learning-layout.is-single-course .training-focus-session-copy {
+  grid-area: copy;
+}
+
+.training-learning-layout.is-single-course .training-focus-session-copy h3 {
+  margin-top: 3px;
+  font-size: .9rem;
+}
+
+.training-learning-layout.is-single-course .training-focus-session-copy p {
+  display: none;
+}
+
+.training-learning-layout.is-single-course .training-focus-session-items {
+  grid-area: items;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.training-learning-layout.is-single-course .training-focus-session-items span {
+  width: auto;
+  max-width: 220px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--blue) 7%, var(--surface));
+  font-size: .63rem;
+}
+
+.training-learning-layout.is-single-course .training-focus-session-actions {
+  grid-area: actions;
+  align-self: stretch;
+  justify-content: center;
+  min-width: 150px;
+}
+
+.training-learning-layout.is-single-course .training-module-switcher-shell {
+  margin-bottom: 12px;
+  padding: 6px;
+}
+
+.training-learning-layout.is-single-course .training-module-switcher {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  overflow: visible;
+}
+
+.training-learning-layout.is-single-course .training-module-tab {
+  min-height: 60px;
+  padding: 7px 8px;
+}
+
+.training-learning-layout.is-single-course .training-module-tab > span {
+  width: 25px;
+  height: 25px;
+}
+
+.training-learning-layout.is-single-course .training-module-tab small {
+  font-size: .53rem;
+}
+
+.training-learning-layout.is-single-course .training-module-tab strong {
+  font-size: .64rem;
+}
+
+.training-journey-layout.is-team-module {
+  grid-template-columns: minmax(350px, .9fr) minmax(0, 1.45fr);
+  gap: 16px;
+}
+
+.training-journey-layout.is-team-module .training-active-module-panel {
+  max-height: none;
+  padding: 14px;
+}
+
+.training-journey-layout.is-team-module .training-active-module-heading {
+  padding-bottom: 10px;
+}
+
+.training-journey-layout.is-team-module .training-active-module-lessons.training-team-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-height: none;
+  gap: 7px;
+  overflow: visible;
+  padding-right: 0;
+}
+
+.training-journey-layout.is-team-module .training-team-card {
+  min-height: 58px;
+  padding: 8px 9px;
+  border-radius: 11px;
+}
+
+.training-journey-layout.is-team-module .training-team-card > .training-team-avatar {
+  flex-basis: 31px;
+  width: 31px;
+  height: 31px;
+}
+
+.training-journey-layout.is-team-module .training-team-card strong {
+  font-size: .68rem;
+}
+
+.training-journey-layout.is-team-module .training-team-card small {
+  font-size: .59rem;
+}
+
+.training-journey-layout.is-team-module .training-journey-quiz-step {
+  display: none;
+}
+
+.training-journey-layout.is-team-module .training-journey-focus {
+  min-height: 0;
+  padding: 22px 26px;
+}
+
+.training-journey-layout.is-team-module .training-journey-focus h3 {
+  font-size: 1.45rem;
+}
+
+.training-journey-layout.is-team-module .training-journey-description {
+  max-width: 640px;
+  margin-top: 7px;
+  font-size: .84rem;
+}
+
+.training-journey-layout.is-team-module .training-journey-video {
+  margin-top: 14px;
+}
+
+.training-journey-layout.is-team-module .training-journey-video.is-portrait .training-drive-player,
+.training-journey-layout.is-team-module .training-journey-video.is-portrait video {
+  width: auto;
+  height: min(64vh, 650px);
+  max-width: 100%;
+  max-height: 650px;
+}
+
+.training-journey-layout.is-team-module .training-journey-actions {
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 14px;
+}
+
+.training-journey-layout.is-team-module .training-journey-actions > div {
+  margin-left: auto;
+}
+
+@media (max-width: 1180px) {
+  .training-learning-layout.is-single-course .training-module-switcher {
+    grid-template-columns: repeat(7, minmax(122px, 1fr));
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+  }
+
+  .training-journey-layout.is-team-module {
+    grid-template-columns: minmax(310px, .9fr) minmax(0, 1.35fr);
+  }
+}
+
+@media (max-width: 960px) {
+  .training-learning-layout.is-single-course .training-focus-session {
+    grid-template-columns: 1fr auto;
+  }
+
+  .training-journey-layout.is-team-module {
+    grid-template-columns: 1fr;
+  }
+
+  .training-journey-layout.is-team-module .training-active-module-panel {
+    position: static;
+  }
+
+  .training-journey-layout.is-team-module .training-active-module-lessons.training-team-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .training-journey-layout.is-team-module .training-journey-video.is-portrait .training-drive-player,
+  .training-journey-layout.is-team-module .training-journey-video.is-portrait video {
+    height: min(60vh, 560px);
+  }
+}
+
+@media (max-width: 720px) {
+  .training-learning-layout.is-single-course .training-player-panel {
+    padding: 16px;
+  }
+
+  .training-learning-layout.is-single-course .training-focus-session {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "copy"
+      "items"
+      "actions";
+  }
+
+  .training-learning-layout.is-single-course .training-focus-session-actions {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .training-learning-layout.is-single-course .training-focus-session-actions .btn {
+    width: 100%;
+  }
+
+  .training-journey-layout.is-team-module .training-active-module-lessons.training-team-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .training-journey-layout.is-team-module .training-active-module-lessons.training-team-grid {
+    grid-template-columns: 1fr;
+  }
+}
