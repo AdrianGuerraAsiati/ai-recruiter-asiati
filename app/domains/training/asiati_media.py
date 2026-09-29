@@ -153,3 +153,40 @@ def migrate_default_onboarding_videos_to_s3(
 
     if changed:
         db.commit()
+
+
+
+def migrate_latest_published_onboarding_media(
+    db: Session,
+) -> dict[str, int | str]:
+    """Bind the current published onboarding to managed S3 media."""
+
+    course = (
+        db.query(TrainingCourse)
+        .filter(
+            TrainingCourse.title == "Onboarding ASIATI",
+            TrainingCourse.is_onboarding.is_(True),
+            TrainingCourse.status == "PUBLISHED",
+        )
+        .order_by(TrainingCourse.created_at.desc())
+        .first()
+    )
+    if course is None:
+        return {"status": "SKIPPED", "managed_videos": 0}
+
+    migrate_default_onboarding_videos_to_s3(db, course=course)
+    db.refresh(course)
+    managed = sum(
+        1
+        for module in course.modules
+        for lesson in module.lessons
+        if (module.title, lesson.title) in MANAGED_ONBOARDING_VIDEO_DEFAULTS
+        and str(lesson.video_storage_key or "").startswith(
+            "training/onboarding/"
+        )
+    )
+    return {
+        "status": "MIGRATED",
+        "managed_videos": managed,
+        "course_id": course.id,
+    }
