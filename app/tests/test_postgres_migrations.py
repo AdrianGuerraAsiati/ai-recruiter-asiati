@@ -320,7 +320,7 @@ def test_alembic_head_builds_current_postgres_schema():
             column["name"]
             for column in inspector.get_columns("training_courses")
         }
-        assert "is_onboarding" in training_course_columns
+        assert {"is_onboarding", "managed_by_system"}.issubset(training_course_columns)
 
         training_module_columns = {
             column["name"]
@@ -412,6 +412,6 @@ def test_alembic_head_builds_current_postgres_schema():
 
         assert admin_score_grants == 0
         assert admin_write_grants == {"candidates.manage", "ranking.recalculate"}
-        assert revision == "030"
+        assert revision == "031"
     finally:
         engine.dispose()
