@@ -326,8 +326,13 @@ export default function TrainingEmployeeJourney({
                           {activeJourneyLesson.video_url && (
                             <div className={`training-video training-journey-video ${isPortraitOnboardingModule(activeJourneyLesson.module) ? "is-portrait" : ""}`}>
                               {isDirectVideo(activeJourneyLesson.video_url) ? (
-                                <video controls preload="metadata">
-                                  <source src={activeJourneyLesson.video_url} />
+                                <video
+                                  key={activeJourneyLesson.id}
+                                  controls
+                                  preload="metadata"
+                                  src={activeJourneyLesson.video_url}
+                                  aria-label={`Video: ${activeJourneyLesson.title}`}
+                                >
                                   Tu navegador no puede reproducir este video.
                                 </video>
                               ) : googleDrivePreviewUrl(activeJourneyLesson.video_url) ? (
