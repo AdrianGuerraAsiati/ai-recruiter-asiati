@@ -6,7 +6,7 @@ service can stay focused on catalog, assignment, progress and quiz operations.
 
 from __future__ import annotations
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.domains.training.asiati_media import migrate_default_onboarding_videos_to_s3
@@ -48,11 +48,13 @@ def create_course(
     description: str | None,
     created_by_sub: str,
     is_onboarding: bool = False,
+    managed_by_system: bool = False,
 ) -> TrainingCourse:
     course = TrainingCourse(
         title=title.strip(),
         description=(description or "").strip() or None,
         is_onboarding=is_onboarding,
+        managed_by_system=managed_by_system,
         status="DRAFT",
         created_by_sub=created_by_sub,
     )
@@ -1751,15 +1753,21 @@ def create_asiati_onboarding_template(
     existing = (
         db.query(TrainingCourse)
         .filter(
-            TrainingCourse.title == "Onboarding ASIATI",
             TrainingCourse.is_onboarding.is_(True),
             TrainingCourse.status == "DRAFT",
+            or_(
+                TrainingCourse.managed_by_system.is_(True),
+                TrainingCourse.title == "Onboarding ASIATI",
+            ),
         )
         .order_by(TrainingCourse.created_at.desc())
         .first()
     )
     if existing is not None:
         changed = False
+        if not existing.managed_by_system:
+            existing.managed_by_system = True
+            changed = True
         empty_final_modules = [
             module
             for module in existing.modules
@@ -1824,6 +1832,7 @@ def create_asiati_onboarding_template(
         ),
         created_by_sub=created_by_sub,
         is_onboarding=True,
+        managed_by_system=True,
     )
 
     welcome = add_module(
@@ -2357,8 +2366,11 @@ def _is_current_asiati_onboarding(course: TrainingCourse) -> bool:
     """
 
     return (
-        course.title == "Onboarding ASIATI"
-        and bool(course.is_onboarding)
+        bool(course.is_onboarding)
+        and (
+            bool(getattr(course, "managed_by_system", False))
+            or course.title == "Onboarding ASIATI"
+        )
         and len(course.modules) >= 7
         and course.quiz is not None
         and len(course.quiz.questions) >= 5
@@ -2375,9 +2387,12 @@ def ensure_published_asiati_onboarding(
     published = (
         db.query(TrainingCourse)
         .filter(
-            TrainingCourse.title == "Onboarding ASIATI",
             TrainingCourse.is_onboarding.is_(True),
             TrainingCourse.status == "PUBLISHED",
+            or_(
+                TrainingCourse.managed_by_system.is_(True),
+                TrainingCourse.title == "Onboarding ASIATI",
+            ),
         )
         .order_by(TrainingCourse.created_at.desc())
         .all()
@@ -2387,6 +2402,10 @@ def ensure_published_asiati_onboarding(
         None,
     )
     if current is not None:
+        if not current.managed_by_system:
+            current.managed_by_system = True
+            db.commit()
+            db.refresh(current)
         _upgrade_published_asiati_recruiter_experience(db, course=current)
         current = require_course(db, current.id)
         migrate_default_onboarding_videos_to_s3(db, course=current)
