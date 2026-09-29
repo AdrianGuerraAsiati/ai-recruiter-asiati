@@ -587,13 +587,11 @@ function Training() {
       const { data } = await api.post(
         `/training/me/lessons/${lessonId}/complete`,
       );
-      const nextRequiredId = data.course?.next_lesson_id || "";
       setEmployeeCourse(data);
       await Promise.all([
         loadHome({ silent: true }),
         loadEmployeeCourse(data.course.id, { silent: true }),
       ]);
-      if (nextRequiredId) setActiveLessonId(nextRequiredId);
     } catch (err) {
       setError(getApiErrorMessage(err, {
         action: "guardar el avance de la lección",
