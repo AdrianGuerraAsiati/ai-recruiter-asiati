@@ -747,26 +747,30 @@ function Training() {
       {error && <FeedbackMessage title="La capacitación no pudo completar la operación">{error}</FeedbackMessage>}
 
       {canManage && (
-        <section className="training-admin-layout">
-          <TrainingCourseSidebar
-            courses={courses}
-            selectedCourseId={selectedCourseId}
-            onSelectCourse={setSelectedCourseId}
-          />
+        <section className={`training-admin-layout ${courses.length === 1 ? "is-single-course" : ""}`}>
+          {courses.length > 1 && (
+            <TrainingCourseSidebar
+              courses={courses}
+              selectedCourseId={selectedCourseId}
+              onSelectCourse={setSelectedCourseId}
+            />
+          )}
 
           <div className="training-admin-content">
             {detailLoading && !selectedCourse ? (
               <section className="panel"><LoadingState label="Cargando curso…" compact /></section>
             ) : selectedCourse ? (
               <>
-                <TrainingCourseOverview
-                  course={selectedCourse}
-                  saving={saving}
-                  onPreview={openCoursePreview}
-                  onPublish={publishCourse}
-                />
+                <div className="training-admin-summary-grid">
+                  <TrainingCourseOverview
+                    course={selectedCourse}
+                    saving={saving}
+                    onPreview={openCoursePreview}
+                    onPublish={publishCourse}
+                  />
 
-                <TrainingQualityPanel quality={selectedCourse.quality} />
+                  <TrainingQualityPanel quality={selectedCourse.quality} />
+                </div>
 
                 <TrainingContentEditor
                   course={selectedCourse}
