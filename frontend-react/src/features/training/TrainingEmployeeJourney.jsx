@@ -33,7 +33,6 @@ export default function TrainingEmployeeJourney({
   checklistSavingLessonId,
   updateChecklistItem,
   previousJourneyLesson,
-  nextJourneyLesson,
   completeLesson,
   saving,
   nextRequiredJourneyLesson,
