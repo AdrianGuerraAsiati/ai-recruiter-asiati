@@ -842,7 +842,6 @@ function Training() {
         checklistSavingLessonId={checklistSavingLessonId}
         updateChecklistItem={updateChecklistItem}
         previousJourneyLesson={previousJourneyLesson}
-        nextJourneyLesson={nextJourneyLesson}
         completeLesson={completeLesson}
         saving={saving}
         nextRequiredJourneyLesson={nextRequiredJourneyLesson}
