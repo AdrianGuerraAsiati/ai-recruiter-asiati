@@ -1343,3 +1343,104 @@ describe("Onboarding quality preview", () => {
   });
 });
 
+
+
+describe("Onboarding module navigator", () => {
+  it("keeps all seven modules one click away and opens module 7 directly", async () => {
+    vi.clearAllMocks();
+    useSession.mockReturnValue({
+      principal: {
+        profile: { id: "employee-module-nav", first_name: "Laura" },
+      },
+      hasPermission: (permission) => [
+        "training.read",
+        "training.consume",
+      ].includes(permission),
+    });
+
+    const moduleNames = [
+      "Bienvenida a ASIATI",
+      "Entiende el negocio",
+      "Conoce al equipo",
+      "Cómo trabajamos",
+      "Contenido corporativo",
+      "Cultura interna",
+      "Tu rol y tus primeros días",
+    ];
+    const modules = moduleNames.map((name, index) => ({
+      id: `module-nav-${index + 1}`,
+      title: `Módulo ${index + 1} · ${name}`,
+      position: index + 1,
+      lesson_count: 1,
+      completed_lessons: 0,
+      progress_percent: 0,
+      is_complete: false,
+      estimated_minutes: 2,
+      has_unknown_duration: false,
+      lessons: [
+        {
+          id: `lesson-nav-${index + 1}`,
+          title: `Actividad módulo ${index + 1}`,
+          description: `Contenido del módulo ${index + 1}.`,
+          content_type: "ARTICLE",
+          estimated_minutes: 2,
+          is_optional: false,
+          completed: false,
+          position: 1,
+        },
+      ],
+    }));
+    const navAssignment = {
+      ...assignment,
+      id: "assignment-module-nav",
+      course: {
+        ...assignment.course,
+        id: "course-module-nav",
+        title: "Onboarding ASIATI",
+        module_count: 7,
+        lesson_count: 7,
+        next_lesson_id: "lesson-nav-1",
+      },
+    };
+    const navDetail = {
+      assignment_id: navAssignment.id,
+      assignment_status: "ASSIGNED",
+      course: {
+        ...employeeDetail.course,
+        id: "course-module-nav",
+        title: "Onboarding ASIATI",
+        module_count: 7,
+        lesson_count: 7,
+        completed_lessons: 0,
+        next_lesson_id: "lesson-nav-1",
+        modules,
+      },
+    };
+
+    api.get.mockImplementation((url) => {
+      if (url === "/training/me") {
+        return Promise.resolve({ data: { items: [navAssignment] } });
+      }
+      if (url === "/training/me/courses/course-module-nav") {
+        return Promise.resolve({ data: navDetail });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+
+    const { container } = renderPage();
+
+    await screen.findByText("Actividad módulo 1");
+    expect(container.querySelectorAll(".training-module-tab")).toHaveLength(7);
+
+    const moduleSeven = screen.getByRole("button", {
+      name: /Módulo 7.*Tu rol y tus primeros días/i,
+    });
+    expect(moduleSeven).toBeInTheDocument();
+    expect(screen.queryByText("Contenido del módulo 7.")).not.toBeInTheDocument();
+
+    fireEvent.click(moduleSeven);
+
+    expect(await screen.findByText("Contenido del módulo 7.")).toBeInTheDocument();
+    expect(moduleSeven).toHaveAttribute("aria-current", "step");
+  });
+});
