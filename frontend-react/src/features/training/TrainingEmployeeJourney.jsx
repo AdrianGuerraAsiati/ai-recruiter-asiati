@@ -433,7 +433,9 @@ export default function TrainingEmployeeJourney({
                             </button>
                             <div>
                               {activeJourneyLesson.completed ? (
-                                <span className="status-pill"><i /> Lección completada</span>
+                                <span className="status-pill">
+                                  <i /> {isTeamModule(activeModule) ? "Video completado" : "Lección completada"}
+                                </span>
                               ) : (
                                 activeJourneyLesson.content_type === "CHECKLIST"
                                 && activeJourneyLesson.checklist_items?.length > 0
@@ -453,15 +455,17 @@ export default function TrainingEmployeeJourney({
                                     : "✓ Marcar lección como completada"}
                                 </button>
                               )}
-                              {activeJourneyLesson.completed && nextRequiredJourneyLesson && (
-                                <button
-                                  className="btn btn-primary"
-                                  type="button"
-                                  onClick={() => setActiveLessonId(nextRequiredJourneyLesson.id)}
-                                >
-                                  Continuar →
-                                </button>
-                              )}
+                              {activeJourneyLesson.completed
+                                && nextRequiredJourneyLesson
+                                && !isTeamModule(activeModule) && (
+                                  <button
+                                    className="btn btn-primary"
+                                    type="button"
+                                    onClick={() => setActiveLessonId(nextRequiredJourneyLesson.id)}
+                                  >
+                                    Continuar →
+                                  </button>
+                                )}
                               {activeJourneyLesson.completed
                                 && !nextRequiredJourneyLesson
                                 && employeeCourse.course.has_quiz

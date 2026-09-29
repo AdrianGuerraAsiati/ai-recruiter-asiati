@@ -177,10 +177,6 @@ function Training() {
   const previousJourneyLesson = activeJourneyIndex > 0
     ? journeyLessons[activeJourneyIndex - 1]
     : null;
-  const nextJourneyLesson = activeJourneyIndex >= 0
-    ? journeyLessons[activeJourneyIndex + 1] || null
-    : null;
-
   const nextRequiredJourneyLesson = useMemo(
     () => journeyLessons.find(
       (lesson) => lesson.id === employeeCourse?.course?.next_lesson_id,
