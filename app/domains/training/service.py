@@ -26,10 +26,8 @@ from app.domains.training.errors import (
     TrainingNotFound,
     TrainingStateError,
 )
-from app.domains.training.policies import (
-    is_system_managed_course as _is_system_managed_course,
-    validate_system_managed_course_update,
-)
+from app.domains.training.policies import is_system_managed_course as _is_system_managed_course
+from app.domains.training.policies import validate_system_managed_course_update
 
 
 logger = logging.getLogger(__name__)
@@ -585,7 +583,6 @@ def create_course(
     db.refresh(course)
     return course
 
-
 from app.domains.training.asiati_preset import (
     ASIATI_ONBOARDING_MODULE_1_VIDEO_URL,
     ASIATI_ONBOARDING_MODULE_2_TITLE, ASIATI_ONBOARDING_MODULE_2_VIDEO_URL,
@@ -612,7 +609,6 @@ from app.domains.training.asiati_preset import (
     create_asiati_onboarding_template,
     ensure_published_asiati_onboarding,
 )
-
 def update_course(
     db: Session,
     course_id: str,
@@ -623,11 +619,7 @@ def update_course(
     status: str | None = None,
 ) -> TrainingCourse:
     course = require_course(db, course_id)
-    validate_system_managed_course_update(
-        course,
-        is_onboarding=is_onboarding,
-        status=status,
-    )
+    validate_system_managed_course_update(course, is_onboarding=is_onboarding, status=status)
 
     if title is not None:
         course.title = title.strip()
