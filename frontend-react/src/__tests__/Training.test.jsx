@@ -150,7 +150,7 @@ describe("Training platform", () => {
     expect((await screen.findAllByText("Quiénes somos")).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "Crear curso" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Marcar completada" }));
+    fireEvent.click(screen.getByRole("button", { name: "✓ Marcar lección como completada" }));
 
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith(
