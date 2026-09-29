@@ -63,9 +63,6 @@ function buildProps() {
     },
     selectedAssignment: assignment,
     setActiveLessonId: vi.fn(),
-    expandedModuleIds: [module.id],
-    activeModuleId: module.id,
-    toggleJourneyModule: vi.fn(),
     activeLessonId: lesson.id,
     activeJourneyLesson: { ...lesson, module },
     checklistSavingLessonId: "",
@@ -96,8 +93,9 @@ describe("TrainingEmployeeJourney", () => {
     fireEvent.click(screen.getByRole("button", { name: /Continuar ahora/ }));
     expect(props.setActiveLessonId).toHaveBeenCalledWith("lesson-1");
 
+    props.setActiveLessonId.mockClear();
     fireEvent.click(screen.getByRole("button", { name: /Módulo 1/ }));
-    expect(props.toggleJourneyModule).toHaveBeenCalledWith("module-1");
+    expect(props.setActiveLessonId).toHaveBeenCalledWith("lesson-1");
 
     fireEvent.click(screen.getByRole("button", { name: "Marcar completada" }));
     expect(props.completeLesson).toHaveBeenCalledWith("lesson-1");
@@ -114,7 +112,6 @@ describe("TrainingEmployeeJourney", () => {
         selectedAssignment={null}
         employeeCourse={null}
         currentRecommendedSession={{ items: [], minutes: 0, hasUnknownDuration: false }}
-        activeModuleId=""
         activeLessonId=""
         activeJourneyLesson={null}
       />,
