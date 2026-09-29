@@ -26,6 +26,10 @@ from app.domains.training.errors import (
     TrainingNotFound,
     TrainingStateError,
 )
+from app.domains.training.policies import (
+    is_system_managed_course as _is_system_managed_course,
+    validate_system_managed_course_update,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -267,13 +271,6 @@ def _course_counts(
 ) -> tuple[int, int]:
     modules = _applicable_modules(course, employee)
     return len(modules), len(_required_lessons(course, employee))
-
-
-def _is_system_managed_course(course: TrainingCourse) -> bool:
-    return bool(getattr(course, "managed_by_system", False)) or (
-        bool(course.is_onboarding)
-        and str(course.title or "").strip() == "Onboarding ASIATI"
-    )
 
 
 def _ensure_course_structure_mutable(course: TrainingCourse) -> None:
@@ -626,7 +623,11 @@ def update_course(
     status: str | None = None,
 ) -> TrainingCourse:
     course = require_course(db, course_id)
-    managed_by_system = _is_system_managed_course(course)
+    validate_system_managed_course_update(
+        course,
+        is_onboarding=is_onboarding,
+        status=status,
+    )
 
     if title is not None:
         course.title = title.strip()
@@ -634,20 +635,12 @@ def update_course(
         course.description = description.strip() or None
 
     if is_onboarding is not None:
-        if managed_by_system and bool(is_onboarding) != bool(course.is_onboarding):
-            raise TrainingStateError(
-                "The corporate onboarding classification is managed by the system."
-            )
         if course.status != "DRAFT" and bool(is_onboarding) != bool(course.is_onboarding):
             raise TrainingStateError("Only draft courses can change onboarding classification.")
         course.is_onboarding = is_onboarding
 
     if status is not None:
         normalized = status.upper()
-        if managed_by_system and normalized != course.status:
-            raise TrainingStateError(
-                "The corporate onboarding publication status is managed by the system."
-            )
         allowed_transitions = {
             "DRAFT": {"DRAFT", "PUBLISHED", "ARCHIVED"},
             "PUBLISHED": {"PUBLISHED", "ARCHIVED"},
