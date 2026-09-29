@@ -11,7 +11,8 @@ from app.domains.training.asiati_media import (
 )
 
 
-def test_default_onboarding_video_moves_to_managed_storage():
+def test_default_onboarding_video_moves_to_managed_storage(monkeypatch):
+    monkeypatch.setenv("TRAINING_CONTENT_BUCKET", "training-bucket")
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine)()
