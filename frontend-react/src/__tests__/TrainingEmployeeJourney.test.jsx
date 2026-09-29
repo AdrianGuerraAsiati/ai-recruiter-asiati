@@ -85,9 +85,11 @@ describe("TrainingEmployeeJourney", () => {
   it("keeps navigation and lesson actions controlled by the parent", () => {
     const props = buildProps();
 
-    render(<TrainingEmployeeJourney {...props} />);
+    const { container } = render(<TrainingEmployeeJourney {...props} />);
 
     expect(screen.getByRole("heading", { name: "Mis cursos" })).toBeInTheDocument();
+    expect(container.querySelector(".training-learning-layout")).toHaveClass("is-single-course");
+    expect(container.querySelector(".training-assignment-card")).not.toBeInTheDocument();
     expect(screen.getAllByText("Ruta de prueba").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: /Continuar ahora/ }));
@@ -180,6 +182,44 @@ describe("TrainingEmployeeJourney", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Valentina/i }));
     expect(props.setActiveLessonId).toHaveBeenCalledWith("team-valentina");
+  });
+
+  it("uses team-specific completion controls without sequential navigation", () => {
+    const props = buildProps();
+    const teamLesson = {
+      ...props.activeJourneyLesson,
+      id: "team-laura",
+      title: "Laura",
+      video_url: "https://cdn.example.com/team/laura.mp4",
+      completed: false,
+    };
+    const teamModule = {
+      ...props.employeeCourse.course.modules[0],
+      id: "module-team",
+      title: "Módulo 3 · Conoce al equipo",
+      position: 3,
+      lessons: [teamLesson],
+    };
+    const teamCourse = {
+      ...props.employeeCourse.course,
+      modules: [teamModule],
+      next_lesson_id: teamLesson.id,
+    };
+
+    render(
+      <TrainingEmployeeJourney
+        {...props}
+        employeeCourse={{ course: teamCourse }}
+        activeLessonId={teamLesson.id}
+        activeJourneyLesson={{ ...teamLesson, module: teamModule }}
+        previousJourneyLesson={{ id: "team-previous" }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "✓ Marcar video como visto" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "← Anterior" })).not.toBeInTheDocument();
   });
 
   it("renders the empty assignment state without course detail", () => {
