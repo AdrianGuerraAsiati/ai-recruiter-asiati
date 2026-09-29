@@ -31,6 +31,7 @@ class TrainingCourse(Base):
     title = Column(Text, nullable=False)
     description = Column(Text, nullable=True)
     is_onboarding = Column(Boolean, nullable=False, default=False)
+    managed_by_system = Column(Boolean, nullable=False, default=False)
     status = Column(Text, nullable=False, default="DRAFT")
     created_by_sub = Column(Text, nullable=False)
     created_at = Column(

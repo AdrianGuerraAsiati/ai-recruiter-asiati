@@ -961,10 +961,79 @@ describe("Training platform", () => {
     renderPage();
 
     expect((await screen.findAllByText("Onboarding ASIATI")).length).toBeGreaterThan(0);
-    expect(await screen.findByText("Ruta precargada · editable por administradores")).toBeInTheDocument();
+    expect(await screen.findByText("Ruta corporativa · contenido editable por administradores")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Crear ruta ASIATI" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Crear curso" })).not.toBeInTheDocument();
     expect(api.post).not.toHaveBeenCalledWith("/training/courses/presets/asiati-onboarding");
+  });
+
+  it("lets an administrator edit the managed course name and description", async () => {
+    useSession.mockReturnValue({
+      principal: {
+        profile: { id: "admin-edit-course", first_name: "Admin" },
+      },
+      hasPermission: (permission) => [
+        "training.read",
+        "training.manage",
+        "training.assign",
+        "training.results.read",
+      ].includes(permission),
+    });
+
+    const managedCourse = {
+      id: "course-edit",
+      title: "Onboarding ASIATI",
+      description: "Ruta corporativa",
+      is_onboarding: true,
+      managed_by_system: true,
+      status: "PUBLISHED",
+      module_count: 7,
+      lesson_count: 20,
+      modules: [],
+      quality: null,
+      quiz: null,
+    };
+    const updatedCourse = {
+      ...managedCourse,
+      title: "Inducción ASIATI",
+      description: "Ruta actualizada por Talento Humano.",
+    };
+
+    api.get.mockImplementation((url) => {
+      if (url === "/training/me") return Promise.resolve({ data: { items: [] } });
+      if (url === "/training/courses") return Promise.resolve({ data: { items: [managedCourse] } });
+      if (url === "/employees") return Promise.resolve({ data: { items: [] } });
+      if (url === "/training/courses/course-edit") return Promise.resolve({ data: managedCourse });
+      if (url === "/training/courses/course-edit/assignments") {
+        return Promise.resolve({ data: { items: [] } });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+    api.put.mockResolvedValueOnce({ data: updatedCourse });
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Editar curso" }));
+    fireEvent.change(screen.getByLabelText("Nombre del curso"), {
+      target: { value: "Inducción ASIATI" },
+    });
+    fireEvent.change(screen.getByLabelText("Descripción del curso"), {
+      target: { value: "Ruta actualizada por Talento Humano." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith(
+        "/training/courses/course-edit",
+        {
+          title: "Inducción ASIATI",
+          description: "Ruta actualizada por Talento Humano.",
+        },
+      );
+    });
+
+    expect(await screen.findByRole("heading", { name: "Inducción ASIATI" })).toBeInTheDocument();
+    expect(screen.getByText("Ruta actualizada por Talento Humano.")).toBeInTheDocument();
   });
 
   it("shows automatic onboarding progress without manual assignment controls", async () => {

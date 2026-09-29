@@ -1,5 +1,5 @@
 // eslint-disable-next-line no-unused-vars
-import React from "react";
+import React, { useState } from "react";
 
 import { EmptyState } from "../../components/ui/StatePanel";
 
@@ -60,21 +60,104 @@ export function TrainingCourseOverview({
   saving,
   onPreview,
   onPublish,
+  onUpdateCourse,
 }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(null);
+
+  function beginEdit() {
+    setDraft({
+      title: course.title || "",
+      description: course.description || "",
+    });
+    setEditing(true);
+  }
+
+  async function saveCourse(event) {
+    event.preventDefault();
+    if (!draft) return;
+    try {
+      await onUpdateCourse({
+        title: draft.title.trim(),
+        description: draft.description.trim() || null,
+      });
+      setEditing(false);
+      setDraft(null);
+    } catch {
+      // The page surfaces the API error; keep the form open so the admin can retry.
+    }
+  }
+
   return (
     <section className="panel training-course-overview">
-      <div>
+      <div className="training-course-overview-main">
         <span className="eyebrow">Ruta de capacitación</span>
-        <h2>{course.title}</h2>
-        <p>{course.description || "Sin descripción."}</p>
-        {course.is_onboarding && (
-          <span className="training-onboarding-badge">
-            {course.managed_by_system ? "Ruta precargada · editable por administradores" : "Curso de inducción"}
-          </span>
+        {editing && draft ? (
+          <form className="training-course-edit-form" onSubmit={saveCourse}>
+            <label>
+              <span>Nombre del curso</span>
+              <input
+                aria-label="Nombre del curso"
+                value={draft.title}
+                maxLength="200"
+                required
+                onChange={(event) => setDraft((current) => ({
+                  ...current,
+                  title: event.target.value,
+                }))}
+              />
+            </label>
+            <label>
+              <span>Descripción</span>
+              <textarea
+                aria-label="Descripción del curso"
+                value={draft.description}
+                maxLength="4000"
+                rows="3"
+                onChange={(event) => setDraft((current) => ({
+                  ...current,
+                  description: event.target.value,
+                }))}
+              />
+            </label>
+            <div className="training-course-edit-actions">
+              <button className="btn btn-primary" type="submit" disabled={saving}>
+                {saving ? "Guardando…" : "Guardar cambios"}
+              </button>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                disabled={saving}
+                onClick={() => {
+                  setEditing(false);
+                  setDraft(null);
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <h2>{course.title}</h2>
+            <p>{course.description || "Sin descripción."}</p>
+            {course.is_onboarding && (
+              <span className="training-onboarding-badge">
+                {course.managed_by_system
+                  ? "Ruta corporativa · contenido editable por administradores"
+                  : "Curso de inducción"}
+              </span>
+            )}
+          </>
         )}
       </div>
       <div className="training-course-overview-actions">
-        <button className="btn btn-secondary" type="button" onClick={onPreview}>
+        {!editing && (
+          <button className="btn btn-secondary" type="button" onClick={beginEdit} disabled={saving}>
+            Editar curso
+          </button>
+        )}
+        <button className="btn btn-secondary" type="button" onClick={onPreview} disabled={editing}>
           Vista previa
         </button>
         <span className={`training-status training-status-${String(course.status || "DRAFT").toLowerCase()}`}>
@@ -84,7 +167,7 @@ export function TrainingCourseOverview({
               ? "Archivado"
               : "Borrador"}
         </span>
-        {course.status === "DRAFT" && !course.managed_by_system && (
+        {course.status === "DRAFT" && !course.managed_by_system && !editing && (
           <button
             className="btn btn-primary"
             type="button"

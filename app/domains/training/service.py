@@ -26,6 +26,8 @@ from app.domains.training.errors import (
     TrainingNotFound,
     TrainingStateError,
 )
+from app.domains.training.policies import is_system_managed_course as _is_system_managed_course
+from app.domains.training.policies import validate_system_managed_course_update
 
 
 logger = logging.getLogger(__name__)
@@ -267,13 +269,6 @@ def _course_counts(
 ) -> tuple[int, int]:
     modules = _applicable_modules(course, employee)
     return len(modules), len(_required_lessons(course, employee))
-
-
-def _is_system_managed_course(course: TrainingCourse) -> bool:
-    return (
-        bool(course.is_onboarding)
-        and str(course.title or "").strip() == "Onboarding ASIATI"
-    )
 
 
 def _ensure_course_structure_mutable(course: TrainingCourse) -> None:
@@ -573,11 +568,13 @@ def create_course(
     description: str | None,
     created_by_sub: str,
     is_onboarding: bool = False,
+    managed_by_system: bool = False,
 ) -> TrainingCourse:
     course = TrainingCourse(
         title=title.strip(),
         description=(description or "").strip() or None,
         is_onboarding=is_onboarding,
+        managed_by_system=managed_by_system,
         status="DRAFT",
         created_by_sub=created_by_sub,
     )
@@ -585,7 +582,6 @@ def create_course(
     db.commit()
     db.refresh(course)
     return course
-
 
 from app.domains.training.asiati_preset import (
     ASIATI_ONBOARDING_MODULE_1_VIDEO_URL,
@@ -613,7 +609,6 @@ from app.domains.training.asiati_preset import (
     create_asiati_onboarding_template,
     ensure_published_asiati_onboarding,
 )
-
 def update_course(
     db: Session,
     course_id: str,
@@ -624,15 +619,18 @@ def update_course(
     status: str | None = None,
 ) -> TrainingCourse:
     course = require_course(db, course_id)
-    _ensure_course_structure_mutable(course)
+    validate_system_managed_course_update(course, is_onboarding=is_onboarding, status=status)
+
     if title is not None:
         course.title = title.strip()
     if description is not None:
         course.description = description.strip() or None
+
     if is_onboarding is not None:
-        if course.status != "DRAFT":
+        if course.status != "DRAFT" and bool(is_onboarding) != bool(course.is_onboarding):
             raise TrainingStateError("Only draft courses can change onboarding classification.")
         course.is_onboarding = is_onboarding
+
     if status is not None:
         normalized = status.upper()
         allowed_transitions = {
@@ -649,6 +647,7 @@ def update_course(
             if course.quiz is not None and not course.quiz.questions:
                 raise TrainingStateError("A course quiz needs at least one question before publishing.")
         course.status = normalized
+
     db.commit()
     db.refresh(course)
     return course

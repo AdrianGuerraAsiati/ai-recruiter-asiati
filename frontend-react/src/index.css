@@ -4477,3 +4477,50 @@ select { appearance: none; padding-right: 42px; background-image: linear-gradien
     padding: 14px;
   }
 }
+
+
+/* Training course metadata editor */
+.training-course-overview-main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.training-course-edit-form {
+  display: grid;
+  gap: 12px;
+  width: min(760px, 100%);
+  margin-top: 12px;
+}
+
+.training-course-edit-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.training-course-edit-form label > span {
+  color: var(--ink-soft);
+  font-size: .68rem;
+  font-weight: 800;
+}
+
+.training-course-edit-form input,
+.training-course-edit-form textarea {
+  width: 100%;
+}
+
+.training-course-edit-form textarea {
+  resize: vertical;
+  min-height: 92px;
+}
+
+.training-course-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 620px) {
+  .training-course-edit-actions .btn {
+    width: 100%;
+  }
+}

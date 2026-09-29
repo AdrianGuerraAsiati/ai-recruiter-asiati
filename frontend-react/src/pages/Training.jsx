@@ -330,6 +330,30 @@ function Training() {
     }
   }
 
+  async function updateCourse(payload) {
+    if (!selectedCourseId) return;
+    setSaving(true);
+    setError("");
+    try {
+      const { data } = await api.put(
+        `/training/courses/${selectedCourseId}`,
+        payload,
+      );
+      setSelectedCourse(data);
+      await loadHome();
+      return data;
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "actualizar el curso",
+        resource: "capacitación",
+        fallback: "El curso conserva su información anterior. Revisa el nombre y la descripción antes de volver a guardar.",
+      }));
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function addModule(event) {
     event.preventDefault();
     if (!selectedCourseId) return;
@@ -767,6 +791,7 @@ function Training() {
                     saving={saving}
                     onPreview={openCoursePreview}
                     onPublish={publishCourse}
+                    onUpdateCourse={updateCourse}
                   />
 
                   <TrainingQualityPanel quality={selectedCourse.quality} />
