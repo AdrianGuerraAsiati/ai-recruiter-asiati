@@ -75,6 +75,7 @@ def build_applicant_upsert_payload(
         "job": {
             "external_id": job.id,
             "title": job.title,
+            "description": job.description,
             "country_code": job.country_code,
             "city": job.city,
             "employment_type": job.employment_type,
