@@ -26,7 +26,7 @@ const navItems = [
     permission: "training.progress.read_own",
     roles: ["EMPLOYEE"],
   },
-  { to: "/profile", label: "Mi perfil", icon: "profile", section: "Cuenta", permission: "profile.read_own" },
+  { to: "/profile", label: "Mi perfil", icon: "profile", section: "Cuenta", permission: "profile.read_own" },\n  { to: "/documents", label: "Mis documentos", icon: "applications", section: "Cuenta", permission: "profile.read_own", roles: ["EMPLOYEE"] },
   { to: "/integrations", label: "Integraciones", icon: "integrations", section: "Sistema", permission: "integrations.manage" },
 ];
 
