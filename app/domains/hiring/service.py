@@ -222,6 +222,20 @@ def hire_candidate(
     db.refresh(employee)
     db.refresh(assignment)
 
+    odoo_delivery = None
+    try:
+        odoo_delivery = employee_delivery.sync_employee_now(
+            db, employee_id=employee.id
+        )
+    except (
+        employee_delivery.OdooEmployeeDeliveryError,
+        employee_delivery.OdooEmployeeSyncNotFound,
+        odoo_integration.OdooDisabled,
+        odoo_integration.OdooNotConfigured,
+    ):
+        pass
+    db.refresh(odoo_sync)
+
     return {
         "job_id": job_id,
         "candidate_id": candidate_id,
