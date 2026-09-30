@@ -11,6 +11,8 @@ from app.domains.candidates import repository as candidates_repository
 from app.domains.candidates import service as candidates_service
 from app.domains.employees import service as employees_service
 from app.domains.indeed import service as indeed_service
+from app.domains.odoo_sync import employee_delivery
+from app.domains.odoo_sync import integration as odoo_integration
 from app.domains.odoo_sync import service as odoo_sync_service
 from app.domains.training import service as training_service
 from app.models import UserProfile
@@ -220,6 +222,20 @@ def hire_candidate(
     db.refresh(employee)
     db.refresh(assignment)
 
+    odoo_delivery = None
+    try:
+        odoo_delivery = employee_delivery.sync_employee_now(
+            db, employee_id=employee.id
+        )
+    except (
+        employee_delivery.OdooEmployeeDeliveryError,
+        employee_delivery.OdooEmployeeSyncNotFound,
+        odoo_integration.OdooDisabled,
+        odoo_integration.OdooNotConfigured,
+    ):
+        pass
+    db.refresh(odoo_sync)
+
     return {
         "job_id": job_id,
         "candidate_id": candidate_id,
@@ -231,4 +247,5 @@ def hire_candidate(
         "onboarding_assignment": training_service.assignment_payload(db, assignment),
         "odoo_applicant_sync": odoo_sync_service.applicant_sync_payload(applicant_sync),
         "odoo_sync": odoo_sync_service.sync_payload(odoo_sync),
+        "odoo_delivery": odoo_delivery,
     }

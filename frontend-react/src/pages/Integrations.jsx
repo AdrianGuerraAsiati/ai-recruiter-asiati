@@ -14,7 +14,10 @@ function Integrations() {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
-  const [activeSmokeNeedsHuman, setActiveSmokeNeedsHuman] = useState(false);\n  const [odooDiagnostics, setOdooDiagnostics] = useState(null);\n  const [odooBusy, setOdooBusy] = useState(false);\n  const [odooError, setOdooError] = useState("");
+  const [activeSmokeNeedsHuman, setActiveSmokeNeedsHuman] = useState(false);
+  const [odooDiagnostics, setOdooDiagnostics] = useState(null);
+  const [odooBusy, setOdooBusy] = useState(false);
+  const [odooError, setOdooError] = useState("");
   const [message, setMessage] = useState(() =>
     oauthOutcome === "connected" ? "Gmail corporativo conectado correctamente." : "",
   );
@@ -356,6 +359,24 @@ function Integrations() {
             )}
           </div>
         )}
+      </article>
+
+      <article className="integration-card">
+        <div className="integration-card-header">
+          <div className="integration-provider-mark integration-provider-mark-odoo" aria-hidden="true">O</div>
+          <div className="integration-provider-copy">
+            <div className="integration-title-row"><h2>Odoo</h2>{odooDiagnostics && <span className="integration-status is-connected"><span aria-hidden="true" />Conectado</span>}</div>
+            <p>Valida la conexión administrativa y las capacidades disponibles para empleados, contratos, documentos y firma.</p>
+          </div>
+        </div>
+        <div className="integration-body">
+          {odooError && <div className="integration-alert is-error">{odooError}</div>}
+          {odooDiagnostics ? <>
+            <div className="integration-account"><span className="integration-account-label">Conexión</span><strong>Odoo {odooDiagnostics.health?.server_version || "conectado"}</strong><span>Diagnóstico de solo lectura · UID {odooDiagnostics.health?.uid ?? "—"}</span></div>
+            <div className="odoo-model-grid">{Object.entries(odooDiagnostics.models || {}).map(([model, info]) => <div className={`odoo-model-item ${info?.available ? "is-available" : ""}`} key={model}><code>{model}</code><strong>{info?.available ? "Disponible" : "No disponible"}</strong>{info?.available && <span>{info.field_count} campos detectados</span>}</div>)}</div>
+          </> : <div className="integration-account"><span className="integration-account-label">Estado</span><strong>Listo para diagnóstico</strong><span>La prueba no crea ni modifica registros.</span></div>}
+          <div className="integration-actions"><button type="button" className="integration-primary" onClick={testOdooConnection} disabled={odooBusy}>{odooBusy ? "Probando conexión…" : odooDiagnostics ? "Probar nuevamente" : "Probar conexión"}</button></div>
+        </div>
       </article>
     </section>
   );
