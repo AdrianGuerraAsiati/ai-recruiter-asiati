@@ -739,3 +739,20 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Recruitment pipeline — mirrors Odoo hr.applicant stages */
+.recruitment-flow { margin: 20px 0; }
+.recruitment-flow__header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:18px; }
+.recruitment-flow__header h2 { margin:4px 0; }
+.recruitment-flow__stages { display:grid; grid-template-columns:repeat(6,minmax(120px,1fr)); gap:8px; overflow-x:auto; padding-bottom:4px; }
+.recruitment-stage { display:flex; align-items:center; gap:9px; min-width:120px; padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--surface); color:var(--ink-soft); text-align:left; cursor:pointer; font:inherit; }
+.recruitment-stage:hover:not(:disabled) { border-color:var(--ink-faint); }
+.recruitment-stage.is-done { background:var(--surface-soft); }
+.recruitment-stage.is-current { border-color:var(--blue); color:var(--ink); box-shadow:0 0 0 1px var(--blue); }
+.recruitment-stage__index { display:grid; place-items:center; flex:0 0 28px; width:28px; height:28px; border-radius:50%; background:var(--surface-soft); font-size:.72rem; font-weight:800; }
+.recruitment-stage strong,.recruitment-stage small { display:block; }
+.recruitment-stage strong { font-size:.75rem; }
+.recruitment-stage small { margin-top:3px; color:var(--ink-faint); font-size:.64rem; }
+.recruitment-flow__hint { margin:12px 0 0; font-size:.75rem; }
+@media (max-width:720px) { .recruitment-flow__header { flex-direction:column; } .recruitment-flow__stages { grid-template-columns:repeat(6,150px); } }
