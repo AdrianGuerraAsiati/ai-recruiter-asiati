@@ -14,7 +14,10 @@ function Integrations() {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
-  const [activeSmokeNeedsHuman, setActiveSmokeNeedsHuman] = useState(false);\n  const [odooDiagnostics, setOdooDiagnostics] = useState(null);\n  const [odooBusy, setOdooBusy] = useState(false);\n  const [odooError, setOdooError] = useState("");
+  const [activeSmokeNeedsHuman, setActiveSmokeNeedsHuman] = useState(false);
+  const [odooDiagnostics, setOdooDiagnostics] = useState(null);
+  const [odooBusy, setOdooBusy] = useState(false);
+  const [odooError, setOdooError] = useState("");
   const [message, setMessage] = useState(() =>
     oauthOutcome === "connected" ? "Gmail corporativo conectado correctamente." : "",
   );
