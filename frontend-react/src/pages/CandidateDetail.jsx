@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import { EmptyState, LoadingState, ProgressBar } from "../components/ui/StatePanel";
+import RecruitmentFlow from "../features/jobs/RecruitmentFlow";
 
 function recommendationLabel(recommendation) {
   const labels = {
@@ -182,6 +183,8 @@ function CandidateDetail() {
           </small>
         </div>
       )}
+
+      {jobId && <RecruitmentFlow jobId={jobId} candidateId={candidate_id} />}
 
       {!evaluationCompleted ? (
         <EmptyState

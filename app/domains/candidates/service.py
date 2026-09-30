@@ -32,9 +32,14 @@ class LegacyCandidateUploadError(ValueError):
 APPLICATION_STATUSES = {
     "APPLIED",
     "SCREENING",
+    "INITIAL_QUALIFICATION",
     "SELECTED",
     "INTERVIEW",
+    "FIRST_INTERVIEW",
+    "SECOND_INTERVIEW",
     "OFFER",
+    "CONTRACT_PROPOSAL",
+    "CONTRACT_SIGNED",
     "HIRED",
     "REJECTED",
     "WITHDRAWN",
@@ -192,7 +197,7 @@ def set_application_status(
         local_status=normalized,
         status_changed_at=link.status_changed_at,
     )
-    if normalized == "SELECTED":
+    if normalized in {"SELECTED", "CONTRACT_PROPOSAL", "CONTRACT_SIGNED"}:
         odoo_sync_service.ensure_applicant_sync(
             db,
             candidate=candidate,

@@ -23,6 +23,20 @@ SYNC_PENDING = "PENDING"
 SYNC_SYNCED = "SYNCED"
 SYNC_FAILED = "FAILED"
 
+ODOO_RECRUITMENT_STAGE_BY_STATUS = {
+    "APPLIED": "New",
+    "SCREENING": "Initial Qualification",
+    "INITIAL_QUALIFICATION": "Initial Qualification",
+    "INTERVIEW": "First Interview",
+    "FIRST_INTERVIEW": "First Interview",
+    "SECOND_INTERVIEW": "Second Interview",
+    "SELECTED": "Contract Proposal",
+    "OFFER": "Contract Proposal",
+    "CONTRACT_PROPOSAL": "Contract Proposal",
+    "CONTRACT_SIGNED": "Contract Signed",
+    "HIRED": "Contract Signed",
+}
+
 
 def _iso(value) -> str | None:
     return value.isoformat() if value is not None else None
@@ -58,6 +72,7 @@ def build_applicant_upsert_payload(
             "job_id": job.id,
             "application_id": application.id,
             "application_status": application.application_status,
+            "odoo_stage_name": ODOO_RECRUITMENT_STAGE_BY_STATUS.get(application.application_status),
             "status_changed_at": _iso(application.status_changed_at),
         },
         "candidate": {
