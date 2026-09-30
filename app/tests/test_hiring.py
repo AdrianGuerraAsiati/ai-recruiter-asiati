@@ -120,6 +120,15 @@ def _hire(db, *, cognito, job, candidate):
 def test_hire_creates_employee_marks_application_and_assigns_onboarding(db, monkeypatch):
     job, candidate, link = _application(db)
     cognito = FakeCognito()
+    delivered = []
+
+    def fake_delivery(_db, *, employee_id, client=None):
+        delivered.append(employee_id)
+        return {"status": "SYNCED", "action": "CREATED"}
+
+    monkeypatch.setattr(
+        hiring_service.employee_delivery, "sync_employee_now", fake_delivery
+    )
 
     result = _hire(
         db,
