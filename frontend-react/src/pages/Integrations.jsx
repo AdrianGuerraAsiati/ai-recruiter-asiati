@@ -14,7 +14,7 @@ function Integrations() {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
-  const [activeSmokeNeedsHuman, setActiveSmokeNeedsHuman] = useState(false);
+  const [activeSmokeNeedsHuman, setActiveSmokeNeedsHuman] = useState(false);\n  const [odooDiagnostics, setOdooDiagnostics] = useState(null);\n  const [odooBusy, setOdooBusy] = useState(false);\n  const [odooError, setOdooError] = useState("");
   const [message, setMessage] = useState(() =>
     oauthOutcome === "connected" ? "Gmail corporativo conectado correctamente." : "",
   );
@@ -177,6 +177,20 @@ function Integrations() {
       setError(detail || getApiErrorMessage(requestError, { action: "reactivar la tarea de prueba", resource: "Resume Agent", fallback: "La tarea no volvió a la cola activa. Consulta su estado antes de intentar otro reintento." }));
     } finally {
       setBusy("");
+    }
+  }
+
+  async function testOdooConnection() {
+    setOdooBusy(true);
+    setOdooError("");
+    try {
+      const { data } = await api.get("/odoo/diagnostics");
+      setOdooDiagnostics(data);
+    } catch (requestError) {
+      const detail = requestError?.response?.data?.detail;
+      setOdooError(detail || getApiErrorMessage(requestError, { action: "probar la conexión con Odoo", resource: "Odoo", fallback: "No fue posible validar Odoo. Revisa la configuración y vuelve a intentarlo." }));
+    } finally {
+      setOdooBusy(false);
     }
   }
 
