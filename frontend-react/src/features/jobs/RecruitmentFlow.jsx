@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "../../api/client";
 import { getApiErrorMessage } from "../../utils/errors";
+import "../../pages/Jobs.css";
 
 const STAGES = [
   { status: "APPLIED", label: "Nuevo", odoo: "New" },
