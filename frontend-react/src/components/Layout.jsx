@@ -14,7 +14,7 @@ const pageTitles = {
   "/direction/scores": "Calificación de empleados",
   "/training": "Capacitación",
   "/progress": "Mi progreso",
-  "/profile": "Mi perfil",
+  "/profile": "Mi perfil",\n  "/documents": "Mis documentos",
   "/integrations": "Integraciones",
   "/forbidden": "Acceso restringido",
 };
