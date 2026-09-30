@@ -156,7 +156,10 @@ def test_hire_creates_employee_marks_application_and_assigns_onboarding(db, monk
     assert applicant_sync.payload["operation"] == "UPSERT_APPLICANT"
     assert applicant_sync.payload["source"]["application_status"] == "HIRED"
     assert result["odoo_sync"]["status"] == "PENDING"
-    assert result["odoo_sync"]["idempotency_key"] == f"employee:{employee.id}"\n    assert result["odoo_delivery"]["status"] == "SYNCED"\n    assert result["odoo_delivery"]["action"] == "CREATED"\n    assert delivered == [employee.id]
+    assert result["odoo_sync"]["idempotency_key"] == f"employee:{employee.id}"
+    assert result["odoo_delivery"]["status"] == "SYNCED"
+    assert result["odoo_delivery"]["action"] == "CREATED"
+    assert delivered == [employee.id]
     assert odoo_sync.employee_id == employee.id
     assert odoo_sync.source_job_candidate_id == link.id
     assert odoo_sync.payload["operation"] == "UPSERT_EMPLOYEE"
