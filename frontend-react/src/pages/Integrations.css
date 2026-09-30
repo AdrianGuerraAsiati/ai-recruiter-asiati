@@ -251,3 +251,29 @@
     display: grid;
   }
 }
+
+
+.integration-provider-mark-odoo {
+  border-color: rgba(113, 75, 103, 0.2);
+  color: #714b67;
+}
+
+.odoo-model-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.odoo-model-item {
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+  border: 1px solid var(--border-color, rgba(16, 24, 40, 0.1));
+  border-radius: 13px;
+  background: rgba(148, 163, 184, 0.06);
+}
+
+.odoo-model-item code { overflow-wrap: anywhere; font-size: 0.82rem; }
+.odoo-model-item strong { color: #b42318; font-size: 0.88rem; }
+.odoo-model-item span { color: var(--text-muted, #667085); font-size: 0.8rem; }
+.odoo-model-item.is-available strong { color: #067647; }
