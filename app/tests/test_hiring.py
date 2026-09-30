@@ -117,7 +117,7 @@ def _hire(db, *, cognito, job, candidate):
     )
 
 
-def test_hire_creates_employee_marks_application_and_assigns_onboarding(db):
+def test_hire_creates_employee_marks_application_and_assigns_onboarding(db, monkeypatch):
     job, candidate, link = _application(db)
     cognito = FakeCognito()
 
@@ -156,7 +156,7 @@ def test_hire_creates_employee_marks_application_and_assigns_onboarding(db):
     assert applicant_sync.payload["operation"] == "UPSERT_APPLICANT"
     assert applicant_sync.payload["source"]["application_status"] == "HIRED"
     assert result["odoo_sync"]["status"] == "PENDING"
-    assert result["odoo_sync"]["idempotency_key"] == f"employee:{employee.id}"
+    assert result["odoo_sync"]["idempotency_key"] == f"employee:{employee.id}"\n    assert result["odoo_delivery"]["status"] == "SYNCED"\n    assert result["odoo_delivery"]["action"] == "CREATED"\n    assert delivered == [employee.id]
     assert odoo_sync.employee_id == employee.id
     assert odoo_sync.source_job_candidate_id == link.id
     assert odoo_sync.payload["operation"] == "UPSERT_EMPLOYEE"
@@ -407,3 +407,26 @@ def test_banned_candidate_cannot_be_hired(db):
             job=job,
             candidate=candidate,
         )
+
+
+def test_hire_survives_odoo_delivery_failure(db, monkeypatch):
+    job, candidate, link = _application(db)
+
+    def failed_delivery(_db, *, employee_id, client=None):
+        raise hiring_service.employee_delivery.OdooEmployeeDeliveryError("Odoo unavailable")
+
+    monkeypatch.setattr(
+        "app.domains.hiring.service.employee_delivery.sync_employee_now",
+        failed_delivery,
+    )
+
+    result = _hire(db, cognito=FakeCognito(), job=job, candidate=candidate)
+
+    db.refresh(link)
+    employee = db.query(UserProfile).one()
+    sync = db.query(OdooEmployeeSync).one()
+    assert result["application_status"] == "HIRED"
+    assert result["odoo_delivery"] is None
+    assert link.employee_id == employee.id
+    assert db.query(TrainingAssignment).count() == 1
+    assert sync.status == "PENDING"
