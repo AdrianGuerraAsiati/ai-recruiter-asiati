@@ -9,6 +9,7 @@ from tools.indeed_resume_agent.indeed_jobs_current import (
     CURRENT_LISTING_STATE_SCRIPT,
     CURRENT_PAGE_STATE_SCRIPT,
     _advance_page,
+    _authoritative_vacancy_status,
     job_key_from_current_url,
 )
 
@@ -183,3 +184,22 @@ def test_current_next_button_advances_when_page_signature_changes():
     assert second["pageSignature"] != first["pageSignature"]
     assert second["rows"][0]["title"] == "ANALISTA CONTABLE"
     assert second["hasNextPage"] is False
+
+
+
+def test_listing_status_wins_over_flagged_detail_notice():
+    assert _authoritative_vacancy_status(
+        {"status": "Pausado"},
+        {"status": "Marcado"},
+    ) == "Pausado"
+    assert _authoritative_vacancy_status(
+        {"status": "Abierto"},
+        {"status": "Flagged"},
+    ) == "Abierto"
+
+
+def test_detail_status_is_only_a_fallback_when_listing_status_is_missing():
+    assert _authoritative_vacancy_status(
+        {"status": ""},
+        {"status": "Paused"},
+    ) == "Paused"
