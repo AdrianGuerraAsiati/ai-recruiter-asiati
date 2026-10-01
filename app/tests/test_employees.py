@@ -7,13 +7,12 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.access_control import ADMIN, EMPLOYEE, SUPER_ADMIN, assign_role, ensure_rbac_catalog
+from app.access_control import ADMIN, EMPLOYEE, assign_role, ensure_rbac_catalog
 from app.db import Base
 from app.domains.employees import service
 from app.domains.employees.router import (
     _enforce_assignable_role,
     _enforce_not_self,
-    _enforce_target_manageable,
 )
 from app.models import Permission, Role, RolePermission, UserProfile, UserRole
 
@@ -243,51 +242,19 @@ def test_set_employee_role_replaces_previous_role(db):
     assert service.roles_for_profile(db, employee.id) == [ADMIN]
 
 
-def test_admin_can_assign_employee_or_admin_but_not_super_admin():
+def test_admin_can_assign_employee_or_admin_and_reject_removed_super_admin():
     principal = {"roles": [ADMIN], "profile": {"id": "admin-id"}}
 
     _enforce_assignable_role(principal, EMPLOYEE)
     _enforce_assignable_role(principal, ADMIN)
 
-    with pytest.raises(HTTPException) as super_error:
-        _enforce_assignable_role(principal, SUPER_ADMIN)
-    assert super_error.value.status_code == 403
-
-
-def test_super_admin_can_assign_all_supported_roles():
-    principal = {"roles": [SUPER_ADMIN], "profile": {"id": "director-id"}}
-
-    _enforce_assignable_role(principal, EMPLOYEE)
-    _enforce_assignable_role(principal, ADMIN)
-    _enforce_assignable_role(principal, SUPER_ADMIN)
-
-
-def test_admin_can_manage_an_admin_target(db):
-    target = _profile(db, email="other-admin@asiati.com.co", role=ADMIN)
-    principal = {"roles": [ADMIN], "profile": {"id": "admin-id"}}
-
-    _enforce_target_manageable(db, principal, target.id)
-
-
-def test_admin_cannot_manage_super_admin_target(db):
-    target = _profile(db, email="director@asiati.com.co", role=SUPER_ADMIN)
-    principal = {"roles": [ADMIN], "profile": {"id": "admin-id"}}
-
-    with pytest.raises(HTTPException) as error:
-        _enforce_target_manageable(db, principal, target.id)
-
-    assert error.value.status_code == 403
-
-
-def test_admin_can_manage_employee_target(db):
-    target = _profile(db, email="worker@asiati.com.co", role=EMPLOYEE)
-    principal = {"roles": [ADMIN], "profile": {"id": "admin-id"}}
-
-    _enforce_target_manageable(db, principal, target.id)
+    with pytest.raises(HTTPException) as removed_role_error:
+        _enforce_assignable_role(principal, "SUPER_ADMIN")
+    assert removed_role_error.value.status_code == 422
 
 
 def test_role_and_status_operations_cannot_target_self():
-    principal = {"roles": [SUPER_ADMIN], "profile": {"id": "same-id"}}
+    principal = {"roles": [ADMIN], "profile": {"id": "same-id"}}
 
     with pytest.raises(HTTPException) as error:
         _enforce_not_self(principal, "same-id")
