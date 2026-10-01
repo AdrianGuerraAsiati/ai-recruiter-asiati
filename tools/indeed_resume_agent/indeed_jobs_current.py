@@ -53,6 +53,16 @@ def job_key_from_current_url(raw_url: str | None) -> str:
 CURRENT_LISTING_STATE_SCRIPT = r"""
 (() => {
   const clean = (v) => String(v || '').replace(/\s+/g, ' ').trim();
+  const lifecycleStatusFromText = (value) => {
+    const normalized = clean(value)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    if (!normalized) return '';
+    if (/\b(?:pausado|pausada|paused|en pausa)\b/.test(normalized)) return 'PAUSED';
+    if (/\b(?:abierto|abierta|open|activa|activo|active|publicado|publicada|published)\b/.test(normalized)) return 'ACTIVE';
+    return '';
+  };
   const uuidFromEmployerJobId = (value) => {
     const raw = clean(value);
     if (!raw) return '';
@@ -114,6 +124,8 @@ CURRENT_LISTING_STATE_SCRIPT = r"""
       .map((node) => clean(node.getAttribute('title') || node.innerText || ''))
       .find((value) => /publicado el|posted/i.test(value)) || '';
     const rowText = clean(root.innerText || root.textContent || '');
+    const explicitStatus = clean(statusNode?.innerText || statusNode?.textContent || '');
+    const inferredStatus = lifecycleStatusFromText(rowText);
     const absoluteY = Math.round((root.getBoundingClientRect().top || 0) + window.scrollY);
     const token = `asiati-current-job-${externalJobKey}-${index}`;
     clickable.setAttribute('data-asiati-vacancy-token', token);
@@ -123,7 +135,7 @@ CURRENT_LISTING_STATE_SCRIPT = r"""
       href,
       rowText,
       location: clean(locationNode?.innerText || locationNode?.textContent || ''),
-      status: clean(statusNode?.innerText || statusNode?.textContent || ''),
+      status: explicitStatus || inferredStatus,
       postedAt: exactDate,
       clickToken: token,
       rowPosition: absoluteY,
@@ -146,13 +158,14 @@ CURRENT_LISTING_STATE_SCRIPT = r"""
       const root = anchor.closest('tr,[role="row"],article,li') || anchor.parentElement;
       const token = `asiati-current-job-${externalJobKey}-${rows.length}`;
       anchor.setAttribute('data-asiati-vacancy-token', token);
+      const rowText = clean(root?.innerText || root?.textContent || title);
       rows.push({
         externalJobKey,
         title,
         href,
-        rowText: clean(root?.innerText || root?.textContent || title),
+        rowText,
         location: '',
-        status: '',
+        status: lifecycleStatusFromText(rowText),
         postedAt: '',
         clickToken: token,
         rowPosition: Math.round((root?.getBoundingClientRect?.().top || 0) + window.scrollY),
