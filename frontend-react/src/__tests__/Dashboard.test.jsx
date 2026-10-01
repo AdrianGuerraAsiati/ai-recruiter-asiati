@@ -128,8 +128,8 @@ describe("Administrative dashboard", () => {
     mockAdministrativeSession("ADMIN");
     renderPage();
 
-    expect(await screen.findByText("Vacantes activas")).toBeInTheDocument();
-    expect(screen.getByText("1")).toBeInTheDocument();
+    const activeLabel = await screen.findByText("Vacantes activas");
+    expect(activeLabel.closest("article")).toHaveTextContent("1");
     expect(screen.getByText("0%")).toBeInTheDocument();
     expect(screen.getByText("Pausada")).toBeInTheDocument();
   });
