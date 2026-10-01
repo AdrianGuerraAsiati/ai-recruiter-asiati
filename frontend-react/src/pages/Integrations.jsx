@@ -286,13 +286,6 @@ function Integrations() {
               </div>
             )}
 
-            {!manageable && (
-              <div className="integration-alert is-warning">
-                Esta conexión corporativa está administrada por otro usuario autorizado.
-                Puedes consultar su estado, pero no modificarla ni ejecutar sincronizaciones manuales.
-              </div>
-            )}
-
             {!status?.safe_filter && (
               <div className="integration-alert is-warning">
                 La sincronización permanecerá bloqueada hasta configurar un remitente
