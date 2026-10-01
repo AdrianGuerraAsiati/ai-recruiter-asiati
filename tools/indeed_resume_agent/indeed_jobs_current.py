@@ -350,10 +350,42 @@ async def _advance_page(browser, cdp, previous_signature: str) -> bool:
     return False
 
 
+def _normalize_lifecycle_status(value: object) -> str | None:
+    normalized = (
+        str(value or "")
+        .strip()
+        .casefold()
+        .replace("á", "a")
+        .replace("é", "e")
+        .replace("í", "i")
+        .replace("ó", "o")
+        .replace("ú", "u")
+    )
+    if normalized in {"paused", "pause", "pausado", "pausada", "en pausa"}:
+        return "PAUSED"
+    if normalized in {
+        "active", "activo", "activa", "open", "abierto", "abierta",
+        "published", "publicado", "publicada",
+    }:
+        return "ACTIVE"
+    return None
+
+
 def _authoritative_vacancy_status(row: dict, detail: dict) -> str | None:
-    """Prefer the lifecycle state from the jobs table over detail-page notices."""
-    value = str((row or {}).get("status") or (detail or {}).get("status") or "").strip()
-    return value or None
+    """Return only a recognized lifecycle state.
+
+    The detail page is the freshest evidence because the agent has just opened
+    that vacancy. Row values such as Marcado/Flagged are workflow notices, not
+    lifecycle states, and must not suppress a real paused detail state.
+    """
+    detail_status = _normalize_lifecycle_status((detail or {}).get("status"))
+    if detail_status is not None:
+        return detail_status
+
+    row_status = _normalize_lifecycle_status((row or {}).get("status"))
+    if row_status is not None:
+        return row_status
+    return None
 
 
 async def _collect_current_jobs(browser) -> list[dict]:
