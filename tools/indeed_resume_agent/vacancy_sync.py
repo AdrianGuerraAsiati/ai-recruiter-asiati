@@ -522,7 +522,7 @@ async def _collect_async(browser) -> list[dict]:
                 "external_job_key": stable_key[:200],
                 "title": title,
                 "description": description,
-                "status": str(detail.get("status") or "").strip() or None,
+                "status": str(row.get("status") or detail.get("status") or "").strip() or None,
                 "location": str(detail.get("location") or "").strip() or None,
                 "posted_at": str(detail.get("postedAt") or "").strip() or None,
             }
