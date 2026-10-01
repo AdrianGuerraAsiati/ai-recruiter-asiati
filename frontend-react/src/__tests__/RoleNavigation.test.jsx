@@ -73,7 +73,7 @@ describe("role navigation", () => {
     expect(screen.queryByText("Integraciones")).not.toBeInTheDocument();
   });
 
-  it("shows recruiting and people management to ADMIN without Direction", () => {
+  it("shows full administrative navigation to ADMIN", () => {
     renderRole("ADMIN", [
       "jobs.read",
       "candidates.read",
@@ -82,6 +82,8 @@ describe("role navigation", () => {
       "training.read",
       "training.results.read",
       "profile.read_own",
+      "employee_scores.read",
+      "integrations.manage",
     ]);
 
     for (const label of [
@@ -99,27 +101,7 @@ describe("role navigation", () => {
     }
 
     expect(screen.queryByText("Mi progreso")).not.toBeInTheDocument();
-    expect(screen.queryByText("Calificación")).not.toBeInTheDocument();
-    expect(screen.queryByText("Integraciones")).not.toBeInTheDocument();
-  });
-
-  it("adds Direction-only scoring and system integrations to SUPER_ADMIN", () => {
-    renderRole("SUPER_ADMIN", [
-      "jobs.read",
-      "candidates.read",
-      "ranking.read",
-      "employees.read",
-      "training.read",
-      "training.progress.read_own",
-      "profile.read_own",
-      "employee_scores.read",
-      "integrations.manage",
-    ]);
-
-    expect(screen.getByText("Postulaciones")).toBeInTheDocument();
-    expect(screen.getByText("Agenda")).toBeInTheDocument();
     expect(screen.getByText("Calificación")).toBeInTheDocument();
     expect(screen.getByText("Integraciones")).toBeInTheDocument();
-    expect(screen.queryByText("Mi progreso")).not.toBeInTheDocument();
   });
 });

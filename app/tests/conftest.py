@@ -19,7 +19,7 @@ def default_recruiter_rbac_principal():
     and adds the permissions those recruiter scenarios require.
     """
 
-    from app.access_control import PERMISSION_DEFINITIONS, SUPER_ADMIN
+    from app.access_control import ADMIN, PERMISSION_DEFINITIONS
     from app.deps import get_current_principal, get_current_user
     from app.main import app
 
@@ -37,7 +37,7 @@ def default_recruiter_rbac_principal():
                 "department": "QA",
                 "status": "ACTIVE",
             },
-            "roles": [SUPER_ADMIN],
+            "roles": [ADMIN],
             "permissions": sorted(PERMISSION_DEFINITIONS),
         }
 

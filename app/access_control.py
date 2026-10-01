@@ -9,18 +9,13 @@ from sqlalchemy.orm import Session
 from app.models import Permission, Role, RolePermission, UserProfile, UserRole
 
 
-SUPER_ADMIN = "SUPER_ADMIN"
 ADMIN = "ADMIN"
 EMPLOYEE = "EMPLOYEE"
 
 ROLE_DEFINITIONS = {
-    SUPER_ADMIN: (
-        "Super administrador",
-        "Acceso total, incluidas las funciones privadas de Dirección.",
-    ),
     ADMIN: (
         "Administrador",
-        "Administración de reclutamiento, empleados y capacitación.",
+        "Administración completa del sistema, reclutamiento, empleados, integraciones y capacitación.",
     ),
     EMPLOYEE: (
         "Empleado",
@@ -59,28 +54,7 @@ PERMISSION_DEFINITIONS = {
     "employee_scores.export": "Exportar historial privado de puntuación.",
 }
 
-_ADMIN_PERMISSIONS = {
-    "jobs.read",
-    "jobs.manage",
-    "candidates.read",
-    "candidates.manage",
-    "candidates.evaluate",
-    "candidates.restrict",
-    "ranking.read",
-    "ranking.recalculate",
-    "employees.read",
-    "employees.create",
-    "employees.update",
-    "employees.disable",
-    "employees.roles.manage",
-    "training.read",
-    "training.manage",
-    "training.assign",
-    "training.results.read",
-    "profile.read_own",
-    "talent_id.read",
-    "talent_id.manage",
-}
+_ADMIN_PERMISSIONS = set(PERMISSION_DEFINITIONS)
 
 _EMPLOYEE_PERMISSIONS = {
     "training.read",
@@ -91,7 +65,6 @@ _EMPLOYEE_PERMISSIONS = {
 }
 
 ROLE_PERMISSION_MATRIX = {
-    SUPER_ADMIN: set(PERMISSION_DEFINITIONS),
     ADMIN: _ADMIN_PERMISSIONS,
     EMPLOYEE: _EMPLOYEE_PERMISSIONS,
 }
@@ -104,7 +77,6 @@ def normalize_email(email: str | None) -> str:
 ROLE_RANK = {
     EMPLOYEE: 1,
     ADMIN: 2,
-    SUPER_ADMIN: 3,
 }
 
 
@@ -120,8 +92,6 @@ def bootstrap_role_for_email(email: str) -> str:
     """Return the minimum configured bootstrap role for one email."""
 
     normalized = normalize_email(email)
-    if normalized in _env_emails("RBAC_BOOTSTRAP_SUPER_ADMIN_EMAILS"):
-        return SUPER_ADMIN
     if normalized in _env_emails("RBAC_BOOTSTRAP_ADMIN_EMAILS"):
         return ADMIN
     return EMPLOYEE

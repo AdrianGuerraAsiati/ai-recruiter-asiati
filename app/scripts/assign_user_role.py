@@ -2,12 +2,12 @@
 
 import argparse
 
-from app.access_control import ADMIN, EMPLOYEE, SUPER_ADMIN
+from app.access_control import ADMIN, EMPLOYEE
 from app.db import SessionLocal
 from app.domains.employees import service
 
 
-ROLE_CHOICES = (SUPER_ADMIN, ADMIN, EMPLOYEE)
+ROLE_CHOICES = (ADMIN, EMPLOYEE)
 
 
 def parse_args():

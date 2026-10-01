@@ -33,7 +33,6 @@ const navItems = [
 const sectionOrder = ["General", "Reclutamiento", "Equipo", "Desarrollo", "Cuenta", "Sistema"];
 
 function primaryRole(roles = []) {
-  if (roles.includes("SUPER_ADMIN")) return "SUPER_ADMIN";
   if (roles.includes("ADMIN")) return "ADMIN";
   return "EMPLOYEE";
 }
@@ -48,7 +47,6 @@ function Brand() {
 
 function roleLabel(roles = []) {
   const role = primaryRole(roles);
-  if (role === "SUPER_ADMIN") return "Dirección";
   if (role === "ADMIN") return "Administración";
   return "Empleado";
 }

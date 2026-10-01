@@ -33,8 +33,7 @@ function emptyEmployeeForm() {
 }
 
 function Employees() {
-  const { principal, hasRole, hasPermission } = useSession();
-  const isSuperAdmin = hasRole("SUPER_ADMIN");
+  const { principal, hasPermission } = useSession();
   const canReadTrainingResults = hasPermission("training.results.read");
   const [employees, setEmployees] = useState([]);
   const [query, setQuery] = useState("");
@@ -82,7 +81,7 @@ function Employees() {
   const stats = useMemo(() => {
     const active = employees.filter((employee) => employee.status === "ACTIVE").length;
     const admins = employees.filter((employee) =>
-      employee.roles?.some((role) => role === "ADMIN" || role === "SUPER_ADMIN")
+      employee.roles?.some((role) => role === "ADMIN")
     ).length;
     const onboardingActive = employees.filter((employee) =>
       ["PENDING", "IN_PROGRESS"].includes(employee.onboarding_status)
@@ -224,7 +223,7 @@ function Employees() {
       <section className="metrics-grid employees-metrics" aria-label="Resumen de empleados">
         <MetricCard icon="employee" label="Empleados visibles" value={employees.length} detail="Perfiles encontrados" tone="blue" />
         <MetricCard icon="check" label="Activos" value={stats.active} detail="Con acceso habilitado" tone="cyan" />
-        <MetricCard icon="users" label="Administrativos" value={stats.admins} detail="ADMIN o SUPER_ADMIN" tone="violet" />
+        <MetricCard icon="users" label="Administrativos" value={stats.admins} detail="ADMIN" tone="violet" />
         <MetricCard icon="progress" label="Onboarding activos" value={stats.onboardingActive} detail="Pendientes o en progreso" />
         <MetricCard icon="training" label="Onboarding completados" value={stats.onboardingCompleted} detail="Ruta finalizada" />
       </section>
@@ -292,7 +291,7 @@ function Employees() {
                 {employees.map((employee) => {
                   const role = employee.roles?.[0] || "EMPLOYEE";
                   const isSelf = employee.id === principal?.profile?.id;
-                  const canManageTarget = !isSelf && (isSuperAdmin || role !== "SUPER_ADMIN");
+                  const canManageTarget = !isSelf;
                   return (
                     <tr key={employee.id}>
                       <td>
@@ -312,7 +311,7 @@ function Employees() {
                       </td>
                       <td>
                         <span className={`role-pill role-${role.toLowerCase()}`}>
-                          {role === "SUPER_ADMIN" ? "Super admin" : role === "ADMIN" ? "Administrador" : "Empleado"}
+                          {role === "ADMIN" ? "Administrador" : "Empleado"}
                         </span>
                       </td>
                       <td>
@@ -437,7 +436,6 @@ function Employees() {
                   >
                     <option value="EMPLOYEE">Empleado</option>
                     <option value="ADMIN">Administrador</option>
-                    {isSuperAdmin && <option value="SUPER_ADMIN">Super administrador</option>}
                   </select>
                 </div>
                 <div className="form-group">
@@ -578,13 +576,12 @@ function Employees() {
                   onChange={(event) => setForm({ ...form, hire_date: event.target.value })}
                 />
               </div>
-              {isSuperAdmin && (
+              {hasPermission("employees.roles.manage") && (
                 <div className="form-group">
                   <label htmlFor="employee-role">Rol inicial</label>
                   <select id="employee-role" value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}>
                     <option value="EMPLOYEE">Empleado</option>
                     <option value="ADMIN">Administrador</option>
-                    <option value="SUPER_ADMIN">Super administrador</option>
                   </select>
                 </div>
               )}

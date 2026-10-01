@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from app.access_control import (
     ADMIN,
     EMPLOYEE,
-    SUPER_ADMIN,
+    PERMISSION_DEFINITIONS,
     assign_role,
     ensure_rbac_catalog,
     resolve_principal,
@@ -53,14 +53,13 @@ def test_new_authenticated_user_gets_employee_role_only(db):
     assert principal["email"] == "employee@asiati.com.co"
     assert principal["roles"] == [EMPLOYEE]
     assert "training.consume" in principal["permissions"]
-    assert "training.quiz.take" in principal["permissions"]
     assert "employees.create" not in principal["permissions"]
-    assert "candidates.restrict" not in principal["permissions"]
+    assert "integrations.manage" not in principal["permissions"]
     assert "employee_scores.read" not in principal["permissions"]
 
 
-def test_admin_can_manage_employees_but_cannot_read_private_scores(db):
-    principal = resolve_principal(
+def test_admin_receives_all_system_permissions(db):
+    resolve_principal(
         db,
         {"sub": "admin-1", "email": "admin@asiati.com.co"},
     )
@@ -76,38 +75,8 @@ def test_admin_can_manage_employees_but_cannot_read_private_scores(db):
         {"sub": "admin-1", "email": "admin@asiati.com.co"},
     )
 
-    assert ADMIN in principal["roles"]
-    assert "employees.create" in principal["permissions"]
-    assert "training.manage" in principal["permissions"]
-    assert "training.assign" in principal["permissions"]
-    assert "training.results.read" in principal["permissions"]
-    assert "training.consume" not in principal["permissions"]
-    assert "training.quiz.take" not in principal["permissions"]
-    assert "training.progress.read_own" not in principal["permissions"]
-    assert "candidates.manage" in principal["permissions"]
-    assert "candidates.restrict" in principal["permissions"]
-    assert "ranking.recalculate" in principal["permissions"]
-    assert "integrations.manage" not in principal["permissions"]
-    assert "employee_scores.read" not in principal["permissions"]
-    assert "employee_scores.create" not in principal["permissions"]
-
-
-def test_super_admin_receives_private_director_permissions(db):
-    principal = resolve_principal(
-        db,
-        {"sub": "director-1", "email": "director@asiati.com.co"},
-    )
-    profile = db.query(UserProfile).filter_by(cognito_sub="director-1").one()
-    assign_role(db, profile, SUPER_ADMIN)
-    db.commit()
-
-    principal = resolve_principal(
-        db,
-        {"sub": "director-1", "email": "director@asiati.com.co"},
-    )
-
-    assert SUPER_ADMIN in principal["roles"]
-    assert "candidates.restrict" in principal["permissions"]
+    assert principal["roles"] == [ADMIN]
+    assert set(principal["permissions"]) == set(PERMISSION_DEFINITIONS)
     assert "integrations.manage" in principal["permissions"]
     assert "employee_scores.read" in principal["permissions"]
     assert "employee_scores.create" in principal["permissions"]
@@ -126,11 +95,11 @@ def test_permission_and_role_dependencies_return_403_when_missing(db):
     assert permission_error.value.status_code == 403
 
     with pytest.raises(HTTPException) as role_error:
-        require_role(SUPER_ADMIN)(employee)
+        require_role(ADMIN)(employee)
     assert role_error.value.status_code == 403
 
 
-def test_rbac_catalog_is_idempotent(db):
+def test_rbac_catalog_is_idempotent_and_contains_only_supported_roles(db):
     ensure_rbac_catalog(db)
     db.commit()
     first = (
@@ -148,97 +117,60 @@ def test_rbac_catalog_is_idempotent(db):
     )
 
     assert first == second
-    assert db.query(Role).filter(Role.code == SUPER_ADMIN).one()
+    assert {role.code for role in db.query(Role).all()} == {ADMIN, EMPLOYEE}
 
-def test_bootstrap_admin_email_is_promoted_from_employee(db, monkeypatch):
+
+def test_bootstrap_admin_emails_are_promoted_from_employee(db, monkeypatch):
     monkeypatch.setenv(
         "RBAC_BOOTSTRAP_ADMIN_EMAILS",
-        " hr@asiati.com.co , other@asiati.com.co ",
+        " sistemas@asiati.com.co , talentohumano@asiati.com.co ",
     )
 
-    first = resolve_principal(
-        db,
-        {"sub": "hr-sub", "email": "hr@asiati.com.co"},
-    )
-    assert first["roles"] == [ADMIN]
-
-    profile = db.query(UserProfile).filter_by(cognito_sub="hr-sub").one()
-    db.query(UserRole).filter(UserRole.user_id == profile.id).delete(
-        synchronize_session=False
-    )
-    assign_role(db, profile, EMPLOYEE)
-    db.commit()
-
-    promoted = resolve_principal(
-        db,
-        {"sub": "hr-sub", "email": "hr@asiati.com.co"},
-    )
-    assert promoted["roles"] == [ADMIN]
-
-
-def test_admin_bootstrap_never_downgrades_super_admin(db, monkeypatch):
-    monkeypatch.setenv("RBAC_BOOTSTRAP_ADMIN_EMAILS", "director@asiati.com.co")
-
-    resolve_principal(
-        db,
-        {"sub": "director-bootstrap", "email": "director@asiati.com.co"},
-    )
-    profile = db.query(UserProfile).filter_by(
-        cognito_sub="director-bootstrap"
-    ).one()
-    db.query(UserRole).filter(UserRole.user_id == profile.id).delete(
-        synchronize_session=False
-    )
-    assign_role(db, profile, SUPER_ADMIN)
-    db.commit()
-
-    principal = resolve_principal(
-        db,
-        {"sub": "director-bootstrap", "email": "director@asiati.com.co"},
-    )
-    assert principal["roles"] == [SUPER_ADMIN]
-
-
-
-
-def test_rbac_catalog_removes_stale_builtin_grants(db):
-    ensure_rbac_catalog(db)
-    db.commit()
-
-    for permission_code in (
-        "employee_scores.read",
-        "training.consume",
-        "training.quiz.take",
-        "training.progress.read_own",
+    for sub, email in (
+        ("systems-sub", "sistemas@asiati.com.co"),
+        ("hr-sub", "talentohumano@asiati.com.co"),
     ):
-        db.add(
-            RolePermission(
-                role_code=ADMIN,
-                permission_code=permission_code,
-            )
+        first = resolve_principal(db, {"sub": sub, "email": email})
+        assert first["roles"] == [ADMIN]
+
+        profile = db.query(UserProfile).filter_by(cognito_sub=sub).one()
+        db.query(UserRole).filter(UserRole.user_id == profile.id).delete(
+            synchronize_session=False
         )
+        assign_role(db, profile, EMPLOYEE)
+        db.commit()
+
+        promoted = resolve_principal(db, {"sub": sub, "email": email})
+        assert promoted["roles"] == [ADMIN]
+
+
+def test_rbac_catalog_restores_missing_admin_grants(db):
+    ensure_rbac_catalog(db)
+    db.commit()
+
+    db.query(RolePermission).filter(
+        RolePermission.role_code == ADMIN,
+        RolePermission.permission_code.in_(
+            ("integrations.manage", "employee_scores.read")
+        ),
+    ).delete(synchronize_session=False)
     db.commit()
 
     ensure_rbac_catalog(db)
     db.commit()
 
-    stale = (
-        db.query(RolePermission)
+    restored = {
+        row.permission_code
+        for row in db.query(RolePermission)
         .filter(
             RolePermission.role_code == ADMIN,
             RolePermission.permission_code.in_(
-                (
-                    "employee_scores.read",
-                    "training.consume",
-                    "training.quiz.take",
-                    "training.progress.read_own",
-                )
+                ("integrations.manage", "employee_scores.read")
             ),
         )
         .all()
-    )
-    assert stale == []
-
+    }
+    assert restored == {"integrations.manage", "employee_scores.read"}
 
 
 def test_existing_principal_resolution_does_not_commit_when_nothing_changes(db, monkeypatch):
