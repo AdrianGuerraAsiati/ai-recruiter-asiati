@@ -63,6 +63,24 @@ CURRENT_LISTING_STATE_SCRIPT = r"""
     if (/\b(?:abierto|abierta|open|activa|activo|active|publicado|publicada|published)\b/.test(normalized)) return 'ACTIVE';
     return '';
   };
+  const lifecycleStatusFromNode = (node) => {
+    if (!node) return '';
+    const structural = [
+      node.getAttribute?.('data-shield-id'),
+      node.getAttribute?.('data-testid'),
+      ...Array.from(node.querySelectorAll?.('[data-shield-id],[data-testid]') || [])
+        .flatMap((child) => [
+          child.getAttribute?.('data-shield-id'),
+          child.getAttribute?.('data-testid'),
+        ]),
+    ]
+      .map((value) => clean(value).toLowerCase())
+      .filter(Boolean)
+      .join(' ');
+    if (/status[^ ]*(?:paused|pause)|dot--paused/.test(structural)) return 'PAUSED';
+    if (/status[^ ]*(?:active|open)|dot--active/.test(structural)) return 'ACTIVE';
+    return lifecycleStatusFromText(node.innerText || node.textContent || '');
+  };
   const uuidFromEmployerJobId = (value) => {
     const raw = clean(value);
     if (!raw) return '';
@@ -124,8 +142,12 @@ CURRENT_LISTING_STATE_SCRIPT = r"""
       .map((node) => clean(node.getAttribute('title') || node.innerText || ''))
       .find((value) => /publicado el|posted/i.test(value)) || '';
     const rowText = clean(root.innerText || root.textContent || '');
-    const explicitStatus = clean(statusNode?.innerText || statusNode?.textContent || '');
+    const statusText = clean(statusNode?.innerText || statusNode?.textContent || '');
+    const structuralStatus = lifecycleStatusFromNode(statusNode);
     const inferredStatus = lifecycleStatusFromText(rowText);
+    const currentStatus = statusNode
+      ? (structuralStatus || statusText)
+      : inferredStatus;
     const absoluteY = Math.round((root.getBoundingClientRect().top || 0) + window.scrollY);
     const token = `asiati-current-job-${externalJobKey}-${index}`;
     clickable.setAttribute('data-asiati-vacancy-token', token);
@@ -135,7 +157,7 @@ CURRENT_LISTING_STATE_SCRIPT = r"""
       href,
       rowText,
       location: clean(locationNode?.innerText || locationNode?.textContent || ''),
-      status: explicitStatus || inferredStatus,
+      status: currentStatus,
       postedAt: exactDate,
       clickToken: token,
       rowPosition: absoluteY,

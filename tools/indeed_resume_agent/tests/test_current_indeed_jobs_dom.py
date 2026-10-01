@@ -82,7 +82,7 @@ def test_current_listing_uses_unified_job_link_not_candidate_count_buttons():
     assert row["title"] == "AUXILIAR CONTABLE"
     assert row["title"] != "4 Todos"
     assert row["title"] != "4 Nuevos"
-    assert row["status"] == "Abierto"
+    assert row["status"] == "ACTIVE"
     assert row["location"] == "Bogotá, Cundinamarca"
     assert "22 de septiembre de 2026" in row["postedAt"]
 
@@ -109,6 +109,61 @@ def test_current_listing_infers_paused_status_when_indeed_status_testid_changes(
 
     assert len(state["rows"]) == 1
     assert state["rows"][0]["status"] == "PAUSED"
+
+
+def test_current_listing_uses_structural_paused_signal_from_real_indeed_markup():
+    row_html = (
+        _real_row()
+        .replace(
+            'data-testid="top-level-job-status"',
+            'data-testid="top-level-job-status" data-shield-id="hansel-job-status-control-paused"',
+        )
+        .replace("<span>Abierto</span>", "<span>Estado localizado</span>")
+    )
+    html = f"""
+    <html><head>
+      <base href="https://employers.indeed.com/jobs?status=open%2Cpaused" />
+    </head><body>
+      <table><tbody>{row_html}</tbody></table>
+    </body></html>
+    """
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.set_content(html)
+        state = page.evaluate(CURRENT_LISTING_STATE_SCRIPT)
+        browser.close()
+
+    assert state["rows"][0]["status"] == "PAUSED"
+
+
+def test_current_listing_does_not_misread_flagged_status_from_dropdown_options():
+    row_html = (
+        _real_row()
+        .replace(
+            'data-testid="top-level-job-status"',
+            'data-testid="top-level-job-status" data-shield-id="hansel-job-status-control-flagged"',
+        )
+        .replace(
+            "<span>Abierto</span>",
+            "<span>Marcado</span><div style=\"display:none\">En pausa Activa</div>",
+        )
+    )
+    html = f"""
+    <html><head>
+      <base href="https://employers.indeed.com/jobs?status=open%2Cpaused" />
+    </head><body>
+      <table><tbody>{row_html}</tbody></table>
+    </body></html>
+    """
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.set_content(html)
+        state = page.evaluate(CURRENT_LISTING_STATE_SCRIPT)
+        browser.close()
+
+    assert state["rows"][0]["status"] == "Marcado"
 
 
 def test_current_listing_ignores_auxiliary_job_rows_without_unified_job_link():

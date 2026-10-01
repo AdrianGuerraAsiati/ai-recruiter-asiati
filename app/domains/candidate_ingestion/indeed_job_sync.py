@@ -82,30 +82,51 @@ def _external_status(snapshot: dict, fingerprint: str) -> dict:
     }
 
 
-def _find_link(db: Session, *, owner_sub: str, discovery_key: str) -> IndeedJobLink | None:
-    return (
+def _find_link(
+    db: Session,
+    *,
+    discovery_key: str,
+    title: str,
+) -> tuple[IndeedJobLink | None, bool]:
+    """Resolve an Indeed vacancy link organization-wide.
+
+    Recruiting jobs are shared across admins. owner_sub on historical links
+    is provenance only, so a sync started by another admin must still update
+    the canonical linked vacancy instead of creating or ignoring a duplicate.
+    """
+    links = (
         db.query(IndeedJobLink)
-        .filter(
-            IndeedJobLink.owner_sub == owner_sub,
-            IndeedJobLink.discovery_key == discovery_key,
-        )
-        .one_or_none()
+        .filter(IndeedJobLink.discovery_key == discovery_key)
+        .order_by(IndeedJobLink.created_at.asc(), IndeedJobLink.id.asc())
+        .all()
     )
+    if not links:
+        return None, False
+    if len(links) == 1:
+        return links[0], False
+
+    target = _canonical_title(title)
+    matching: list[IndeedJobLink] = []
+    for link in links:
+        job = db.query(Job).filter(Job.id == link.job_id).one_or_none()
+        if job is not None and _canonical_title(job.title) == target:
+            matching.append(link)
+    if len(matching) == 1:
+        return matching[0], False
+    return None, True
 
 
-def _unlinked_title_matches(db: Session, *, owner_sub: str, title: str) -> list[Job]:
+def _unlinked_title_matches(db: Session, *, title: str) -> list[Job]:
     target = _canonical_title(title)
     if not target:
         return []
     linked_job_ids = {
         job_id
-        for (job_id,) in db.query(IndeedJobLink.job_id)
-        .filter(IndeedJobLink.owner_sub == owner_sub)
-        .all()
+        for (job_id,) in db.query(IndeedJobLink.job_id).all()
     }
     return [
         job
-        for job in db.query(Job).filter(Job.owner_sub == owner_sub).all()
+        for job in db.query(Job).all()
         if job.id not in linked_job_ids and _canonical_title(job.title) == target
     ]
 
@@ -123,7 +144,7 @@ def _update_existing_job(
     updated = jobs_service.update_job(
         db,
         job_id=job.id,
-        owner_sub=owner_sub,
+        owner_sub=getattr(job, "owner_sub", None) or owner_sub,
         title=title if title != job.title else None,
         indeed_description=(description if description else None),
         status=status,
@@ -270,15 +291,18 @@ def sync_vacancy_snapshots(
             counts["missing_identity"] += 1
             continue
 
-        link = _find_link(db, owner_sub=owner_sub, discovery_key=discovery_key)
+        link, link_ambiguous = _find_link(
+            db,
+            discovery_key=discovery_key,
+            title=title,
+        )
         fingerprint = _fingerprint(snapshot)
+        if link_ambiguous:
+            counts["ambiguous"] += 1
+            continue
 
         if link is not None:
-            job = (
-                db.query(Job)
-                .filter(Job.id == link.job_id, Job.owner_sub == owner_sub)
-                .one_or_none()
-            )
+            job = db.query(Job).filter(Job.id == link.job_id).one_or_none()
             if job is None:
                 counts["missing_identity"] += 1
                 continue
@@ -331,7 +355,6 @@ def sync_vacancy_snapshots(
 
         matches = _unlinked_title_matches(
             db,
-            owner_sub=owner_sub,
             title=title,
         )
         if len(matches) > 1:
