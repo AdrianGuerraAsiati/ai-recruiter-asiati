@@ -259,6 +259,16 @@ def test_alembic_head_builds_current_postgres_schema():
                     "AND permission_code LIKE 'employee_scores.%'"
                 )
             ).scalar_one()
+            talent_admin_grants = {
+                row[0]
+                for row in connection.execute(
+                    text(
+                        "SELECT permission_code FROM role_permissions "
+                        "WHERE role_code = 'ADMIN' "
+                        "AND permission_code LIKE 'talent_id.%'"
+                    )
+                ).all()
+            }
         candidate_columns = {
             column["name"] for column in inspector.get_columns("candidates")
         }
@@ -421,17 +431,6 @@ def test_alembic_head_builds_current_postgres_schema():
             "uq_odoo_applicant_syncs_application",
             "uq_odoo_applicant_syncs_idempotency_key",
         }.issubset(odoo_applicant_uniques)
-
-        talent_admin_grants = {
-            row[0]
-            for row in connection.execute(
-                text(
-                    "SELECT permission_code FROM role_permissions "
-                    "WHERE role_code = 'ADMIN' "
-                    "AND permission_code LIKE 'talent_id.%'"
-                )
-            ).all()
-        }
 
         assert admin_score_grants == 0
         assert admin_write_grants == {"candidates.manage", "ranking.recalculate"}
