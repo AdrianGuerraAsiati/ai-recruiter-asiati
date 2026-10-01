@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import re
@@ -29,6 +30,12 @@ _ACTIVE_STATUS_ALIASES = {
 _PAUSED_STATUS_ALIASES = {
     "PAUSED", "PAUSE", "PAUSADO", "PAUSADA", "EN PAUSA",
 }
+_EMPLOYER_JOB_UUID = re.compile(
+    r"(?:^|/)EmployerJob/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:$|[/?#])"
+)
+_UUID_ONLY = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
 
 
 def _clean(value) -> str:
@@ -60,6 +67,36 @@ def _discovery_key(value) -> str:
     return raw if raw.startswith(DISCOVERY_PREFIX) else f"{DISCOVERY_PREFIX}{raw}"
 
 
+def _provider_identity(value) -> str:
+    """Normalize legacy and current Indeed Employer job identities.
+
+    Older Resume Agent builds persisted the raw base64 employerJobId from the
+    URL. Current builds decode that value to the stable EmployerJob UUID.
+    Both representations identify the same vacancy and must resolve to the
+    same local IndeedJobLink.
+    """
+    raw = _clean(value)
+    if raw.startswith(DISCOVERY_PREFIX):
+        raw = raw[len(DISCOVERY_PREFIX):]
+    if not raw:
+        return ""
+
+    if _UUID_ONLY.fullmatch(raw):
+        return raw.casefold()
+
+    padded = raw + ("=" * ((4 - len(raw) % 4) % 4))
+    for decoder in (base64.b64decode, base64.urlsafe_b64decode):
+        try:
+            decoded = decoder(padded).decode("utf-8", errors="strict")
+        except Exception:
+            continue
+        match = _EMPLOYER_JOB_UUID.search(decoded)
+        if match:
+            return str(match.group(1)).casefold()
+
+    return raw.casefold()
+
+
 def _fingerprint(snapshot: dict) -> str:
     payload = {
         "title": _clean(snapshot.get("title")),
@@ -82,52 +119,76 @@ def _external_status(snapshot: dict, fingerprint: str) -> dict:
     }
 
 
-def _find_link(
+def _pick_link_by_title(
     db: Session,
     *,
-    discovery_key: str,
+    links: list[IndeedJobLink],
     title: str,
-) -> tuple[IndeedJobLink | None, bool]:
-    """Resolve an Indeed vacancy link organization-wide.
-
-    Recruiting jobs are shared across admins. owner_sub on historical links
-    is provenance only, so a sync started by another admin must still update
-    the canonical linked vacancy instead of creating or ignoring a duplicate.
-    """
-    links = (
-        db.query(IndeedJobLink)
-        .filter(IndeedJobLink.discovery_key == discovery_key)
-        .order_by(IndeedJobLink.created_at.asc(), IndeedJobLink.id.asc())
-        .all()
-    )
-    if not links:
-        return None, False
-    if len(links) == 1:
-        return links[0], False
-
+) -> IndeedJobLink | None:
     target = _canonical_title(title)
+    if not target:
+        return None
     matching: list[IndeedJobLink] = []
     for link in links:
         job = db.query(Job).filter(Job.id == link.job_id).one_or_none()
         if job is not None and _canonical_title(job.title) == target:
             matching.append(link)
-    if len(matching) == 1:
-        return matching[0], False
-    return None, True
+    return matching[0] if len(matching) == 1 else None
 
 
-def _unlinked_title_matches(db: Session, *, title: str) -> list[Job]:
+def _find_link(
+    db: Session,
+    *,
+    discovery_key: str,
+    title: str,
+) -> tuple[IndeedJobLink | None, bool, bool]:
+    """Resolve an Indeed vacancy link organization-wide.
+
+    The third return value reports that a historical identity representation
+    matched the current one and should be migrated to the canonical key.
+    """
+    exact = (
+        db.query(IndeedJobLink)
+        .filter(IndeedJobLink.discovery_key == discovery_key)
+        .order_by(IndeedJobLink.created_at.asc(), IndeedJobLink.id.asc())
+        .all()
+    )
+    if len(exact) == 1:
+        return exact[0], False, False
+    if len(exact) > 1:
+        winner = _pick_link_by_title(db, links=exact, title=title)
+        return (winner, False, False) if winner is not None else (None, True, False)
+
+    target_identity = _provider_identity(discovery_key)
+    if not target_identity:
+        return None, False, False
+
+    aliases = [
+        link
+        for link in (
+            db.query(IndeedJobLink)
+            .filter(IndeedJobLink.discovery_key.is_not(None))
+            .order_by(IndeedJobLink.created_at.asc(), IndeedJobLink.id.asc())
+            .all()
+        )
+        if _provider_identity(link.discovery_key) == target_identity
+    ]
+    if len(aliases) == 1:
+        return aliases[0], False, True
+    if len(aliases) > 1:
+        winner = _pick_link_by_title(db, links=aliases, title=title)
+        return (winner, False, True) if winner is not None else (None, True, False)
+    return None, False, False
+
+
+def _title_matches(db: Session, *, title: str) -> list[Job]:
     target = _canonical_title(title)
     if not target:
         return []
-    linked_job_ids = {
-        job_id
-        for (job_id,) in db.query(IndeedJobLink.job_id).all()
-    }
     return [
         job
         for job in db.query(Job).all()
-        if job.id not in linked_job_ids and _canonical_title(job.title) == target
+        if _canonical_title(job.title) == target
     ]
 
 
@@ -253,10 +314,11 @@ def sync_vacancy_snapshots(
     owner_sub: str,
     snapshots: list[dict],
 ) -> dict[str, int]:
-    """Reconcile normalized Indeed Employers vacancy snapshots for one owner.
+    """Reconcile normalized Indeed Employers vacancy snapshots organization-wide.
 
-    Provider identity wins. A title-only historical vacancy may be adopted only
-    when exactly one unlinked owner-scoped match exists. Empty provider content
+    Provider identity wins. Legacy raw employerJobId links are normalized to the
+    current EmployerJob UUID. A title-only historical vacancy may be adopted only
+    when exactly one organization-wide match exists. Empty provider content
     never erases stored descriptions, and an active AI description remains the
     effective evaluation description while the original Indeed copy refreshes.
     This function deliberately does not read Gmail or mutate candidate tasks.
@@ -274,6 +336,7 @@ def sync_vacancy_snapshots(
         "active": 0,
         "paused": 0,
         "status_changed": 0,
+        "identity_rekeyed": 0,
     }
 
     for raw in snapshots or []:
@@ -291,7 +354,7 @@ def sync_vacancy_snapshots(
             counts["missing_identity"] += 1
             continue
 
-        link, link_ambiguous = _find_link(
+        link, link_ambiguous, legacy_identity_match = _find_link(
             db,
             discovery_key=discovery_key,
             title=title,
@@ -308,6 +371,10 @@ def sync_vacancy_snapshots(
                 continue
             if not description:
                 counts["missing_description"] += 1
+
+            if legacy_identity_match and link.discovery_key != discovery_key:
+                link.discovery_key = discovery_key
+                counts["identity_rekeyed"] += 1
 
             previous = dict(link.external_status or {})
             description_unchanged = (
@@ -349,11 +416,7 @@ def sync_vacancy_snapshots(
                 counts["descriptions_recovered"] += 1
             continue
 
-        if not description:
-            counts["missing_description"] += 1
-            continue
-
-        matches = _unlinked_title_matches(
+        matches = _title_matches(
             db,
             title=title,
         )
@@ -363,6 +426,14 @@ def sync_vacancy_snapshots(
 
         if len(matches) == 1:
             job = matches[0]
+            existing_link = (
+                db.query(IndeedJobLink)
+                .filter(IndeedJobLink.job_id == job.id)
+                .one_or_none()
+            )
+            if not description:
+                counts["missing_description"] += 1
+
             previous_job_status = getattr(job, "status", None) or "ACTIVE"
             _updated, recovered = _update_existing_job(
                 db,
@@ -372,21 +443,34 @@ def sync_vacancy_snapshots(
                 description=description,
                 status=normalized_status,
             )
-            db.add(
-                IndeedJobLink(
-                    job_id=job.id,
-                    owner_sub=owner_sub,
-                    discovery_key=discovery_key,
-                    external_status=_external_status(snapshot, fingerprint),
-                    last_synced_at=datetime.now(timezone.utc),
+            if existing_link is None:
+                db.add(
+                    IndeedJobLink(
+                        job_id=job.id,
+                        owner_sub=owner_sub,
+                        discovery_key=discovery_key,
+                        external_status=_external_status(snapshot, fingerprint),
+                        last_synced_at=datetime.now(timezone.utc),
+                    )
                 )
-            )
+            else:
+                if existing_link.discovery_key != discovery_key:
+                    existing_link.discovery_key = discovery_key
+                    counts["identity_rekeyed"] += 1
+                existing_link.external_status = _external_status(snapshot, fingerprint)
+                existing_link.last_synced_at = datetime.now(timezone.utc)
+                existing_link.last_error = None
+
             db.commit()
             counts["reconciled"] += 1
             if normalized_status is not None and normalized_status != previous_job_status:
                 counts["status_changed"] += 1
             if recovered:
                 counts["descriptions_recovered"] += 1
+            continue
+
+        if not description:
+            counts["missing_description"] += 1
             continue
 
         job = Job(
