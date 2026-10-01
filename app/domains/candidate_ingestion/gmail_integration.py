@@ -436,7 +436,8 @@ def oauth_callback(
 
 
 def disconnect_oauth(*, owner_sub: str, oauth_store=None) -> dict:
-    """Forget the mailbox grant only when requested by its corporate owner."""
+    """Forget the shared mailbox grant; HTTP authorization is RBAC-based."""
+
     oauth = get_gmail_oauth_settings()
     store = _oauth_store(oauth, oauth_store)
     payload = dict(store.read() or {})
