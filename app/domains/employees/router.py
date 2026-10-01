@@ -6,7 +6,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.access_control import EMPLOYEE, SUPER_ADMIN
+from app.access_control import ADMIN, EMPLOYEE
 from app.deps import get_db, require_permission
 from app.domains.employees import service
 from app.domains.employees.schemas import (
@@ -22,17 +22,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/employees", tags=["employees"])
 
 
-def _is_super_admin(principal: dict) -> bool:
-    return SUPER_ADMIN in set(principal.get("roles") or [])
-
-
-def _enforce_assignable_role(principal: dict, role_code: str) -> None:
-    if role_code in {EMPLOYEE, "ADMIN"}:
-        return
-    if role_code == SUPER_ADMIN and not _is_super_admin(principal):
+def _enforce_assignable_role(_principal: dict, role_code: str) -> None:
+    if role_code not in {EMPLOYEE, ADMIN}:
         raise HTTPException(
-            status_code=403,
-            detail="Solo Direccion puede asignar el rol SUPER_ADMIN.",
+            status_code=422,
+            detail="Rol de empleado no valido.",
         )
 
 
@@ -43,22 +37,6 @@ def _enforce_not_self(principal: dict, employee_id: str) -> None:
             status_code=409,
             detail="No puedes modificar tu propio rol o estado desde esta operacion.",
         )
-
-def _enforce_target_manageable(
-    db: Session,
-    principal: dict,
-    employee_id: str,
-) -> None:
-    if _is_super_admin(principal):
-        return
-    employee = service.require_employee(db, employee_id)
-    target_roles = set(service.roles_for_profile(db, employee.id))
-    if SUPER_ADMIN in target_roles:
-        raise HTTPException(
-            status_code=403,
-            detail="Solo Direccion puede administrar perfiles SUPER_ADMIN.",
-        )
-
 
 
 def _ensure_automatic_onboarding_for_all(
@@ -211,7 +189,6 @@ def update_employee(
     _principal: dict = Depends(require_permission("employees.update")),
 ):
     try:
-        _enforce_target_manageable(db, _principal, employee_id)
         employee = service.update_employee(
             db,
             employee_id,
@@ -237,7 +214,6 @@ def update_employee_status(
 ):
     _enforce_not_self(principal, employee_id)
     try:
-        _enforce_target_manageable(db, principal, employee_id)
         employee = service.set_employee_status(
             db,
             employee_id,
@@ -264,7 +240,6 @@ def update_employee_role(
     _enforce_not_self(principal, employee_id)
     _enforce_assignable_role(principal, body.role)
     try:
-        _enforce_target_manageable(db, principal, employee_id)
         employee = service.set_employee_role(
             db,
             employee_id,
