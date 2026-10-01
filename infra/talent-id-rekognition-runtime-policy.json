@@ -1,0 +1,17 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "UseTalentIdFaceCollection",
+      "Effect": "Allow",
+      "Action": [
+        "rekognition:CreateUser",
+        "rekognition:IndexFaces",
+        "rekognition:AssociateFaces",
+        "rekognition:DeleteFaces",
+        "rekognition:SearchUsersByImage"
+      ],
+      "Resource": "arn:aws:rekognition:us-east-2:890876258895:collection/talent-intelligence-employees"
+    }
+  ]
+}
