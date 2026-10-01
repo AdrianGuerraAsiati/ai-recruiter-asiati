@@ -30,7 +30,10 @@ def build_odoo_client(
         raise OdooNotConfigured("Odoo connection settings are incomplete.")
 
     store = secret_store or OdooSecretStore(current.secret_id)
-    payload = dict(store.read() or {})
+    try:
+        payload = dict(store.read() or {})
+    except Exception as exc:
+        raise OdooNotConfigured("Odoo credential secret is unavailable.") from exc
     api_key = str(payload.get("api_key") or "").strip()
     if not api_key:
         raise OdooNotConfigured("Odoo API key is not configured.")
