@@ -153,12 +153,19 @@ def test_nano_host_script_configures_swap_logs_postgres_and_disk_cleanup():
     assert "Persistent=true" in script
 
 
-def test_deploy_prunes_dangling_images_only_after_runtime_verification():
+def test_deploy_retains_three_versions_before_pull_and_prunes_dangling_after_verification():
     workflow = (ROOT / ".github/workflows/deploy.yml").read_text(encoding="utf-8")
 
+    migrate = workflow.index("- name: Migrate and backfill production database")
+    deploy = workflow.index("- name: Deploy API worker and frontend via SSH", migrate)
+    preflight = workflow[migrate:deploy]
+
+    assert 'prune_old_repo_images "$ECR_REGISTRY/$ECR_BACKEND_REPO" 3' in preflight
+    assert 'prune_old_repo_images "$ECR_REGISTRY/$ECR_FRONTEND_REPO" 3' in preflight
+
     verification = workflow.index("DEPLOYMENT_FRONTEND_OK")
-    prune = workflow.index("docker image prune -f")
-    assert prune > verification
+    post_verification_prune = workflow.index("docker image prune -f", verification)
+    assert post_verification_prune > verification
 
 
 def test_requirements_omit_unused_heavy_conversion_stack():
