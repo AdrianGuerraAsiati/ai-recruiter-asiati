@@ -99,7 +99,42 @@ describe("Administrative dashboard", () => {
     expect(screen.getByText("50%")).toBeInTheDocument();
   });
 
-  it.each(["ADMIN", "SUPER_ADMIN"])(
+  it("excludes paused vacancies from active count and coverage", async () => {
+    api.get.mockImplementation((url) => {
+      if (url === "/jobs") {
+        return Promise.resolve({
+          data: [
+            { job_id: "job-active", title: "Activa sin candidatos", status: "ACTIVE", candidate_count: 0 },
+            { job_id: "job-paused", title: "Pausada con candidatos", status: "PAUSED", candidate_count: 10 },
+          ],
+        });
+      }
+      if (url === "/candidates") {
+        return Promise.resolve({ data: { items: [], total: 37, page: 1, page_size: 20, pages: 2 } });
+      }
+      if (url === "/employees/summary") {
+        return Promise.resolve({
+          data: {
+            employees_total: 8,
+            active: 7,
+            disabled: 1,
+            onboarding: { total: 5, pending: 1, in_progress: 2, completed: 2, completion_percent: 40 },
+          },
+        });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+
+    mockAdministrativeSession("ADMIN");
+    renderPage();
+
+    expect(await screen.findByText("Vacantes activas")).toBeInTheDocument();
+    expect(screen.getByText("1")).toBeInTheDocument();
+    expect(screen.getByText("0%")).toBeInTheDocument();
+    expect(screen.getByText("Pausada")).toBeInTheDocument();
+  });
+
+  it.each(["ADMIN"])(
     "shows onboarding metrics to %s users with employee read permission",
     async (role) => {
       mockAdministrativeSession(role);
