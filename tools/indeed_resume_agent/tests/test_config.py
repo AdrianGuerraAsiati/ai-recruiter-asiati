@@ -70,3 +70,21 @@ def test_rejects_invalid_diagnostic_screenshot_flag(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="boolean"):
         load_config()
+
+
+
+def test_candidate_sync_uses_longer_dedicated_timeout(tmp_path, monkeypatch):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.delenv("ASIATI_RESUME_AGENT_SYNC_REQUEST_TIMEOUT_SECONDS", raising=False)
+
+    cfg = load_config()
+
+    assert cfg.request_timeout_seconds == 30.0
+    assert cfg.sync_request_timeout_seconds == 120.0
+
+
+def test_candidate_sync_timeout_can_be_overridden(tmp_path, monkeypatch):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setenv("ASIATI_RESUME_AGENT_SYNC_REQUEST_TIMEOUT_SECONDS", "180")
+
+    assert load_config().sync_request_timeout_seconds == 180.0
