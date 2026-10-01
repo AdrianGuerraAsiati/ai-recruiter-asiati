@@ -4861,3 +4861,119 @@ select { appearance: none; padding-right: 42px; background-image: linear-gradien
     transition: none !important;
   }
 }
+
+
+/* Candidate appointment modal */
+.candidate-appointment-overlay {
+  animation: candidate-appointment-fade .2s ease-out;
+}
+
+.candidate-appointment-modal {
+  width: min(620px, calc(100vw - 32px)) !important;
+  transform-origin: center;
+  animation: candidate-appointment-pop .24s cubic-bezier(.22, 1, .36, 1);
+}
+
+.candidate-appointment-modal .modal-header {
+  align-items: flex-start;
+}
+
+.candidate-appointment-modal .modal-header p {
+  margin-top: 7px;
+  max-width: 470px;
+  line-height: 1.5;
+}
+
+.candidate-appointment-close {
+  display: grid;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-soft);
+  color: var(--ink-soft);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform .18s ease, background .18s ease, color .18s ease, border-color .18s ease;
+}
+
+.candidate-appointment-close:hover {
+  transform: rotate(5deg);
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.candidate-appointment-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+}
+
+.candidate-appointment-modal textarea {
+  min-height: 110px;
+}
+
+.candidate-appointment-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.candidate-appointment-notice {
+  margin-top: 14px;
+  padding: 11px 14px;
+  border: 1px solid color-mix(in srgb, var(--success) 25%, var(--border));
+  border-radius: 12px;
+  background: var(--success-bg);
+  color: var(--success);
+  font-size: .8rem;
+  font-weight: 700;
+}
+
+[data-theme="dark"] .candidate-appointment-close {
+  background: var(--navy-soft);
+  border-color: var(--border);
+  color: var(--ink-soft);
+}
+
+@keyframes candidate-appointment-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes candidate-appointment-pop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(.975);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 620px) {
+  .candidate-appointment-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .candidate-appointment-actions {
+    flex-direction: column-reverse;
+  }
+
+  .candidate-appointment-actions .btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .candidate-appointment-overlay,
+  .candidate-appointment-modal {
+    animation: none;
+  }
+}
