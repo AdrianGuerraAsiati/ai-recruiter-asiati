@@ -156,6 +156,9 @@ describe("Gmail corporate integration", () => {
     renderPage();
 
     expect(await screen.findByText("recruiting@asiaticorp.com")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Reconectar Gmail" }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Sincronizar ahora" }));
 
     await waitFor(() => {
