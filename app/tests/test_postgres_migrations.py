@@ -37,6 +37,12 @@ CORE_TABLES = {
     "recruitment_events",
     "odoo_employee_syncs",
     "odoo_applicant_syncs",
+    "talent_sites",
+    "talent_work_schedules",
+    "talent_employee_attendance_settings",
+    "talent_kiosk_devices",
+    "talent_biometric_enrollments",
+    "talent_attendance_events",
 }
 
 
@@ -91,6 +97,12 @@ def test_alembic_head_builds_current_postgres_schema():
             "recruitment_events",
             "odoo_employee_syncs",
             "odoo_applicant_syncs",
+            "talent_sites",
+            "talent_work_schedules",
+            "talent_employee_attendance_settings",
+            "talent_kiosk_devices",
+            "talent_biometric_enrollments",
+            "talent_attendance_events",
         }.issubset(tables)
 
         for table_name in sorted(CORE_TABLES):
@@ -410,8 +422,20 @@ def test_alembic_head_builds_current_postgres_schema():
             "uq_odoo_applicant_syncs_idempotency_key",
         }.issubset(odoo_applicant_uniques)
 
+        talent_admin_grants = {
+            row[0]
+            for row in connection.execute(
+                text(
+                    "SELECT permission_code FROM role_permissions "
+                    "WHERE role_code = 'ADMIN' "
+                    "AND permission_code LIKE 'talent_id.%'"
+                )
+            ).all()
+        }
+
         assert admin_score_grants == 0
         assert admin_write_grants == {"candidates.manage", "ranking.recalculate"}
-        assert revision == "032"
+        assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
+        assert revision == "033"
     finally:
         engine.dispose()
