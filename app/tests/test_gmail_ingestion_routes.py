@@ -48,7 +48,7 @@ def test_gmail_status_never_exposes_oauth_secrets(api, monkeypatch):
     assert "password" not in serialized
 
 
-def test_gmail_sync_uses_authenticated_owner(api, monkeypatch):
+def test_gmail_sync_uses_shared_corporate_owner(api, monkeypatch):
     client, principal = api
     calls = {}
 
@@ -66,12 +66,13 @@ def test_gmail_sync_uses_authenticated_owner(api, monkeypatch):
         }
 
     monkeypatch.setattr(gmail_integration, "sync_mailbox", fake_sync)
+    monkeypatch.setattr(gmail_integration, "integration_owner_sub", lambda: "corporate-owner")
 
     response = client.post("/api/integrations/gmail/sync")
 
     assert response.status_code == 200
     assert response.json()["created"] == 2
-    assert calls["owner_sub"] == principal["sub"]
+    assert calls["owner_sub"] == "corporate-owner"
 
 
 @pytest.mark.parametrize(
@@ -102,7 +103,7 @@ def test_gmail_sync_translates_operational_failures(
     assert "detail" in response.json()
 
 
-def test_gmail_reset_to_current_uses_authenticated_owner(api, monkeypatch):
+def test_gmail_reset_to_current_uses_shared_corporate_owner(api, monkeypatch):
     client, principal = api
     calls = {}
 
@@ -117,15 +118,16 @@ def test_gmail_reset_to_current_uses_authenticated_owner(api, monkeypatch):
         }
 
     monkeypatch.setattr(gmail_integration, "reset_mailbox_to_current", fake_reset)
+    monkeypatch.setattr(gmail_integration, "integration_owner_sub", lambda: "corporate-owner")
 
     response = client.post("/api/integrations/gmail/reset-to-current")
 
     assert response.status_code == 200
     assert response.json()["archived"] == 7
-    assert calls["owner_sub"] == principal["sub"]
+    assert calls["owner_sub"] == "corporate-owner"
 
 
-def test_reactivate_one_archived_uses_authenticated_owner(api, monkeypatch):
+def test_reactivate_one_archived_uses_shared_corporate_owner(api, monkeypatch):
     client, principal = api
     calls = {}
 
@@ -144,16 +146,17 @@ def test_reactivate_one_archived_uses_authenticated_owner(api, monkeypatch):
         "reactivate_one_archived_task",
         fake_reactivate,
     )
+    monkeypatch.setattr(gmail_integration, "integration_owner_sub", lambda: "corporate-owner")
 
     response = client.post("/api/integrations/gmail/reactivate-one-archived")
 
     assert response.status_code == 200
     assert response.json()["reactivated"] is True
     assert response.json()["task_id"] == "task-1"
-    assert calls["owner_sub"] == principal["sub"]
+    assert calls["owner_sub"] == "corporate-owner"
 
 
-def test_retry_active_archived_test_uses_authenticated_owner(api, monkeypatch):
+def test_retry_active_archived_test_uses_shared_corporate_owner(api, monkeypatch):
     client, principal = api
     calls = {}
 
@@ -172,15 +175,16 @@ def test_retry_active_archived_test_uses_authenticated_owner(api, monkeypatch):
         "retry_active_needs_human_task",
         fake_retry,
     )
+    monkeypatch.setattr(gmail_integration, "integration_owner_sub", lambda: "corporate-owner")
 
     response = client.post("/api/integrations/gmail/retry-active-archived-test")
 
     assert response.status_code == 200
     assert response.json()["retried"] is True
-    assert calls["owner_sub"] == principal["sub"]
+    assert calls["owner_sub"] == "corporate-owner"
 
 
-def test_active_archived_test_uses_authenticated_owner(api, monkeypatch):
+def test_active_archived_test_uses_shared_corporate_owner(api, monkeypatch):
     client, principal = api
     calls = {}
 
@@ -199,12 +203,13 @@ def test_active_archived_test_uses_authenticated_owner(api, monkeypatch):
         "get_active_smoke_task",
         fake_get_active,
     )
+    monkeypatch.setattr(gmail_integration, "integration_owner_sub", lambda: "corporate-owner")
 
     response = client.get("/api/integrations/gmail/active-archived-test")
 
     assert response.status_code == 200
     assert response.json()["status"] == "NEEDS_HUMAN"
-    assert calls["owner_sub"] == principal["sub"]
+    assert calls["owner_sub"] == "corporate-owner"
 
 
 def test_gmail_status_passes_authenticated_owner(api, monkeypatch):
