@@ -259,6 +259,7 @@ select { appearance: none; padding-right: 42px; background-image: linear-gradien
 .section-heading p { margin-top: 5px; color: var(--ink-faint); font-size: .78rem; }
 .status-pill { display: inline-flex; align-items: center; gap: 7px; width: max-content; padding: 6px 9px; border-radius: 999px; background: var(--success-bg); color: var(--success); font-size: .67rem; font-weight: 800; }
 .status-pill i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.status-pill.is-paused { background: var(--warning-bg, #fff5d6); color: var(--warning, #9a6700); }
 .badge { display: inline-flex; align-items: center; width: max-content; padding: 7px 11px; border-radius: 999px; font-size: .72rem; font-weight: 800; }
 .badge-success { background: var(--success-bg); color: var(--success); }
 .badge-warning { background: var(--warning-bg); color: var(--warning); }
