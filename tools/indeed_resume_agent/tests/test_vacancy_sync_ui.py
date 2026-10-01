@@ -23,13 +23,16 @@ def test_vacancy_refresh_states_are_explicit():
     completed = build_ui_state(
         snap(
             "JOBS_SYNC_COMPLETED",
-            "Vacantes: 47 encontradas · 2 creadas · 3 actualizadas · 42 sin cambios · 4 descripciones recuperadas",
+            "Vacantes: 47 encontradas · 2 creadas · 3 actualizadas · 42 sin cambios · 39 activas · 8 pausadas · 5 cambiaron de estado · 4 descripciones recuperadas",
         ),
         stats(),
     )
 
     assert syncing.status_label == "Actualizando vacantes y descripciones desde Indeed..."
     assert completed.status_label.startswith("Vacantes: 47 encontradas")
+    assert "39 activas" in completed.status_label
+    assert "8 pausadas" in completed.status_label
+    assert "5 cambiaron de estado" in completed.status_label
     assert "4 descripciones recuperadas" in completed.status_label
     assert syncing.busy is True
 
