@@ -1,407 +1,295 @@
-# AI Handoff — aiRecruiterAsiati
+# AI Handoff — Talent Intelligence / aiRecruiterAsiati
 
-> Punto de recuperación operativo para continuar el proyecto desde un chat, agente o sesión nueva sin depender del historial de conversación.
->
-> **Regla:** este archivo debe actualizarse después de un merge importante, un cambio de arquitectura o al cerrar una sesión larga de trabajo.
+> Punto de recuperación operativo. GitHub y AWS son la fuente de verdad; este documento resume el estado validado para continuar desde una sesión nueva.
 
 ## Estado del repositorio
 
 - **Repositorio:** `AdrianGuerraAsiati/ai-recruiter-asiati`
 - **Rama principal:** `main`
-- **Último checkpoint conocido:** `62bfeed546560e2cbd366976d23688a29ec518e6`
-- **Fecha del checkpoint:** 2026-09-28
-- **Commit:** `feat: cerrar onboarding corporativo y métricas del dashboard (#95)`
-
-Antes de continuar trabajo nuevo, comprobar que `main` sigue apuntando a este commit o a uno posterior.
+- **Checkpoint manual actual:** `c97338d2370dd894dee03a44b363f61f706acf86`
+- **Fecha:** 2026-10-01
+- **Último hito:** PR #121 — kiosco Android de Talent ID mergeado en el mismo monorepo de Talent Intelligence.
+- **Arquitectura de producto:** Talent ID ya no es un proyecto separado; vive dentro de Talent Intelligence / aiRecruiter y comparte backend, base de datos, usuarios, RBAC e infraestructura AWS.
 
 <!-- AI_HANDOFF_AUTO_START -->
 ## Checkpoint automático
 
-- **Última actualización automática:** 2026-09-29
-- **Merge commit:** `dbc8aba0984d5396396a4531309d56508bfdbea1`
-- **PR:** [#102 — feat: servir onboarding desde videos privados en S3](https://github.com/AdrianGuerraAsiati/ai-recruiter-asiati/pull/102)
-- **Origen:** merge a `main` con etiqueta `handoff:update`
+- **Última actualización automática registrada:** 2026-09-29
+- **Merge commit registrado:** `dbc8aba0984d5396396a4531309d56508bfdbea1`
+- **PR registrado:** #102 — servir onboarding desde videos privados en S3
 
-> Este bloque es administrado por `.github/workflows/ai-handoff.yml`. No editarlo manualmente.
+> Este bloque es administrado por `.github/workflows/ai-handoff.yml`. El checkpoint manual de arriba es más reciente y debe prevalecer mientras el workflow no regenere este bloque.
 <!-- AI_HANDOFF_AUTO_END -->
 
 ## Objetivo actual
 
-Mantener aiRecruiterAsiati como una plataforma de reclutamiento estable, modular y operable, con foco inmediato en:
-
-1. completar el consumidor real de `odoo_applicant_syncs`; el envío explícito de `odoo_employee_syncs` ya existe vía POST;
-2. validar el mapeo real de empleado contra Odoo ASIATI y completar postulante/vacante + adjunto de CV;
-3. mantener la agenda de selección como herramienta operativa interna de Talento Humano para llamadas telefónicas y entrevistas presenciales;
-4. cerrar deuda técnica P2 sin romper reclutamiento, Resume Agent, onboarding ni los flujos críticos ya estabilizados;
-5. fortalecer pruebas, observabilidad, UI/UX e infraestructura antes de habilitar sincronización externa en producción.
-
-## Trabajo reciente completado
-
-### Arquitectura y calidad
-
-- Modularización de Training y Resume Agent.
-- Training reducido de ~1904 a 928 líneas mediante extracción progresiva de modales, quizzes, journey de empleado, editor de contenido y asignaciones/resultados.
-- Resume Agent: runtime extraído a `browser_runtime.py` (#61); sanitización y construcción de eventos/controles a `browser_diagnostics.py` (#63/#69); parsing de respuestas a `browser_responses.py` (#67); estado/challenges de página a `browser_page_state.py` (#68).
-- Jobs: utilidades puras, paginación, card, toolbar y modales de eliminación/contratación extraídos (#71–#74, #76–#77), reduciendo `Jobs.jsx` de 1244 a 1021 líneas.
-- Separación de modelos y responsabilidades.
-- Validaciones locales relacionadas con Cognito.
-- Hardening general de código e infraestructura.
-- Mejoras de RBAC, readiness, rollback, backups, CI y seguridad web.
-- PR #79 eliminó `owner_sub` como frontera de autorización para datos de reclutamiento: vacantes, candidatos, postulaciones, evaluaciones, rankings, importaciones ligadas a vacantes, contratación y acceso al CV canónico son compartidos entre administradores autorizados. `owner_sub` se conserva como procedencia/auditoría e identidad técnica de integraciones.
-- Dependabot agrupado por ecosistema.
-
-### Testing
-
-- E2E con Chromium.
-- Smoke tests de accesibilidad.
-- Smoke tests responsive.
-- Journey integrado de autenticación y navegación.
-
-### UI/UX
-
-- Auditoría integral del sistema visual.
-- Consolidación de navegación y primitives de UI.
-- Mejoras de accesibilidad y responsive.
-- Estados de carga más claros.
-- Feedback no bloqueante.
-- Animaciones accesibles para cargas, calificaciones y rankings.
-- Sustitución de errores genéricos por mensajes contextualizados y accionables.
-
-### Selección, agenda y contratación
-
-- PR #85 agregó una **Agenda de selección** interna dentro del reclutador para que Talento Humano programe directamente llamadas telefónicas y entrevistas presenciales.
-- Se agregó la etapa de postulación `SELECTED`; para Indeed se traduce a `POSITIVELY_SCREENED`.
-- La agenda persiste citas por vacante + candidato y soporta tipos `PHONE_CALL` y `ONSITE_INTERVIEW`.
-- Las citas soportan estados `SCHEDULED`, `COMPLETED` y `CANCELED`, edición, cancelación, marcado como realizada, vista mensual y panel de próximas citas.
-- Solo postulaciones en `SELECTED`, `INTERVIEW`, `OFFER` o `HIRED` son elegibles para agenda.
-- Se agregó el dominio backend `app/domains/recruitment_calendar`, la ruta de frontend de Agenda y la migración Alembic `027`.
-- El PR #85 pasó `CI — Tests & Build` y `Security — CodeQL` antes del merge.
-- La agenda es actualmente **fuente operativa interna de aiRecruiter**. La sincronización con Odoo todavía no está implementada.
-- Regla de producto para la integración futura: evitar poblar Odoo con todo el pipeline de reclutamiento; el envío debe ocurrir únicamente cuando el candidato haya avanzado a la etapa de negocio definida para selección/contratación.
-
-### Onboarding
-
-- Seguimiento detallado del progreso de onboarding para ADMIN.
-- Filtro de empleados por estado de onboarding.
-- PR #81 convirtió `Onboarding ASIATI` en contenido administrado por el sistema: se provisiona/publica automáticamente y no depende de que un ADMIN cree el curso, módulos, lecciones, videos o quiz.
-- La ruta corporativa mantiene exactamente 7 módulos versionados: bienvenida, conoce ASIATI, conoce al equipo, permisos y vacaciones, contenido corporativo, cultura interna y lo que esperamos de ti; usa los videos disponibles en la carpeta `Final` de Drive.
-- PR #95 eliminó el contenedor adicional `Tu cargo en ASIATI`: su checklist `Tu rol y tus primeros días` vive ahora dentro del Módulo 7, por lo que la ruta real y la UI coinciden en 7 módulos.
-- El quiz base del onboarding tiene 7 preguntas centradas en ASIATI, su ecosistema, equipo, permisos/vacaciones, cultura, primeros días y expectativas de incorporación. El preset migra el quiz legado de 5 preguntas solo si sigue intacto; quizzes personalizados por administradores no se sobrescriben.
-- PR #83 eliminó la asignación manual del onboarding y PR #95 reforzó el alta por defecto: perfiles activos nuevos o materializados desde Cognito nacen con onboarding requerido, la migración `030` convierte perfiles activos heredados en `PENDING` y la vista Equipo ASIATI recupera asignaciones faltantes de forma idempotente. Perfiles `NOT_REQUIRED` marcados posteriormente por un admin y perfiles `DISABLED` quedan excluidos.
-- ADMIN/SUPER_ADMIN no asignan la ruta. Su flujo administrativo es vista previa, seguimiento de progreso y resultados.
-- La vista **Empleados > Equipo ASIATI** permite editar cargo/área, rol y si el Onboarding ASIATI es requerido para cada integrante administrable.
-- ADMIN puede gestionar roles `EMPLOYEE` y `ADMIN`; `SUPER_ADMIN` permanece reservado para Dirección. Un ADMIN no puede administrar perfiles `SUPER_ADMIN`.
-- El requisito de onboarding puede cambiarse entre requerido/no requerido, pero el progreso `PENDING` / `IN_PROGRESS` / `COMPLETED` sigue derivándose de actividades reales y no se marca manualmente.
-- Al marcar `NOT_REQUIRED`, la asignación histórica no se destruye, pero el onboarding deja de exponerse al empleado; al volver a requerirlo, se reutiliza y resincroniza la asignación existente.
-- `managed_by_system=true` identifica la ruta protegida y el backend rechaza mutaciones manuales sobre su contenido.
-
-### Operación e infraestructura
-
-- Request correlation y logging estructurado.
-- Alarmas de cola/DLQ versionadas.
-- Alarmas operativas mantenidas como **opt-in** hasta verificar IAM.
-- Diagnóstico automático de fallos del stack `candidate-import`.
-- Backup/restore host-side corregido para Lightsail.
-- Disaster recovery off-host opcional.
-
-## Estado funcional que no debe romperse
-
-### Candidatos y vacantes
-
-- Vacantes, candidatos y postulaciones son datos globales de reclutamiento de la organización para usuarios con permisos administrativos correspondientes; no deben ocultarse por el `owner_sub` del creador.
-- `owner_sub` es procedencia/auditoría y no una frontera de acceso para estos datos. EMPLOYEE sigue restringido por RBAC.
-- Un mismo candidato puede existir en vacantes distintas.
-- Si el mismo candidato aparece varias veces para **la misma vacante**, debe prevalecer la postulación más reciente.
-- Esa deduplicación no debe bloquear al candidato ni eliminar sus postulaciones a otras vacantes.
-
-### Descripciones de vacantes
-
-Deben coexistir dos fuentes independientes:
-
-- descripción proveniente de Indeed;
-- descripción generada/mejorada por IA.
-
-La ingestión no debe sobrescribir automáticamente una descripción generada por IA. La UI debe permitir seleccionar cuál descripción utilizar.
-
-### Onboarding ASIATI
-
-- Los módulos corporativos los mantiene el sistema, no los administradores.
-- Al abrir el catálogo administrativo de capacitación, el backend debe garantizar una única ruta `Onboarding ASIATI` publicada e idempotente.
-- Un ADMIN no debe necesitar botones de “Crear ruta ASIATI” ni “Crear curso” para que exista el onboarding corporativo.
-- La ruta administrada por sistema debe ser de solo lectura en autoría y distribución; los administradores conservan seguimiento, resultados y vista previa.
-- La asignación del `Onboarding ASIATI` es automática e idempotente para perfiles activos. Altas, materialización de usuarios Cognito, reactivaciones, contratación, acceso a Capacitación y apertura de Equipo ASIATI deben poder recuperar una asignación faltante sin intervención administrativa.
-- La ruta corporativa estándar debe permanecer en exactamente 7 módulos. El checklist específico del cargo forma parte del Módulo 7 y no debe volver a crear un octavo módulo.
-- El quiz corporativo base tiene 7 preguntas. Se puede actualizar automáticamente desde el quiz legado intacto de 5 preguntas, pero nunca sobrescribir un quiz que un administrador ya personalizó.
-- La infraestructura genérica de asignaciones puede mantenerse para futuras capacitaciones opcionales o segmentadas, pero no debe exponerse como parte del flujo actual del onboarding corporativo.
-- No inventar contenido corporativo no respaldado por los materiales disponibles. Si un recurso fuente es genérico (por ejemplo, el video de Módulo 5), mantener una denominación neutral hasta contar con información corporativa adicional.
-
-### Agenda de selección
-
-- Talento Humano agenda manualmente llamadas y entrevistas presenciales desde aiRecruiter.
-- No se debe exigir que un administrador asigne una agenda o ruta de selección a otro usuario.
-- Una cita debe estar ligada a una postulación real `job_id + candidate_id`.
-- Candidatos en etapas tempranas no deben aparecer como elegibles para crear citas.
-- La agenda no debe crear por sí sola registros en Odoo mientras no exista el contrato de sincronización aprobado e implementado.
-- Las fechas persistidas deben conservar semántica de zona horaria y el backend debe seguir validando que `ends_at > starts_at`.
-
-### Integración Odoo
-
-- Odoo será un sistema posterior dentro del flujo, no el repositorio primario de todas las vacantes/candidatos del reclutador.
-- No enviar a Odoo candidatos que todavía están únicamente en etapas tempranas del pipeline.
-- Antes de implementar la sincronización deben definirse explícitamente: evento disparador, payload, mapeo de campos, idempotencia, reintentos, trazabilidad y comportamiento ante errores.
-- La agenda interna puede servir como contexto operativo, pero en esta fase no sincroniza llamadas ni entrevistas con Odoo.
-- La contratación/onboarding debe seguir funcionando aunque Odoo esté temporalmente no disponible; la futura integración no debe convertir una caída de Odoo en pérdida del estado local.
-
-### Resume Agent
-
-El Resume Agent debe poder revisar vacantes y candidatos existentes y sincronizar el estado sin crear duplicados incorrectos ni dejar jobs permanentemente bloqueados.
-
-## Riesgos / puntos a verificar
-
-- IAM de las alarmas operativas todavía debe verificarse antes de habilitarlas por defecto.
-- Cualquier cambio en Resume Agent debe probar idempotencia y recuperación ante fallos.
-- Ingestiones deben probar deduplicación por combinación candidato + vacante.
-- Cambios de UI deben conservar accesibilidad, responsive y feedback accionable.
-- No asumir que un deploy exitoso implica funcionamiento correcto: revisar health/readiness y journey crítico.
-- La integración con Odoo todavía es diseño pendiente: no asumir que existe sincronización de candidatos, agenda o contratación.
-- La futura sincronización con Odoo debe ser idempotente para evitar empleados/contactos duplicados ante reintentos.
-- Cambios en Agenda deben conservar elegibilidad por estado, zona horaria, permisos y relación vacante+candidato.
-
-## Prioridad de trabajo
-
-### TODO actual
-
-#### Flujo selección → contratación → Odoo
-- [x] Compartir vacantes/candidatos/postulaciones entre administradores autorizados (#79).
-- [x] Incorporar etapa `SELECTED` y agenda interna para llamadas/entrevistas (#85).
-- [x] Mantener el Onboarding ASIATI administrado y asignado automáticamente por el sistema (#81/#83).
-- [x] Permitir edición administrativa del Equipo ASIATI para cargo/área, rol EMPLOYEE↔ADMIN y requisito de onboarding (#94).
-- [x] Normalizar Onboarding ASIATI a exactamente 7 módulos, mejorar el quiz a 7 preguntas corporativas y asignarlo por defecto a perfiles activos (#95).
-- [x] Corregir dashboard: `Candidatos registrados` usa el total paginado real y la cobertura representa vacantes con al menos un candidato (#95).
-- [ ] Definir contrato de datos aiRecruiter → Odoo para candidatos que alcancen la etapa de negocio acordada.
-- [ ] Mapear los campos requeridos por Odoo y separar datos obligatorios, opcionales y derivados.
-- [ ] Definir el disparador exacto de alta/sincronización en Odoo y cómo se relaciona con `SELECTED`, `OFFER` y `HIRED`.
-- [ ] Implementar idempotencia y trazabilidad de sincronización con Odoo para evitar duplicados.
-- [ ] Diseñar reintentos/estado de error sin bloquear contratación ni onboarding local.
-- [ ] Decidir posteriormente si las citas internas también deben sincronizarse con calendario/Odoo; por ahora permanecen solo en aiRecruiter.
-
-#### P2 · Gobernanza y mantenimiento
-- [ ] Proteger `main` y exigir checks de CI/CodeQL antes de merge. Actualmente la rama no está protegida.
-- [x] Separar upgrades mayores de Dependabot: minor/patch agrupados, majors individuales.
-- [x] Desacoplar el contrato de CI de una versión fija de `actions/upload-artifact`.
-- [x] Reducir ejecuciones innecesarias del workflow de AI handoff.
-- [x] Evitar deploys de producción para cambios solo documentales, handoff, Dependabot o tests.
-- [x] Omitir CodeQL en cambios puramente documentales/configuración de handoff.
-- [x] PR #41 frontend minor/patch validado con CI + CodeQL y mergeado.
-- [x] PR #42: jsdom 26 → 30 validado y mergeado.
-- [x] PR #43: Vitest 3 → 5 validado y mergeado.
-- [x] Lote Python minor/patch revalidado con cobertura del Resume Agent (#51) y mergeado vía #52.
-- [x] Major `websockets` revalidado sobre `main` actual y mergeado vía #55; #45 quedó reemplazado/cerrado.
-- [x] Major `rpds-py` revalidado sobre `main` actual y mergeado vía #56; #46 quedó reemplazado/cerrado.
-- [x] #53, #55 y #56 pasaron CI/CodeQL; los cambios de dependencias raíz también pasaron Resume Agent Linux + Windows y self-test empaquetado.
-- [ ] Revisar el PR de GitHub Actions cuando Dependabot lo regenere con la nueva política.
-
-#### P2 · Modularización residual
-- [x] Reducir responsabilidades de `frontend-react/src/pages/Training.jsx`: 1904 → 928 líneas; modales, quiz de empleado, quiz administrativo, journey del empleado, editor de módulos/lecciones y asignaciones/resultados extraídos.
-- [~] Reducir responsabilidades de `tools/indeed_resume_agent/browser.py`: 2028 → 1692 líneas; runtime, sanitización/eventos de diagnóstico, parsing de respuestas y estado de página extraídos. Pendiente separar lifecycle/persistencia de diagnóstico y, en una fase dedicada de mayor riesgo, navegación/búsqueda y captura de CV.
-- [~] Modularizar `frontend-react/src/pages/Jobs.jsx`: 1244 → 1021 líneas; utilidades puras, paginación, card, toolbar y modales de eliminación/contratación extraídos (#71–#74, #76–#77). Pendiente separar detalle/formulario en cortes pequeños.
-- [ ] Dividir `app/domains/training/asiati_preset.py` (~58 KB) en datos/configuración y builder.
-- [ ] Reducir `frontend-react/src/pages/RankingView.jsx` (~51 KB).
-- [ ] Revisar si `tools/indeed_resume_agent/ui.py` y `ui_v2.py` son legacy sin referencias; eliminarlos solo después de verificar imports, packaging y tests.
-
-#### P2 · Regresiones críticas
-- [ ] Mantener pruebas explícitas de deduplicación por candidato + vacante conservando la postulación más reciente.
-- [x] Mantener cobertura de visibilidad/operación global entre administradores para vacantes, candidatos, ranking, importaciones, contratación y CV canónico (#79).
-- [ ] Mantener pruebas de idempotencia y recuperación del Resume Agent.
-- [ ] Mantener pruebas de descripción Indeed vs descripción IA sin sobrescritura.
-- [ ] Ejecutar journey E2E, accesibilidad y responsive en refactors de frontend.
-- [x] Mantener regresiones de autoprovisionamiento/idempotencia y bloqueo de autoría manual del Onboarding ASIATI (#81).
-
-#### Pendientes operativos externos
-- [ ] Verificar IAM antes de activar las alarmas operativas por defecto.
-- [ ] Ejecutar el corte controlado del Resume Agent con una aplicación real, luego lote de 5–10 y finalmente backlog.
-
-### Fase activa
+Cerrar un primer piloto operativo de **Talent ID en recepción** sobre Talent Intelligence:
 
-La fase funcional activa es consolidar el flujo **selección → agenda → contratación → integración Odoo**. La deuda P2 sigue vigente y debe cerrarse en paralelo mediante PRs pequeños, pero no sustituye el objetivo funcional inmediato.
-
-Antes de construir la integración con Odoo debe verificarse el modelo actual de contratación y definirse un contrato explícito de sincronización. No implementar envíos generales de vacantes/candidatos a Odoo.
-
-### P2 — continuar
-
-La fase técnica paralela continúa cerrando P2 restantes detectados durante la auditoría senior.
+1. enrolar biometría facial de empleados desde una interfaz administrativa;
+2. instalar el APK Android del kiosco en un dispositivo real;
+3. ejecutar una prueba E2E controlada de enrolamiento → reconocimiento → check-in/check-out;
+4. validar reintentos/idempotencia y rostro no reconocido;
+5. después agregar fallback PIN/QR, Face Liveness y modo kiosco administrado;
+6. finalmente conectar asistencia con el sistema de puntos/reconocimientos del empleado.
 
-Al comenzar una nueva sesión:
-
-1. revisar los commits posteriores al checkpoint;
-2. revisar CI y tests;
-3. identificar P2 todavía abiertos en código/documentación;
-4. trabajar por bloques pequeños y verificables;
-5. ejecutar pruebas relevantes;
-6. hacer commit/merge;
-7. actualizar este archivo si cambió el estado del proyecto.
-
-## Protocolo para una sesión nueva de IA
-
-Una sesión nueva debería comenzar con una instrucción similar a:
-
-> Continúa aiRecruiterAsiati. Usa `docs/AI_HANDOFF.md` como checkpoint inicial, pero verifica el estado actual de `main`, los commits posteriores, CI y el código antes de asumir que el documento sigue vigente. GitHub es la fuente de verdad.
-
-### Orden recomendado de lectura
-
-1. `docs/AI_HANDOFF.md`
-2. últimos commits de `main`
-3. README y documentación técnica relacionada con la tarea
-4. archivos modificados recientemente
-5. tests asociados
-6. CI / workflows relevantes
-
-## Jerarquía de fuentes de verdad
-
-Cuando exista una contradicción, usar este orden:
-
-1. **Código actual en `main`**
-2. **Tests y configuración versionada**
-3. **Commits / PRs recientes**
-4. **Este archivo**
-5. **Historial de chats**
-
-Nunca asumir que una afirmación de un chat sigue siendo cierta sin contrastarla con el repositorio.
-
-## Cuándo actualizar este archivo
-
-El bloque **Checkpoint automático** se actualiza solo cuando un PR con la etiqueta `handoff:update` se fusiona a `main`. El resto del documento sigue siendo deliberadamente manual para que riesgos, decisiones, bloqueos y próximos pasos reflejen el estado real del proyecto.
-
-Actualizar manualmente el contenido semántico cuando ocurra cualquiera de estos eventos:
-
-- merge importante;
-- cierre de una fase P0/P1/P2;
-- cambio de arquitectura;
-- cambio relevante de infraestructura;
-- modificación de reglas de negocio;
-- aparición de un bloqueo conocido;
-- cambio del próximo objetivo;
-- antes de abandonar un chat de trabajo muy largo.
-
-No hace falta registrar cada commit menor.
-
-## Plantilla de checkpoint
-
-Al actualizar este documento, mantener como mínimo:
-
-```md
-## Checkpoint
-
-- Fecha:
-- Rama:
-- Commit:
-- Último hito:
-
-### Completado
-- ...
-
-### En progreso
-- ...
-
-### Pendiente
-- ...
-
-### Bloqueos
-- ...
-
-### Riesgos
-- ...
-
-### Próximo paso recomendado
-1. ...
-2. ...
-3. ...
-```
-
----
-
-## Checkpoint
-
-- **Fecha:** 2026-09-28
-- **Rama:** `main`
-- **Commit funcional de referencia:** `62bfeed546560e2cbd366976d23688a29ec518e6`
-- **Último hito:** PR #95 mergeado — Onboarding ASIATI quedó normalizado a 7 módulos reales, quiz base de 7 preguntas, onboarding requerido por defecto para perfiles activos con backfill Alembic 030 y dashboard corregido para mostrar el total real de candidatos y cobertura por vacantes con candidatos.
-
-### Completado
-
-- Reclutamiento global entre administradores autorizados (#79).
-- Onboarding ASIATI precargado y asignado automáticamente por el sistema (#81/#83), pero editable por administradores sobre módulos/lecciones existentes (#89).
-- Onboarding ASIATI normalizado a exactamente 7 módulos; el checklist de primeros días está dentro del Módulo 7 y el quiz base contiene 7 preguntas corporativas (#95).
-- Perfiles activos requieren onboarding por defecto; migración Alembic `030` hace backfill de estados heredados y Equipo ASIATI recupera asignaciones faltantes de forma idempotente (#95).
-- Dashboard administrativo corregido: `Candidatos registrados` usa `/candidates.total` y `Cobertura estimada` es el porcentaje de vacantes con `candidate_count > 0` (#95).
-- Agenda de selección interna para llamadas y entrevistas presenciales (#85).
-- Ranking solo muestra vacantes con `Number(candidate_count) > 0`; `0`, `null` o campo ausente quedan ocultos. Si todas quedan fuera, no selecciona ninguna ni consulta `/ranking` (#90/#91).
-- Etapa `SELECTED` y mapeo Indeed `POSITIVELY_SCREENED` (#85).
-- Outbox de empleado Odoo `odoo_employee_syncs` al contratar, idempotente por empleado (#86, Alembic 028).
-- Outbox de postulante Odoo `odoo_applicant_syncs` al pasar a `SELECTED`, idempotente por postulación (#87, Alembic 029).
-- Vacantes conservan proceso de selección editable y `UPSERT_APPLICANT` v1 incluye candidato, vacante, proceso y referencia al CV canónico (#87).
-- POST `/api/odoo/employees/{employee_id}/sync` agregado (#92): consume el outbox de empleado, hace upsert sobre `hr.employee` y persiste estado/ID externo.
-- El mapper de empleado usa `fields_get` para escribir solo campos soportados/editables.
-- Mapeo inicial: nombre, correo de trabajo, cargo, teléfono privado, tipo Employee cuando esté disponible y relaciones existentes de departamento/puesto.
-- Idempotencia: primero `odoo_record_id`; en ausencia, `work_email`. Correos Odoo duplicados detienen el intento.
-- No se crean automáticamente departamentos, puestos ni empresas desde aiRecruiter.
-- Configuración Odoo opcional ya se propaga a API/worker en deploy; `ODOO_ENABLED` permanece `false` por defecto.
-- Cliente `OdooXmlRpcClient` agregado (#88) sobre:
-  - `/xmlrpc/2/common` para versión/autenticación;
-  - `/xmlrpc/2/object` para operaciones de modelos.
-- Configuración no secreta: `ODOO_ENABLED`, `ODOO_BASE_URL`, `ODOO_DATABASE`, `ODOO_USERNAME`, `ODOO_SECRET_ID`, `ODOO_REQUEST_TIMEOUT_SECONDS`.
-- API key de Odoo fuera del repositorio, leída desde AWS Secrets Manager.
-- HTTPS obligatorio fuera de localhost.
-- Timeout Odoo configurable, 15 segundos por defecto.
-- Helpers genéricos disponibles: `fields_get`, `search_read`, `create`, `write`, `healthcheck`.
-- Errores de transporte sanitizados para no propagar detalles remotos/secretos.
-- Tests específicos para cliente XML-RPC, composición de integración, configuración y Secrets Manager.
-- PR #88 pasó backend pytest, PostgreSQL smoke, frontend, E2E Chromium y CodeQL.
-- No hay PRs abiertos después del merge.
-
-### En progreso
-
-- Mapeo técnico real entre los contratos `UPSERT_APPLICANT` / `UPSERT_EMPLOYEE` y los modelos/campos de Odoo ASIATI.
-- Diseño/implementación del consumidor de outbox de postulante; empleado ya tiene POST explícito e idempotente (#92).
-- Resolución del CV canónico como adjunto al consumir el outbox.
-- Definición de una fuente canónica para teléfono cuando no venga en metadata.
-- Cierre paralelo de P2 residuales.
-- Prueba funcional manual del onboarding precargado desde dos perspectivas: admin editor y empleado asignado automáticamente.
-- Validación manual de la edición del Equipo ASIATI: cargo/área, rol y requisito de onboarding desde la vista administrativa (#94/#95).
-
-### Pendiente inmediato
-
-1. Ejecutar prueba funcional del Onboarding ASIATI con un admin: abrir la ruta precargada, editar módulo/lección y reemplazar un video sin crear estructura nueva.
-2. Ejecutar prueba como empleado activo: confirmar asignación automática, avance, checklist y evaluación final.
-3. Configurar conexión Odoo ASIATI y ejecutar `healthcheck` + prueba controlada del POST de empleado.
-4. Validar en la instancia real los campos `name`, `work_email`, `job_title`, `private_phone`, `employee_type`, `department_id` y `job_id`.
-5. Implementar consumidor de `odoo_applicant_syncs` con orden: upsert vacante → upsert postulante → adjuntar CV → guardar `odoo_job_id` / `odoo_applicant_id`.
-6. Automatizar reintentos/consumo de outboxes después de validar el POST manual.
-7. Agregar permisos IAM mínimos para leer `ODOO_SECRET_ID` cuando se habilite la integración en runtime.
-8. Mantener `ODOO_ENABLED=false` hasta validar conexión y mapeo contra un entorno seguro.
-9. Mantener etapas previas a `SELECTED` exclusivamente en aiRecruiter y Agenda sin sincronización de citas hasta decisión posterior.
-
-### Bloqueos / dependencias externas
-
-- Falta configurar la conexión runtime Odoo ASIATI (base URL, database, username y API key en Secrets Manager) para inspeccionar modelos reales.
-- Falta confirmar el modelo/campo destino del CV en Odoo antes de habilitar escrituras.
-- La instancia conocida es Odoo 18 Enterprise con Reclutamiento instalado; no asumir nombres/campos custom sin inspección.
-- Verificación IAM de alarmas operativas.
-- Prueba real controlada del Resume Agent requiere workstation/sesión Indeed autorizada.
-
-### Riesgos
-
-- No activar escrituras Odoo con un mapeo supuesto: primero usar `fields_get`/lecturas contra la instancia real.
-- Una API key no debe aparecer en Git, logs, responses ni variables de frontend.
-- El worker Odoo debe tener timeout y reintentos; una caída externa no puede bloquear estados locales.
-- Persistir los IDs externos solo después de confirmación del upsert para mantener idempotencia.
-- Las URLs firmadas de CV expiran; resolver el documento canónico al ejecutar, no guardar URL temporal.
-- El teléfono aún no tiene una fuente canónica garantizada para todos los candidatos.
-
-### Próximo paso recomendado
-
-1. Configurar de forma segura la conexión Odoo runtime sin habilitar escrituras automáticas.
-2. Ejecutar un diagnóstico de solo lectura: `healthcheck` + `fields_get` de los modelos de Reclutamiento/RRHH presentes.
-3. Documentar el mapeo real fuente → destino.
-4. Implementar el consumidor de outboxes con reintentos e idempotencia.
-5. Probar primero en entorno seguro antes de activar `ODOO_ENABLED` en producción.
+En paralelo, mantener estable reclutamiento, onboarding y la integración Odoo ya existente.
+
+## Estado funcional validado
+
+### Reclutamiento
+
+- Vacantes, candidatos y postulaciones son datos globales para administradores autorizados.
+- `owner_sub` se conserva como procedencia/auditoría, no como frontera de acceso.
+- Ranking oculta vacantes sin candidatos.
+- Existe búsqueda/directorio de candidatos.
+- Etapas de selección están alineadas con el proceso trabajado para Odoo.
+- Existe Agenda de selección interna para llamadas y entrevistas presenciales.
+- La agenda sigue siendo operativa dentro de Talent Intelligence; no debe depender de Odoo.
+
+### Onboarding / Capacitación
+
+- `Onboarding ASIATI` se provisiona automáticamente y no requiere que un administrador cree la estructura desde cero.
+- La ruta estándar contiene **7 módulos**.
+- Nuevos perfiles activos reciben onboarding automáticamente cuando aplica.
+- ADMIN puede editar el contenido existente del curso/módulos/lecciones y reemplazar material, pero el flujo normal no debe exigir crear la ruta corporativa.
+- Los videos corporativos se sirven desde infraestructura privada en AWS/S3.
+- El progreso y resultados son visibles para administración.
+- Equipo ASIATI permite editar cargo/área, rol y requisito de onboarding según permisos.
+
+### Odoo
+
+- Odoo se mantiene como sistema downstream/registro; Talent Intelligence sigue siendo el acceso principal de Talento Humano y empleados.
+- Existe diagnóstico read-only de Odoo (#116).
+- Existe panel administrativo de integración Odoo (#117).
+- Al contratar, Talent Intelligence puede crear o actualizar el empleado en Odoo (#118) con entrega best-effort: una caída de Odoo no debe perder el estado local de contratación.
+- Persisten contratos/outboxes para sincronización.
+- La sincronización completa de postulante/vacante/CV todavía debe considerarse trabajo separado del alta de empleado y requiere validación contra los campos reales de Odoo.
+
+## Talent ID — estado actual
+
+### Backend base — completado (#119)
+
+Talent ID está integrado dentro del backend existente y reutiliza:
+
+- `user_profiles` / identidad de empleados;
+- RBAC de Talent Intelligence;
+- base de datos principal;
+- runtime AWS existente;
+- despliegue actual en Lightsail.
+
+Incluye dominio de asistencia, sitios, dispositivos/kioscos, configuración de elegibilidad y eventos de marcación.
+
+### Biometría facial — completado y desplegado (#120)
+
+PR #120 fue mergeado como `921bc076f5fbd44d3ba5c880efa5c5919b32ab67` y su pipeline de producción terminó correctamente.
+
+Backend disponible:
+
+- `POST /api/talent-id/employees/{employee_id}/biometrics/enroll`
+- `POST /v1/kiosk/recognize`
+
+Reglas actuales:
+
+- JPEG/PNG;
+- máximo 5 MB;
+- umbral de reconocimiento configurable, default 98%;
+- asociación configurable, default 90%;
+- múltiples rostros por empleado;
+- kiosco autenticado con `X-Device-Id` + `X-Device-Secret`;
+- `Idempotency-Key` evita duplicar marcaciones y evita repetir reconocimiento al reintentar;
+- las imágenes recibidas se procesan en memoria y no se guardan como archivos por Talent Intelligence.
+
+### AWS Rekognition — preparado
+
+Cuenta y región usadas por este proyecto:
+
+- **AWS Account:** `890876258895`
+- **Región:** `us-east-2`
+- **Colección:** `talent-intelligence-employees`
+- **ARN:** `arn:aws:rekognition:us-east-2:890876258895:collection/talent-intelligence-employees`
+- **Face model observado al crear la colección:** `7.0`
+- **Runtime role:** `AiRecruiterBedrockRuntimeRole`
+- **Runtime:** Lightsail + IAM Roles Anywhere.
+
+La colección fue creada el 2026-10-01. Inició con 0 usuarios / 0 rostros.
+
+Permisos mínimos validados mediante IAM simulation sobre el runtime:
+
+- `rekognition:CreateUser`
+- `rekognition:IndexFaces`
+- `rekognition:AssociateFaces`
+- `rekognition:DeleteFaces`
+- `rekognition:SearchUsersByImage`
+
+Todos resultaron `allowed` para la colección específica.
+
+**Deuda de infraestructura:** el permiso se aplicó al inline policy del runtime para habilitar el piloto. El archivo `infra/talent-id-rekognition-runtime-policy.json` está versionado, pero el deploy todavía no gestiona automáticamente ese statement. Convertirlo en IaC reproducible antes de considerar la fase cerrada.
+
+### Android kiosk — completado en código (#121)
+
+PR #121 fue mergeado como `c97338d2370dd894dee03a44b363f61f706acf86`.
+
+Stack:
+
+- Kotlin;
+- Jetpack Compose;
+- CameraX;
+- Android Keystore;
+- OkHttp;
+- Android 7.0 / API 24+ como mínimo documentado.
+
+Flujo:
+
+1. ADMIN provisiona un kiosco desde backend.
+2. Backend entrega `device_id` + `device_secret` una sola vez.
+3. El tablet guarda el secreto cifrado con Android Keystore / AES-GCM.
+4. Valida contexto contra `GET /v1/kiosk/context`.
+5. Captura JPEG temporal con cámara frontal.
+6. Envía `POST /v1/kiosk/recognize`.
+7. Registra `CHECK_IN` o `CHECK_OUT`.
+8. Reintentos de red reutilizan la misma `Idempotency-Key`.
+9. La imagen temporal se elimina después de éxito o error final.
+
+No se incluyen credenciales IAM/AWS dentro del APK.
+
+### Android CI / APK
+
+Workflow: `.github/workflows/android-ci.yml`
+
+Valida:
+
+- unit tests;
+- ensamblado debug APK;
+- publicación del APK como GitHub Actions artifact.
+
+El build usa:
+
+- `vars.PUBLIC_BASE_URL` cuando está definido;
+- fallback de producción: `https://talent.asiati.com.co`.
+
+Artifact:
+
+- nombre `talent-id-kiosk-debug-<commit-sha>`;
+- archivo `android/app/build/outputs/apk/debug/app-debug.apk`;
+- retención: 14 días.
+
+El PR #121 pasó:
+
+- Android unit tests;
+- Assemble debug APK;
+- Upload debug APK;
+- CI general;
+- E2E Chromium;
+- PostgreSQL smoke;
+- CodeQL.
+
+## Producción
+
+### Backend / frontend
+
+- Instancia: `ai-recruiter-micro-prod`
+- Despliegue: GitHub Actions → ECR → Lightsail vía SSH.
+- API y worker consumen AWS mediante IAM Roles Anywhere.
+- El pipeline de #120 terminó `success` y verificó el deploy después del merge de biometría.
+
+### Regla importante
+
+Un merge o build verde no sustituye la prueba funcional real. Para Talent ID falta todavía validar con un dispositivo y una persona enrolada.
+
+## Próximo bloque de trabajo recomendado
+
+### P0 — Piloto Talent ID
+
+1. **Construir UI administrativa de enrolamiento biométrico**
+   - ubicarla dentro de Equipo ASIATI / perfil de empleado;
+   - mostrar estado: no enrolado / enrolado / cantidad de rostros / activo;
+   - permitir captura o upload de fotografía;
+   - permitir agregar fotografías adicionales;
+   - definir desactivación/eliminación de biometría.
+
+2. **Prueba controlada con un empleado**
+   - habilitar asistencia;
+   - enrolar 2–3 fotografías con consentimiento;
+   - reconocer desde Android;
+   - CHECK_IN;
+   - retry con misma key;
+   - CHECK_OUT;
+   - probar rostro desconocido.
+
+3. **Instalar APK en tablet/teléfono de recepción**
+   - descargar artifact de GitHub Actions;
+   - provisionar dispositivo;
+   - validar cámara, permisos, red, orientación y experiencia de recepción.
+
+4. **Hardening del kiosco**
+   - PIN/QR fallback;
+   - Face Liveness;
+   - lock-task / managed-device mode;
+   - observabilidad y mensajes de error offline.
+
+5. **Puntos**
+   - definir reglas de puntos por puntualidad/asistencia;
+   - no acoplar el cálculo de puntos al reconocimiento biométrico;
+   - generar puntos a partir del evento de asistencia confirmado.
+
+### P1 — Biometría / privacidad
+
+Antes de ampliar el piloto:
+
+- definir consentimiento y finalidad del tratamiento biométrico;
+- definir proceso de baja/desvinculación y borrado de rostros del proveedor;
+- definir quién puede enrolar/desactivar biometría;
+- auditar acciones administrativas;
+- documentar qué se guarda localmente y qué se guarda en Rekognition;
+- no persistir fotografías originales salvo decisión explícita y justificada.
+
+### P2 — Infraestructura / mantenimiento
+
+- convertir permisos Rekognition del runtime en IaC aplicado automáticamente;
+- evitar deploy de API/frontend cuando el cambio sea únicamente `android/**`;
+- proteger `main` y exigir checks si todavía no está protegido;
+- continuar modularización residual de frontend/Resume Agent;
+- mantener regresiones de deduplicación candidato+vacante;
+- validar IAM de alarmas operativas antes de activarlas por defecto.
+
+## Bloqueos / dependencias externas
+
+Para completar la prueba E2E biométrica hace falta:
+
+- un empleado de prueba activo;
+- consentimiento para enrolamiento;
+- fotografías/capturas reales;
+- un dispositivo Android con cámara frontal para la prueba de recepción.
+
+No inventar ni reutilizar imágenes personales sin autorización.
+
+## Riesgos técnicos
+
+- Una caída de Rekognition no debe generar una marcación falsa.
+- No bajar el threshold de reconocimiento para “hacer pasar” pruebas.
+- La idempotencia del evento debe mantenerse independiente de reintentos de red.
+- Un usuario deshabilitado/no elegible no debe poder marcar asistencia aunque conserve rostros en Rekognition.
+- La baja de un empleado debe contemplar limpieza/desasociación biométrica.
+- No exponer `device_secret`, credenciales AWS ni secretos de runtime en frontend, logs o APK.
+- No depender de URLs temporales o archivos de fotos persistentes para reconocer.
+
+## Protocolo para una sesión nueva
+
+1. Leer este archivo.
+2. Verificar `main`, commits posteriores y PRs abiertos.
+3. Revisar Actions del último merge.
+4. Si la tarea toca AWS, comprobar estado real antes de crear recursos.
+5. Trabajar por PR pequeño y verificable.
+6. No mergear con checks rojos.
+7. Actualizar este handoff al cerrar un hito importante.
+
+## Fuente de verdad
+
+Cuando haya contradicción:
+
+1. código actual en `main`;
+2. tests/workflows;
+3. AWS real;
+4. PRs/commits;
+5. este handoff;
+6. historial de chat.
