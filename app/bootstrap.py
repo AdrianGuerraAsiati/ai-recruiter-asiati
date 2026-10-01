@@ -23,6 +23,8 @@ from app.domains.odoo_sync.router import router as odoo_sync_router
 from app.domains.jobs.router import router as jobs_router
 from app.domains.ranking.router import router as ranking_router
 from app.domains.recruitment_calendar.router import router as recruitment_calendar_router
+from app.domains.talent_id.router import kiosk_router as talent_id_kiosk_router
+from app.domains.talent_id.router import router as talent_id_router
 from app.domains.training.asiati_media import migrate_latest_published_onboarding_media
 from app.domains.training.router import router as training_router
 from app.health import router as health_router
@@ -63,6 +65,8 @@ def create_app() -> FastAPI:
     app.include_router(odoo_sync_router)
     app.include_router(ranking_router)
     app.include_router(recruitment_calendar_router)
+    app.include_router(talent_id_router)
+    app.include_router(talent_id_kiosk_router)
     app.include_router(training_router)
     app.include_router(candidate_imports_router)
     app.include_router(candidate_ingestion_router)
