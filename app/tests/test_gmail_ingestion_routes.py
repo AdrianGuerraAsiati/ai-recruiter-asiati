@@ -96,6 +96,7 @@ def test_gmail_sync_translates_operational_failures(
         raise exception_type(exception_name)
 
     monkeypatch.setattr(gmail_integration, "sync_mailbox", fake_sync)
+    monkeypatch.setattr(gmail_integration, "integration_owner_sub", lambda: "corporate-owner")
 
     response = client.post("/api/integrations/gmail/sync")
 
