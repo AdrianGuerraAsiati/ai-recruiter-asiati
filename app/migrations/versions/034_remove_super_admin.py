@@ -55,9 +55,9 @@ def upgrade() -> None:
             WHERE legacy.role_code = 'SUPER_ADMIN'
               AND NOT EXISTS (
                   SELECT 1
-                  FROM user_roles AS current_role
-                  WHERE current_role.user_id = legacy.user_id
-                    AND current_role.role_code = 'ADMIN'
+                  FROM user_roles AS existing_role
+                  WHERE existing_role.user_id = legacy.user_id
+                    AND existing_role.role_code = 'ADMIN'
               )
             """
         )
