@@ -51,6 +51,8 @@ PERMISSION_DEFINITIONS = {
     "training.quiz.take": "Presentar evaluaciones de capacitación.",
     "training.progress.read_own": "Consultar el progreso de capacitación propio.",
     "profile.read_own": "Consultar el perfil propio.",
+    "talent_id.read": "Consultar sedes, horarios, dispositivos y asistencia.",
+    "talent_id.manage": "Administrar Talent ID, asistencia y dispositivos.",
     "employee_scores.read": "Consultar calificaciones privadas de empleados.",
     "employee_scores.create": "Agregar movimientos de puntuación.",
     "employee_scores.correct": "Corregir o anular movimientos de puntuación.",
@@ -76,6 +78,8 @@ _ADMIN_PERMISSIONS = {
     "training.assign",
     "training.results.read",
     "profile.read_own",
+    "talent_id.read",
+    "talent_id.manage",
 }
 
 _EMPLOYEE_PERMISSIONS = {
