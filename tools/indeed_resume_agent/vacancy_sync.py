@@ -213,6 +213,31 @@ DETAIL_STATE_SCRIPT = r"""
     }
     return '';
   };
+  const lifecycleStatusFromNode = (node) => {
+    if (!node) return '';
+    const structural = [
+      node.getAttribute?.('data-shield-id'),
+      node.getAttribute?.('data-testid'),
+      ...Array.from(node.querySelectorAll?.('[data-shield-id],[data-testid]') || [])
+        .flatMap((child) => [
+          child.getAttribute?.('data-shield-id'),
+          child.getAttribute?.('data-testid'),
+        ]),
+    ]
+      .map((value) => oneLine(value).toLowerCase())
+      .filter(Boolean)
+      .join(' ');
+    if (/status[^ ]*(?:paused|pause)|dot--paused/.test(structural)) return 'PAUSED';
+    if (/status[^ ]*(?:active|open)|dot--active/.test(structural)) return 'ACTIVE';
+
+    const text = oneLine(node.innerText || node.textContent || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    if (/\b(?:pausado|pausada|paused|en pausa)\b/.test(text)) return 'PAUSED';
+    if (/\b(?:abierto|abierta|open|activa|activo|active)\b/.test(text)) return 'ACTIVE';
+    return oneLine(node.innerText || node.textContent || '');
+  };
   const pageText = oneLine(document.body?.innerText || '').toLowerCase();
   const loading = [
     'cargando los detalles del empleo',
@@ -250,7 +275,10 @@ DETAIL_STATE_SCRIPT = r"""
     '[data-testid*="location" i]',
     '[class*="location" i]'
   ]);
-  const status = firstText([
+  const statusNode = document.querySelector(
+    '[data-testid="top-level-job-status"], [aria-label="Estado del empleo"], [aria-label="Job status"]'
+  );
+  const status = lifecycleStatusFromNode(statusNode) || firstText([
     '[data-testid*="status" i]',
     '[aria-label*="status" i]',
     '[aria-label*="estado" i]'
