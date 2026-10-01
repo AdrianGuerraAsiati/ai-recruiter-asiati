@@ -896,13 +896,5 @@ from app.domains.training.models import (  # noqa: E402,F401
 )
 
 
-# Talent ID ORM models live with their domain and remain re-exported here
-# so Alembic and legacy Base.metadata imports register the full schema.
-from app.domains.talent_id.models import (  # noqa: E402,F401
-    TalentAttendanceEvent,
-    TalentBiometricEnrollment,
-    TalentEmployeeAttendanceSetting,
-    TalentKioskDevice,
-    TalentSite,
-    TalentWorkSchedule,
-)
+# Register domain-owned Talent ID tables in shared Base.metadata.
+from app.domains.talent_id import models as talent_id_models  # noqa: E402,F401
