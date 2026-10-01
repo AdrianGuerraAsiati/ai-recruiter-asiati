@@ -314,6 +314,14 @@ function Integrations() {
                 <>
                   <button
                     type="button"
+                    className="integration-secondary"
+                    onClick={connectGmail}
+                    disabled={Boolean(busy)}
+                  >
+                    {busy === "connect" ? "Abriendo Google…" : "Reconectar Gmail"}
+                  </button>
+                  <button
+                    type="button"
                     className="integration-primary"
                     onClick={syncGmail}
                     disabled={Boolean(busy) || !status.enabled || !status.safe_filter}
