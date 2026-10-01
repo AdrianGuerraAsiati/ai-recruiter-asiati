@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_production_preflight_reclaims_unused_docker_disk_before_pull():
+def test_production_preflight_reclaims_old_deploy_images_before_pull():
     workflow = (ROOT / ".github/workflows/deploy.yml").read_text(encoding="utf-8")
 
     migrate = workflow.index("- name: Migrate and backfill production database")
@@ -14,7 +14,11 @@ def test_production_preflight_reclaims_unused_docker_disk_before_pull():
     preflight = workflow[migrate:deploy]
 
     assert "docker container prune -f" in preflight
-    assert "docker image prune" not in preflight
-    assert "docker builder prune -a -f --filter until=168h" in preflight
+    assert "prune_old_repo_images()" in preflight
+    assert 'keep="${2:-3}"' in preflight
+    assert 'prune_old_repo_images "$ECR_REGISTRY/$ECR_BACKEND_REPO" 3' in preflight
+    assert 'prune_old_repo_images "$ECR_REGISTRY/$ECR_FRONTEND_REPO" 3' in preflight
+    assert "docker image prune -f" in preflight
+    assert "docker builder prune -a -f" in preflight
     assert "docker system df" in preflight
     assert "--volumes" not in preflight
