@@ -200,17 +200,31 @@ def _resolved_oauth_settings(
 
 
 def _oauth_owner(payload: dict) -> str:
+    """Return the stable corporate owner used only for ingestion partitioning.
+
+    Authorization is RBAC-based at the HTTP boundary. This identifier preserves
+    the existing cursor/backlog namespace when a different ADMIN reconnects the
+    same corporate Gmail integration.
+    """
     return str(
-        payload.get("connected_by_sub")
-        or payload.get("authorized_owner_sub")
+        payload.get("authorized_owner_sub")
+        or payload.get("connected_by_sub")
         or ""
     ).strip()
 
 
-def _require_oauth_owner(payload: dict, owner_sub: str) -> None:
+def integration_owner_sub(
+    *,
+    oauth_settings: GmailOAuthSettings | None = None,
+    oauth_store=None,
+) -> str:
+    """Resolve the stable owner used by Gmail ingestion records and cursors."""
+    oauth = oauth_settings or get_gmail_oauth_settings()
+    payload = _read_oauth_secret(oauth, oauth_store)
     owner = _oauth_owner(payload)
-    if not owner or owner != str(owner_sub or "").strip():
-        raise GmailOAuthOwnershipError("GMAIL_OAUTH_OWNER_MISMATCH")
+    if not owner:
+        raise GmailOAuthOwnershipError("GMAIL_OAUTH_OWNER_REQUIRED")
+    return owner
 
 
 def _oauth_is_configured(oauth_settings: GmailOAuthSettings, payload: dict) -> bool:
@@ -240,14 +254,13 @@ def integration_status(
     resolved_oauth = _resolved_oauth_settings(oauth, payload)
     connected_email = str(payload.get("connected_email") or "").strip().casefold()
     connected = bool(resolved.refresh_token and connected_email)
-    owner = _oauth_owner(payload)
-    manageable = bool(owner_sub and owner and owner == str(owner_sub).strip())
+    manageable = bool(owner_sub)
     return {
         "enabled": resolved.enabled,
         "configured": resolved.configured,
         "oauth_configured": _oauth_is_configured(resolved_oauth, payload),
         "connected": connected,
-        "connected_email": connected_email if manageable and connected_email else None,
+        "connected_email": connected_email or None,
         "manageable": manageable,
         "provider": resolved.ingestion_provider,
         "safe_filter": is_safe_mailbox_filter(resolved),
@@ -311,14 +324,6 @@ def oauth_start(
     if not _oauth_is_configured(resolved_oauth, payload):
         raise GmailOAuthConfigurationError("Gmail OAuth client is not configured.")
 
-    owner = _oauth_owner(payload)
-    if owner:
-        _require_oauth_owner(payload, owner_sub)
-    elif not str(payload.get("connected_email") or "").strip():
-        # New installations must nominate the corporate integration owner before
-        # any authenticated application user can bind an arbitrary mailbox.
-        raise GmailOAuthOwnershipError("GMAIL_OAUTH_OWNER_REQUIRED")
-
     state_secret = str(payload["state_secret"])
     state = _sign_state(
         {
@@ -368,10 +373,6 @@ def oauth_callback(
     )
     owner_sub = str(state_payload["sub"]).strip()
     owner = _oauth_owner(payload)
-    if owner:
-        _require_oauth_owner(payload, owner_sub)
-    elif not str(payload.get("connected_email") or "").strip():
-        raise GmailOAuthOwnershipError("GMAIL_OAUTH_OWNER_REQUIRED")
 
     owns_client = http_client is None
     client = http_client or httpx.Client(timeout=current.request_timeout_seconds)
@@ -411,11 +412,11 @@ def oauth_callback(
         except Exception as exc:
             raise GmailRemoteError("Google OAuth callback failed.") from exc
 
-        existing_email = str(payload.get("connected_email") or "").strip().casefold()
-        if not owner and existing_email and connected_email != existing_email:
-            raise GmailOAuthOwnershipError("GMAIL_OAUTH_MAILBOX_MISMATCH")
-
         updated = dict(payload)
+        # Preserve the original corporate ingestion namespace even when a
+        # different ADMIN performs the OAuth flow. connected_by_sub is audit.
+        if not str(updated.get("authorized_owner_sub") or "").strip():
+            updated["authorized_owner_sub"] = owner or owner_sub
         updated.update(
             {
                 "refresh_token": refresh_token,
@@ -439,7 +440,6 @@ def disconnect_oauth(*, owner_sub: str, oauth_store=None) -> dict:
     oauth = get_gmail_oauth_settings()
     store = _oauth_store(oauth, oauth_store)
     payload = dict(store.read() or {})
-    _require_oauth_owner(payload, owner_sub)
     payload["refresh_token"] = ""
     payload["connected_email"] = ""
     payload.pop("connected_at", None)
@@ -475,8 +475,6 @@ def sync_mailbox(
         raise GmailUnsafeConfiguration(
             "Gmail ingestion requires GMAIL_ALLOWED_SENDERS or a restrictive from: query."
         )
-    _require_oauth_owner(payload, owner_sub)
-
     client = mailbox_client or GmailClient(resolved)
     try:
         sync_kwargs = {
@@ -545,8 +543,6 @@ def reset_mailbox_to_current(
         raise GmailUnsafeConfiguration(
             "Gmail ingestion requires GMAIL_ALLOWED_SENDERS or a restrictive from: query."
         )
-    _require_oauth_owner(payload, owner_sub)
-
     client = mailbox_client or GmailClient(resolved)
     try:
         profile = client.get_profile()
