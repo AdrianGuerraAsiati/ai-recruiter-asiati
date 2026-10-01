@@ -18,6 +18,9 @@ def test_vacancy_sync_parses_recovered_applications(tmp_path):
         "active": 8,
         "paused": 4,
         "status_changed": 3,
+        "status_from_detail": 7,
+        "status_from_row": 4,
+        "status_unknown": 1,
         "applications_recovered": 5,
     }
 
@@ -37,3 +40,6 @@ def test_vacancy_sync_parses_recovered_applications(tmp_path):
     assert result.active == 8
     assert result.paused == 4
     assert result.status_changed == 3
+    assert result.status_from_detail == 7
+    assert result.status_from_row == 4
+    assert result.status_unknown == 1
