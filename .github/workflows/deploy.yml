@@ -29,7 +29,9 @@ env:
   ECR_FRONTEND_REPO: ai-recruiter-frontend
   INSTANCE_NAME: ai-recruiter-micro-prod
   RUNTIME_CONFIG_SECRET: /ai-recruiter/prod/runtime-config
-  PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
+  PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://dzcwl3yhv133t.cloudfront.net' }}
+  CDN_DISTRIBUTION_NAME: ai-recruiter-cdn
+  CDN_REGION: us-east-1
 
 jobs:
   backend-tests:
@@ -292,6 +294,29 @@ jobs:
             echo DEPLOYMENT_FRONTEND_OK
             sudo docker image prune -f
           REMOTE_DEPLOY
+      - name: Reset Lightsail CDN cache
+        run: |
+          set -euo pipefail
+          OP_ID=$(aws lightsail reset-distribution-cache \
+            --distribution-name "$CDN_DISTRIBUTION_NAME" \
+            --region "$CDN_REGION" \
+            --query 'operation.id' \
+            --output text)
+          test -n "$OP_ID"
+          STATUS=Started
+          for i in $(seq 1 30); do
+            STATUS=$(aws lightsail get-operation \
+              --operation-id "$OP_ID" \
+              --region "$CDN_REGION" \
+              --query 'operation.status' \
+              --output text)
+            [ "$STATUS" = "Succeeded" ] && break
+            [ "$STATUS" = "Failed" ] && exit 1
+            sleep 2
+          done
+          [ "$STATUS" = "Succeeded" ]
+          echo "LIGHTSAIL_CDN_CACHE_RESET_OK=$OP_ID"
+
       - name: Verify public health
         run: |
           set -euo pipefail
@@ -313,14 +338,19 @@ jobs:
           DIRECT_FRONTEND_BUNDLE=$(echo "$DIRECT_HTML" | grep -oE 'assets/index-[^"]+\.js' | head -1)
           echo "DIRECT_FRONTEND_BUNDLE=$DIRECT_FRONTEND_BUNDLE"
           test -n "$DIRECT_FRONTEND_BUNDLE"
-          BASE_URL="${PUBLIC_BASE_URL:-}"
-          if [ -z "$BASE_URL" ]; then BASE_URL="http://$INSTANCE_IP"; fi
-          PUBLIC_HTML=$(curl -fS "$BASE_URL/")
-          echo "$PUBLIC_HTML" | grep -q root
-          PUBLIC_FRONTEND_BUNDLE=$(echo "$PUBLIC_HTML" | grep -oE 'assets/index-[^"]+\.js' | head -1)
+
+          BASE_URL="${PUBLIC_BASE_URL:-https://dzcwl3yhv133t.cloudfront.net}"
+          PUBLIC_FRONTEND_BUNDLE=""
+          for i in $(seq 1 20); do
+            PUBLIC_HTML=$(curl -fS -H 'Cache-Control: no-cache' "$BASE_URL/" || true)
+            PUBLIC_FRONTEND_BUNDLE=$(echo "$PUBLIC_HTML" | grep -oE 'assets/index-[^"]+\.js' | head -1 || true)
+            echo "PUBLIC_FRONTEND_BUNDLE_ATTEMPT_$i=$PUBLIC_FRONTEND_BUNDLE"
+            [ "$PUBLIC_FRONTEND_BUNDLE" = "$DIRECT_FRONTEND_BUNDLE" ] && break
+            sleep 3
+          done
           echo "PUBLIC_FRONTEND_BUNDLE=$PUBLIC_FRONTEND_BUNDLE"
           test "$DIRECT_FRONTEND_BUNDLE" = "$PUBLIC_FRONTEND_BUNDLE"
-          echo PUBLIC_FRONTEND_OK
+          echo "PUBLIC_FRONTEND_OK=$BASE_URL"
 
       - name: Promote validated SHA images to latest
         env:
