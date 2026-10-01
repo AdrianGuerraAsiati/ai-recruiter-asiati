@@ -18,6 +18,7 @@ def test_production_preflight_reclaims_old_deploy_images_before_pull():
     assert 'repo="\\$1"' in preflight
     assert 'keep="\\${2:-3}"' in preflight
     assert 'docker image ls "\\$repo"' in preflight
+    assert "awk '\\\\$0 !~ /:<none>\\\\$/'" in preflight
     assert '"\\${#images[@]}"' in preflight
     assert '"\\${images[@]:\\$keep}"' in preflight
     assert 'prune_old_repo_images "$ECR_REGISTRY/$ECR_BACKEND_REPO" 3' in preflight
