@@ -1,6 +1,6 @@
 // eslint-disable-next-line no-unused-vars
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -50,6 +50,8 @@ function renderRole(role, permissions) {
 describe("role navigation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
+    document.body.classList.remove("nav-desktop-collapsed", "nav-mobile-open");
   });
 
   it("shows the employee workspace only", () => {
@@ -71,6 +73,41 @@ describe("role navigation", () => {
     expect(screen.queryByText("Empleados")).not.toBeInTheDocument();
     expect(screen.queryByText("Calificación")).not.toBeInTheDocument();
     expect(screen.queryByText("Integraciones")).not.toBeInTheDocument();
+  });
+
+
+  it("collapses the desktop sidebar and persists the preference", () => {
+    const view = renderRole("ADMIN", [
+      "jobs.read",
+      "candidates.read",
+      "ranking.read",
+      "employees.read",
+      "training.read",
+      "profile.read_own",
+    ]);
+
+    const collapseButton = screen.getByRole("button", { name: "Contraer menú lateral" });
+    expect(collapseButton).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(collapseButton);
+
+    expect(document.body).toHaveClass("nav-desktop-collapsed");
+    expect(window.localStorage.getItem("asiati.sidebar.collapsed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Expandir menú lateral" }))
+      .toHaveAttribute("aria-pressed", "true");
+
+    view.unmount();
+    renderRole("ADMIN", [
+      "jobs.read",
+      "candidates.read",
+      "ranking.read",
+      "employees.read",
+      "training.read",
+      "profile.read_own",
+    ]);
+
+    expect(screen.getByRole("button", { name: "Expandir menú lateral" }))
+      .toHaveAttribute("aria-pressed", "true");
   });
 
   it("shows full administrative navigation to ADMIN", () => {
