@@ -371,6 +371,18 @@ def _normalize_lifecycle_status(value: object) -> str | None:
     return None
 
 
+def _resolve_vacancy_status(row: dict, detail: dict) -> tuple[str | None, str]:
+    """Resolve lifecycle state plus the evidence source used."""
+    detail_status = _normalize_lifecycle_status((detail or {}).get("status"))
+    if detail_status is not None:
+        return detail_status, "DETAIL"
+
+    row_status = _normalize_lifecycle_status((row or {}).get("status"))
+    if row_status is not None:
+        return row_status, "ROW"
+    return None, "UNKNOWN"
+
+
 def _authoritative_vacancy_status(row: dict, detail: dict) -> str | None:
     """Return only a recognized lifecycle state.
 
@@ -378,14 +390,7 @@ def _authoritative_vacancy_status(row: dict, detail: dict) -> str | None:
     that vacancy. Row values such as Marcado/Flagged are workflow notices, not
     lifecycle states, and must not suppress a real paused detail state.
     """
-    detail_status = _normalize_lifecycle_status((detail or {}).get("status"))
-    if detail_status is not None:
-        return detail_status
-
-    row_status = _normalize_lifecycle_status((row or {}).get("status"))
-    if row_status is not None:
-        return row_status
-    return None
+    return _resolve_vacancy_status(row, detail)[0]
 
 
 async def _collect_current_jobs(browser) -> list[dict]:
@@ -450,11 +455,15 @@ async def _collect_current_jobs(browser) -> list[dict]:
         detail_title = " ".join(str(detail.get("title") or row["title"]).split()).strip()
         if not detail_title:
             raise RuntimeError("INDEED_JOB_SYNC_INCOMPLETE")
+        lifecycle_status, status_source = _resolve_vacancy_status(row, detail)
         snapshots[key] = {
             "external_job_key": key,
             "title": detail_title,
             "description": str(detail.get("description") or "").strip(),
-            "status": _authoritative_vacancy_status(row, detail),
+            "status": lifecycle_status,
+            "status_source": status_source,
+            "row_status": str(row.get("status") or "").strip() or None,
+            "detail_status": str(detail.get("status") or "").strip() or None,
             "location": str(detail.get("location") or row.get("location") or "").strip() or None,
             "posted_at": str(detail.get("postedAt") or row.get("postedAt") or "").strip() or None,
         }
