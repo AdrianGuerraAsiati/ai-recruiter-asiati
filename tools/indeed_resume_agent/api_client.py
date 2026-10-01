@@ -116,7 +116,12 @@ class AgentApiClient:
         headers["X-ASIATI-Agent-Token"] = self._token
         if lease_token:
             headers["X-ASIATI-Lease-Token"] = lease_token
-        response = self._http.request(method, path, headers=headers, **kwargs)
+        try:
+            response = self._http.request(method, path, headers=headers, **kwargs)
+        except httpx.TimeoutException as exc:
+            raise AgentApiError(504, "RESUME_AGENT_API_TIMEOUT") from exc
+        except httpx.TransportError as exc:
+            raise AgentApiError(503, "RESUME_AGENT_API_UNAVAILABLE") from exc
         if response.status_code >= 400:
             raise self._safe_error(response)
         return response
@@ -232,7 +237,16 @@ class AgentApiClient:
         catchup_required = False
 
         while pages < limit:
-            payload = dict(self._request("POST", f"{BASE_PATH}/sync").json())
+            payload = dict(
+                self._request(
+                    "POST",
+                    f"{BASE_PATH}/sync",
+                    timeout=max(
+                        self._config.request_timeout_seconds,
+                        self._config.sync_request_timeout_seconds,
+                    ),
+                ).json()
+            )
             pages += 1
             for key in totals:
                 totals[key] += int(payload.get(key) or 0)
