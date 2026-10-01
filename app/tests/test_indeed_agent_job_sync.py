@@ -297,6 +297,97 @@ def test_refresh_updates_vacancy_status_from_indeed_without_erasing_description(
         engine.dispose()
 
 
+def test_shared_admin_refresh_updates_existing_link_owned_by_another_admin():
+    engine, db = _db()
+    try:
+        job = Job(
+            title="Líder de Marketing y Crecimiento",
+            description="Stored Indeed description",
+            indeed_description="Stored Indeed description",
+            active_description_source="indeed",
+            status="ACTIVE",
+            evaluation_profile={},
+            owner_sub="admin-a",
+        )
+        db.add(job)
+        db.flush()
+        db.add(
+            IndeedJobLink(
+                job_id=job.id,
+                owner_sub="admin-a",
+                discovery_key="employer-ui:1e58a9cc-6131-4852-845c-f794e15bd569",
+                external_status={"origin": "EMPLOYER_UI", "status": "ACTIVE"},
+            )
+        )
+        db.commit()
+
+        result = indeed_job_sync.sync_vacancy_snapshots(
+            db,
+            owner_sub="admin-b",
+            snapshots=[
+                snapshot(
+                    external_job_key="1e58a9cc-6131-4852-845c-f794e15bd569",
+                    title="Líder de Marketing y Crecimiento",
+                    description="",
+                    status="PAUSED",
+                )
+            ],
+        )
+        db.refresh(job)
+
+        assert job.status == "PAUSED"
+        assert result["updated"] == 1
+        assert result["status_changed"] == 1
+        assert result["created"] == 0
+        assert db.query(Job).count() == 1
+        link = db.query(IndeedJobLink).one()
+        assert link.owner_sub == "admin-a"
+    finally:
+        db.close()
+        engine.dispose()
+
+
+def test_shared_admin_reconciles_unlinked_historical_job_across_provenance():
+    engine, db = _db()
+    try:
+        job = Job(
+            title="Líder de Marketing y Crecimiento",
+            description="Historical description",
+            indeed_description="Historical description",
+            active_description_source="indeed",
+            status="ACTIVE",
+            evaluation_profile={},
+            owner_sub="admin-a",
+        )
+        db.add(job)
+        db.commit()
+        original_id = job.id
+
+        result = indeed_job_sync.sync_vacancy_snapshots(
+            db,
+            owner_sub="admin-b",
+            snapshots=[
+                snapshot(
+                    external_job_key="1e58a9cc-6131-4852-845c-f794e15bd569",
+                    title="Líder de Marketing y Crecimiento",
+                    description="Fresh Indeed description",
+                    status="En pausa",
+                )
+            ],
+        )
+        db.refresh(job)
+
+        assert result["reconciled"] == 1
+        assert result["created"] == 0
+        assert db.query(Job).count() == 1
+        assert job.id == original_id
+        assert job.status == "PAUSED"
+        assert db.query(IndeedJobLink).filter_by(job_id=original_id).count() == 1
+    finally:
+        db.close()
+        engine.dispose()
+
+
 def test_refresh_reactivates_paused_vacancy_from_spanish_open_status():
     engine, db = _db()
     try:
