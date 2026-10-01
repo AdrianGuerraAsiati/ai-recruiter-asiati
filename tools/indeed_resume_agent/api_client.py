@@ -52,6 +52,9 @@ class VacancySyncResult:
     active: int = 0
     paused: int = 0
     status_changed: int = 0
+    status_from_detail: int = 0
+    status_from_row: int = 0
+    status_unknown: int = 0
     applications_recovered: int = 0
 
 
@@ -218,6 +221,9 @@ class AgentApiClient:
             active=int(payload.get("active") or 0),
             paused=int(payload.get("paused") or 0),
             status_changed=int(payload.get("status_changed") or 0),
+            status_from_detail=int(payload.get("status_from_detail") or 0),
+            status_from_row=int(payload.get("status_from_row") or 0),
+            status_unknown=int(payload.get("status_unknown") or 0),
             applications_recovered=int(payload.get("applications_recovered") or 0),
         )
 
