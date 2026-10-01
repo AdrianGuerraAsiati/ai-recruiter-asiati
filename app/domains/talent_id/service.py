@@ -170,6 +170,24 @@ def configure_employee_attendance(
     return settings
 
 
+def get_employee_attendance_settings(
+    db: Session,
+    employee_id: str,
+) -> TalentEmployeeAttendanceSetting:
+    settings = (
+        db.query(TalentEmployeeAttendanceSetting)
+        .filter(TalentEmployeeAttendanceSetting.employee_id == employee_id)
+        .one_or_none()
+    )
+    if settings is None:
+        raise TalentIdNotFound("Configuración de asistencia no encontrada.")
+    return settings
+
+
+def get_employee(db: Session, employee_id: str) -> UserProfile:
+    return _require_employee(db, employee_id)
+
+
 def provision_kiosk(
     db: Session,
     *,
