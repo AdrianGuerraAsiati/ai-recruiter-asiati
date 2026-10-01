@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import CandidateDetail from "../pages/CandidateDetail";
 
 vi.mock("../api/client", () => ({
-  default: { get: vi.fn() },
+  default: { get: vi.fn(), post: vi.fn() },
 }));
 
 import api from "../api/client";
@@ -54,6 +54,7 @@ function evaluationResponse() {
 describe("CandidateDetail Indeed canonical resume", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    api.post.mockResolvedValue({ data: { id: "appointment-1" } });
     vi.spyOn(window, "open").mockImplementation(() => null);
   });
 
@@ -102,6 +103,47 @@ describe("CandidateDetail Indeed canonical resume", () => {
     await screen.findByText("Ana Perez");
     expect(screen.getByText(/La evaluación no pudo completarse/i)).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("null%");
+  });
+
+  it("opens appointment scheduling in a modal instead of inline content", async () => {
+    api.get.mockImplementation((url) => {
+      if (url === "/candidates/candidate-1") return Promise.resolve(candidateResponse());
+      if (url === "/jobs/job-1/candidates/candidate-1") return Promise.resolve(evaluationResponse());
+      if (url === "/jobs/job-1/candidates/candidate-1/integrations/indeed") {
+        return Promise.reject({ response: { status: 404 } });
+      }
+      return Promise.reject(new Error(`Unexpected URL ${url}`));
+    });
+
+    renderDetail();
+
+    const scheduleButton = await screen.findByRole("button", { name: "Agendar cita" });
+    expect(screen.queryByRole("dialog", { name: "Agendar cita" })).not.toBeInTheDocument();
+
+    fireEvent.click(scheduleButton);
+
+    const dialog = screen.getByRole("dialog", { name: "Agendar cita" });
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByLabelText("Modalidad")).toBeInTheDocument();
+    expect(screen.getByLabelText("Fecha y hora")).toBeInTheDocument();
+    expect(screen.getByLabelText("Ubicación")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Fecha y hora"), {
+      target: { value: "2026-10-02T10:00" },
+    });
+    fireEvent.submit(screen.getByRole("button", { name: "Agendar" }).closest("form"));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        "/recruitment-calendar/events",
+        expect.objectContaining({
+          job_id: "job-1",
+          candidate_id: "candidate-1",
+          kind: "PHONE_CALL",
+        }),
+      );
+      expect(screen.queryByRole("dialog", { name: "Agendar cita" })).not.toBeInTheDocument();
+    });
   });
 
   it("shows processing state without exposing the temporary Indeed URL", async () => {

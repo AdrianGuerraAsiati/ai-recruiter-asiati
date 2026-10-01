@@ -18,6 +18,18 @@ function recommendationLabel(recommendation) {
   return labels[recommendation] || "Sin clasificación";
 }
 
+
+function toLocalDateTimeInput(date) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function defaultAppointmentStart() {
+  const start = new Date(Date.now() + 60 * 60 * 1000);
+  start.setMinutes(0, 0, 0);
+  return toLocalDateTimeInput(start);
+}
+
 function CandidateDetail() {
   const { candidate_id } = useParams();
   const [searchParams] = useSearchParams();
@@ -29,6 +41,16 @@ function CandidateDetail() {
   const [openingResume, setOpeningResume] = useState(false);
   const [resumeError, setResumeError] = useState("");
   const [loadError, setLoadError] = useState("");
+  const [appointmentOpen, setAppointmentOpen] = useState(false);
+  const [appointmentSaving, setAppointmentSaving] = useState(false);
+  const [appointmentError, setAppointmentError] = useState("");
+  const [appointmentNotice, setAppointmentNotice] = useState("");
+  const [appointmentForm, setAppointmentForm] = useState(() => ({
+    kind: "PHONE_CALL",
+    starts_at: defaultAppointmentStart(),
+    location: "",
+    notes: "",
+  }));
 
   useEffect(() => {
     let cancelled = false;
@@ -116,6 +138,68 @@ function CandidateDetail() {
     }
   }
 
+  function openAppointment() {
+    setAppointmentError("");
+    setAppointmentNotice("");
+    setAppointmentForm({
+      kind: "PHONE_CALL",
+      starts_at: defaultAppointmentStart(),
+      location: "",
+      notes: "",
+    });
+    setAppointmentOpen(true);
+  }
+
+  function closeAppointment() {
+    if (appointmentSaving) return;
+    setAppointmentOpen(false);
+    setAppointmentError("");
+  }
+
+  useEffect(() => {
+    if (!appointmentOpen) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") closeAppointment();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [appointmentOpen, appointmentSaving]);
+
+  async function scheduleAppointment(event) {
+    event.preventDefault();
+    if (!jobId || !appointmentForm.starts_at) return;
+
+    const startsAt = new Date(appointmentForm.starts_at);
+    const endsAt = new Date(startsAt);
+    endsAt.setMinutes(
+      endsAt.getMinutes() + (appointmentForm.kind === "ONSITE_INTERVIEW" ? 60 : 30),
+    );
+
+    setAppointmentSaving(true);
+    setAppointmentError("");
+    try {
+      await api.post("/recruitment-calendar/events", {
+        job_id: jobId,
+        candidate_id,
+        kind: appointmentForm.kind,
+        starts_at: startsAt.toISOString(),
+        ends_at: endsAt.toISOString(),
+        location: appointmentForm.location.trim() || null,
+        notes: appointmentForm.notes.trim() || null,
+      });
+      setAppointmentOpen(false);
+      setAppointmentNotice("Cita agendada. Ya aparece en la agenda de selección.");
+    } catch (error) {
+      setAppointmentError(getApiErrorMessage(error, {
+        action: "agendar la cita",
+        resource: "agenda de selección",
+        fallback: "No fue posible agendar la cita. Revisa la etapa del candidato y vuelve a intentarlo.",
+      }));
+    } finally {
+      setAppointmentSaving(false);
+    }
+  }
+
   if (loading) return <div className="page"><LoadingState label="Cargando perfil…" /></div>;
   if (!candidate) {
     return <div className="page"><div className="empty-state"><strong>El candidato no está disponible</strong><p>{loadError || "Vuelve al listado y confirma que el perfil siga activo."}</p><Link to="/candidates" className="btn btn-primary">Volver a candidatos</Link></div></div>;
@@ -158,6 +242,15 @@ function CandidateDetail() {
           )}
         </div>
         <div className="candidate-profile-actions">
+          {jobId && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={openAppointment}
+            >
+              Agendar cita
+            </button>
+          )}
           {canOpenResume && (
             <button
               type="button"
@@ -173,6 +266,10 @@ function CandidateDetail() {
           </span>
         </div>
       </header>
+
+      {appointmentNotice && (
+        <div className="candidate-appointment-notice" role="status">{appointmentNotice}</div>
+      )}
 
       {candidate.is_banned && (
         <div className="candidate-ban-alert candidate-ban-alert--detail" role="alert">
@@ -205,6 +302,118 @@ function CandidateDetail() {
               <section className="panel insight-list gap-list"><h2><span>!</span> Brechas</h2><ul>{evaluation.gaps?.map((item, index) => <li key={index}>{item}</li>)}</ul></section>
             </div>
           </div>
+        </div>
+      )}
+
+      {appointmentOpen && (
+        <div
+          className="modal-overlay candidate-appointment-overlay"
+          role="presentation"
+          onMouseDown={closeAppointment}
+        >
+          <section
+            className="modal candidate-appointment-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="candidate-appointment-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <span className="eyebrow">Agenda de selección</span>
+                <h2 id="candidate-appointment-title">Agendar cita</h2>
+                <p className="muted">Programa una llamada o visita para {candidate?.name || "este candidato"}.</p>
+              </div>
+              <button
+                className="candidate-appointment-close"
+                type="button"
+                aria-label="Cerrar"
+                onClick={closeAppointment}
+                disabled={appointmentSaving}
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={scheduleAppointment}>
+              {appointmentError && <div className="alert" role="alert">{appointmentError}</div>}
+
+              <div className="candidate-appointment-grid">
+                <div className="form-group">
+                  <label htmlFor="candidate-appointment-kind">Modalidad</label>
+                  <select
+                    id="candidate-appointment-kind"
+                    value={appointmentForm.kind}
+                    onChange={(event) => setAppointmentForm((current) => ({
+                      ...current,
+                      kind: event.target.value,
+                    }))}
+                  >
+                    <option value="PHONE_CALL">Llamada telefónica</option>
+                    <option value="ONSITE_INTERVIEW">Visita presencial</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="candidate-appointment-start">Fecha y hora</label>
+                  <input
+                    id="candidate-appointment-start"
+                    type="datetime-local"
+                    value={appointmentForm.starts_at}
+                    required
+                    onChange={(event) => setAppointmentForm((current) => ({
+                      ...current,
+                      starts_at: event.target.value,
+                    }))}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="candidate-appointment-location">Ubicación</label>
+                <input
+                  id="candidate-appointment-location"
+                  value={appointmentForm.location}
+                  placeholder={appointmentForm.kind === "PHONE_CALL" ? "Opcional" : "Oficina, sala o dirección"}
+                  onChange={(event) => setAppointmentForm((current) => ({
+                    ...current,
+                    location: event.target.value,
+                  }))}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="candidate-appointment-notes">Notas</label>
+                <textarea
+                  id="candidate-appointment-notes"
+                  value={appointmentForm.notes}
+                  placeholder="Indicaciones o contexto para la cita…"
+                  onChange={(event) => setAppointmentForm((current) => ({
+                    ...current,
+                    notes: event.target.value,
+                  }))}
+                />
+              </div>
+
+              <div className="candidate-appointment-actions">
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={closeAppointment}
+                  disabled={appointmentSaving}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="btn btn-primary"
+                  type="submit"
+                  disabled={appointmentSaving}
+                >
+                  {appointmentSaving ? "Agendando…" : "Agendar"}
+                </button>
+              </div>
+            </form>
+          </section>
         </div>
       )}
     </div>
