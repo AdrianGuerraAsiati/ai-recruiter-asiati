@@ -101,6 +101,18 @@ def list_sites(db: Session) -> list[TalentSite]:
     )
 
 
+def get_site(db: Session, site_id: str) -> TalentSite:
+    return _require_site(db, site_id)
+
+
+def list_schedules(db: Session) -> list[TalentWorkSchedule]:
+    return (
+        db.query(TalentWorkSchedule)
+        .order_by(TalentWorkSchedule.active.desc(), TalentWorkSchedule.name.asc())
+        .all()
+    )
+
+
 def create_schedule(
     db: Session,
     *,
