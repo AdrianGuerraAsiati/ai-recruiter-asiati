@@ -250,6 +250,9 @@ def sync_vacancy_snapshots(
         "missing_description": 0,
         "ambiguous": 0,
         "descriptions_recovered": 0,
+        "active": 0,
+        "paused": 0,
+        "status_changed": 0,
     }
 
     for raw in snapshots or []:
@@ -258,6 +261,10 @@ def sync_vacancy_snapshots(
         title = _clean(snapshot.get("title"))
         description = str(snapshot.get("description") or "").strip()
         normalized_status = _normalize_job_status(snapshot.get("status"))
+        if normalized_status == "ACTIVE":
+            counts["active"] += 1
+        elif normalized_status == "PAUSED":
+            counts["paused"] += 1
 
         if not discovery_key or not title:
             counts["missing_identity"] += 1
@@ -298,6 +305,7 @@ def sync_vacancy_snapshots(
                 db.commit()
                 continue
 
+            previous_job_status = getattr(job, "status", None) or "ACTIVE"
             _updated, recovered = _update_existing_job(
                 db,
                 job=job,
@@ -311,6 +319,8 @@ def sync_vacancy_snapshots(
             link.last_error = None
             db.commit()
             counts["updated"] += 1
+            if normalized_status is not None and normalized_status != previous_job_status:
+                counts["status_changed"] += 1
             if recovered:
                 counts["descriptions_recovered"] += 1
             continue
@@ -330,6 +340,7 @@ def sync_vacancy_snapshots(
 
         if len(matches) == 1:
             job = matches[0]
+            previous_job_status = getattr(job, "status", None) or "ACTIVE"
             _updated, recovered = _update_existing_job(
                 db,
                 job=job,
@@ -349,6 +360,8 @@ def sync_vacancy_snapshots(
             )
             db.commit()
             counts["reconciled"] += 1
+            if normalized_status is not None and normalized_status != previous_job_status:
+                counts["status_changed"] += 1
             if recovered:
                 counts["descriptions_recovered"] += 1
             continue
