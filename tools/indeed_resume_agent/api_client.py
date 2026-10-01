@@ -49,6 +49,9 @@ class VacancySyncResult:
     missing_description: int
     ambiguous: int
     descriptions_recovered: int
+    active: int = 0
+    paused: int = 0
+    status_changed: int = 0
     applications_recovered: int = 0
 
 
@@ -212,6 +215,9 @@ class AgentApiClient:
             missing_description=int(payload.get("missing_description") or 0),
             ambiguous=int(payload.get("ambiguous") or 0),
             descriptions_recovered=int(payload.get("descriptions_recovered") or 0),
+            active=int(payload.get("active") or 0),
+            paused=int(payload.get("paused") or 0),
+            status_changed=int(payload.get("status_changed") or 0),
             applications_recovered=int(payload.get("applications_recovered") or 0),
         )
 
