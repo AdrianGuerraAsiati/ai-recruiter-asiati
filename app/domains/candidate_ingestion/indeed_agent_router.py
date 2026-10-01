@@ -52,6 +52,9 @@ class VacancySnapshotRequest(BaseModel):
     title: str = Field(min_length=1, max_length=1000)
     description: str = Field(default="", max_length=200000)
     status: str | None = Field(default=None, max_length=100)
+    status_source: str | None = Field(default=None, max_length=40)
+    row_status: str | None = Field(default=None, max_length=200)
+    detail_status: str | None = Field(default=None, max_length=200)
     location: str | None = Field(default=None, max_length=1000)
     posted_at: str | None = Field(default=None, max_length=200)
 

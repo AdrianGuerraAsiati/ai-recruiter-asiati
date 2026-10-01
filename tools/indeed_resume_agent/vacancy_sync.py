@@ -203,10 +203,21 @@ DETAIL_STATE_SCRIPT = r"""
     }
     return '';
   };
+  const visible = (node) => {
+    if (!node) return false;
+    const style = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return style.display !== 'none'
+      && style.visibility !== 'hidden'
+      && Number(style.opacity || '1') > 0
+      && rect.width > 0
+      && rect.height > 0;
+  };
   const firstText = (selectors, multiline = false) => {
     for (const selector of selectors) {
       const nodes = Array.from(document.querySelectorAll(selector));
       for (const node of nodes) {
+        if (!visible(node)) continue;
         const text = multiline ? multiLine(node.innerText || '') : oneLine(node.innerText || '');
         if (text) return text;
       }
@@ -214,11 +225,12 @@ DETAIL_STATE_SCRIPT = r"""
     return '';
   };
   const lifecycleStatusFromNode = (node) => {
-    if (!node) return '';
+    if (!node || !visible(node)) return '';
     const structural = [
       node.getAttribute?.('data-shield-id'),
       node.getAttribute?.('data-testid'),
       ...Array.from(node.querySelectorAll?.('[data-shield-id],[data-testid]') || [])
+        .filter(visible)
         .flatMap((child) => [
           child.getAttribute?.('data-shield-id'),
           child.getAttribute?.('data-testid'),
@@ -234,9 +246,32 @@ DETAIL_STATE_SCRIPT = r"""
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
-    if (/\b(?:pausado|pausada|paused|en pausa)\b/.test(text)) return 'PAUSED';
-    if (/\b(?:abierto|abierta|open|activa|activo|active)\b/.test(text)) return 'ACTIVE';
-    return oneLine(node.innerText || node.textContent || '');
+    if (/^(?:pausado|pausada|paused|en pausa)$/.test(text)) return 'PAUSED';
+    if (/^(?:abierto|abierta|open|activa|activo|active)$/.test(text)) return 'ACTIVE';
+    return '';
+  };
+  const lifecycleStatusFromDocument = () => {
+    const structuralCandidates = Array.from(document.querySelectorAll(
+      '[data-shield-id*="job-status-control" i], [data-shield-id*="dot--" i], [data-testid="top-level-job-status"]'
+    )).filter(visible);
+
+    for (const node of structuralCandidates) {
+      const status = lifecycleStatusFromNode(node);
+      if (status) return status;
+    }
+
+    const textCandidates = Array.from(document.querySelectorAll(
+      '[aria-label="Estado del empleo"], [aria-label="Job status"], button, [role="combobox"], span'
+    )).filter(visible);
+    for (const node of textCandidates) {
+      const text = oneLine(node.innerText || node.textContent || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+      if (/^(?:pausado|pausada|paused|en pausa)$/.test(text)) return 'PAUSED';
+      if (/^(?:abierto|abierta|open|activa|activo|active)$/.test(text)) return 'ACTIVE';
+    }
+    return '';
   };
   const pageText = oneLine(document.body?.innerText || '').toLowerCase();
   const loading = [
@@ -275,14 +310,7 @@ DETAIL_STATE_SCRIPT = r"""
     '[data-testid*="location" i]',
     '[class*="location" i]'
   ]);
-  const statusNode = document.querySelector(
-    '[data-testid="top-level-job-status"], [aria-label="Estado del empleo"], [aria-label="Job status"]'
-  );
-  const status = lifecycleStatusFromNode(statusNode) || firstText([
-    '[data-testid*="status" i]',
-    '[aria-label*="status" i]',
-    '[aria-label*="estado" i]'
-  ]);
+  const status = lifecycleStatusFromDocument();
   const detailRoot = document.querySelector('[role="dialog"], [data-testid*="job-detail" i], main') || document.body;
   const externalJobKey = jobKeyFromHref(window.location.href) || jobKeyFromElement(detailRoot);
   const time = document.querySelector('time[datetime]');

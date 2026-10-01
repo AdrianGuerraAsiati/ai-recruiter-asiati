@@ -337,6 +337,9 @@ def sync_vacancy_snapshots(
         "paused": 0,
         "status_changed": 0,
         "identity_rekeyed": 0,
+        "status_from_detail": 0,
+        "status_from_row": 0,
+        "status_unknown": 0,
     }
 
     for raw in snapshots or []:
@@ -345,10 +348,19 @@ def sync_vacancy_snapshots(
         title = _clean(snapshot.get("title"))
         description = str(snapshot.get("description") or "").strip()
         normalized_status = _normalize_job_status(snapshot.get("status"))
+        status_source = _clean(snapshot.get("status_source")).upper()
         if normalized_status == "ACTIVE":
             counts["active"] += 1
         elif normalized_status == "PAUSED":
             counts["paused"] += 1
+        else:
+            counts["status_unknown"] += 1
+
+        if normalized_status is not None:
+            if status_source == "DETAIL":
+                counts["status_from_detail"] += 1
+            elif status_source == "ROW":
+                counts["status_from_row"] += 1
 
         if not discovery_key or not title:
             counts["missing_identity"] += 1

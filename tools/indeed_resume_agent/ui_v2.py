@@ -159,6 +159,9 @@ def _vacancy_summary(result: VacancySyncResult) -> str:
         f"{result.reconciled} reconciliadas · {result.unchanged} sin cambios · "
         f"{result.active} activas · {result.paused} pausadas · "
         f"{result.status_changed} cambiaron de estado · "
+        f"estado desde detalle: {result.status_from_detail} · "
+        f"desde fila: {result.status_from_row} · "
+        f"sin estado reconocido: {result.status_unknown} · "
         f"{result.descriptions_recovered} descripciones recuperadas"
     )
 
