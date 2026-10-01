@@ -222,6 +222,7 @@ jobs:
             sudo docker system df
             sudo docker container prune -f
             # Keep the 3 newest deploy images per service for quick rollback.
+            # Backend is shared by API + worker; frontend is used by web.
             # Running containers are also protected by Docker even if an older
             # tag falls outside the retention window.
             prune_old_repo_images() {
