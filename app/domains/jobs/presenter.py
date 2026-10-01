@@ -7,6 +7,7 @@ def job_payload(job, *, candidate_count: int | None = None) -> dict:
         "id": job.id,
         "title": job.title,
         "description": job.description,
+        "status": getattr(job, "status", None) or "ACTIVE",
         "created_at": job.created_at.isoformat() if job.created_at else None,
     }
 
