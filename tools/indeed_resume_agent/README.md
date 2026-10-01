@@ -61,6 +61,8 @@ La operación es idempotente: volver a ejecutar **Sincronizar todo** no debe dup
 
 El agente trabaja con una sola tarea a la vez. Si se cierra el PC o el proceso, el backend recupera una tarea cuando vence su lease; no borre tareas completadas.
 
+Las sincronizaciones de candidatos usan un timeout separado de 120 segundos porque una página de Gmail/Indeed puede tardar más que una operación normal del agente. Puede ajustarse con `ASIATI_RESUME_AGENT_SYNC_REQUEST_TIMEOUT_SECONDS` sin ampliar los timeouts de heartbeat, stats o uploads.
+
 ## Controles
 
 - **Pause**: evita reclamar la siguiente tarea; no interrumpe una descarga determinística ya iniciada.
