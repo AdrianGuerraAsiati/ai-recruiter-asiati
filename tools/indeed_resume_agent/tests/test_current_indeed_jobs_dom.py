@@ -82,7 +82,7 @@ def test_current_listing_uses_unified_job_link_not_candidate_count_buttons():
     assert row["title"] == "AUXILIAR CONTABLE"
     assert row["title"] != "4 Todos"
     assert row["title"] != "4 Nuevos"
-    assert row["status"] == "Abierto"
+    assert row["status"] == "ACTIVE"
     assert row["location"] == "Bogotá, Cundinamarca"
     assert "22 de septiembre de 2026" in row["postedAt"]
 
