@@ -252,3 +252,126 @@ def test_vacancy_refresh_stays_jobs_only_and_application_repair_is_separate():
     finally:
         db.close()
         engine.dispose()
+
+
+def test_refresh_updates_vacancy_status_from_indeed_without_erasing_description():
+    engine, db = _db()
+    try:
+        job = Job(
+            title="Cloud Engineer",
+            description="Stored Indeed description",
+            indeed_description="Stored Indeed description",
+            active_description_source="indeed",
+            status="ACTIVE",
+            evaluation_profile={},
+            owner_sub="owner-1",
+        )
+        db.add(job)
+        db.flush()
+        db.add(
+            IndeedJobLink(
+                job_id=job.id,
+                owner_sub="owner-1",
+                discovery_key="employer-ui:abc-123",
+                external_status={"origin": "EMPLOYER_UI"},
+            )
+        )
+        db.commit()
+
+        result = indeed_job_sync.sync_vacancy_snapshots(
+            db,
+            owner_sub="owner-1",
+            snapshots=[snapshot(description="", status="Pausado")],
+        )
+        db.refresh(job)
+
+        assert job.status == "PAUSED"
+        assert job.indeed_description == "Stored Indeed description"
+        assert job.description == "Stored Indeed description"
+        assert result["paused"] == 1
+        assert result["active"] == 0
+        assert result["status_changed"] == 1
+        assert result["missing_description"] == 1
+    finally:
+        db.close()
+        engine.dispose()
+
+
+def test_refresh_reactivates_paused_vacancy_from_spanish_open_status():
+    engine, db = _db()
+    try:
+        job = Job(
+            title="Cloud Engineer",
+            description="Stored Indeed description",
+            indeed_description="Stored Indeed description",
+            active_description_source="indeed",
+            status="PAUSED",
+            evaluation_profile={},
+            owner_sub="owner-1",
+        )
+        db.add(job)
+        db.flush()
+        db.add(
+            IndeedJobLink(
+                job_id=job.id,
+                owner_sub="owner-1",
+                discovery_key="employer-ui:abc-123",
+                external_status={"origin": "EMPLOYER_UI"},
+            )
+        )
+        db.commit()
+
+        result = indeed_job_sync.sync_vacancy_snapshots(
+            db,
+            owner_sub="owner-1",
+            snapshots=[snapshot(status="Abierto")],
+        )
+        db.refresh(job)
+
+        assert job.status == "ACTIVE"
+        assert result["active"] == 1
+        assert result["paused"] == 0
+        assert result["status_changed"] == 1
+    finally:
+        db.close()
+        engine.dispose()
+
+
+def test_unknown_indeed_status_does_not_overwrite_local_status():
+    engine, db = _db()
+    try:
+        job = Job(
+            title="Cloud Engineer",
+            description="Stored Indeed description",
+            indeed_description="Stored Indeed description",
+            active_description_source="indeed",
+            status="PAUSED",
+            evaluation_profile={},
+            owner_sub="owner-1",
+        )
+        db.add(job)
+        db.flush()
+        db.add(
+            IndeedJobLink(
+                job_id=job.id,
+                owner_sub="owner-1",
+                discovery_key="employer-ui:abc-123",
+                external_status={"origin": "EMPLOYER_UI"},
+            )
+        )
+        db.commit()
+
+        result = indeed_job_sync.sync_vacancy_snapshots(
+            db,
+            owner_sub="owner-1",
+            snapshots=[snapshot(status="Estado desconocido")],
+        )
+        db.refresh(job)
+
+        assert job.status == "PAUSED"
+        assert result["active"] == 0
+        assert result["paused"] == 0
+        assert result["status_changed"] == 0
+    finally:
+        db.close()
+        engine.dispose()

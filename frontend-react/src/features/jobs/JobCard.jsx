@@ -5,6 +5,7 @@ import Icon from "../../components/ui/Icon";
 function JobCard({ job, onView, onEdit, onDelete }) {
   const candidateCount = job.candidate_count || 0;
   const location = [job.city, job.country_code].filter(Boolean).join(" · ");
+  const paused = job.status === "PAUSED";
 
   return (
     <article className="job-card">
@@ -12,7 +13,9 @@ function JobCard({ job, onView, onEdit, onDelete }) {
         <span className="job-card-icon" aria-hidden="true">
           <Icon name="briefcase" size={18} />
         </span>
-        <span className="status-pill"><i /> Activa</span>
+        <span className={`status-pill ${paused ? "is-paused" : ""}`}>
+          <i /> {paused ? "Pausada" : "Activa"}
+        </span>
       </div>
 
       <h3>{job.title}</h3>

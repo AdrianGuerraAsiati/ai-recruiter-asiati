@@ -315,6 +315,12 @@ async def _advance_page(browser, cdp, previous_signature: str) -> bool:
     return False
 
 
+def _authoritative_vacancy_status(row: dict, detail: dict) -> str | None:
+    """Prefer the lifecycle state from the jobs table over detail-page notices."""
+    value = str((row or {}).get("status") or (detail or {}).get("status") or "").strip()
+    return value or None
+
+
 async def _collect_current_jobs(browser) -> list[dict]:
     cdp = await browser._ensure_started()
     await browser._navigate(cdp, vacancy_sync.INDEED_JOBS_URL)
@@ -381,7 +387,7 @@ async def _collect_current_jobs(browser) -> list[dict]:
             "external_job_key": key,
             "title": detail_title,
             "description": str(detail.get("description") or "").strip(),
-            "status": str(detail.get("status") or row.get("status") or "").strip() or None,
+            "status": _authoritative_vacancy_status(row, detail),
             "location": str(detail.get("location") or row.get("location") or "").strip() or None,
             "posted_at": str(detail.get("postedAt") or row.get("postedAt") or "").strip() or None,
         }

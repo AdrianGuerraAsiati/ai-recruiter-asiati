@@ -103,6 +103,7 @@ class Job(Base):
     indeed_description = Column(Text, nullable=True)
     ai_description = Column(Text, nullable=True)
     active_description_source = Column(Text, nullable=False, default="indeed")
+    status = Column(Text, nullable=False, default="ACTIVE")
     owner_sub = Column(Text, nullable=True)
     country_code = Column(Text, nullable=True)
     city = Column(Text, nullable=True)

@@ -70,6 +70,7 @@ def create_job(
     indeed_description: str | None = None,
     ai_description: str | None = None,
     active_description_source: str = "indeed",
+    status: str = "ACTIVE",
     owner_sub: str | None = None,
     country_code: str | None = None,
     city: str | None = None,
@@ -89,6 +90,7 @@ def create_job(
         indeed_description=indeed_description,
         ai_description=ai_description,
         active_description_source=active_description_source,
+        status=status,
         owner_sub=owner_sub,
         country_code=country_code,
         city=city,
@@ -118,6 +120,7 @@ def update_job(
     indeed_description: str | None = None,
     ai_description: str | None = None,
     active_description_source: str | None = None,
+    status: str | None = None,
     country_code: str | None = None,
     city: str | None = None,
     employment_type: str | None = None,
@@ -142,6 +145,8 @@ def update_job(
         job.ai_description = ai_description
     if active_description_source is not None:
         job.active_description_source = active_description_source
+    if status is not None:
+        job.status = status
     if evaluation_profile is not None:
         job.evaluation_profile = evaluation_profile
     if evaluation_version is not None:

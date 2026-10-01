@@ -161,6 +161,7 @@ def test_job_payload_preserves_list_shape_with_candidate_count():
         "id": "job-1",
         "title": "Backend Developer",
         "description": "Python APIs",
+        "status": "ACTIVE",
         "created_at": "2026-09-11T12:00:00+00:00",
         "candidate_count": 3,
     }
@@ -174,6 +175,7 @@ def test_job_payload_omits_candidate_count_for_create_and_update():
         "id": "job-1",
         "title": "Backend Developer",
         "description": "Python APIs",
+        "status": "ACTIVE",
         "created_at": "2026-09-11T12:00:00+00:00",
     }
 

@@ -157,6 +157,8 @@ def _vacancy_summary(result: VacancySyncResult) -> str:
         f"Vacantes: {result.discovered} encontradas · "
         f"{result.created} creadas · {result.updated} actualizadas · "
         f"{result.reconciled} reconciliadas · {result.unchanged} sin cambios · "
+        f"{result.active} activas · {result.paused} pausadas · "
+        f"{result.status_changed} cambiaron de estado · "
         f"{result.descriptions_recovered} descripciones recuperadas"
     )
 

@@ -152,8 +152,9 @@ function Dashboard() {
     );
   }
 
-  const coveredJobs = jobs.filter((job) => Number(job.candidate_count || 0) > 0).length;
-  const coverage = jobs.length ? Math.round((coveredJobs / jobs.length) * 100) : 0;
+  const activeJobs = jobs.filter((job) => (job.status || "ACTIVE") === "ACTIVE");
+  const coveredJobs = activeJobs.filter((job) => Number(job.candidate_count || 0) > 0).length;
+  const coverage = activeJobs.length ? Math.round((coveredJobs / activeJobs.length) * 100) : 0;
 
   return (
     <div className="page dashboard-page">
@@ -169,7 +170,7 @@ function Dashboard() {
       )}
 
       <section className="metrics-grid" aria-label="Indicadores principales">
-        <MetricCard icon="briefcase" label="Vacantes activas" value={jobs.length} detail="Procesos en seguimiento" tone="blue" live />
+        <MetricCard icon="briefcase" label="Vacantes activas" value={activeJobs.length} detail="Excluye vacantes pausadas" tone="blue" live />
         <MetricCard icon="users" label="Candidatos registrados" value={candidateTotal} detail="Perfiles centralizados" tone="cyan" live />
         <MetricCard icon="ranking" label="Cobertura estimada" value={`${coverage}%`} detail="Vacantes con candidatos" tone="violet" live />
       </section>
@@ -231,7 +232,9 @@ function Dashboard() {
                 <article className="job-row" key={job.job_id}>
                   <span className="job-index">{String(index + 1).padStart(2, "0")}</span>
                   <div><h3>{job.title}</h3><p>{job.description}</p></div>
-                  <span className="status-pill"><i /> Activa</span>
+                  <span className={`status-pill ${job.status === "PAUSED" ? "is-paused" : ""}`}>
+                    <i /> {job.status === "PAUSED" ? "Pausada" : "Activa"}
+                  </span>
                 </article>
               ))}
             </div>

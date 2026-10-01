@@ -14,6 +14,7 @@ const JOB = {
   city: "Bogotá",
   country_code: "CO",
   candidate_count: 1,
+  status: "ACTIVE",
 };
 
 function renderCard(overrides = {}, callbacks = {}) {
@@ -59,6 +60,13 @@ describe("JobCard", () => {
     expect(screen.getByText("Indeed")).toBeInTheDocument();
     expect(screen.getByText("2 candidatos asignados")).toBeInTheDocument();
     expect(screen.queryByText("Bogotá · CO")).not.toBeInTheDocument();
+  });
+
+  it("renders paused vacancies explicitly", () => {
+    renderCard({ status: "PAUSED" });
+
+    expect(screen.getByText("Pausada")).toBeInTheDocument();
+    expect(screen.queryByText("Activa")).not.toBeInTheDocument();
   });
 
   it("delegates view, edit and delete actions with the job", () => {

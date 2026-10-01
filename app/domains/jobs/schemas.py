@@ -112,6 +112,7 @@ class JobResponse(BaseModel):
     indeed_description: str | None = None
     ai_description: str | None = None
     active_description_source: Literal["indeed", "ai"] = "indeed"
+    status: Literal["ACTIVE", "PAUSED"] = "ACTIVE"
     country_code: str | None = None
     city: str | None = None
     employment_type: str | None = None

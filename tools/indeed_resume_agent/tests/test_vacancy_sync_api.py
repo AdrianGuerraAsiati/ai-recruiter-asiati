@@ -27,6 +27,9 @@ def test_sync_jobs_posts_snapshots_and_returns_delta_summary(tmp_path):
                 "missing_description": 0,
                 "ambiguous": 0,
                 "descriptions_recovered": 1,
+                "active": 3,
+                "paused": 1,
+                "status_changed": 2,
             },
         )
 
@@ -55,3 +58,6 @@ def test_sync_jobs_posts_snapshots_and_returns_delta_summary(tmp_path):
     assert result.updated == 2
     assert result.unchanged == 1
     assert result.descriptions_recovered == 1
+    assert result.active == 3
+    assert result.paused == 1
+    assert result.status_changed == 2

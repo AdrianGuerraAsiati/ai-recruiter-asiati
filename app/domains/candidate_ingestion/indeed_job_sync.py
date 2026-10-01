@@ -23,9 +23,27 @@ DISCOVERY_PREFIX = "employer-ui:"
 _JOB_NOT_SYNCED_CODE = "INDEED_JOB_NOT_SYNCED_YET"
 _RESUME_PENDING_CODE = "RESUME_DOWNLOAD_PENDING"
 
+_ACTIVE_STATUS_ALIASES = {
+    "ACTIVE", "ACTIVA", "ACTIVO", "OPEN", "ABIERTO", "ABIERTA", "PUBLISHED", "PUBLICADO", "PUBLICADA",
+}
+_PAUSED_STATUS_ALIASES = {
+    "PAUSED", "PAUSE", "PAUSADO", "PAUSADA", "EN PAUSA",
+}
+
 
 def _clean(value) -> str:
     return " ".join(str(value or "").split()).strip()
+
+
+def _normalize_job_status(value) -> str | None:
+    raw = _clean(value).upper()
+    if not raw:
+        return None
+    if raw in _ACTIVE_STATUS_ALIASES:
+        return "ACTIVE"
+    if raw in _PAUSED_STATUS_ALIASES:
+        return "PAUSED"
+    return None
 
 
 def _canonical_title(value) -> str:
@@ -99,6 +117,7 @@ def _update_existing_job(
     owner_sub: str,
     title: str,
     description: str,
+    status: str | None,
 ) -> tuple[Job, bool]:
     had_description = bool(str(job.indeed_description or "").strip())
     updated = jobs_service.update_job(
@@ -106,7 +125,8 @@ def _update_existing_job(
         job_id=job.id,
         owner_sub=owner_sub,
         title=title if title != job.title else None,
-        indeed_description=description,
+        indeed_description=(description if description else None),
+        status=status,
     )
     return updated, (not had_description and bool(description))
 
@@ -230,6 +250,9 @@ def sync_vacancy_snapshots(
         "missing_description": 0,
         "ambiguous": 0,
         "descriptions_recovered": 0,
+        "active": 0,
+        "paused": 0,
+        "status_changed": 0,
     }
 
     for raw in snapshots or []:
@@ -237,6 +260,11 @@ def sync_vacancy_snapshots(
         discovery_key = _discovery_key(snapshot.get("external_job_key"))
         title = _clean(snapshot.get("title"))
         description = str(snapshot.get("description") or "").strip()
+        normalized_status = _normalize_job_status(snapshot.get("status"))
+        if normalized_status == "ACTIVE":
+            counts["active"] += 1
+        elif normalized_status == "PAUSED":
+            counts["paused"] += 1
 
         if not discovery_key or not title:
             counts["missing_identity"] += 1
@@ -256,31 +284,43 @@ def sync_vacancy_snapshots(
                 continue
             if not description:
                 counts["missing_description"] += 1
-                continue
 
             previous = dict(link.external_status or {})
+            description_unchanged = (
+                not description
+                or str(job.indeed_description or "").strip() == description
+            )
+            status_unchanged = (
+                normalized_status is None
+                or (getattr(job, "status", None) or "ACTIVE") == normalized_status
+            )
             if (
                 previous.get("snapshot_fingerprint") == fingerprint
                 and _clean(job.title) == title
-                and str(job.indeed_description or "").strip() == description
+                and description_unchanged
+                and status_unchanged
             ):
                 counts["unchanged"] += 1
                 link.last_synced_at = datetime.now(timezone.utc)
                 db.commit()
                 continue
 
+            previous_job_status = getattr(job, "status", None) or "ACTIVE"
             _updated, recovered = _update_existing_job(
                 db,
                 job=job,
                 owner_sub=owner_sub,
                 title=title,
                 description=description,
+                status=normalized_status,
             )
             link.external_status = _external_status(snapshot, fingerprint)
             link.last_synced_at = datetime.now(timezone.utc)
             link.last_error = None
             db.commit()
             counts["updated"] += 1
+            if normalized_status is not None and normalized_status != previous_job_status:
+                counts["status_changed"] += 1
             if recovered:
                 counts["descriptions_recovered"] += 1
             continue
@@ -300,12 +340,14 @@ def sync_vacancy_snapshots(
 
         if len(matches) == 1:
             job = matches[0]
+            previous_job_status = getattr(job, "status", None) or "ACTIVE"
             _updated, recovered = _update_existing_job(
                 db,
                 job=job,
                 owner_sub=owner_sub,
                 title=title,
                 description=description,
+                status=normalized_status,
             )
             db.add(
                 IndeedJobLink(
@@ -318,6 +360,8 @@ def sync_vacancy_snapshots(
             )
             db.commit()
             counts["reconciled"] += 1
+            if normalized_status is not None and normalized_status != previous_job_status:
+                counts["status_changed"] += 1
             if recovered:
                 counts["descriptions_recovered"] += 1
             continue
@@ -328,6 +372,7 @@ def sync_vacancy_snapshots(
             indeed_description=description,
             ai_description=None,
             active_description_source="indeed",
+            status=normalized_status or "ACTIVE",
             owner_sub=owner_sub,
             evaluation_version=1,
             evaluation_profile={},
