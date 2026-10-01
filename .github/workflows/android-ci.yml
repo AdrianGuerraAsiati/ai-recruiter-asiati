@@ -44,7 +44,7 @@ jobs:
       - name: Assemble debug APK
         working-directory: android
         env:
-          TALENT_ID_API_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
+          TALENT_ID_API_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://talent.asiati.com.co' }}
         run: |
           set -euo pipefail
           test -n "$TALENT_ID_API_BASE_URL"
