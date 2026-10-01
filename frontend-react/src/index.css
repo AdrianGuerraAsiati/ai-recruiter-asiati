@@ -4553,3 +4553,311 @@ select { appearance: none; padding-right: 42px; background-image: linear-gradien
 [data-theme="dark"] .profile-avatar { background: var(--blue); }
 @media (max-width: 900px) { .profile-content-grid { grid-template-columns: 1fr; } .profile-detail-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width: 620px) { .profile-identity,.profile-content-grid { padding: 22px 20px; } .profile-identity { align-items:flex-start; } .profile-avatar { width:52px;height:52px;flex-basis:52px;border-radius:15px; } .profile-detail-grid { grid-template-columns: 1fr; } }
+
+
+/* ============================================================
+   COLLAPSIBLE DESKTOP SIDEBAR
+   ============================================================ */
+
+.navbar-topline {
+  position: relative;
+}
+
+.desktop-menu-toggle {
+  display: none;
+}
+
+@media (min-width: 821px) {
+  .app-layout {
+    transition: grid-template-columns .34s cubic-bezier(.22, 1, .36, 1);
+  }
+
+  .navbar {
+    overflow: visible;
+    transition:
+      width .34s cubic-bezier(.22, 1, .36, 1),
+      box-shadow .34s ease;
+  }
+
+  .navbar-inner {
+    transition: padding .34s cubic-bezier(.22, 1, .36, 1);
+  }
+
+  .desktop-menu-toggle {
+    position: absolute;
+    z-index: 5;
+    top: 2px;
+    right: -37px;
+    display: block;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border: 1px solid rgba(255,255,255,.13);
+    border-radius: 12px;
+    background: linear-gradient(145deg, #163a52, #0f4e63);
+    color: white;
+    box-shadow: 0 8px 22px rgba(11,52,67,.24);
+    cursor: pointer;
+    transition:
+      transform .24s cubic-bezier(.22, 1, .36, 1),
+      background .2s ease,
+      border-color .2s ease,
+      box-shadow .2s ease;
+  }
+
+  .desktop-menu-toggle:hover {
+    transform: translateY(-1px);
+    border-color: rgba(252,227,2,.38);
+    background: linear-gradient(145deg, #18445d, #11617a);
+    box-shadow: 0 11px 28px rgba(11,52,67,.30);
+  }
+
+  .desktop-menu-toggle span {
+    position: absolute;
+    left: 10px;
+    width: 16px;
+    height: 1.5px;
+    border-radius: 999px;
+    background: currentColor;
+    transform-origin: center;
+    transition:
+      width .28s cubic-bezier(.22, 1, .36, 1),
+      transform .28s cubic-bezier(.22, 1, .36, 1),
+      opacity .2s ease;
+  }
+
+  .desktop-menu-toggle span:nth-child(1) { top: 12px; }
+  .desktop-menu-toggle span:nth-child(2) { top: 18px; }
+  .desktop-menu-toggle span:nth-child(3) { top: 24px; }
+
+  .desktop-menu-toggle.is-collapsed {
+    color: var(--asiati-yellow, #fce302);
+  }
+
+  .desktop-menu-toggle.is-collapsed span:nth-child(1) {
+    width: 10px;
+    transform: translate(6px, 3px) rotate(45deg);
+  }
+
+  .desktop-menu-toggle.is-collapsed span:nth-child(2) {
+    width: 15px;
+    transform: translateX(1px);
+  }
+
+  .desktop-menu-toggle.is-collapsed span:nth-child(3) {
+    width: 10px;
+    transform: translate(6px, -3px) rotate(-45deg);
+  }
+
+  .navbar .asiati-logo-frame,
+  .navbar .asiati-brand-tagline,
+  .nav-context,
+  .nav-section-label,
+  .navbar-link,
+  .navbar-link-label,
+  .navbar-icon,
+  .nav-insight,
+  .nav-insight > div,
+  .navbar-bottom-actions,
+  .navbar-logout {
+    transition:
+      width .34s cubic-bezier(.22, 1, .36, 1),
+      max-width .34s cubic-bezier(.22, 1, .36, 1),
+      min-height .34s cubic-bezier(.22, 1, .36, 1),
+      margin .34s cubic-bezier(.22, 1, .36, 1),
+      padding .34s cubic-bezier(.22, 1, .36, 1),
+      gap .34s cubic-bezier(.22, 1, .36, 1),
+      opacity .2s ease,
+      transform .34s cubic-bezier(.22, 1, .36, 1),
+      border-color .2s ease,
+      background .2s ease;
+  }
+
+  .navbar .asiati-brand-tagline,
+  .navbar-link-label,
+  .nav-insight > div {
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .navbar .asiati-brand-tagline {
+    max-width: 112px;
+  }
+
+  .navbar-link-label {
+    max-width: 150px;
+  }
+
+  body.nav-desktop-collapsed .app-layout {
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+
+  body.nav-desktop-collapsed .navbar {
+    width: 88px;
+    box-shadow: 8px 0 28px rgba(11,52,67,.10);
+  }
+
+  body.nav-desktop-collapsed .navbar-inner {
+    padding-inline: 14px;
+  }
+
+  body.nav-desktop-collapsed .navbar-topline {
+    min-height: 64px;
+  }
+
+  body.nav-desktop-collapsed .navbar-brand {
+    justify-content: center;
+  }
+
+  body.nav-desktop-collapsed .navbar .asiati-brand {
+    gap: 0;
+  }
+
+  body.nav-desktop-collapsed .navbar .asiati-logo-frame {
+    width: 54px;
+    height: 54px;
+    flex-basis: 54px;
+    padding: 5px;
+    box-shadow: 0 8px 20px rgba(0,0,0,.16);
+  }
+
+  body.nav-desktop-collapsed .navbar .asiati-brand-tagline {
+    max-width: 0;
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+
+  body.nav-desktop-collapsed .nav-context {
+    max-height: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border-color: transparent;
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
+  }
+
+  body.nav-desktop-collapsed .navbar-links {
+    padding-right: 0;
+  }
+
+  body.nav-desktop-collapsed .nav-section + .nav-section {
+    margin-top: 9px;
+  }
+
+  body.nav-desktop-collapsed .nav-section-label {
+    max-height: 0;
+    margin: 0;
+    overflow: hidden;
+    opacity: 0;
+  }
+
+  body.nav-desktop-collapsed .nav-section-items {
+    gap: 5px;
+  }
+
+  body.nav-desktop-collapsed .navbar-link {
+    width: 50px;
+    min-height: 48px;
+    justify-content: center;
+    gap: 0;
+    margin-inline: auto;
+    padding-inline: 0;
+    border-radius: 13px;
+  }
+
+  body.nav-desktop-collapsed .navbar-link:hover {
+    transform: translateY(-1px);
+  }
+
+  body.nav-desktop-collapsed .navbar-link-label {
+    max-width: 0;
+    opacity: 0;
+    transform: translateX(-7px);
+  }
+
+  body.nav-desktop-collapsed .navbar-icon {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    border-radius: 11px;
+  }
+
+  body.nav-desktop-collapsed .navbar-link.active::before {
+    left: -14px;
+    height: 26px;
+  }
+
+  body.nav-desktop-collapsed .nav-insight {
+    width: 48px;
+    min-height: 48px;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin: auto auto 12px;
+    padding: 0;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 13px;
+  }
+
+  body.nav-desktop-collapsed .nav-insight-dot {
+    margin-top: 0;
+  }
+
+  body.nav-desktop-collapsed .nav-insight > div {
+    max-width: 0;
+    opacity: 0;
+  }
+
+  body.nav-desktop-collapsed .navbar-bottom-actions {
+    width: 48px;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin: 0 auto 8px;
+  }
+
+  body.nav-desktop-collapsed .navbar-bottom-actions .theme-toggle,
+  body.nav-desktop-collapsed .navbar-bottom-actions .navbar-logout {
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+  }
+
+  body.nav-desktop-collapsed .navbar-bottom-actions .navbar-logout {
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+  }
+
+  body.nav-desktop-collapsed .navbar-bottom-actions .navbar-logout span {
+    width: 0;
+    max-width: 0;
+    overflow: hidden;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-layout,
+  .navbar,
+  .navbar-inner,
+  .desktop-menu-toggle,
+  .desktop-menu-toggle span,
+  .navbar .asiati-logo-frame,
+  .navbar .asiati-brand-tagline,
+  .nav-context,
+  .nav-section-label,
+  .navbar-link,
+  .navbar-link-label,
+  .navbar-icon,
+  .nav-insight,
+  .nav-insight > div,
+  .navbar-bottom-actions,
+  .navbar-logout {
+    transition: none !important;
+  }
+}
