@@ -259,7 +259,7 @@ function Integrations() {
                 <span className="integration-account-label">Cuenta conectada</span>
                 <strong>{status.connected_email || "Cuenta corporativa conectada"}</strong>
                 <span>
-                  Proveedor de ingestión: {status.provider || "INDEED"}
+                  Integración compartida por todos los administradores · Proveedor: {status.provider || "INDEED"}
                 </span>
               </div>
             ) : oauthConfigured ? (
