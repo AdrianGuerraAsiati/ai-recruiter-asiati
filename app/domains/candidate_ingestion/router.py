@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.config import get_gmail_oauth_settings
-from app.deps import get_current_user, get_db
+from app.deps import get_db, require_permission
 from app.domains.candidate_ingestion import gmail_integration, indeed_email_agent_service
 
 router = APIRouter(tags=["gmail-ingestion"])
@@ -56,14 +56,16 @@ def _frontend_redirect(outcome: str) -> str:
 
 
 @router.get("/api/integrations/gmail/status")
-def gmail_status(user: dict = Depends(get_current_user)):
-    return gmail_integration.integration_status(owner_sub=user["sub"])
+def gmail_status(principal: dict = Depends(require_permission("integrations.manage"))):
+    return gmail_integration.integration_status(owner_sub=principal["sub"])
 
 
 @router.get("/api/integrations/gmail/oauth/start")
-def gmail_oauth_start(user: dict = Depends(get_current_user)):
+def gmail_oauth_start(
+    principal: dict = Depends(require_permission("integrations.manage")),
+):
     try:
-        return gmail_integration.oauth_start(owner_sub=user["sub"])
+        return gmail_integration.oauth_start(owner_sub=principal["sub"])
     except Exception as exc:
         raise _translate(exc)
 
@@ -89,12 +91,12 @@ def gmail_oauth_callback(
 @router.post("/api/integrations/gmail/sync")
 def gmail_sync(
     db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user),
+    principal: dict = Depends(require_permission("integrations.manage")),
 ):
     try:
         return gmail_integration.sync_mailbox(
             db,
-            owner_sub=user["sub"],
+            owner_sub=gmail_integration.integration_owner_sub(),
         )
     except Exception as exc:
         raise _translate(exc)
@@ -103,12 +105,12 @@ def gmail_sync(
 @router.post("/api/integrations/gmail/reset-to-current")
 def gmail_reset_to_current(
     db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user),
+    principal: dict = Depends(require_permission("integrations.manage")),
 ):
     try:
         return gmail_integration.reset_mailbox_to_current(
             db,
-            owner_sub=user["sub"],
+            owner_sub=gmail_integration.integration_owner_sub(),
         )
     except Exception as exc:
         raise _translate(exc)
@@ -119,12 +121,12 @@ def gmail_reset_to_current(
 @router.get("/api/integrations/gmail/active-archived-test")
 def gmail_active_archived_test(
     db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user),
+    principal: dict = Depends(require_permission("integrations.manage")),
 ):
     try:
         return indeed_email_agent_service.get_active_smoke_task(
             db,
-            owner_sub=user["sub"],
+            owner_sub=gmail_integration.integration_owner_sub(),
         )
     except Exception as exc:
         raise _translate(exc)
@@ -133,12 +135,12 @@ def gmail_active_archived_test(
 @router.post("/api/integrations/gmail/reactivate-one-archived")
 def gmail_reactivate_one_archived(
     db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user),
+    principal: dict = Depends(require_permission("integrations.manage")),
 ):
     try:
         return indeed_email_agent_service.reactivate_one_archived_task(
             db,
-            owner_sub=user["sub"],
+            owner_sub=gmail_integration.integration_owner_sub(),
         )
     except Exception as exc:
         raise _translate(exc)
@@ -147,20 +149,22 @@ def gmail_reactivate_one_archived(
 @router.post("/api/integrations/gmail/retry-active-archived-test")
 def gmail_retry_active_archived_test(
     db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user),
+    principal: dict = Depends(require_permission("integrations.manage")),
 ):
     try:
         return indeed_email_agent_service.retry_active_needs_human_task(
             db,
-            owner_sub=user["sub"],
+            owner_sub=gmail_integration.integration_owner_sub(),
         )
     except Exception as exc:
         raise _translate(exc)
 
 
 @router.delete("/api/integrations/gmail")
-def gmail_disconnect(user: dict = Depends(get_current_user)):
+def gmail_disconnect(
+    principal: dict = Depends(require_permission("integrations.manage")),
+):
     try:
-        return gmail_integration.disconnect_oauth(owner_sub=user["sub"])
+        return gmail_integration.disconnect_oauth(owner_sub=principal["sub"])
     except Exception as exc:
         raise _translate(exc)

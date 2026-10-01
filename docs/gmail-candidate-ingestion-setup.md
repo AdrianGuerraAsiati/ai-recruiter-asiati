@@ -12,6 +12,8 @@ Never commit OAuth client secrets, refresh tokens, state secrets, mailbox passwo
 
 Production Gmail OAuth/runtime values live in AWS Secrets Manager under `/ai-recruiter/prod/gmail-oauth`. Environment variables remain useful for local development, but the production secret overlays the operational values.
 
+The Gmail connection is **corporate and shared**. It is not owned by the Talent user who performed the OAuth consent. Every active principal with `integrations.manage` can inspect, reconnect, synchronize and disconnect the same integration. `authorized_owner_sub` remains only as the stable technical namespace for existing ingestion cursors/backlog; `connected_by_sub` records the administrator who last completed OAuth for audit.
+
 For Indeed application notifications, the target runtime configuration **after the backend and local resume agent are deployed and verified** is:
 
 ```json

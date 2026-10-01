@@ -268,32 +268,40 @@ def test_oauth_frontend_return_defaults_to_cloudfront(monkeypatch):
     )
 
 
-def test_oauth_start_rejects_non_owner():
+def test_oauth_start_allows_another_admin_actor_without_changing_corporate_owner():
     store = FakeStore(oauth_secret())
 
-    with pytest.raises(gmail_integration.GmailOAuthOwnershipError):
-        gmail_integration.oauth_start(
-            owner_sub="owner-b",
-            settings=gmail_settings(),
-            oauth_settings=oauth_settings(),
-            oauth_store=store,
-        )
+    result = gmail_integration.oauth_start(
+        owner_sub="admin-b",
+        settings=gmail_settings(),
+        oauth_settings=oauth_settings(),
+        oauth_store=store,
+    )
+
+    state = parse_qs(urlparse(result["authorization_url"]).query)["state"][0]
+    assert state
+    assert gmail_integration.integration_owner_sub(
+        oauth_settings=oauth_settings(),
+        oauth_store=store,
+    ) == "owner-a"
 
 
-def test_disconnect_rejects_non_owner():
+def test_disconnect_allows_another_admin_actor_and_preserves_corporate_owner():
     connected = oauth_secret()
     connected["refresh_token"] = "refresh-token"
     connected["connected_email"] = "recruiting@asiaticorp.com"
     connected["connected_by_sub"] = "owner-a"
     store = FakeStore(connected)
 
-    with pytest.raises(gmail_integration.GmailOAuthOwnershipError):
-        gmail_integration.disconnect_oauth(
-            owner_sub="owner-b",
-            oauth_store=store,
-        )
+    result = gmail_integration.disconnect_oauth(
+        owner_sub="admin-b",
+        oauth_store=store,
+    )
 
-    assert store.payload["refresh_token"] == "refresh-token"
+    assert result == {"connected": False}
+    assert store.payload["refresh_token"] == ""
+    assert store.payload["connected_email"] == ""
+    assert store.payload["authorized_owner_sub"] == "owner-a"
 
 
 def test_unowned_existing_mailbox_can_only_be_claimed_with_same_google_account():
@@ -324,15 +332,60 @@ def test_unowned_existing_mailbox_can_only_be_claimed_with_same_google_account()
     assert store.payload["connected_by_sub"] == "owner-a"
 
 
-def test_new_unowned_oauth_configuration_cannot_be_claimed_by_arbitrary_user():
+def test_new_unowned_oauth_configuration_can_be_initialized_by_authorized_admin():
     payload = oauth_secret()
     payload.pop("authorized_owner_sub")
     store = FakeStore(payload)
+    http = FakeHttp()
 
-    with pytest.raises(gmail_integration.GmailOAuthOwnershipError):
-        gmail_integration.oauth_start(
-            owner_sub="owner-a",
-            settings=gmail_settings(),
-            oauth_settings=oauth_settings(),
-            oauth_store=store,
-        )
+    start = gmail_integration.oauth_start(
+        owner_sub="admin-a",
+        settings=gmail_settings(),
+        oauth_settings=oauth_settings(),
+        oauth_store=store,
+    )
+    state = parse_qs(urlparse(start["authorization_url"]).query)["state"][0]
+
+    gmail_integration.oauth_callback(
+        code="authorization-code",
+        state=state,
+        settings=gmail_settings(),
+        oauth_settings=oauth_settings(),
+        oauth_store=store,
+        http_client=http,
+    )
+
+    assert store.payload["authorized_owner_sub"] == "admin-a"
+    assert store.payload["connected_by_sub"] == "admin-a"
+
+
+def test_reauthorization_by_another_admin_preserves_historical_ingestion_owner():
+    payload = oauth_secret()
+    payload["refresh_token"] = "old-refresh"
+    payload["connected_email"] = "recruiting@asiaticorp.com"
+    store = FakeStore(payload)
+    http = FakeHttp()
+
+    start = gmail_integration.oauth_start(
+        owner_sub="admin-b",
+        settings=gmail_settings(),
+        oauth_settings=oauth_settings(),
+        oauth_store=store,
+    )
+    state = parse_qs(urlparse(start["authorization_url"]).query)["state"][0]
+
+    gmail_integration.oauth_callback(
+        code="authorization-code",
+        state=state,
+        settings=gmail_settings(),
+        oauth_settings=oauth_settings(),
+        oauth_store=store,
+        http_client=http,
+    )
+
+    assert store.payload["authorized_owner_sub"] == "owner-a"
+    assert store.payload["connected_by_sub"] == "admin-b"
+    assert gmail_integration.integration_owner_sub(
+        oauth_settings=oauth_settings(),
+        oauth_store=store,
+    ) == "owner-a"

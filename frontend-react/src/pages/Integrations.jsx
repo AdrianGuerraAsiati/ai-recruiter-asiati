@@ -259,7 +259,7 @@ function Integrations() {
                 <span className="integration-account-label">Cuenta conectada</span>
                 <strong>{status.connected_email || "Cuenta corporativa conectada"}</strong>
                 <span>
-                  Proveedor de ingestión: {status.provider || "INDEED"}
+                  Integración compartida por todos los administradores · Proveedor: {status.provider || "INDEED"}
                 </span>
               </div>
             ) : oauthConfigured ? (
@@ -283,13 +283,6 @@ function Integrations() {
               <div className="integration-callback">
                 <span>Callback OAuth</span>
                 <code>{status.redirect_uri}</code>
-              </div>
-            )}
-
-            {!manageable && (
-              <div className="integration-alert is-warning">
-                Esta conexión corporativa está administrada por otro usuario autorizado.
-                Puedes consultar su estado, pero no modificarla ni ejecutar sincronizaciones manuales.
               </div>
             )}
 
@@ -319,6 +312,14 @@ function Integrations() {
                 </button>
               ) : (
                 <>
+                  <button
+                    type="button"
+                    className="integration-secondary"
+                    onClick={connectGmail}
+                    disabled={Boolean(busy)}
+                  >
+                    {busy === "connect" ? "Abriendo Google…" : "Reconectar Gmail"}
+                  </button>
                   <button
                     type="button"
                     className="integration-primary"
