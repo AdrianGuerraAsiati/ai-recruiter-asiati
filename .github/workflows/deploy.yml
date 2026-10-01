@@ -221,7 +221,27 @@ jobs:
             echo DOCKER_DISK_BEFORE
             sudo docker system df
             sudo docker container prune -f
-            sudo docker builder prune -a -f --filter until=168h
+            # Keep the 3 newest deploy images per service for quick rollback.
+            # Running containers are also protected by Docker even if an older
+            # tag falls outside the retention window.
+            prune_old_repo_images() {
+              repo="$1"
+              keep="${2:-3}"
+              mapfile -t images < <(
+                sudo docker image ls "$repo" \
+                  --format '{{.Repository}}:{{.Tag}}' \
+                  | awk '$0 !~ /:<none>$/'
+              )
+              if [ "${#images[@]}" -le "$keep" ]; then
+                return 0
+              fi
+              printf '%s\n' "${images[@]:$keep}" \
+                | xargs -r sudo docker image rm -f || true
+            }
+            prune_old_repo_images "$ECR_REGISTRY/$ECR_BACKEND_REPO" 3
+            prune_old_repo_images "$ECR_REGISTRY/$ECR_FRONTEND_REPO" 3
+            sudo docker image prune -f
+            sudo docker builder prune -a -f
             echo DOCKER_DISK_AFTER
             sudo docker system df
             sudo docker pull "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}"
