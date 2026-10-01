@@ -895,6 +895,4 @@ from app.domains.training.models import (  # noqa: E402,F401
     TrainingQuizQuestion,
 )
 
-
-# Register domain-owned Talent ID tables in shared Base.metadata.
 from app.domains.talent_id import models as talent_id_models  # noqa: E402,F401
