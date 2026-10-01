@@ -55,6 +55,13 @@ function Navbar() {
   const navigate = useNavigate();
   const { principal, hasPermission, clearSession } = useSession();
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return window.localStorage.getItem("asiati.sidebar.collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     function closeOnEscape(event) {
@@ -68,6 +75,16 @@ function Navbar() {
     document.body.classList.toggle("nav-mobile-open", open);
     return () => document.body.classList.remove("nav-mobile-open");
   }, [open]);
+
+  useEffect(() => {
+    document.body.classList.toggle("nav-desktop-collapsed", collapsed);
+    try {
+      window.localStorage.setItem("asiati.sidebar.collapsed", String(collapsed));
+    } catch {
+      // Local storage can be unavailable in privacy-restricted browsers.
+    }
+    return () => document.body.classList.remove("nav-desktop-collapsed");
+  }, [collapsed]);
 
   async function logout() {
     await api.post("/auth/logout").catch(() => {});
@@ -126,7 +143,21 @@ function Navbar() {
 
       <aside className={`navbar ${open ? "is-open" : ""}`} aria-label="Navegación de la aplicación">
         <div className="navbar-inner">
-          <Brand />
+          <div className="navbar-topline">
+            <Brand />
+            <button
+              className={`desktop-menu-toggle ${collapsed ? "is-collapsed" : ""}`}
+              type="button"
+              aria-label={collapsed ? "Expandir menú lateral" : "Contraer menú lateral"}
+              aria-pressed={collapsed}
+              title={collapsed ? "Expandir menú" : "Contraer menú"}
+              onClick={() => setCollapsed((value) => !value)}
+            >
+              <span />
+              <span />
+              <span />
+            </button>
+          </div>
 
           <div className="nav-context">
             <span className="nav-context-label">{roleLabel(principal?.roles)}</span>
@@ -144,11 +175,13 @@ function Navbar() {
                       to={item.to}
                       onClick={() => setOpen(false)}
                       className={({ isActive }) => `navbar-link ${isActive ? "active" : ""}`}
+                      title={collapsed ? item.label : undefined}
+                      aria-label={collapsed ? item.label : undefined}
                     >
                       <span className="navbar-icon" aria-hidden="true">
                         <Icon name={item.icon} size={17} />
                       </span>
-                      <span>{item.label}</span>
+                      <span className="navbar-link-label">{item.label}</span>
                     </NavLink>
                   ))}
                 </div>
@@ -166,7 +199,13 @@ function Navbar() {
 
           <div className="navbar-bottom-actions">
             <ThemeToggle />
-            <button className="navbar-logout" type="button" onClick={logout}>
+            <button
+              className="navbar-logout"
+              type="button"
+              onClick={logout}
+              title={collapsed ? "Cerrar sesión" : undefined}
+              aria-label={collapsed ? "Cerrar sesión" : undefined}
+            >
               <Icon name="logout" size={17} />
               <span>Cerrar sesión</span>
             </button>
