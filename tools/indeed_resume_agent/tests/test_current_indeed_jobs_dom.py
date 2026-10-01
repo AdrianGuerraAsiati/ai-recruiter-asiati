@@ -87,6 +87,30 @@ def test_current_listing_uses_unified_job_link_not_candidate_count_buttons():
     assert "22 de septiembre de 2026" in row["postedAt"]
 
 
+def test_current_listing_infers_paused_status_when_indeed_status_testid_changes():
+    row_html = (
+        _real_row()
+        .replace('data-testid="top-level-job-status"', 'data-testid="job-status-control"')
+        .replace("<span>Abierto</span>", "<span>Pausado</span>")
+    )
+    html = f"""
+    <html><head>
+      <base href="https://employers.indeed.com/jobs?status=open%2Cpaused" />
+    </head><body>
+      <table><tbody>{row_html}</tbody></table>
+    </body></html>
+    """
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.set_content(html)
+        state = page.evaluate(CURRENT_LISTING_STATE_SCRIPT)
+        browser.close()
+
+    assert len(state["rows"]) == 1
+    assert state["rows"][0]["status"] == "PAUSED"
+
+
 def test_current_listing_ignores_auxiliary_job_rows_without_unified_job_link():
     html = f"""
     <html><head><base href="https://employers.indeed.com/jobs" /></head><body>
