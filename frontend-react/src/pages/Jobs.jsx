@@ -884,7 +884,9 @@ function Jobs() {
               <div>
                 <span className="eyebrow">Vacante</span>
                 <h2 id="job-details-title">{viewJob.title}</h2>
-                <span className="status-pill job-detail-status"><i /> Activa</span>
+                <span className={`status-pill job-detail-status ${viewJob.status === "PAUSED" ? "is-paused" : ""}`}>
+                  <i /> {viewJob.status === "PAUSED" ? "Pausada" : "Activa"}
+                </span>
               </div>
               <button className="btn btn-close" onClick={closeJobDetails} aria-label="Cerrar detalle de vacante"><span aria-hidden="true">✕</span></button>
             </div>
