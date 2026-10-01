@@ -15,6 +15,9 @@ def test_vacancy_sync_parses_recovered_applications(tmp_path):
         "missing_description": 0,
         "ambiguous": 0,
         "descriptions_recovered": 4,
+        "active": 8,
+        "paused": 4,
+        "status_changed": 3,
         "applications_recovered": 5,
     }
 
@@ -31,3 +34,6 @@ def test_vacancy_sync_parses_recovered_applications(tmp_path):
     result = api.sync_jobs([])
 
     assert result.applications_recovered == 5
+    assert result.active == 8
+    assert result.paused == 4
+    assert result.status_changed == 3
