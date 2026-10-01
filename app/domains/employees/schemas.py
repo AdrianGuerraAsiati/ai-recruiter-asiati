@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 
-RoleCode = Literal["SUPER_ADMIN", "ADMIN", "EMPLOYEE"]
+RoleCode = Literal["ADMIN", "EMPLOYEE"]
 EmployeeStatus = Literal["ACTIVE", "DISABLED"]
 
 
