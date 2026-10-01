@@ -36,7 +36,10 @@ describe("Employees administration", () => {
     vi.clearAllMocks();
     useSession.mockReturnValue({
       hasRole: (role) => role === "ADMIN",
-      hasPermission: (permission) => permission === "training.results.read",
+      hasPermission: (permission) => [
+        "training.results.read",
+        "employees.roles.manage",
+      ].includes(permission),
     });
     api.get.mockResolvedValue({
       data: {
@@ -79,7 +82,7 @@ describe("Employees administration", () => {
     fireEvent.click(screen.getByRole("button", { name: /crear empleado/i }));
 
     expect(screen.getByRole("heading", { name: "Crear empleado" })).toBeInTheDocument();
-    expect(screen.queryByLabelText("Rol inicial")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Rol inicial")).toBeInTheDocument();
   });
 
   it("filters the directory by onboarding status", async () => {
@@ -240,28 +243,20 @@ describe("Employees administration", () => {
     });
   });
 
-  it("shows role controls to SUPER_ADMIN", async () => {
-    useSession.mockReturnValue({
-      hasRole: (role) => role === "SUPER_ADMIN",
-      hasPermission: (permission) => permission === "training.results.read",
-    });
-
+  it("shows ADMIN and EMPLOYEE as the only assignable roles", async () => {
     renderPage();
 
     await screen.findByText("Ana Pérez");
     fireEvent.click(screen.getByRole("button", { name: /crear empleado/i }));
 
     const roleSelect = screen.getByLabelText("Rol inicial");
-    expect(roleSelect).toBeInTheDocument();
     expect(Array.from(roleSelect.options).map((option) => option.value)).toEqual([
       "EMPLOYEE",
       "ADMIN",
-      "SUPER_ADMIN",
     ]);
     expect(Array.from(roleSelect.options).map((option) => option.textContent)).toEqual([
       "Empleado",
       "Administrador",
-      "Super administrador",
     ]);
   });
 });
