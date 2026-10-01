@@ -239,6 +239,26 @@ def authenticate_kiosk(
     return device
 
 
+def get_attendance_by_idempotency_key(
+    db: Session,
+    idempotency_key: str,
+) -> TalentAttendanceEvent | None:
+    return (
+        db.query(TalentAttendanceEvent)
+        .filter(TalentAttendanceEvent.idempotency_key == idempotency_key)
+        .one_or_none()
+    )
+
+
+def employee_display_name(employee: UserProfile) -> str:
+    full_name = " ".join(
+        value.strip()
+        for value in [employee.first_name or "", employee.last_name or ""]
+        if value and value.strip()
+    )
+    return full_name or employee.email
+
+
 def record_attendance(
     db: Session,
     *,
