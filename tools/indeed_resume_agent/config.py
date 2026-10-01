@@ -17,6 +17,7 @@ class AgentConfig:
     browser_profile_dir: Path
     browser_name: str = DEFAULT_BROWSER
     request_timeout_seconds: float = 30.0
+    sync_request_timeout_seconds: float = 120.0
     heartbeat_interval_seconds: float = 120.0
     idle_poll_seconds: float = 10.0
     max_pdf_bytes: int = 15 * 1024 * 1024
@@ -84,6 +85,9 @@ def load_config(*, environ: Mapping[str, str] | None = None) -> AgentConfig:
         browser_name=browser_name,
         request_timeout_seconds=_env_float(
             env, "ASIATI_RESUME_AGENT_REQUEST_TIMEOUT_SECONDS", 30.0
+        ),
+        sync_request_timeout_seconds=_env_float(
+            env, "ASIATI_RESUME_AGENT_SYNC_REQUEST_TIMEOUT_SECONDS", 120.0
         ),
         heartbeat_interval_seconds=_env_float(
             env, "ASIATI_RESUME_AGENT_HEARTBEAT_INTERVAL_SECONDS", 120.0
