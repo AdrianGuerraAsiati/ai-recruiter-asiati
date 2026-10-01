@@ -52,34 +52,44 @@ describe("Gmail corporate integration", () => {
     expect(screen.getByRole("button", { name: "Conectar Gmail" })).toBeDisabled();
   });
 
-  it("shows a read-only Gmail state to non-owners", async () => {
-    api.get.mockResolvedValueOnce({
-      data: {
-        enabled: true,
-        configured: true,
-        oauth_configured: true,
-        connected: true,
-        connected_email: null,
-        manageable: false,
-        provider: "INDEED",
-        safe_filter: true,
-      },
-    });
+  it("shows the same Gmail integration controls to every admin", async () => {
+    api.get
+      .mockResolvedValueOnce({
+        data: {
+          enabled: true,
+          configured: true,
+          oauth_configured: true,
+          connected: true,
+          connected_email: "recruiting@asiaticorp.com",
+          manageable: true,
+          provider: "INDEED",
+          safe_filter: true,
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          task_id: null,
+          status: null,
+          candidate_name: null,
+          job_title: null,
+          last_error_code: null,
+        },
+      });
 
     renderPage();
 
     expect(
-      await screen.findByText("Cuenta corporativa conectada"),
+      await screen.findByText("recruiting@asiaticorp.com"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/administrada por otro usuario autorizado/i),
+      screen.getByText(/integración compartida por todos los administradores/i),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Sincronizar ahora" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Sincronizar ahora" }),
+    ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Desconectar" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Desconectar" }),
+    ).toBeInTheDocument();
   });
 
   it("starts OAuth from the authenticated app and redirects to Google", async () => {
