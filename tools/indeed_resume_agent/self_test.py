@@ -13,6 +13,39 @@ _SELF_TEST_SERVICE = "ASIATI Resume Agent Self Test"
 _SELF_TEST_USERNAME = "qa-preflight"
 
 
+
+async def _browser_use_check_with_retry(
+    chrome: Path,
+    profile_root: Path,
+    *,
+    attempts: int = 2,
+) -> bool:
+    """Retry only the isolated packaged preflight browser cold start.
+
+    GitHub-hosted Windows runners can occasionally take more than Browser Use's
+    internal 30 second launch budget on the first cold Chrome start. Each retry
+    gets a fresh profile. Production browser behavior is unchanged.
+    """
+    last_error: Exception | None = None
+    for attempt in range(max(1, int(attempts))):
+        try:
+            ok = await _browser_use_check(
+                chrome,
+                profile_root / f"attempt-{attempt + 1}",
+            )
+            if ok:
+                return True
+        except Exception as exc:
+            last_error = exc
+
+        if attempt + 1 < max(1, int(attempts)):
+            await asyncio.sleep(1.0)
+
+    if last_error is not None:
+        raise last_error
+    return False
+
+
 async def _browser_use_check(chrome: Path, profile_dir: Path) -> bool:
     session_class = _load_browser_session_class()
     browser = session_class(
@@ -81,7 +114,7 @@ def run_self_test() -> int:
             prefix="asiati-resume-agent-self-test-"
         ) as temp:
             ok = asyncio.run(
-                _browser_use_check(
+                _browser_use_check_with_retry(
                     chrome,
                     Path(temp) / "browser-use-profile",
                 )

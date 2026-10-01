@@ -271,3 +271,66 @@ def test_errors_are_sanitized_and_lease_conflict_is_specialized(tmp_path):
     assert exc.value.status_code == 409
     assert exc.value.code == "RESUME_TASK_LEASE_EXPIRED"
     assert secret_token not in text and "lease-secret" not in text and "secret.example" not in text
+
+
+
+def test_sync_all_uses_dedicated_long_timeout(tmp_path):
+    seen_timeout = {}
+
+    def handler(request):
+        seen_timeout.update(request.extensions.get("timeout") or {})
+        return httpx.Response(
+            200,
+            json={
+                "mode": "INCREMENTAL",
+                "discovered": 0,
+                "created": 0,
+                "existing": 0,
+                "needs_review": 0,
+                "skipped": 0,
+                "has_more": False,
+                "reconcile_jobs": 0,
+                "reconcile_scanned": 0,
+                "reconcile_ready": 0,
+                "reconcile_provider_pending": 0,
+                "reconcile_covered": 0,
+                "reconcile_queued": 0,
+            },
+        )
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://agent.test",
+    )
+    api = AgentApiClient(
+        AgentConfig(
+            api_base_url="https://agent.test",
+            browser_profile_dir=tmp_path,
+            request_timeout_seconds=30.0,
+            sync_request_timeout_seconds=120.0,
+        ),
+        "a" * 40,
+        http_client=client,
+    )
+
+    api.sync_all()
+
+    assert seen_timeout["read"] == 120.0
+    assert seen_timeout["connect"] == 120.0
+
+
+def test_timeout_is_reported_as_safe_machine_code(tmp_path):
+    def handler(request):
+        raise httpx.ReadTimeout("timed out", request=request)
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://agent.test",
+    )
+    api = AgentApiClient(config(tmp_path), "a" * 40, http_client=client)
+
+    with pytest.raises(AgentApiError) as exc:
+        api.sync_all()
+
+    assert exc.value.status_code == 504
+    assert exc.value.code == "RESUME_AGENT_API_TIMEOUT"
