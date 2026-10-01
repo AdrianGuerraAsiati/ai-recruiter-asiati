@@ -226,17 +226,17 @@ jobs:
             # Running containers are also protected by Docker even if an older
             # tag falls outside the retention window.
             prune_old_repo_images() {
-              repo="$1"
-              keep="${2:-3}"
+              repo="\$1"
+              keep="\${2:-3}"
               mapfile -t images < <(
-                sudo docker image ls "$repo" \
+                sudo docker image ls "\$repo" \
                   --format '{{.Repository}}:{{.Tag}}' \
                   | awk '$0 !~ /:<none>$/'
               )
-              if [ "${#images[@]}" -le "$keep" ]; then
+              if [ "\${#images[@]}" -le "\$keep" ]; then
                 return 0
               fi
-              printf '%s\n' "${images[@]:$keep}" \
+              printf '%s\n' "\${images[@]:\$keep}" \
                 | xargs -r sudo docker image rm -f || true
             }
             prune_old_repo_images "$ECR_REGISTRY/$ECR_BACKEND_REPO" 3
