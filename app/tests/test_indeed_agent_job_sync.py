@@ -1,5 +1,6 @@
 """Indeed Employers vacancy refresh contracts for the desktop Resume Agent."""
 
+import base64
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -383,6 +384,168 @@ def test_shared_admin_reconciles_unlinked_historical_job_across_provenance():
         assert job.id == original_id
         assert job.status == "PAUSED"
         assert db.query(IndeedJobLink).filter_by(job_id=original_id).count() == 1
+    finally:
+        db.close()
+        engine.dispose()
+
+
+def test_refresh_migrates_legacy_base64_employer_job_identity_and_updates_status_only():
+    engine, db = _db()
+    try:
+        employer_uuid = "1e58a9cc-6131-4852-845c-f794e15bd569"
+        legacy_identity = base64.b64encode(
+            f"EmployerJob/{employer_uuid}".encode("utf-8")
+        ).decode("ascii").rstrip("=")
+
+        job = Job(
+            title="Líder de Marketing y Crecimiento",
+            description="Stored Indeed description",
+            indeed_description="Stored Indeed description",
+            active_description_source="indeed",
+            status="ACTIVE",
+            evaluation_profile={},
+            owner_sub="admin-a",
+        )
+        db.add(job)
+        db.flush()
+        db.add(
+            IndeedJobLink(
+                job_id=job.id,
+                owner_sub="admin-a",
+                discovery_key=f"employer-ui:{legacy_identity}",
+                external_status={"origin": "EMPLOYER_UI", "status": "ACTIVE"},
+            )
+        )
+        db.commit()
+
+        result = indeed_job_sync.sync_vacancy_snapshots(
+            db,
+            owner_sub="admin-b",
+            snapshots=[
+                snapshot(
+                    external_job_key=employer_uuid,
+                    title="Líder de Marketing y Crecimiento",
+                    description="",
+                    status="PAUSED",
+                )
+            ],
+        )
+        db.refresh(job)
+        link = db.query(IndeedJobLink).one()
+
+        assert job.status == "PAUSED"
+        assert job.indeed_description == "Stored Indeed description"
+        assert result["updated"] == 1
+        assert result["status_changed"] == 1
+        assert result["identity_rekeyed"] == 1
+        assert result["missing_description"] == 1
+        assert result["created"] == 0
+        assert db.query(Job).count() == 1
+        assert link.discovery_key == f"employer-ui:{employer_uuid}"
+        assert link.owner_sub == "admin-a"
+    finally:
+        db.close()
+        engine.dispose()
+
+
+def test_refresh_rekeys_linked_historical_vacancy_by_unique_title_without_description():
+    engine, db = _db()
+    try:
+        job = Job(
+            title="Líder de Marketing y Crecimiento",
+            description="Stored Indeed description",
+            indeed_description="Stored Indeed description",
+            active_description_source="indeed",
+            status="ACTIVE",
+            evaluation_profile={},
+            owner_sub="admin-a",
+        )
+        db.add(job)
+        db.flush()
+        db.add(
+            IndeedJobLink(
+                job_id=job.id,
+                owner_sub="admin-a",
+                discovery_key="employer-ui:legacy-browser-key",
+                external_status={"origin": "EMPLOYER_UI", "status": "ACTIVE"},
+            )
+        )
+        db.commit()
+
+        result = indeed_job_sync.sync_vacancy_snapshots(
+            db,
+            owner_sub="admin-b",
+            snapshots=[
+                snapshot(
+                    external_job_key="new-browser-key",
+                    title="Líder de Marketing y Crecimiento",
+                    description="",
+                    status="En pausa",
+                )
+            ],
+        )
+        db.refresh(job)
+        link = db.query(IndeedJobLink).one()
+
+        assert job.status == "PAUSED"
+        assert job.indeed_description == "Stored Indeed description"
+        assert result["reconciled"] == 1
+        assert result["identity_rekeyed"] == 1
+        assert result["status_changed"] == 1
+        assert result["created"] == 0
+        assert db.query(Job).count() == 1
+        assert link.discovery_key == "employer-ui:new-browser-key"
+    finally:
+        db.close()
+        engine.dispose()
+
+
+def test_refresh_does_not_rekey_when_title_match_is_ambiguous():
+    engine, db = _db()
+    try:
+        for owner, key in (
+            ("admin-a", "legacy-key-a"),
+            ("admin-b", "legacy-key-b"),
+        ):
+            job = Job(
+                title="Ejecutivo Comercial",
+                description="Stored Indeed description",
+                indeed_description="Stored Indeed description",
+                active_description_source="indeed",
+                status="ACTIVE",
+                evaluation_profile={},
+                owner_sub=owner,
+            )
+            db.add(job)
+            db.flush()
+            db.add(
+                IndeedJobLink(
+                    job_id=job.id,
+                    owner_sub=owner,
+                    discovery_key=f"employer-ui:{key}",
+                    external_status={"origin": "EMPLOYER_UI", "status": "ACTIVE"},
+                )
+            )
+        db.commit()
+
+        result = indeed_job_sync.sync_vacancy_snapshots(
+            db,
+            owner_sub="admin-a",
+            snapshots=[
+                snapshot(
+                    external_job_key="new-key",
+                    title="Ejecutivo Comercial",
+                    description="",
+                    status="PAUSED",
+                )
+            ],
+        )
+
+        assert result["ambiguous"] == 1
+        assert result["status_changed"] == 0
+        assert result["identity_rekeyed"] == 0
+        assert result["created"] == 0
+        assert {job.status for job in db.query(Job).all()} == {"ACTIVE"}
     finally:
         db.close()
         engine.dispose()
