@@ -5,6 +5,7 @@ import asyncio
 from playwright.async_api import async_playwright
 from playwright.sync_api import sync_playwright
 
+from tools.indeed_resume_agent.vacancy_sync import DETAIL_STATE_SCRIPT
 from tools.indeed_resume_agent.indeed_jobs_current import (
     CURRENT_LISTING_STATE_SCRIPT,
     CURRENT_PAGE_STATE_SCRIPT,
@@ -266,19 +267,61 @@ def test_current_next_button_advances_when_page_signature_changes():
 
 
 
-def test_listing_status_wins_over_flagged_detail_notice():
+def test_detail_lifecycle_wins_over_non_lifecycle_row_notice():
+    assert _authoritative_vacancy_status(
+        {"status": "Marcado"},
+        {"status": "En pausa"},
+    ) == "PAUSED"
+    assert _authoritative_vacancy_status(
+        {"status": "Flagged"},
+        {"status": "Abierto"},
+    ) == "ACTIVE"
+
+
+def test_row_lifecycle_is_used_when_detail_has_no_recognized_state():
     assert _authoritative_vacancy_status(
         {"status": "Pausado"},
         {"status": "Marcado"},
-    ) == "Pausado"
+    ) == "PAUSED"
     assert _authoritative_vacancy_status(
         {"status": "Abierto"},
         {"status": "Flagged"},
-    ) == "Abierto"
+    ) == "ACTIVE"
 
 
-def test_detail_status_is_only_a_fallback_when_listing_status_is_missing():
+def test_unknown_notices_never_become_lifecycle_states():
     assert _authoritative_vacancy_status(
-        {"status": ""},
-        {"status": "Paused"},
-    ) == "Paused"
+        {"status": "Marcado"},
+        {"status": "Flagged"},
+    ) is None
+
+
+def test_detail_script_reads_visible_real_paused_control_and_ignores_hidden_options():
+    html = """
+    <html><body>
+      <main>
+        <h1>Líder de Marketing y Crecimiento</h1>
+        <div data-testid="job-description">Descripción suficientemente larga para considerar cargado el detalle de la vacante.</div>
+        <div style="display:none" data-testid="top-level-job-status">
+          <span>Abierto</span>
+        </div>
+        <div
+          aria-label="Estado del empleo"
+          data-testid="top-level-job-status"
+          data-shield-id="hansel-job-status-control-paused"
+          role="combobox"
+        >
+          <span>En pausa</span>
+          <div style="display:none">Abierto Marcado Cerrado</div>
+        </div>
+      </main>
+    </body></html>
+    """
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1200, "height": 800})
+        page.set_content(html)
+        state = page.evaluate(DETAIL_STATE_SCRIPT)
+        browser.close()
+
+    assert state["status"] == "PAUSED"
