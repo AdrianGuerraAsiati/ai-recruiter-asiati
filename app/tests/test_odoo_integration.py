@@ -108,3 +108,16 @@ def test_connection_status_degrades_to_unconfigured_when_secret_store_fails():
 
     assert status["enabled"] is True
     assert status["configured"] is False
+
+
+
+def test_build_client_translates_secret_store_failure_to_not_configured():
+    try:
+        integration.build_odoo_client(
+            settings=_settings(),
+            secret_store=FakeSecretStore(error=RuntimeError("access denied")),
+        )
+    except integration.OdooNotConfigured as exc:
+        assert str(exc) == "Odoo credential secret is unavailable."
+    else:
+        raise AssertionError("secret access failure must be translated safely")
