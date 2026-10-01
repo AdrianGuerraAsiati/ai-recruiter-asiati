@@ -106,6 +106,15 @@ class OdooSettings:
 
 
 @dataclass(frozen=True)
+class TalentIdBiometricSettings:
+    """Non-secret Rekognition settings for Talent ID."""
+
+    collection_id: str
+    match_threshold: float
+    association_threshold: float
+
+
+@dataclass(frozen=True)
 class IndeedResumeAgentSettings:
     """Non-secret settings for the machine that downloads Indeed resumes."""
 
@@ -119,6 +128,35 @@ class IndeedResumeAgentSettings:
 def get_aws_region() -> str:
     """Return the configured AWS region without caching environment state."""
     return os.getenv("AWS_REGION", DEFAULT_AWS_REGION)
+
+
+def get_talent_id_biometric_settings() -> TalentIdBiometricSettings:
+    """Return Rekognition collection and confidence thresholds."""
+    return TalentIdBiometricSettings(
+        collection_id=os.getenv(
+            "TALENT_ID_REKOGNITION_COLLECTION_ID",
+            "talent-intelligence-employees",
+        ).strip(),
+        match_threshold=min(
+            100.0,
+            max(
+                0.0,
+                float(os.getenv("TALENT_ID_REKOGNITION_MATCH_THRESHOLD", "98")),
+            ),
+        ),
+        association_threshold=min(
+            100.0,
+            max(
+                0.0,
+                float(
+                    os.getenv(
+                        "TALENT_ID_REKOGNITION_ASSOCIATION_THRESHOLD",
+                        "90",
+                    )
+                ),
+            ),
+        ),
+    )
 
 
 def get_database_url() -> str:

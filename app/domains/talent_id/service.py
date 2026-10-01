@@ -170,6 +170,24 @@ def configure_employee_attendance(
     return settings
 
 
+def get_employee_attendance_settings(
+    db: Session,
+    employee_id: str,
+) -> TalentEmployeeAttendanceSetting:
+    settings = (
+        db.query(TalentEmployeeAttendanceSetting)
+        .filter(TalentEmployeeAttendanceSetting.employee_id == employee_id)
+        .one_or_none()
+    )
+    if settings is None:
+        raise TalentIdNotFound("Configuración de asistencia no encontrada.")
+    return settings
+
+
+def get_employee(db: Session, employee_id: str) -> UserProfile:
+    return _require_employee(db, employee_id)
+
+
 def provision_kiosk(
     db: Session,
     *,
@@ -219,6 +237,26 @@ def authenticate_kiosk(
     db.commit()
     db.refresh(device)
     return device
+
+
+def get_attendance_by_idempotency_key(
+    db: Session,
+    idempotency_key: str,
+) -> TalentAttendanceEvent | None:
+    return (
+        db.query(TalentAttendanceEvent)
+        .filter(TalentAttendanceEvent.idempotency_key == idempotency_key)
+        .one_or_none()
+    )
+
+
+def employee_display_name(employee: UserProfile) -> str:
+    full_name = " ".join(
+        value.strip()
+        for value in [employee.first_name or "", employee.last_name or ""]
+        if value and value.strip()
+    )
+    return full_name or employee.email
 
 
 def record_attendance(
