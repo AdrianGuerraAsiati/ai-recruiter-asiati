@@ -1,5 +1,5 @@
 // eslint-disable-next-line no-unused-vars
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import {
   EmptyState,
@@ -18,6 +18,119 @@ import {
   teamInitials,
 } from "./trainingUtils";
 
+function TrackedTrainingVideo({ lesson, onVideoProgress }) {
+  const videoRef = useRef(null);
+  const segmentStartRef = useRef(null);
+  const requestInFlightRef = useRef(false);
+  const [watchedPercent, setWatchedPercent] = useState(
+    Number(lesson?.video_progress?.watched_percent || 0),
+  );
+
+  useEffect(() => {
+    segmentStartRef.current = null;
+    setWatchedPercent(Number(lesson?.video_progress?.watched_percent || 0));
+  }, [lesson?.id, lesson?.video_progress?.watched_percent]);
+
+  function progressFromResponse(data) {
+    const updated = (data?.course?.modules || [])
+      .flatMap((module) => module.lessons || [])
+      .find((item) => item.id === lesson.id);
+    if (updated?.video_progress) {
+      setWatchedPercent(Number(updated.video_progress.watched_percent || 0));
+    }
+  }
+
+  async function flushSegment(endTime) {
+    const video = videoRef.current;
+    const startTime = segmentStartRef.current;
+    if (!video || startTime == null || requestInFlightRef.current) return;
+    const end = Number(endTime);
+    const start = Number(startTime);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start + 0.25) return;
+
+    requestInFlightRef.current = true;
+    segmentStartRef.current = end;
+    try {
+      const data = await onVideoProgress(lesson, {
+        duration_seconds: Number(video.duration || lesson.duration_seconds || 0),
+        played_from_seconds: start,
+        played_to_seconds: end,
+        position_seconds: Number(video.currentTime || end),
+      });
+      progressFromResponse(data);
+    } finally {
+      requestInFlightRef.current = false;
+    }
+  }
+
+  function handlePlay(event) {
+    segmentStartRef.current = Number(event.currentTarget.currentTime || 0);
+  }
+
+  function handleTimeUpdate(event) {
+    const current = Number(event.currentTarget.currentTime || 0);
+    const start = segmentStartRef.current;
+    if (start == null) {
+      segmentStartRef.current = current;
+      return;
+    }
+    if (!event.currentTarget.paused && current - start >= 5) {
+      void flushSegment(current);
+    }
+  }
+
+  function handleSeeking(event) {
+    void flushSegment(Number(event.currentTarget.currentTime || 0));
+    segmentStartRef.current = null;
+  }
+
+  function handleSeeked(event) {
+    segmentStartRef.current = Number(event.currentTarget.currentTime || 0);
+  }
+
+  function handlePause(event) {
+    void flushSegment(Number(event.currentTarget.currentTime || 0));
+  }
+
+  function handleEnded(event) {
+    void flushSegment(Number(event.currentTarget.currentTime || 0));
+  }
+
+  const threshold = Number(lesson?.video_progress?.completion_threshold_percent || 80);
+
+  return (
+    <>
+      <video
+        ref={videoRef}
+        key={lesson.id}
+        controls
+        preload="metadata"
+        src={lesson.video_url}
+        aria-label={`Video: ${lesson.title}`}
+        onPlay={handlePlay}
+        onTimeUpdate={handleTimeUpdate}
+        onSeeking={handleSeeking}
+        onSeeked={handleSeeked}
+        onPause={handlePause}
+        onEnded={handleEnded}
+      >
+        Tu navegador no puede reproducir este video.
+      </video>
+      <div className="training-video-watch-progress" aria-live="polite">
+        <div>
+          <strong>{Math.round(watchedPercent)}% reproducido</strong>
+          <span>
+            {lesson.completed
+              ? "Video completado"
+              : `Se completa automáticamente al reproducir al menos el ${threshold}%.`}
+          </span>
+        </div>
+        <ProgressBar value={watchedPercent} />
+      </div>
+    </>
+  );
+}
+
 export default function TrainingEmployeeJourney({
   canManage,
   myAssignments,
@@ -34,6 +147,7 @@ export default function TrainingEmployeeJourney({
   updateChecklistItem,
   previousJourneyLesson,
   completeLesson,
+  updateVideoProgress,
   saving,
   nextRequiredJourneyLesson,
   openFinalQuiz,
@@ -328,15 +442,10 @@ export default function TrainingEmployeeJourney({
                           {activeJourneyLesson.video_url && (
                             <div className={`training-video training-journey-video ${isPortraitOnboardingModule(activeJourneyLesson.module) ? "is-portrait" : ""}`}>
                               {isDirectVideo(activeJourneyLesson.video_url) ? (
-                                <video
-                                  key={activeJourneyLesson.id}
-                                  controls
-                                  preload="metadata"
-                                  src={activeJourneyLesson.video_url}
-                                  aria-label={`Video: ${activeJourneyLesson.title}`}
-                                >
-                                  Tu navegador no puede reproducir este video.
-                                </video>
+                                <TrackedTrainingVideo
+                                  lesson={activeJourneyLesson}
+                                  onVideoProgress={updateVideoProgress}
+                                />
                               ) : googleDrivePreviewUrl(activeJourneyLesson.video_url) ? (
                                 <>
                                   <iframe
@@ -448,6 +557,12 @@ export default function TrainingEmployeeJourney({
                                 <span className="training-checklist-progress-label">
                                   Completa todos los puntos para continuar
                                 </span>
+                              ) : activeJourneyLesson.content_type === "VIDEO" ? (
+                                <span className="training-checklist-progress-label">
+                                  {isDirectVideo(activeJourneyLesson.video_url)
+                                    ? `${Math.round(Number(activeJourneyLesson.video_progress?.watched_percent || 0))}% reproducido · mínimo 80%`
+                                    : "Este video debe estar alojado en Talent para validar el 80% reproducido."}
+                                </span>
                               ) : (
                                 <button
                                   className="btn btn-primary"
@@ -455,11 +570,7 @@ export default function TrainingEmployeeJourney({
                                   onClick={() => completeLesson(activeJourneyLesson.id)}
                                   disabled={saving}
                                 >
-                                  {saving
-                                    ? "Guardando…"
-                                    : isTeamModule(activeModule)
-                                      ? "✓ Marcar video como visto"
-                                      : "✓ Marcar lección como completada"}
+                                  {saving ? "Guardando…" : "✓ Marcar lección como completada"}
                                 </button>
                               )}
                               {activeJourneyLesson.completed
