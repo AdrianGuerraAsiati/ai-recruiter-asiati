@@ -79,6 +79,11 @@ def hire_candidate(
             job_title=body.job_title,
             department=body.department,
             hire_date=body.hire_date,
+            contract=(
+                body.contract.model_dump(mode="json")
+                if body.contract is not None
+                else None
+            ),
         )
     except Exception as exc:
         _translate(exc)
