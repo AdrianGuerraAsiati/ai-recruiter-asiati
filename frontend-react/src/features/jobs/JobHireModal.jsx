@@ -24,8 +24,9 @@ function JobHireModal({
             <span className="eyebrow">Contratación</span>
             <h2 id="job-hire-title">Contratar y crear empleado</h2>
             <p>
-              Define el usuario de Talent. Se generará una contraseña temporal,
-              no se enviarán correos y el onboarding ASIATI se asignará automáticamente.
+              Define el acceso y los datos iniciales del contrato. Se generará una
+              contraseña temporal, no se enviarán correos y el onboarding ASIATI se
+              asignará automáticamente.
             </p>
           </div>
           <button
@@ -121,6 +122,76 @@ function JobHireModal({
               onChange={(event) => onFormChange("hire_date", event.target.value)}
               required
             />
+          </div>
+
+          <div className="job-hire-contract-section">
+            <div>
+              <span className="eyebrow">Contrato</span>
+              <h3>Datos contractuales</h3>
+              <p>
+                Talent preparará el contrato y, cuando Odoo esté disponible, lo
+                creará o actualizará sobre el empleado sincronizado.
+              </p>
+            </div>
+
+            <div className="job-hire-grid">
+              <div className="form-group">
+                <label htmlFor="hire-contract-type">Tipo de contrato</label>
+                <input
+                  id="hire-contract-type"
+                  list="hire-contract-types"
+                  value={form.contract_type}
+                  onChange={(event) => onFormChange("contract_type", event.target.value)}
+                  placeholder="Ej. Indefinido"
+                  required
+                />
+                <datalist id="hire-contract-types">
+                  <option value="Indefinido" />
+                  <option value="Término fijo" />
+                  <option value="Obra o labor" />
+                  <option value="Aprendizaje" />
+                  <option value="Prestación de servicios" />
+                </datalist>
+              </div>
+              <div className="form-group">
+                <label htmlFor="hire-monthly-wage">Salario mensual</label>
+                <input
+                  id="hire-monthly-wage"
+                  type="number"
+                  min="0"
+                  step="1000"
+                  inputMode="numeric"
+                  value={form.monthly_wage}
+                  onChange={(event) => onFormChange("monthly_wage", event.target.value)}
+                  placeholder="Ej. 3500000"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="job-hire-grid">
+              <div className="form-group">
+                <label htmlFor="hire-contract-start-date">Inicio del contrato</label>
+                <input
+                  id="hire-contract-start-date"
+                  type="date"
+                  value={form.contract_start_date}
+                  onChange={(event) => onFormChange("contract_start_date", event.target.value)}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="hire-contract-end-date">Finalización</label>
+                <input
+                  id="hire-contract-end-date"
+                  type="date"
+                  value={form.contract_end_date}
+                  min={form.contract_start_date || undefined}
+                  onChange={(event) => onFormChange("contract_end_date", event.target.value)}
+                />
+                <small>Déjala vacía cuando el contrato no tenga fecha de finalización.</small>
+              </div>
+            </div>
           </div>
 
           <div className="form-actions">

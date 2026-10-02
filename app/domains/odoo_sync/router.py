@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_permission
-from app.domains.odoo_sync import employee_delivery, integration
+from app.domains.odoo_sync import contract_delivery, employee_delivery, integration
 from app.integrations.odoo.client import OdooClientError
 
 
@@ -68,4 +68,35 @@ def sync_employee_to_odoo(
         raise HTTPException(
             status_code=502,
             detail="No fue posible sincronizar el empleado con Odoo.",
+        )
+
+
+
+@router.post("/employees/{employee_id}/contract/sync")
+def sync_employee_contract_to_odoo(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employees.update")),
+):
+    try:
+        return contract_delivery.sync_contract_now(
+            db,
+            employee_id=employee_id,
+        )
+    except contract_delivery.OdooContractSyncNotFound:
+        raise HTTPException(
+            status_code=404,
+            detail="El empleado no tiene un contrato Odoo preparado.",
+        )
+    except contract_delivery.OdooContractDependencyError:
+        raise HTTPException(
+            status_code=409,
+            detail="Sincroniza primero el empleado con Odoo.",
+        )
+    except (integration.OdooDisabled, integration.OdooNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except contract_delivery.OdooContractDeliveryError:
+        raise HTTPException(
+            status_code=502,
+            detail="No fue posible sincronizar el contrato con Odoo.",
         )

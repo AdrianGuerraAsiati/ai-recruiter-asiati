@@ -13,6 +13,10 @@ const FORM = {
   job_title: "Backend Developer",
   department: "Tecnología",
   hire_date: "2026-09-28",
+  contract_type: "Indefinido",
+  contract_start_date: "2026-09-28",
+  contract_end_date: "",
+  monthly_wage: "3500000",
 };
 
 function renderModal(overrides = {}) {
@@ -57,6 +61,9 @@ describe("JobHireModal", () => {
     expect(screen.getByLabelText("Usuario de Talent")).toHaveValue("ana.perez");
     expect(screen.getByLabelText("Correo de contacto")).toHaveValue("ana@test.com");
     expect(screen.getByLabelText("Fecha de ingreso")).toHaveValue("2026-09-28");
+    expect(screen.getByLabelText("Tipo de contrato")).toHaveValue("Indefinido");
+    expect(screen.getByLabelText("Salario mensual")).toHaveValue(3500000);
+    expect(screen.getByLabelText("Inicio del contrato")).toHaveValue("2026-09-28");
   });
 
   it("delegates field changes and submit", () => {

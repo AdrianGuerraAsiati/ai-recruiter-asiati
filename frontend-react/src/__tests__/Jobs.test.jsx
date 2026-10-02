@@ -479,6 +479,9 @@ describe("Jobs page", () => {
     fireEvent.change(screen.getByLabelText("Usuario de Talent"), {
       target: { value: "ana.perez" },
     });
+    fireEvent.change(screen.getByLabelText("Salario mensual"), {
+      target: { value: "3500000" },
+    });
     fireEvent.change(screen.getByLabelText("Área"), {
       target: { value: "Tecnología" },
     });
@@ -525,6 +528,9 @@ describe("Jobs page", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /Contratar candidato/i })[0]);
     fireEvent.change(screen.getByLabelText("Usuario de Talent"), {
       target: { value: "ana.perez" },
+    });
+    fireEvent.change(screen.getByLabelText("Salario mensual"), {
+      target: { value: "3500000" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Confirmar contratación" }));
 

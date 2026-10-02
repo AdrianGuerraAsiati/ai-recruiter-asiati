@@ -14,6 +14,7 @@ from app.models import (
     Job,
     JobCandidate,
     OdooApplicantSync,
+    OdooContractSync,
     OdooEmployeeSync,
     OdooJobSync,
     UserProfile,
@@ -331,6 +332,124 @@ def ensure_employee_sync(
 
 
 def sync_payload(sync: OdooEmployeeSync) -> dict:
+    return {
+        "id": sync.id,
+        "employee_id": sync.employee_id,
+        "source_job_candidate_id": sync.source_job_candidate_id,
+        "idempotency_key": sync.idempotency_key,
+        "status": sync.status,
+        "attempt_count": sync.attempt_count,
+        "odoo_record_id": sync.odoo_record_id,
+        "last_error": sync.last_error,
+        "synced_at": _iso(sync.synced_at),
+        "created_at": _iso(sync.created_at),
+        "updated_at": _iso(sync.updated_at),
+    }
+
+
+
+def _date_text(value) -> str | None:
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    normalized = str(value).strip()
+    return normalized or None
+
+
+def build_contract_upsert_payload(
+    *,
+    employee: UserProfile,
+    job: Job,
+    application: JobCandidate,
+    contract: dict,
+) -> dict:
+    """Build the versioned contract used to create/update hr.contract."""
+
+    employee_name = " ".join(
+        part for part in (employee.first_name, employee.last_name) if part
+    ).strip()
+    start_date = contract.get("start_date") or employee.hire_date
+    end_date = contract.get("end_date")
+    contract_type = str(contract.get("contract_type") or "").strip()
+    wage = contract.get("monthly_wage")
+    name = str(contract.get("name") or "").strip()
+    if not name:
+        name = " - ".join(
+            part for part in (job.title, employee_name) if str(part or "").strip()
+        )
+
+    return {
+        "schema_version": 1,
+        "operation": "UPSERT_CONTRACT",
+        "source": {
+            "employee_id": employee.id,
+            "job_id": job.id,
+            "application_id": application.id,
+            "hired_at": _iso(application.hired_at),
+        },
+        "employee": {
+            "name": employee_name,
+            "email": employee.email,
+            "job_title": employee.job_title,
+            "department": employee.department,
+        },
+        "contract": {
+            "name": name or "Contrato laboral",
+            "contract_type": contract_type or None,
+            "start_date": _date_text(start_date),
+            "end_date": _date_text(end_date),
+            "monthly_wage": str(wage) if wage is not None else None,
+        },
+    }
+
+
+def ensure_contract_sync(
+    db: Session,
+    *,
+    employee: UserProfile,
+    job: Job,
+    application: JobCandidate,
+    contract: dict,
+) -> OdooContractSync:
+    """Create or refresh one idempotent Odoo contract state per employee."""
+
+    payload = build_contract_upsert_payload(
+        employee=employee,
+        job=job,
+        application=application,
+        contract=contract,
+    )
+    sync = (
+        db.query(OdooContractSync)
+        .filter(OdooContractSync.employee_id == employee.id)
+        .one_or_none()
+    )
+    if sync is None:
+        sync = OdooContractSync(
+            employee_id=employee.id,
+            source_job_candidate_id=application.id,
+            idempotency_key=f"contract:{employee.id}",
+            payload=payload,
+            status=SYNC_PENDING,
+        )
+        db.add(sync)
+        db.flush()
+        return sync
+
+    payload_changed = sync.payload != payload
+    sync.source_job_candidate_id = application.id
+    sync.payload = payload
+    if payload_changed and sync.status != SYNC_PENDING:
+        sync.status = SYNC_PENDING
+        sync.attempt_count = 0
+        sync.last_error = None
+        sync.synced_at = None
+    db.flush()
+    return sync
+
+
+def contract_sync_payload(sync: OdooContractSync) -> dict:
     return {
         "id": sync.id,
         "employee_id": sync.employee_id,

@@ -692,7 +692,9 @@
 }
 
 .job-hire-modal {
-  width: min(620px, calc(100vw - 32px));
+  width: min(680px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
 }
 
 .job-hire-form {
@@ -720,6 +722,27 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.job-hire-contract-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.job-hire-contract-section h3 {
+  margin: 3px 0 4px;
+  font-size: .95rem;
+}
+
+.job-hire-contract-section p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: .76rem;
+  line-height: 1.5;
 }
 
 .job-hire-form .form-group small {
