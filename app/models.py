@@ -879,6 +879,7 @@ class EmployeeScoreEvent(Base):
 
 # Odoo sync ORM models live with their domain and remain re-exported here.
 from app.domains.odoo_sync.models import OdooApplicantSync  # noqa: E402,F401
+from app.domains.odoo_sync.models import OdooContractSync  # noqa: E402,F401
 from app.domains.odoo_sync.models import OdooEmployeeSync  # noqa: E402,F401
 from app.domains.odoo_sync.models import OdooJobSync  # noqa: E402,F401
 
