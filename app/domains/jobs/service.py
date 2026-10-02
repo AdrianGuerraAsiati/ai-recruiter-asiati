@@ -1,5 +1,7 @@
 """Application service for Jobs use cases."""
 
+import logging
+
 from sqlalchemy.orm import Session
 
 from app.domains.jobs import repository
@@ -9,6 +11,32 @@ from app.domains.jobs.profile import (
     normalize_evaluation_profile,
 )
 from app.domains.jobs.reevaluation import schedule_reevaluation
+
+
+logger = logging.getLogger(__name__)
+
+
+def _sync_odoo_publication_best_effort(db: Session, job) -> None:
+    """Persist and attempt the Odoo mirror without making Odoo a Talent dependency."""
+
+    from app.domains.odoo_sync import integration as odoo_integration
+    from app.domains.odoo_sync import job_delivery
+    from app.domains.odoo_sync import service as odoo_sync_service
+
+    odoo_sync_service.ensure_job_sync(db, job=job)
+    db.commit()
+    try:
+        job_delivery.sync_job_now(db, job_id=job.id)
+    except (
+        job_delivery.OdooJobDeliveryError,
+        job_delivery.OdooJobSyncNotFound,
+        odoo_integration.OdooDisabled,
+        odoo_integration.OdooNotConfigured,
+    ):
+        logger.warning(
+            "Odoo vacancy publication deferred for job_id=%s",
+            job.id,
+        )
 
 
 def require_job(db: Session, job_id: str, owner_sub: str):
@@ -97,7 +125,9 @@ def create_job(
 
     if evaluation_profile is not None:
         kwargs["evaluation_profile"] = normalize_evaluation_profile(evaluation_profile)
-    return repository.create_job(db, **kwargs)
+    job = repository.create_job(db, **kwargs)
+    _sync_odoo_publication_best_effort(db, job)
+    return job
 
 
 def update_job(
@@ -232,6 +262,8 @@ def update_job(
     except Exception:
         db.rollback()
         raise
+
+    _sync_odoo_publication_best_effort(db, updated)
 
     # Transient response metadata; these values are not persisted on the Job.
     updated._evaluation_changed = evaluation_changed
