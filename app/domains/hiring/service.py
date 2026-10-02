@@ -11,6 +11,7 @@ from app.domains.candidates import repository as candidates_repository
 from app.domains.candidates import service as candidates_service
 from app.domains.employees import service as employees_service
 from app.domains.indeed import service as indeed_service
+from app.domains.odoo_sync import contract_delivery
 from app.domains.odoo_sync import employee_delivery
 from app.domains.odoo_sync import integration as odoo_integration
 from app.domains.odoo_sync import service as odoo_sync_service
@@ -79,6 +80,7 @@ def hire_candidate(
     job_title: str | None = None,
     department: str | None = None,
     hire_date: date | None = None,
+    contract: dict | None = None,
     cognito_client=None,
 ) -> dict:
     job = candidates_service.require_job(db, job_id, owner_sub)
@@ -231,6 +233,15 @@ def hire_candidate(
         job=job,
         application=link,
     )
+    contract_sync = None
+    if contract is not None:
+        contract_sync = odoo_sync_service.ensure_contract_sync(
+            db,
+            employee=employee,
+            job=job,
+            application=link,
+            contract=contract,
+        )
 
     db.commit()
     db.refresh(link)
@@ -250,6 +261,24 @@ def hire_candidate(
     ):
         pass
     db.refresh(odoo_sync)
+
+    odoo_contract_delivery = None
+    if contract_sync is not None:
+        try:
+            if odoo_sync.odoo_record_id:
+                odoo_contract_delivery = contract_delivery.sync_contract_now(
+                    db,
+                    employee_id=employee.id,
+                )
+        except (
+            contract_delivery.OdooContractDeliveryError,
+            contract_delivery.OdooContractSyncNotFound,
+            contract_delivery.OdooContractDependencyError,
+            odoo_integration.OdooDisabled,
+            odoo_integration.OdooNotConfigured,
+        ):
+            pass
+        db.refresh(contract_sync)
 
     return {
         "job_id": job_id,
@@ -272,4 +301,10 @@ def hire_candidate(
         "odoo_applicant_sync": odoo_sync_service.applicant_sync_payload(applicant_sync),
         "odoo_sync": odoo_sync_service.sync_payload(odoo_sync),
         "odoo_delivery": odoo_delivery,
+        "odoo_contract_sync": (
+            odoo_sync_service.contract_sync_payload(contract_sync)
+            if contract_sync is not None
+            else None
+        ),
+        "odoo_contract_delivery": odoo_contract_delivery,
     }
