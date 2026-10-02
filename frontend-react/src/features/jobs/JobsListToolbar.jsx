@@ -47,6 +47,8 @@ function JobsListToolbar({
             <option value="created_asc">Más antiguas</option>
             <option value="candidates_desc">Más candidatos</option>
             <option value="candidates_asc">Menos candidatos</option>
+            <option value="title_asc">Nombre A–Z</option>
+            <option value="title_desc">Nombre Z–A</option>
           </select>
         </label>
 
