@@ -144,6 +144,24 @@ def get_employee_summary(
     return service.employee_summary(db)
 
 
+@router.get("/credentials/availability")
+def check_username_availability(
+    username: str = Query(..., min_length=3, max_length=40),
+    exclude_employee_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employees.credentials.manage")),
+):
+    try:
+        normalized, available = service.username_available(
+            db,
+            username=username,
+            exclude_employee_id=exclude_employee_id,
+        )
+        return {"username": normalized, "available": available}
+    except Exception as exc:
+        _translate_service_error(exc)
+
+
 @router.get("/{employee_id}")
 def get_employee(
     employee_id: str,
@@ -190,24 +208,6 @@ def create_employee(
                 "must_change_password": True,
             },
         }
-    except Exception as exc:
-        _translate_service_error(exc)
-
-
-@router.get("/credentials/availability")
-def check_username_availability(
-    username: str = Query(..., min_length=3, max_length=40),
-    exclude_employee_id: str | None = Query(None),
-    db: Session = Depends(get_db),
-    _principal: dict = Depends(require_permission("employees.credentials.manage")),
-):
-    try:
-        normalized, available = service.username_available(
-            db,
-            username=username,
-            exclude_employee_id=exclude_employee_id,
-        )
-        return {"username": normalized, "available": available}
     except Exception as exc:
         _translate_service_error(exc)
 
