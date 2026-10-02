@@ -37,6 +37,7 @@ CORE_TABLES = {
     "recruitment_events",
     "odoo_employee_syncs",
     "odoo_applicant_syncs",
+    "odoo_contract_syncs",
     "talent_sites",
     "talent_work_schedules",
     "talent_employee_attendance_settings",
@@ -97,6 +98,7 @@ def test_alembic_head_builds_current_postgres_schema():
             "recruitment_events",
             "odoo_employee_syncs",
             "odoo_applicant_syncs",
+            "odoo_contract_syncs",
             "talent_sites",
             "talent_work_schedules",
             "talent_employee_attendance_settings",
@@ -434,9 +436,35 @@ def test_alembic_head_builds_current_postgres_schema():
             "uq_odoo_applicant_syncs_idempotency_key",
         }.issubset(odoo_applicant_uniques)
 
+        odoo_contract_columns = {
+            column["name"]
+            for column in inspector.get_columns("odoo_contract_syncs")
+        }
+        assert {
+            "employee_id",
+            "source_job_candidate_id",
+            "idempotency_key",
+            "payload",
+            "status",
+            "attempt_count",
+            "odoo_record_id",
+            "last_error",
+            "synced_at",
+            "created_at",
+            "updated_at",
+        }.issubset(odoo_contract_columns)
+        odoo_contract_uniques = {
+            constraint["name"]
+            for constraint in inspector.get_unique_constraints("odoo_contract_syncs")
+        }
+        assert {
+            "uq_odoo_contract_syncs_employee",
+            "uq_odoo_contract_syncs_idempotency_key",
+        }.issubset(odoo_contract_uniques)
+
         assert admin_score_grants == 4
         assert admin_write_grants == {"candidates.manage", "ranking.recalculate"}
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
-        assert revision == "037"
+        assert revision == "038"
     finally:
         engine.dispose()
