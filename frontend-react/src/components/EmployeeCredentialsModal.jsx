@@ -18,7 +18,7 @@ export default function EmployeeCredentialsModal({
   const [copied, setCopied] = useState("");
   if (!open || !credentials) return null;
 
-  const accessUrl = "https://talent.asiaticorp.com/";
+  const accessUrl = `${window.location.origin}/`;
 
   async function copy(value, kind) {
     try {
