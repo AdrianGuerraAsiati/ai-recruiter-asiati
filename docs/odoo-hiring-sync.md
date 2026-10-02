@@ -5,7 +5,7 @@
 Odoo recibe únicamente los procesos que ya avanzaron lo suficiente para ser operativos:
 
 - al pasar una postulación a `SELECTED`, aiRecruiter prepara el alta/actualización de la vacante y del postulante en Odoo;
-- al confirmar `HIRED`, aiRecruiter actualiza ese proceso y prepara el alta/actualización del empleado.
+- al confirmar `HIRED`, aiRecruiter actualiza ese proceso, prepara el alta/actualización del empleado y, cuando se suministran datos contractuales, prepara también su contrato inicial.
 
 Las vacantes y candidatos que continúan en etapas tempranas permanecen solo en aiRecruiter.
 
@@ -18,6 +18,12 @@ La selección y la contratación terminan localmente aunque Odoo esté indisponi
 `POST /api/odoo/employees/{employee_id}/sync`
 
 El endpoint consume `odoo_employee_syncs` y hace un upsert idempotente sobre `hr.employee`. El transporte externo sigue desacoplado del commit de contratación, por lo que un fallo de Odoo no revierte `HIRED`, Cognito ni onboarding.
+
+Cuando la contratación incluye contrato, `odoo_contract_syncs` conserva el payload y el estado de entrega de `hr.contract`. El contrato solo se intenta después de que el empleado tenga un `odoo_record_id`; si Odoo falla, queda reintentable sin revertir la contratación.
+
+Retry explícito del contrato:
+
+`POST /api/odoo/employees/{employee_id}/contract/sync`
 
 ### Postulante seleccionado
 
@@ -102,6 +108,31 @@ No se crean automáticamente departamentos, puestos ni empresas. Si una relació
 
 La búsqueda idempotente usa primero `odoo_record_id` persistido y, si no existe, `work_email`. Dos empleados Odoo con el mismo correo detienen el intento para evitar actualizar el registro equivocado.
 
+
+## Contrato `UPSERT_CONTRACT` v1
+
+El modal normal de contratación captura:
+
+- tipo de contrato;
+- fecha de inicio;
+- fecha de finalización opcional;
+- salario mensual.
+
+El payload también conserva IDs internos de empleado, vacante y postulación, además del nombre, cargo y área del empleado.
+
+### Mapeo inicial a `hr.contract`
+
+El transporte consulta `fields_get` antes de escribir y solo usa campos disponibles y editables:
+
+- `name` ← nombre generado del contrato;
+- `employee_id` ← ID de `hr.employee` ya sincronizado;
+- `date_start` ← inicio del contrato;
+- `date_end` ← finalización cuando exista;
+- `wage` ← salario mensual;
+- `contract_type_id` ← coincidencia exacta por nombre, solo cuando Odoo expone ese campo y existe exactamente un tipo coincidente.
+
+La búsqueda idempotente usa primero el `odoo_record_id` del contrato y luego la pareja empleado + fecha de inicio. Esta primera versión cubre el **contrato inicial generado al contratar**; renovaciones, otrosíes y terminaciones se modelarán como historial contractual separado para no sobrescribir evidencia histórica.
+
 ## Pendiente antes de activar producción
 
 El transporte de empleado ya existe, pero `ODOO_ENABLED` debe permanecer en `false` hasta configurar y validar la conexión ASIATI.
@@ -114,7 +145,7 @@ Pendiente:
 - hacer `healthcheck` y prueba controlada sobre la instancia real;
 - completar transporte de postulante/vacante;
 - transferir el CV canónico como adjunto;
-- decidir si se incorporan más datos privados/contractuales;
+- decidir qué datos contractuales adicionales deben gestionarse después del contrato inicial (renovaciones, otrosíes, terminación y documentos firmados);
 - automatizar el consumo de outboxes después de validar el POST manual.
 
 ## Regla de disponibilidad
