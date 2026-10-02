@@ -72,6 +72,26 @@ describe("Jobs page", () => {
     expect(screen.getByText("Frontend Developer")).toBeInTheDocument();
   });
 
+  it("allows sorting vacancies alphabetically from A to Z", async () => {
+    renderJobs();
+    await screen.findByText("Backend Developer");
+
+    fireEvent.change(screen.getByLabelText("Ordenar por"), {
+      target: { value: "title_asc" },
+    });
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith("/jobs/page", {
+        params: {
+          page: 1,
+          page_size: 12,
+          sort: "title_asc",
+          q: "",
+        },
+      });
+    });
+  });
+
   it("creates a vacancy with the editable selection process", async () => {
     renderJobs();
     await screen.findByText("Backend Developer");
