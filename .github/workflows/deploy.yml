@@ -230,8 +230,8 @@ jobs:
               keep="\${2:-3}"
               mapfile -t images < <(
                 sudo docker image ls "\$repo" \
-                  --format '{{.Repository}}:{{.Tag}}' \
-                  | awk '$0 !~ /:<none>$/'
+                  --filter dangling=false \
+                  --format '{{.Repository}}:{{.Tag}}'
               )
               if [ "\${#images[@]}" -le "\$keep" ]; then
                 return 0
