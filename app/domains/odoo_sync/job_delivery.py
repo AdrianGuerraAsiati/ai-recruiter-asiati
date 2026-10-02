@@ -60,6 +60,84 @@ def _publication_field(writable: dict[str, dict[str, Any]]) -> str:
     )
 
 
+def _exact_address_id(
+    client,
+    *,
+    city: str | None,
+    country_code: str | None,
+) -> int | None:
+    normalized_city = str(city or "").strip()
+    normalized_country = str(country_code or "").strip().upper()
+    if not normalized_city:
+        return None
+
+    domain = [["city", "=ilike", normalized_city]]
+    if normalized_country:
+        domain.append(["country_id.code", "=", normalized_country])
+    try:
+        rows = client.search_read(
+            "res.partner",
+            domain,
+            fields=["id", "city"],
+            limit=20,
+        )
+    except OdooClientError:
+        return None
+
+    exact = [
+        row
+        for row in rows
+        if str(row.get("city") or "").strip().casefold()
+        == normalized_city.casefold()
+    ]
+    if len(exact) != 1:
+        return None
+    return int(exact[0]["id"])
+
+
+def _employment_type_id(client, value: str | None) -> int | None:
+    normalized = str(value or "").strip().upper()
+    if not normalized:
+        return None
+
+    aliases = {
+        "FULL_TIME": ("Full-Time", "Full Time"),
+        "PERMANENT": ("Permanent",),
+        "TEMPORARY": ("Temporary",),
+        "SEASONAL": ("Seasonal",),
+        "INTERN": ("Intern",),
+        "STUDENT": ("Student",),
+        "APPRENTICESHIP": ("Apprenticeship",),
+        "THESIS": ("Thesis",),
+        "STATUTORY": ("Statutory",),
+        "EMPLOYEE": ("Employee",),
+    }
+    candidates = aliases.get(
+        normalized,
+        (normalized.replace("_", " ").title(),),
+    )
+
+    for candidate in candidates:
+        try:
+            rows = client.search_read(
+                "hr.contract.type",
+                [["name", "=ilike", candidate]],
+                fields=["id", "name"],
+                limit=10,
+            )
+        except OdooClientError:
+            return None
+        exact = [
+            row
+            for row in rows
+            if str(row.get("name") or "").strip().casefold()
+            == candidate.casefold()
+        ]
+        if len(exact) == 1:
+            return int(exact[0]["id"])
+    return None
+
+
 def build_hr_job_values(client, payload: dict) -> tuple[dict, str]:
     """Map the stable Talent vacancy contract onto writable Odoo hr.job fields."""
 
@@ -90,6 +168,25 @@ def build_hr_job_values(client, payload: dict) -> tuple[dict, str]:
         for field, value in desired.items()
         if field in writable and value is not None
     }
+
+    if "address_id" in writable and str(job.get("city") or "").strip():
+        address_id = _exact_address_id(
+            client,
+            city=job.get("city"),
+            country_code=job.get("country_code"),
+        )
+        # An unresolved Talent location is safer as remote/unspecified than
+        # allowing Odoo to apply the last-used office as a misleading default.
+        values["address_id"] = address_id or False
+
+    if "contract_type_id" in writable:
+        contract_type_id = _employment_type_id(
+            client,
+            job.get("employment_type"),
+        )
+        if contract_type_id is not None:
+            values["contract_type_id"] = contract_type_id
+
     return values, publication_field
 
 
