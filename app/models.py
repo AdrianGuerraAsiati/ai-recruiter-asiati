@@ -702,12 +702,15 @@ class UserProfile(Base):
     __table_args__ = (
         UniqueConstraint("cognito_sub", name="uq_user_profiles_cognito_sub"),
         UniqueConstraint("email", name="uq_user_profiles_email"),
+        UniqueConstraint("login_username", name="uq_user_profiles_login_username"),
         Index("idx_user_profiles_status", "status"),
+        Index("idx_user_profiles_login_username", "login_username"),
     )
 
     id = Column(Text, primary_key=True, default=lambda: str(uuid.uuid4()))
     cognito_sub = Column(Text, nullable=False)
     email = Column(Text, nullable=False)
+    login_username = Column(Text, nullable=True)
     first_name = Column(Text, nullable=True)
     last_name = Column(Text, nullable=True)
     job_title = Column(Text, nullable=True)
