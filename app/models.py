@@ -13,15 +13,14 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    JSON,
     Text,
     UniqueConstraint,
 )
-from sqlalchemy import JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.db import Base
-
 
 class Candidate(Base):
     __tablename__ = "candidates"
@@ -745,7 +744,6 @@ class UserProfile(Base):
         passive_deletes=True,
     )
 
-
 class Role(Base):
     """Named RBAC role used to group permissions."""
 
@@ -808,7 +806,6 @@ class UserRole(Base):
 
     user = relationship("UserProfile", back_populates="role_assignments")
     role = relationship("Role", back_populates="user_assignments")
-
 
 class RolePermission(Base):
     __tablename__ = "role_permissions"
