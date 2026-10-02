@@ -21,6 +21,7 @@ import {
 function TrackedTrainingVideo({ lesson, onVideoProgress }) {
   const videoRef = useRef(null);
   const segmentStartRef = useRef(null);
+  const lastObservedTimeRef = useRef(null);
   const requestInFlightRef = useRef(false);
   const [watchedPercent, setWatchedPercent] = useState(
     Number(lesson?.video_progress?.watched_percent || 0),
@@ -28,6 +29,7 @@ function TrackedTrainingVideo({ lesson, onVideoProgress }) {
 
   useEffect(() => {
     segmentStartRef.current = null;
+    lastObservedTimeRef.current = null;
     setWatchedPercent(Number(lesson?.video_progress?.watched_percent || 0));
   }, [lesson?.id, lesson?.video_progress?.watched_percent]);
 
@@ -64,7 +66,9 @@ function TrackedTrainingVideo({ lesson, onVideoProgress }) {
   }
 
   function handlePlay(event) {
-    segmentStartRef.current = Number(event.currentTarget.currentTime || 0);
+    const current = Number(event.currentTarget.currentTime || 0);
+    segmentStartRef.current = current;
+    lastObservedTimeRef.current = current;
   }
 
   function handleTimeUpdate(event) {
@@ -72,28 +76,40 @@ function TrackedTrainingVideo({ lesson, onVideoProgress }) {
     const start = segmentStartRef.current;
     if (start == null) {
       segmentStartRef.current = current;
+      lastObservedTimeRef.current = current;
       return;
     }
     if (!event.currentTarget.paused && current - start >= 5) {
       void flushSegment(current);
     }
+    lastObservedTimeRef.current = current;
   }
 
-  function handleSeeking(event) {
-    void flushSegment(Number(event.currentTarget.currentTime || 0));
+  function handleSeeking() {
+    const lastObserved = lastObservedTimeRef.current;
+    if (lastObserved != null) {
+      void flushSegment(lastObserved);
+    }
     segmentStartRef.current = null;
+    lastObservedTimeRef.current = null;
   }
 
   function handleSeeked(event) {
-    segmentStartRef.current = Number(event.currentTarget.currentTime || 0);
+    const current = Number(event.currentTarget.currentTime || 0);
+    segmentStartRef.current = current;
+    lastObservedTimeRef.current = current;
   }
 
   function handlePause(event) {
-    void flushSegment(Number(event.currentTarget.currentTime || 0));
+    const current = Number(event.currentTarget.currentTime || 0);
+    lastObservedTimeRef.current = current;
+    void flushSegment(current);
   }
 
   function handleEnded(event) {
-    void flushSegment(Number(event.currentTarget.currentTime || 0));
+    const current = Number(event.currentTarget.currentTime || 0);
+    lastObservedTimeRef.current = current;
+    void flushSegment(current);
   }
 
   const threshold = Number(lesson?.video_progress?.completion_threshold_percent || 80);
