@@ -24,8 +24,8 @@ function JobHireModal({
             <span className="eyebrow">Contratación</span>
             <h2 id="job-hire-title">Contratar y crear empleado</h2>
             <p>
-              Se creará o reutilizará el acceso del empleado y se asignará
-              automáticamente el onboarding ASIATI.
+              Define el usuario de Talent. Se generará una contraseña temporal,
+              no se enviarán correos y el onboarding ASIATI se asignará automáticamente.
             </p>
           </div>
           <button
@@ -69,7 +69,20 @@ function JobHireModal({
           </div>
 
           <div className="form-group">
-            <label htmlFor="hire-email">Correo de acceso</label>
+            <label htmlFor="hire-username">Usuario de Talent</label>
+            <input
+              id="hire-username"
+              value={form.username}
+              onChange={(event) => onFormChange("username", event.target.value.toLowerCase())}
+              placeholder="Ej. jperez"
+              autoComplete="off"
+              required
+            />
+            <small>Lo define el administrador. No se usa correo para iniciar sesión.</small>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="hire-email">Correo de contacto</label>
             <input
               id="hire-email"
               type="email"
@@ -77,7 +90,7 @@ function JobHireModal({
               onChange={(event) => onFormChange("email", event.target.value)}
               required
             />
-            <small>La invitación de Cognito se enviará a este correo.</small>
+            <small>No se enviará ninguna invitación automática por correo.</small>
           </div>
 
           <div className="job-hire-grid">
