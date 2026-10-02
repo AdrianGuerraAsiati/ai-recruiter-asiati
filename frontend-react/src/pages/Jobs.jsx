@@ -11,6 +11,7 @@ import JobCard from "../features/jobs/JobCard";
 import JobsListToolbar from "../features/jobs/JobsListToolbar";
 import JobDeleteModal from "../features/jobs/JobDeleteModal";
 import JobHireModal from "../features/jobs/JobHireModal";
+import EmployeeCredentialsModal from "../components/EmployeeCredentialsModal";
 import {
   MAX_PAGES,
   PAGE_SIZE_OPTIONS,
@@ -89,6 +90,7 @@ function Jobs() {
   const [jobCandidatesError, setJobCandidatesError] = useState("");
   const [hireTarget, setHireTarget] = useState(null);
   const [hireForm, setHireForm] = useState({
+    username: "",
     email: "",
     first_name: "",
     last_name: "",
@@ -98,6 +100,7 @@ function Jobs() {
   });
   const [hiring, setHiring] = useState(false);
   const [hireError, setHireError] = useState("");
+  const [hireCredentials, setHireCredentials] = useState(null);
 
   const [indeedIntegration, setIndeedIntegration] = useState(null);
   const [indeedJobStatus, setIndeedJobStatus] = useState(null);
@@ -343,6 +346,7 @@ function Jobs() {
     const names = splitCandidateName(candidate?.name);
     setHireTarget(candidate);
     setHireForm({
+      username: "",
       email: candidate?.email || "",
       first_name: names.first_name,
       last_name: names.last_name,
@@ -363,6 +367,7 @@ function Jobs() {
       const { data } = await api.post(
         `/jobs/${viewJob.job_id}/candidates/${hireTarget.candidate_id}/hire`,
         {
+          username: hireForm.username,
           email: hireForm.email || null,
           first_name: hireForm.first_name || null,
           last_name: hireForm.last_name || null,
@@ -388,6 +393,12 @@ function Jobs() {
       setSuccessMessage(
         `${hireTarget.name || "Candidato"} fue contratado. ${employeeAction} y onboarding asignado (${progress}%).`,
       );
+      if (data?.credentials?.temporary_password) {
+        setHireCredentials({
+          employeeName: hireTarget.name || "Empleado",
+          credentials: data.credentials,
+        });
+      }
       setHireTarget(null);
       setTimeout(() => setSuccessMessage(""), 6000);
     } catch (requestError) {
@@ -1026,6 +1037,13 @@ function Jobs() {
           </div>
         </div>
       )}
+
+      <EmployeeCredentialsModal
+        open={Boolean(hireCredentials?.credentials)}
+        employeeName={hireCredentials?.employeeName}
+        credentials={hireCredentials?.credentials}
+        onClose={() => setHireCredentials(null)}
+      />
 
       <JobHireModal
         candidate={hireTarget}
