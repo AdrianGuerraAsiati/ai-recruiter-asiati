@@ -451,6 +451,11 @@ describe("Jobs page", () => {
         hired_at: "2026-09-25T18:00:00Z",
         employee_created: true,
         employee: { id: "employee-1" },
+        credentials: {
+          username: "ana.perez",
+          temporary_password: "TempPass123",
+          must_change_password: true,
+        },
         onboarding_assignment: {
           id: "assignment-1",
           course: { id: "course-1", progress_percent: 0 },
@@ -468,9 +473,12 @@ describe("Jobs page", () => {
     expect(await screen.findByRole("heading", { name: "Contratar y crear empleado" })).toBeInTheDocument();
     expect(screen.getByLabelText("Nombre")).toHaveValue("Ana");
     expect(screen.getByLabelText("Apellido")).toHaveValue("Pérez");
-    expect(screen.getByLabelText("Correo de acceso")).toHaveValue("ana@test.com");
+    expect(screen.getByLabelText("Correo de contacto")).toHaveValue("ana@test.com");
     expect(screen.getByLabelText("Cargo")).toHaveValue("Backend Developer");
 
+    fireEvent.change(screen.getByLabelText("Usuario de Talent"), {
+      target: { value: "ana.perez" },
+    });
     fireEvent.change(screen.getByLabelText("Área"), {
       target: { value: "Tecnología" },
     });
@@ -480,6 +488,7 @@ describe("Jobs page", () => {
       expect(api.post).toHaveBeenCalledWith(
         "/jobs/job-1/candidates/c-1/hire",
         expect.objectContaining({
+          username: "ana.perez",
           email: "ana@test.com",
           first_name: "Ana",
           last_name: "Pérez",
@@ -491,6 +500,9 @@ describe("Jobs page", () => {
     expect(
       await screen.findByText(/Ana Pérez fue contratado\. Acceso creado y onboarding asignado \(0%\)\./i),
     ).toBeInTheDocument();
+    expect(await screen.findByText("Credenciales temporales")).toBeInTheDocument();
+    expect(screen.getByText("ana.perez")).toBeInTheDocument();
+    expect(screen.getByText("TempPass123")).toBeInTheDocument();
   });
 
   it("reports when an existing employee is reused during hiring", async () => {
@@ -511,6 +523,9 @@ describe("Jobs page", () => {
     fireEvent.click(screen.getAllByText("Ver")[0]);
     await screen.findByText("Ana Pérez");
     fireEvent.click(screen.getAllByRole("button", { name: /Contratar candidato/i })[0]);
+    fireEvent.change(screen.getByLabelText("Usuario de Talent"), {
+      target: { value: "ana.perez" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Confirmar contratación" }));
 
     expect(
