@@ -267,3 +267,70 @@ def test_odoo_outage_does_not_block_talent_job_creation(db, monkeypatch):
     assert db.query(Job).filter(Job.id == job.id).one().title == job.title
     sync = db.query(Sync).filter(Sync.job_id == job.id).one()
     assert sync.status in {"PENDING", "FAILED"}
+
+
+def test_existing_single_named_odoo_job_is_adopted_instead_of_duplicated(db):
+    delivery = _publication_module()
+    Sync = _sync_model()
+    job = _job(db)
+    sync = Sync(
+        job_id=job.id,
+        idempotency_key=f"job:{job.id}",
+        payload={
+            "schema_version": 1,
+            "operation": "UPSERT_JOB",
+            "job": {
+                "external_id": job.id,
+                "title": job.title,
+                "description": job.description,
+                "status": "ACTIVE",
+            },
+        },
+        status="PENDING",
+    )
+    db.add(sync)
+    db.commit()
+
+    client = FakeOdooClient(
+        existing={"id": 88, "name": "Backend Developer"},
+        publication_field="website_published",
+    )
+    result = delivery.sync_job_now(db, job_id=job.id, client=client)
+
+    assert result["action"] == "UPDATED"
+    assert result["odoo_record_id"] == "88"
+    assert client.created == []
+    db.refresh(sync)
+    assert sync.odoo_record_id == "88"
+
+
+def test_updating_talent_job_refreshes_and_delivers_publication(db, monkeypatch):
+    delivery = _publication_module()
+    Sync = _sync_model()
+    delivered = []
+
+    def fake_delivery(_db, *, job_id, client=None):
+        delivered.append(job_id)
+        return {"job_id": job_id, "status": "SYNCED", "action": "UPDATED"}
+
+    monkeypatch.setattr(delivery, "sync_job_now", fake_delivery)
+
+    job = jobs_service.create_job(
+        db,
+        title="Coordinador de transporte",
+        description="Coordinar operación.",
+        owner_sub="admin-sub",
+    )
+    delivered.clear()
+
+    updated = jobs_service.update_job(
+        db,
+        job_id=job.id,
+        owner_sub="admin-sub",
+        status="PAUSED",
+    )
+
+    sync = db.query(Sync).filter(Sync.job_id == job.id).one()
+    assert updated.status == "PAUSED"
+    assert sync.payload["job"]["status"] == "PAUSED"
+    assert delivered == [job.id]
