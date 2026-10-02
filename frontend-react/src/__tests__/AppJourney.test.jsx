@@ -114,7 +114,7 @@ describe("application journey", () => {
     expect(screen.getByText("Gestión de personas")).toBeInTheDocument();
     expect(screen.getByText("Desarrollo y onboarding")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Correo electrónico"), {
+    fireEvent.change(screen.getByLabelText("Usuario"), {
       target: { value: "admin@asiati.com.co" },
     });
     fireEvent.change(screen.getByLabelText("Contraseña"), {
@@ -136,7 +136,7 @@ describe("application journey", () => {
 
     await waitFor(() => {
       expect(clientState.post).toHaveBeenCalledWith("/auth/login", {
-        email: "admin@asiati.com.co",
+        username: "admin@asiati.com.co",
         password: "secret-password",
       });
       expect(clientState.get).toHaveBeenCalledWith("/auth/me");
