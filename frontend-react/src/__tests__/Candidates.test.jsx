@@ -141,7 +141,7 @@ describe("Candidates evaluation", () => {
     await screen.findByText("Ana Test");
 
     fireEvent.change(
-      screen.getByRole("combobox"),
+      screen.getByRole("combobox", { name: "Vacante para Ana Test" }),
       {
         target: { value: "job-1" },
       },
@@ -184,7 +184,7 @@ describe("Candidates evaluation", () => {
 
     renderCandidates();
     await screen.findByText("Ana Test");
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "job-1" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Vacante para Ana Test" }), { target: { value: "job-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Evaluar candidato" }));
 
     await waitFor(() => {
@@ -216,7 +216,7 @@ describe("Candidates evaluation", () => {
     await screen.findByText("Ana Test");
 
     fireEvent.change(
-      screen.getByRole("combobox"),
+      screen.getByRole("combobox", { name: "Vacante para Ana Test" }),
       {
         target: { value: "job-1" },
       },
