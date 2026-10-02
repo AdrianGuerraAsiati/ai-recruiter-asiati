@@ -221,6 +221,10 @@ describe("Employees administration", () => {
         role: "EMPLOYEE",
       }));
     });
+
+    expect(
+      await screen.findByRole("link", { name: `${window.location.origin}/` }),
+    ).toHaveAttribute("href", `${window.location.origin}/`);
   });
 
   it("lets an admin edit cargo and role while onboarding stays automatic", async () => {
