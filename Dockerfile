@@ -9,6 +9,10 @@ ENV OMP_NUM_THREADS=1
 ENV OPENBLAS_NUM_THREADS=1
 ENV MKL_NUM_THREADS=1
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libreoffice-writer fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
