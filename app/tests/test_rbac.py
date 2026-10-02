@@ -58,6 +58,17 @@ def test_new_authenticated_user_gets_employee_role_only(db):
     assert "employee_scores.read" not in principal["permissions"]
 
 
+def test_employee_role_only_gets_own_document_permission(db):
+    principal = resolve_principal(
+        db,
+        {"sub": "employee-docs-1", "email": "employee.docs@asiati.com.co"},
+    )
+
+    assert "employee_documents.read_own" in principal["permissions"]
+    assert "employee_documents.read_all" not in principal["permissions"]
+    assert "employee_documents.upload_signed" not in principal["permissions"]
+
+
 def test_admin_receives_all_system_permissions(db):
     resolve_principal(
         db,
