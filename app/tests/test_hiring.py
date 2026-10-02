@@ -24,8 +24,10 @@ class FakeCognito:
     def __init__(self):
         self.created = []
 
-    def admin_create_user(self, *, UserPoolId, Username, UserAttributes, DesiredDeliveryMediums):
+    def admin_create_user(self, *, UserPoolId, Username, UserAttributes, TemporaryPassword, MessageAction):
         self.created.append(Username)
+        assert TemporaryPassword
+        assert MessageAction == "SUPPRESS"
         return {
             "User": {
                 "Attributes": [
@@ -49,7 +51,7 @@ class FakeCognito:
 
 
 class ExistingCognitoUser(FakeCognito):
-    def admin_create_user(self, *, UserPoolId, Username, UserAttributes, DesiredDeliveryMediums):
+    def admin_create_user(self, *, UserPoolId, Username, UserAttributes, TemporaryPassword, MessageAction):
         self.created.append(Username)
         raise ClientError(
             {
@@ -112,6 +114,7 @@ def _hire(db, *, cognito, job, candidate):
         job_id=job.id,
         candidate_id=candidate.id,
         created_by_sub="admin-sub",
+        username="ana.perez",
         department="Tecnología",
         cognito_client=cognito,
     )
@@ -150,6 +153,9 @@ def test_hire_creates_employee_marks_application_and_assigns_onboarding(db, monk
     assert link.employee_id == employee.id
     assert link.hired_at is not None
     assert employee.email == "ana@example.com"
+    assert employee.login_username == "ana.perez"
+    assert result["credentials"]["username"] == "ana.perez"
+    assert result["credentials"]["temporary_password"]
     assert employee.first_name == "Ana"
     assert employee.last_name == "Pérez"
     assert employee.job_title == "Backend Developer"
@@ -220,6 +226,7 @@ def test_admin_can_hire_candidate_created_by_another_admin(db):
         job_id=job.id,
         candidate_id=candidate.id,
         created_by_sub="other-admin-sub",
+        username="ana.perez",
         department="Tecnología",
         cognito_client=cognito,
     )
@@ -284,6 +291,7 @@ def test_same_candidate_hired_for_two_jobs_reuses_employee_and_onboarding(db):
         job_id=second_job.id,
         candidate_id=candidate.id,
         created_by_sub="admin-sub",
+        username="ana.perez",
         department="Tecnología",
         cognito_client=cognito,
     )
