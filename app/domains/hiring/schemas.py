@@ -13,13 +13,21 @@ class HireContractRequest(BaseModel):
     end_date: date | None = None
     monthly_wage: Decimal = Field(gt=0, decimal_places=2)
 
-    @field_validator("name", "contract_type")
+    @field_validator("name")
     @classmethod
-    def strip_contract_text(cls, value: str | None) -> str | None:
+    def strip_contract_name(cls, value: str | None) -> str | None:
         if value is None:
             return None
         normalized = value.strip()
         return normalized or None
+
+    @field_validator("contract_type")
+    @classmethod
+    def strip_contract_type(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("contract type is required")
+        return normalized
 
     @model_validator(mode="after")
     def validate_contract_dates(self):
