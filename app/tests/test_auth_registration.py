@@ -59,7 +59,7 @@ def test_register_auto_confirms_cognito_user_with_signed_session(monkeypatch):
 
     response = auth_routes.register(
         auth_routes.RegisterRequest(
-            email="recruiter@example.com",
+            username="recruiter@example.com",
             password="StrongPass123",
         )
     )
@@ -159,7 +159,7 @@ def test_register_does_not_expose_provider_error_message(monkeypatch):
     with pytest.raises(HTTPException) as exc_info:
         auth_routes.register(
             auth_routes.RegisterRequest(
-                email="recruiter@example.com",
+                username="recruiter@example.com",
                 password="StrongPass123",
             )
         )
@@ -194,7 +194,7 @@ def test_login_returns_only_access_token_and_sets_lax_refresh_cookie(monkeypatch
 
     response = auth_routes.login(
         auth_routes.LoginRequest(
-            email="Recruiter@Example.COM",
+            username="Recruiter@Example.COM",
             password="pw",
         )
     )
@@ -221,7 +221,7 @@ def test_login_rejects_challenge_without_access_token(monkeypatch):
     with pytest.raises(HTTPException) as exc_info:
         auth_routes.login(
             auth_routes.LoginRequest(
-                email="recruiter@example.com",
+                username="recruiter@example.com",
                 password="pw",
             )
         )
