@@ -171,3 +171,33 @@ def test_jobs_page_rejects_unsupported_sort(client, db_session):
     )
 
     assert response.status_code == 422
+
+
+def test_jobs_page_supports_alphabetical_title_sort(client, db_session):
+    _seed_listing(db_session)
+
+    ascending = client.get(
+        "/api/jobs/page",
+        params={"page": 1, "page_size": 12, "sort": "title_asc"},
+    )
+    assert ascending.status_code == 200
+    assert [item["title"] for item in ascending.json()["items"]] == [
+        "Backend Developer",
+        "Data Engineer",
+        "Frontend Developer",
+        "Other tenant",
+        "Product Designer",
+    ]
+
+    descending = client.get(
+        "/api/jobs/page",
+        params={"page": 1, "page_size": 12, "sort": "title_desc"},
+    )
+    assert descending.status_code == 200
+    assert [item["title"] for item in descending.json()["items"]] == [
+        "Product Designer",
+        "Other tenant",
+        "Frontend Developer",
+        "Data Engineer",
+        "Backend Developer",
+    ]
