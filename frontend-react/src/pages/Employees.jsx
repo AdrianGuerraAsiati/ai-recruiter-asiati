@@ -6,6 +6,7 @@ import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
+import EmployeeCredentialsModal from "../components/EmployeeCredentialsModal";
 import {
   EmptyState,
   FeedbackMessage,
@@ -22,6 +23,7 @@ function todayInputValue() {
 
 function emptyEmployeeForm() {
   return {
+    username: "",
     first_name: "",
     last_name: "",
     email: "",
@@ -51,6 +53,8 @@ function Employees() {
   const [onboardingDetail, setOnboardingDetail] = useState(null);
   const [onboardingDetailLoading, setOnboardingDetailLoading] = useState(false);
   const [onboardingDetailError, setOnboardingDetailError] = useState("");
+  const [createdCredentials, setCreatedCredentials] = useState(null);
+  const [createdEmployeeName, setCreatedEmployeeName] = useState("");
 
   const loadEmployees = useCallback(async () => {
     setLoading(true);
@@ -97,7 +101,14 @@ function Employees() {
     setSaving(true);
     setError("");
     try {
-      await api.post("/employees", form);
+      const { data } = await api.post("/employees", form);
+      const employee = data?.employee || {};
+      setCreatedEmployeeName(
+        [employee.first_name, employee.last_name].filter(Boolean).join(" ")
+          || form.first_name
+          || "Empleado",
+      );
+      setCreatedCredentials(data?.credentials || null);
       setForm(emptyEmployeeForm());
       setFormOpen(false);
       await loadEmployees();
@@ -134,8 +145,6 @@ function Employees() {
       job_title: employee.job_title || "",
       department: employee.department || "",
       role: employee.roles?.[0] || "EMPLOYEE",
-      onboarding_required:
-        employee.onboarding_required ?? employee.onboarding_status !== "NOT_REQUIRED",
     });
   }
 
@@ -159,7 +168,6 @@ function Employees() {
       await api.put(`/employees/${editTarget.id}`, {
         job_title: editForm.job_title,
         department: editForm.department,
-        onboarding_required: editForm.onboarding_required,
       });
       closeEmployeeEditor();
       await loadEmployees();
@@ -439,21 +447,11 @@ function Employees() {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label htmlFor="employee-edit-onboarding">Onboarding ASIATI</label>
-                  <select
-                    id="employee-edit-onboarding"
-                    value={editForm.onboarding_required ? "REQUIRED" : "NOT_REQUIRED"}
-                    onChange={(event) => setEditForm({
-                      ...editForm,
-                      onboarding_required: event.target.value === "REQUIRED",
-                    })}
-                  >
-                    <option value="REQUIRED">Requerido</option>
-                    <option value="NOT_REQUIRED">No requerido</option>
-                  </select>
-                  <small>
-                    El progreso se calcula automáticamente a partir de las actividades completadas.
-                  </small>
+                  <label>Onboarding ASIATI</label>
+                  <div className="employee-fixed-onboarding">
+                    <strong>Asignación automática</strong>
+                    <small>Todos los empleados reciben la misma ruta corporativa ASIATI.</small>
+                  </div>
                 </div>
               </div>
 
@@ -530,6 +528,16 @@ function Employees() {
         </div>
       )}
 
+      <EmployeeCredentialsModal
+        open={Boolean(createdCredentials)}
+        employeeName={createdEmployeeName}
+        credentials={createdCredentials}
+        onClose={() => {
+          setCreatedCredentials(null);
+          setCreatedEmployeeName("");
+        }}
+      />
+
       {formOpen && (
         <div className="modal-overlay" role="presentation" onMouseDown={() => setFormOpen(false)}>
           <section className="modal employee-modal" role="dialog" aria-modal="true" aria-labelledby="employee-modal-title" onMouseDown={(event) => event.stopPropagation()}>
@@ -537,12 +545,24 @@ function Employees() {
               <div>
                 <span className="eyebrow">Nuevo acceso</span>
                 <h2 id="employee-modal-title">Crear empleado</h2>
-                <p>La cuenta se creará en Cognito y recibirá la invitación de acceso por correo.</p>
+                <p>Define el usuario de acceso. Talent generará una contraseña temporal y no enviará correos automáticos.</p>
               </div>
               <button className="btn-close" type="button" aria-label="Cerrar" onClick={() => setFormOpen(false)}>×</button>
             </div>
 
             <form className="employee-form" onSubmit={createEmployee}>
+              <div className="form-group">
+                <label htmlFor="employee-username">Usuario de Talent</label>
+                <input
+                  id="employee-username"
+                  value={form.username}
+                  onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })}
+                  placeholder="Ej. jperez"
+                  autoComplete="off"
+                  required
+                />
+                <small>Lo define el administrador. No es un correo electrónico.</small>
+              </div>
               <div className="employee-form-grid">
                 <div className="form-group">
                   <label htmlFor="employee-first-name">Nombre</label>
@@ -554,7 +574,7 @@ function Employees() {
                 </div>
               </div>
               <div className="form-group">
-                <label htmlFor="employee-email">Correo corporativo</label>
+                <label htmlFor="employee-email">Correo de contacto</label>
                 <input id="employee-email" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required />
               </div>
               <div className="employee-form-grid">
@@ -575,6 +595,10 @@ function Employees() {
                   value={form.hire_date}
                   onChange={(event) => setForm({ ...form, hire_date: event.target.value })}
                 />
+              </div>
+              <div className="employee-fixed-onboarding employee-create-onboarding">
+                <strong>Onboarding ASIATI</strong>
+                <small>Se asignará automáticamente la ruta corporativa común.</small>
               </div>
               {hasPermission("employees.roles.manage") && (
                 <div className="form-group">
