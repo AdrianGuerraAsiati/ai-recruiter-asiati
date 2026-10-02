@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_permission
-from app.domains.training import service
+from app.domains.training import service, video_progress
 from app.domains.training.schemas import (
     CreateCourseRequest,
     CreateLessonRequest,
@@ -376,7 +376,7 @@ def update_video_progress(
     principal: dict = Depends(require_permission("training.consume")),
 ):
     try:
-        return service.update_video_progress(
+        return video_progress.update_video_progress(
             db,
             employee_id=principal["profile"]["id"],
             lesson_id=lesson_id,
