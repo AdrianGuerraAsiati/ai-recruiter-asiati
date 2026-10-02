@@ -15,6 +15,7 @@ from app.models import (
     Job,
     JobCandidate,
     OdooApplicantSync,
+    OdooContractSync,
     OdooEmployeeSync,
     TrainingAssignment,
     UserProfile,
@@ -461,3 +462,49 @@ def test_hire_survives_odoo_delivery_failure(db, monkeypatch):
     assert link.employee_id == employee.id
     assert db.query(TrainingAssignment).count() == 1
     assert sync.status == "PENDING"
+
+
+
+def test_hire_prepares_employee_contract_for_odoo(db, monkeypatch):
+    job, candidate, link = _application(db)
+    cognito = FakeCognito()
+
+    def fake_employee_delivery(_db, *, employee_id, client=None):
+        return {"status": "SYNCED", "action": "CREATED"}
+
+    monkeypatch.setattr(
+        hiring_service.employee_delivery,
+        "sync_employee_now",
+        fake_employee_delivery,
+    )
+
+    result = hiring_service.hire_candidate(
+        db,
+        owner_sub="admin-sub",
+        job_id=job.id,
+        candidate_id=candidate.id,
+        created_by_sub="admin-sub",
+        username="ana.perez",
+        department="Tecnología",
+        hire_date=None,
+        contract={
+            "contract_type": "Indefinido",
+            "start_date": "2026-10-05",
+            "end_date": None,
+            "monthly_wage": "3500000",
+        },
+        cognito_client=cognito,
+    )
+
+    employee = db.query(UserProfile).one()
+    contract_sync = db.query(OdooContractSync).one()
+
+    assert result["application_status"] == "HIRED"
+    assert result["odoo_contract_sync"]["status"] == "PENDING"
+    assert result["odoo_contract_sync"]["idempotency_key"] == f"contract:{employee.id}"
+    assert result["odoo_contract_delivery"] is None
+    assert contract_sync.source_job_candidate_id == link.id
+    assert contract_sync.payload["operation"] == "UPSERT_CONTRACT"
+    assert contract_sync.payload["contract"]["contract_type"] == "Indefinido"
+    assert contract_sync.payload["contract"]["start_date"] == "2026-10-05"
+    assert contract_sync.payload["contract"]["monthly_wage"] == "3500000"
