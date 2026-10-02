@@ -73,3 +73,10 @@ def test_api_deploy_wires_employee_document_environment():
     ):
         assert key in deploy_script
         assert key in workflow
+
+def test_backend_image_installs_libreoffice_for_reference_pdf_conversion():
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "libreoffice-writer" in dockerfile
+    assert "fonts-liberation" in dockerfile
+
