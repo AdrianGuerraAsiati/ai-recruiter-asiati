@@ -158,7 +158,7 @@ function JobHireModal({
                 <input
                   id="hire-monthly-wage"
                   type="number"
-                  min="1"
+                  min="0"
                   step="1000"
                   inputMode="numeric"
                   value={form.monthly_wage}
