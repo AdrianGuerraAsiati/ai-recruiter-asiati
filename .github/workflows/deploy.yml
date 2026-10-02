@@ -29,7 +29,7 @@ env:
   ECR_FRONTEND_REPO: ai-recruiter-frontend
   INSTANCE_NAME: ai-recruiter-micro-prod
   RUNTIME_CONFIG_SECRET: /ai-recruiter/prod/runtime-config
-  PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
+  PUBLIC_BASE_URL: https://talent.asiaticorp.com
 
 jobs:
   backend-tests:
