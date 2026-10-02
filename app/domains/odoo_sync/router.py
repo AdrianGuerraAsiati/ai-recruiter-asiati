@@ -26,6 +26,7 @@ def odoo_readonly_diagnostics(
     models = {}
     for model in (
         "hr.employee",
+        "hr.job",
         "hr.applicant",
         "hr.contract",
         "ir.attachment",

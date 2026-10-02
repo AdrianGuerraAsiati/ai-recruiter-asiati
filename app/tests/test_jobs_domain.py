@@ -80,6 +80,12 @@ def test_create_job_delegates_owner_scoped_fields(monkeypatch):
         return expected
 
     monkeypatch.setattr(service.repository, "create_job", fake_create)
+    synced = []
+    monkeypatch.setattr(
+        service,
+        "_sync_odoo_publication_best_effort",
+        lambda db, job: synced.append((db, job)),
+    )
     db = object()
 
     result = service.create_job(
@@ -91,6 +97,7 @@ def test_create_job_delegates_owner_scoped_fields(monkeypatch):
 
     assert result is expected
     assert calls == [(db, "Backend Developer", "Python APIs", "owner-1")]
+    assert synced == [(db, expected)]
 
 
 def test_update_job_uses_global_lookup_then_delegates(monkeypatch):

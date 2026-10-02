@@ -15,6 +15,7 @@ from app.models import (
     JobCandidate,
     OdooApplicantSync,
     OdooEmployeeSync,
+    OdooJobSync,
     UserProfile,
 )
 
@@ -54,6 +55,71 @@ def _candidate_phone(candidate: Candidate) -> str | None:
             if value:
                 return value
     return None
+
+
+def build_job_upsert_payload(*, job: Job) -> dict:
+    """Build the versioned contract used to mirror one Talent vacancy to Odoo."""
+
+    return {
+        "schema_version": 1,
+        "operation": "UPSERT_JOB",
+        "job": {
+            "external_id": job.id,
+            "title": job.title,
+            "description": job.description,
+            "status": getattr(job, "status", None) or "ACTIVE",
+            "country_code": getattr(job, "country_code", None),
+            "city": getattr(job, "city", None),
+            "employment_type": getattr(job, "employment_type", None),
+            "public_slug": getattr(job, "public_slug", None),
+            "published_at": _iso(getattr(job, "published_at", None)),
+        },
+    }
+
+
+def ensure_job_sync(db: Session, *, job: Job) -> OdooJobSync:
+    """Create or refresh the durable Odoo mirror state for one Talent vacancy."""
+
+    payload = build_job_upsert_payload(job=job)
+    sync = (
+        db.query(OdooJobSync)
+        .filter(OdooJobSync.job_id == job.id)
+        .one_or_none()
+    )
+    if sync is None:
+        sync = OdooJobSync(
+            job_id=job.id,
+            idempotency_key=f"job:{job.id}",
+            payload=payload,
+            status=SYNC_PENDING,
+        )
+        db.add(sync)
+        db.flush()
+        return sync
+
+    payload_changed = sync.payload != payload
+    sync.payload = payload
+    if payload_changed:
+        sync.status = SYNC_PENDING
+        sync.last_error = None
+        sync.synced_at = None
+    db.flush()
+    return sync
+
+
+def job_sync_payload(sync: OdooJobSync) -> dict:
+    return {
+        "id": sync.id,
+        "job_id": sync.job_id,
+        "idempotency_key": sync.idempotency_key,
+        "status": sync.status,
+        "attempt_count": sync.attempt_count,
+        "odoo_record_id": sync.odoo_record_id,
+        "last_error": sync.last_error,
+        "synced_at": _iso(sync.synced_at),
+        "created_at": _iso(sync.created_at),
+        "updated_at": _iso(sync.updated_at),
+    }
 
 
 def build_applicant_upsert_payload(
