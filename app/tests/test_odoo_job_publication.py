@@ -334,3 +334,27 @@ def test_updating_talent_job_refreshes_and_delivers_publication(db, monkeypatch)
     assert updated.status == "PAUSED"
     assert sync.payload["job"]["status"] == "PAUSED"
     assert delivered == [job.id]
+
+
+def test_sync_all_backfills_existing_talent_vacancies(db):
+    delivery = _publication_module()
+    Sync = _sync_model()
+    active = _job(db, status="ACTIVE", title="Vacante Activa")
+    paused = _job(db, status="PAUSED", title="Vacante Pausada")
+    client = FakeOdooClient(publication_field="website_published")
+
+    result = delivery.sync_all_jobs_now(db, client=client)
+
+    assert result == {
+        "total": 2,
+        "attempted": 2,
+        "synced": 2,
+        "failed": 0,
+        "skipped": 0,
+    }
+    assert db.query(Sync).count() == 2
+    assert {
+        sync.job_id for sync in db.query(Sync).all()
+    } == {active.id, paused.id}
+    assert len(client.created) == 2
+    assert {row["website_published"] for row in client.created} == {True, False}
