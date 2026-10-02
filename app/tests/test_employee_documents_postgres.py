@@ -65,7 +65,9 @@ def test_concurrent_signed_uploads_allocate_distinct_versions():
         status="DRAFT",
         created_by_sub="admin-sub",
     )
-    setup.add_all([employee, document])
+    setup.add(employee)
+    setup.commit()
+    setup.add(document)
     setup.commit()
     document_id = document.id
     setup.close()
