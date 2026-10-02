@@ -984,7 +984,7 @@ def ensure_asiati_onboarding_for_active_employees(
     course: TrainingCourse | None = None,
     created_by_sub: str | None = None,
 ) -> int:
-    """Backfill the system onboarding for all active profiles that require onboarding."""
+    """Ensure every active profile has the shared ASIATI onboarding."""
 
     course = course or ensure_published_asiati_onboarding(
         db,
@@ -1015,26 +1015,27 @@ def ensure_asiati_onboarding_for_active_employees(
     }
 
     created = 0
-    created_employees: list[UserProfile] = []
     for employee in employees:
-        if employee.id in existing_ids:
-            continue
-        db.add(
-            TrainingAssignment(
-                course_id=course.id,
-                employee_id=employee.id,
-                status="ASSIGNED",
-                assigned_by_sub=SYSTEM_ONBOARDING_ACTOR,
-            )
-        )
-        created += 1
-        created_employees.append(employee)
+        if employee.onboarding_status == "NOT_REQUIRED":
+            employee.onboarding_status = "PENDING"
+            employee.onboarding_started_at = None
+            employee.onboarding_completed_at = None
 
-    if created:
-        db.flush()
-        for employee in created_employees:
-            _sync_employee_onboarding(db, employee.id)
-        db.commit()
+        if employee.id not in existing_ids:
+            db.add(
+                TrainingAssignment(
+                    course_id=course.id,
+                    employee_id=employee.id,
+                    status="ASSIGNED",
+                    assigned_by_sub=SYSTEM_ONBOARDING_ACTOR,
+                )
+            )
+            created += 1
+
+    db.flush()
+    for employee in employees:
+        _sync_employee_onboarding(db, employee.id)
+    db.commit()
 
     return created
 
