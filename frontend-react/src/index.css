@@ -257,6 +257,22 @@ select { appearance: none; padding-right: 42px; background-image: linear-gradien
 .panel-heading a { color: var(--blue); font-size: .8rem; font-weight: 700; text-decoration: none; }
 .section-heading { margin: 38px 0 18px; }
 .section-heading p { margin-top: 5px; color: var(--ink-faint); font-size: .78rem; }
+
+.candidate-sort-control {
+  display: grid;
+  gap: 6px;
+  min-width: 190px;
+}
+.candidate-sort-control > span {
+  color: var(--ink-faint);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.candidate-sort-control .select {
+  min-width: 190px;
+}
 .status-pill { display: inline-flex; align-items: center; gap: 7px; width: max-content; padding: 6px 9px; border-radius: 999px; background: var(--success-bg); color: var(--success); font-size: .67rem; font-weight: 800; }
 .status-pill i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .status-pill.is-paused { background: var(--warning-bg, #fff5d6); color: var(--warning, #9a6700); }
@@ -653,6 +669,12 @@ select { appearance: none; padding-right: 42px; background-image: linear-gradien
   }
 
   .candidate-section-heading > div {
+    min-width: 0;
+  }
+
+  .candidate-sort-control,
+  .candidate-sort-control .select {
+    width: 100%;
     min-width: 0;
   }
 
