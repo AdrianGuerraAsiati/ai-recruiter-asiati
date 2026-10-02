@@ -195,3 +195,50 @@ def sync_job_now(
         sync.synced_at = None
         db.commit()
         raise OdooJobDeliveryError("ODOO_JOB_SYNC_FAILED") from exc
+
+
+def sync_all_jobs_now(db: Session, *, client=None) -> dict:
+    """Backfill and deliver every unsynchronized Talent vacancy to Odoo."""
+
+    from app.domains.odoo_sync import service as sync_service
+    from app.models import Job
+
+    jobs = db.query(Job).order_by(Job.created_at.asc(), Job.id.asc()).all()
+    pending_job_ids: list[str] = []
+    skipped = 0
+
+    for job in jobs:
+        sync = sync_service.ensure_job_sync(db, job=job)
+        db.commit()
+        db.refresh(sync)
+        if sync.status == "SYNCED":
+            skipped += 1
+        else:
+            pending_job_ids.append(job.id)
+
+    if not pending_job_ids:
+        return {
+            "total": len(jobs),
+            "attempted": 0,
+            "synced": 0,
+            "failed": 0,
+            "skipped": skipped,
+        }
+
+    transport = client or integration.build_odoo_client()
+    synced = 0
+    failed = 0
+    for job_id in pending_job_ids:
+        try:
+            sync_job_now(db, job_id=job_id, client=transport)
+            synced += 1
+        except OdooJobDeliveryError:
+            failed += 1
+
+    return {
+        "total": len(jobs),
+        "attempted": len(pending_job_ids),
+        "synced": synced,
+        "failed": failed,
+        "skipped": skipped,
+    }
