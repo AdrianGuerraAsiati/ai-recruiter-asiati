@@ -295,4 +295,47 @@ describe("Candidates evaluation", () => {
     ).toBeInTheDocument();
   });
 
+
+  it("allows sorting candidates alphabetically from A to Z", async () => {
+    api.get.mockImplementation((url) => {
+      if (url === "/candidates?page=1&page_size=20") {
+        return Promise.resolve({
+          data: {
+            items: [{ candidate_id: "candidate-1", name: "Ana Test" }],
+            total: 1,
+            page: 1,
+            page_size: 20,
+            pages: 1,
+          },
+        });
+      }
+      if (url === "/candidates?page=1&page_size=20&sort=name_asc") {
+        return Promise.resolve({
+          data: {
+            items: [{ candidate_id: "candidate-1", name: "Ana Test" }],
+            total: 1,
+            page: 1,
+            page_size: 20,
+            pages: 1,
+          },
+        });
+      }
+      if (url === "/jobs") return Promise.resolve({ data: [] });
+      return Promise.resolve({ data: [] });
+    });
+
+    renderCandidates();
+    await screen.findByText("Ana Test");
+
+    fireEvent.change(screen.getByLabelText("Ordenar candidatos"), {
+      target: { value: "name_asc" },
+    });
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith(
+        "/candidates?page=1&page_size=20&sort=name_asc",
+      );
+    });
+  });
+
 });
