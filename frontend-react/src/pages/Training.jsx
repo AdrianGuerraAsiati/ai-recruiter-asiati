@@ -623,6 +623,35 @@ function Training() {
     }
   }
 
+  async function updateVideoProgress(lesson, segment) {
+    if (!lesson?.id) return null;
+    setError("");
+    try {
+      const { data } = await api.put(
+        `/training/me/lessons/${lesson.id}/video-progress`,
+        segment,
+      );
+      setEmployeeCourse(data);
+      const updatedLesson = (data.course?.modules || [])
+        .flatMap((module) => module.lessons || [])
+        .find((item) => item.id === lesson.id);
+      if (updatedLesson?.completed && !lesson.completed) {
+        await Promise.all([
+          loadHome({ silent: true }),
+          loadEmployeeCourse(data.course.id, { silent: true }),
+        ]);
+      }
+      return data;
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "guardar el avance del video",
+        resource: "tu progreso",
+        fallback: "El progreso del video no quedó sincronizado. Mantén el video abierto y continúa cuando haya conexión.",
+      }));
+      return null;
+    }
+  }
+
   async function updateChecklistItem(lesson, index, checked) {
     if (!lesson?.id) return;
     const current = new Set(lesson.checklist_completed_items || []);
@@ -868,6 +897,7 @@ function Training() {
         updateChecklistItem={updateChecklistItem}
         previousJourneyLesson={previousJourneyLesson}
         completeLesson={completeLesson}
+        updateVideoProgress={updateVideoProgress}
         saving={saving}
         nextRequiredJourneyLesson={nextRequiredJourneyLesson}
         openFinalQuiz={openFinalQuiz}
