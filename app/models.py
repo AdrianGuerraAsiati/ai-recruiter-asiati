@@ -877,23 +877,8 @@ class EmployeeScoreEvent(Base):
     )
 
 
-# Odoo sync ORM models live with their domain and remain re-exported here.
-from app.domains.odoo_sync.models import (  # noqa: E402,F401
-    OdooApplicantSync, OdooContractSync, OdooEmployeeSync, OdooJobSync,
-)
-
-
-# Training ORM models live with the training domain but remain re-exported
-# here for backwards compatibility with existing services and Alembic imports.
-from app.domains.training.models import (  # noqa: E402,F401
-    TrainingAssignment,
-    TrainingCourse,
-    TrainingLesson,
-    TrainingLessonProgress,
-    TrainingModule,
-    TrainingQuiz,
-    TrainingQuizAttempt,
-    TrainingQuizQuestion,
-)
-
+# Domain ORM models are defined near their services and re-exported here.
+from app.domains.employee_documents.models import EmployeeDocument, EmployeeDocumentArtifact, EmployeeDocumentVersion  # noqa: E402,F401
+from app.domains.odoo_sync.models import OdooApplicantSync, OdooContractSync, OdooEmployeeSync, OdooJobSync  # noqa: E402,F401
+from app.domains.training.models import TrainingAssignment, TrainingCourse, TrainingLesson, TrainingLessonProgress, TrainingModule, TrainingQuiz, TrainingQuizAttempt, TrainingQuizQuestion  # noqa: E402,F401
 from app.domains.talent_id import models as talent_id_models  # noqa: E402,F401
