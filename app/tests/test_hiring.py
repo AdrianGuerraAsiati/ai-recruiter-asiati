@@ -9,6 +9,7 @@ from app.access_control import ensure_rbac_catalog
 from app.db import Base
 from app.domains.hiring import service as hiring_service
 from app.domains.training import service as training_service
+from app.domains.training import video_progress as training_video_progress
 from app.models import (
     Candidate,
     Job,
@@ -316,6 +317,40 @@ def test_same_candidate_hired_for_two_jobs_reuses_employee_and_onboarding(db):
     assert cognito.created == ["ana@example.com"]
 
 
+
+def _complete_required_lesson(db, *, employee_id: str, lesson: dict) -> None:
+    if lesson["content_type"] == "CHECKLIST":
+        training_service.update_checklist_progress(
+            db,
+            employee_id=employee_id,
+            lesson_id=lesson["id"],
+            completed_items=list(range(len(lesson["checklist_items"]))),
+        )
+        return
+    if lesson["content_type"] == "VIDEO":
+        duration = float(lesson.get("duration_seconds") or 100)
+        target = duration * 0.80
+        start = 0.0
+        while start < target:
+            end = min(start + 20.0, target)
+            training_video_progress.update_video_progress(
+                db,
+                employee_id=employee_id,
+                lesson_id=lesson["id"],
+                duration_seconds=duration,
+                played_from_seconds=start,
+                played_to_seconds=end,
+                position_seconds=end,
+            )
+            start = end
+        return
+    training_service.complete_lesson(
+        db,
+        employee_id=employee_id,
+        lesson_id=lesson["id"],
+    )
+
+
 def test_hired_employee_onboarding_moves_pending_to_in_progress_to_completed(db):
     job, candidate, _ = _application(db)
     result = _hire(
@@ -344,19 +379,7 @@ def test_hired_employee_onboarding_moves_pending_to_in_progress_to_completed(db)
     assert required_lessons
 
     first = required_lessons[0]
-    if first["content_type"] == "CHECKLIST":
-        training_service.update_checklist_progress(
-            db,
-            employee_id=employee_id,
-            lesson_id=first["id"],
-            completed_items=list(range(len(first["checklist_items"]))),
-        )
-    else:
-        training_service.complete_lesson(
-            db,
-            employee_id=employee_id,
-            lesson_id=first["id"],
-        )
+    _complete_required_lesson(db, employee_id=employee_id, lesson=first)
 
     db.refresh(employee)
     assert employee.onboarding_status == "IN_PROGRESS"
@@ -364,19 +387,7 @@ def test_hired_employee_onboarding_moves_pending_to_in_progress_to_completed(db)
     assert employee.onboarding_completed_at is None
 
     for lesson in required_lessons[1:]:
-        if lesson["content_type"] == "CHECKLIST":
-            training_service.update_checklist_progress(
-                db,
-                employee_id=employee_id,
-                lesson_id=lesson["id"],
-                completed_items=list(range(len(lesson["checklist_items"]))),
-            )
-        else:
-            training_service.complete_lesson(
-                db,
-                employee_id=employee_id,
-                lesson_id=lesson["id"],
-            )
+        _complete_required_lesson(db, employee_id=employee_id, lesson=lesson)
 
     assignment = (
         db.query(TrainingAssignment)
