@@ -231,7 +231,7 @@ jobs:
               mapfile -t images < <(
                 sudo docker image ls "\$repo" \
                   --format '{{.Repository}}:{{.Tag}}' \
-                  | awk '$0 !~ /:<none>$/'
+                  | awk '\$0 !~ /:<none>$/'
               )
               if [ "\${#images[@]}" -le "\$keep" ]; then
                 return 0
