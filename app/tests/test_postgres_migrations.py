@@ -38,6 +38,9 @@ CORE_TABLES = {
     "odoo_employee_syncs",
     "odoo_applicant_syncs",
     "odoo_contract_syncs",
+    "employee_documents",
+    "employee_document_artifacts",
+    "employee_document_versions",
     "talent_sites",
     "talent_work_schedules",
     "talent_employee_attendance_settings",
@@ -99,6 +102,9 @@ def test_alembic_head_builds_current_postgres_schema():
             "odoo_employee_syncs",
             "odoo_applicant_syncs",
             "odoo_contract_syncs",
+            "employee_documents",
+            "employee_document_artifacts",
+            "employee_document_versions",
             "talent_sites",
             "talent_work_schedules",
             "talent_employee_attendance_settings",
@@ -462,9 +468,20 @@ def test_alembic_head_builds_current_postgres_schema():
             "uq_odoo_contract_syncs_idempotency_key",
         }.issubset(odoo_contract_uniques)
 
+        employee_document_version_uniques = {
+            constraint["name"]
+            for constraint in inspector.get_unique_constraints(
+                "employee_document_versions"
+            )
+        }
+        assert (
+            "uq_employee_document_versions_document_version"
+            in employee_document_version_uniques
+        )
+
         assert admin_score_grants == 4
         assert admin_write_grants == {"candidates.manage", "ranking.recalculate"}
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
-        assert revision == "038"
+        assert revision == "039"
     finally:
         engine.dispose()
