@@ -1,6 +1,7 @@
 """Candidates HTTP router."""
 
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
@@ -225,6 +226,7 @@ def get_candidate_requirements(
 def list_candidates(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=20, le=20),
+    sort: Literal["created_desc", "name_asc", "name_desc"] = Query("created_desc"),
     db: Session = Depends(get_db),
     _user: dict = Depends(require_permission("candidates.read")),
 ):
@@ -233,6 +235,7 @@ def list_candidates(
         _user["sub"],
         page=page,
         page_size=page_size,
+        sort=sort,
     )
     pages = (total + page_size - 1) // page_size if total else 0
     return {
