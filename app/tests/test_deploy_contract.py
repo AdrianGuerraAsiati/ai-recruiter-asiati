@@ -263,4 +263,4 @@ def test_deploy_backfills_odoo_vacancies_without_blocking_release():
 
     assert "python -m app.scripts.sync_odoo_jobs" in section
     assert "ODOO_JOB_BACKFILL_DEFERRED" in section
-    assert section.index("DEPLOY_API_OK") if "DEPLOY_API_OK" in section else True
+    assert section.index("BACKEND_IMAGE_OK") < section.index("python -m app.scripts.sync_odoo_jobs")
