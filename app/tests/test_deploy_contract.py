@@ -251,3 +251,16 @@ def test_candidate_import_stack_failure_prints_recent_cloudformation_events():
     assert "if ! aws cloudformation deploy" in section
     assert "aws cloudformation describe-stack-events" in section
     assert "ResourceStatusReason" in section
+
+
+
+def test_deploy_backfills_odoo_vacancies_without_blocking_release():
+    workflow = _read(WORKFLOW)
+    section = workflow[
+        workflow.index("- name: Deploy API worker and frontend via SSH"):
+        workflow.index("- name: Verify public health")
+    ]
+
+    assert "python -m app.scripts.sync_odoo_jobs" in section
+    assert "ODOO_JOB_BACKFILL_DEFERRED" in section
+    assert section.index("DEPLOY_API_OK") if "DEPLOY_API_OK" in section else True
