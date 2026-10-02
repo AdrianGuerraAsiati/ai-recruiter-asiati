@@ -70,6 +70,7 @@ function buildProps() {
     previousJourneyLesson: null,
     nextJourneyLesson: null,
     completeLesson: vi.fn(),
+    updateVideoProgress: vi.fn().mockResolvedValue(null),
     saving: false,
     nextRequiredJourneyLesson: null,
     openFinalQuiz: vi.fn(),
@@ -191,6 +192,12 @@ describe("TrainingEmployeeJourney", () => {
       id: "team-laura",
       title: "Laura",
       video_url: "https://cdn.example.com/team/laura.mp4",
+      content_type: "VIDEO",
+      video_progress: {
+        watched_percent: 0,
+        watched_seconds: 0,
+        completion_threshold_percent: 80,
+      },
       completed: false,
     };
     const teamModule = {
@@ -216,9 +223,10 @@ describe("TrainingEmployeeJourney", () => {
       />,
     );
 
+    expect(screen.getAllByText(/mínimo 80%/i).length).toBeGreaterThan(0);
     expect(
-      screen.getByRole("button", { name: "✓ Marcar video como visto" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: "✓ Marcar video como visto" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "← Anterior" })).not.toBeInTheDocument();
   });
 
