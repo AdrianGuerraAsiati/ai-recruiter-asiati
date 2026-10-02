@@ -134,6 +134,12 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
                 "session": response.get("Session"),
                 "username": body.username,
             }
+        if challenge:
+            logger.warning("Unsupported Cognito login challenge=%s", challenge)
+            raise HTTPException(
+                status_code=403,
+                detail="El inicio de sesion requiere un paso adicional no soportado.",
+            )
         auth = response.get("AuthenticationResult", {})
         return _json_auth_response(auth)
     except ClientError as e:
