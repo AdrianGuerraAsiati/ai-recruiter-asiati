@@ -53,6 +53,12 @@ PERMISSION_DEFINITIONS = {
     "employee_scores.create": "Agregar movimientos de puntuación.",
     "employee_scores.correct": "Corregir o anular movimientos de puntuación.",
     "employee_scores.export": "Exportar historial privado de puntuación.",
+    "employee_documents.read_own": "Consultar documentos laborales propios vigentes.",
+    "employee_documents.read_all": "Consultar documentos laborales de empleados.",
+    "employee_documents.generate": "Generar documentos laborales para firma.",
+    "employee_documents.upload_signed": "Cargar versiones firmadas de documentos laborales.",
+    "employee_documents.manage": "Crear y anular documentos laborales.",
+    "employee_documents.download_history": "Descargar historial de documentos laborales.",
 }
 
 _ADMIN_PERMISSIONS = set(PERMISSION_DEFINITIONS)
@@ -63,6 +69,7 @@ _EMPLOYEE_PERMISSIONS = {
     "training.quiz.take",
     "training.progress.read_own",
     "profile.read_own",
+    "employee_documents.read_own",
 }
 
 ROLE_PERMISSION_MATRIX = {
