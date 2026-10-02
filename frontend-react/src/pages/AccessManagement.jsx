@@ -40,7 +40,10 @@ export default function AccessManagement() {
   }, []);
 
   useEffect(() => {
-    void loadEmployees();
+    const timeoutId = window.setTimeout(() => {
+      void loadEmployees();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [loadEmployees]);
 
   function openUsernameEditor(employee) {
