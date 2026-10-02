@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db import Base
-from app.domains.training import service
+from app.domains.training import service, video_progress
 from app.models import (
     TrainingAssignment,
     TrainingCourse,
@@ -1068,7 +1068,7 @@ def test_video_requires_eighty_percent_unique_playback_to_complete(db):
         )
 
     for start, end in [(0, 25), (25, 50), (50, 75)]:
-        payload = service.update_video_progress(
+        payload = video_progress.update_video_progress(
             db,
             employee_id=employee.id,
             lesson_id=lesson.id,
@@ -1084,7 +1084,7 @@ def test_video_requires_eighty_percent_unique_playback_to_complete(db):
     assert watched["video_progress"]["watched_percent"] == 75.0
     assert assignment.status == "ASSIGNED"
 
-    payload = service.update_video_progress(
+    payload = video_progress.update_video_progress(
         db,
         employee_id=employee.id,
         lesson_id=lesson.id,
@@ -1127,7 +1127,7 @@ def test_video_progress_does_not_double_count_replayed_ranges(db):
         assigned_by_sub="admin-sub",
     )
 
-    service.update_video_progress(
+    video_progress.update_video_progress(
         db,
         employee_id=employee.id,
         lesson_id=lesson.id,
@@ -1136,7 +1136,7 @@ def test_video_progress_does_not_double_count_replayed_ranges(db):
         played_to_seconds=20,
         position_seconds=20,
     )
-    payload = service.update_video_progress(
+    payload = video_progress.update_video_progress(
         db,
         employee_id=employee.id,
         lesson_id=lesson.id,
