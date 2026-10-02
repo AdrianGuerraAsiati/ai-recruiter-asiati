@@ -184,6 +184,26 @@ jobs:
           test "$TRAINING_CONTENT_BUCKET" != "null"
           echo "TRAINING_CONTENT_BUCKET=$TRAINING_CONTENT_BUCKET" >> "$GITHUB_ENV"
 
+      - name: Provision employee document infrastructure
+        run: |
+          set -euo pipefail
+          RuntimeRoleArn="arn:aws:iam::$AWS_ACCOUNT_ID:role/AiRecruiterBedrockRuntimeRole"
+          aws cloudformation deploy \
+            --stack-name ai-recruiter-employee-documents \
+            --template-file infra/employee-documents.yml \
+            --parameter-overrides RuntimeRoleArn="$RuntimeRoleArn" \
+            --no-fail-on-empty-changeset
+          STACK_JSON=$(aws cloudformation describe-stacks --stack-name ai-recruiter-employee-documents)
+          EMPLOYEE_DOCUMENTS_BUCKET=$(echo "$STACK_JSON" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey=="EmployeeDocumentsBucket") | .OutputValue')
+          test -n "$EMPLOYEE_DOCUMENTS_BUCKET"
+          test "$EMPLOYEE_DOCUMENTS_BUCKET" != "null"
+          echo "EMPLOYEE_DOCUMENTS_BUCKET=$EMPLOYEE_DOCUMENTS_BUCKET" >> "$GITHUB_ENV"
+          echo "EMPLOYEE_DOCUMENTS_PREFIX=employee-documents" >> "$GITHUB_ENV"
+          echo "EMPLOYEE_CONTRACT_TEMPLATE_KEY=templates/contracts/asiati-employment-contract-v1.docx" >> "$GITHUB_ENV"
+          echo "EMPLOYEE_CONTRACT_TEMPLATE_MANIFEST_KEY=templates/contracts/asiati-employment-contract-v1.json" >> "$GITHUB_ENV"
+          echo "EMPLOYEE_DOCUMENT_MAX_UPLOAD_BYTES=15728640" >> "$GITHUB_ENV"
+          echo "EMPLOYEE_DOCUMENT_PRESIGN_TTL_SECONDS=300" >> "$GITHUB_ENV"
+
       - name: Acquire certified Lightsail SSH credentials
         run: |
           set -euo pipefail
@@ -302,7 +322,7 @@ jobs:
             DATABASE_URL_VALUE=\$(sudo docker inspect ai-recruiter-api --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^DATABASE_URL=//p' | head -1)
             test -n "\$DATABASE_URL_VALUE"
             chmod +x /tmp/ai-recruiter-deploy-api.sh /tmp/ai-recruiter-deploy-worker.sh /tmp/ai-recruiter-deploy-frontend.sh
-            DATABASE_URL="\$DATABASE_URL_VALUE" AWS_ACCOUNT_ID="$AWS_ACCOUNT_ID" ECR_TAG="${{ github.sha }}" IMPORT_STAGING_BUCKET="$IMPORT_STAGING_BUCKET" IMPORT_QUEUE_URL="$IMPORT_QUEUE_URL" TRAINING_CONTENT_BUCKET="$TRAINING_CONTENT_BUCKET" IMPORT_EVALUATION_CONCURRENCY="1" S3_BUCKET="$S3_BUCKET" KNOWLEDGE_BASE_ID="$KNOWLEDGE_BASE_ID" DATA_SOURCE_ID="$DATA_SOURCE_ID" COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID" COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" ODOO_ENABLED="$ODOO_ENABLED" ODOO_BASE_URL="$ODOO_BASE_URL" ODOO_DATABASE="$ODOO_DATABASE" ODOO_USERNAME="$ODOO_USERNAME" ODOO_SECRET_ID="$ODOO_SECRET_ID" ODOO_REQUEST_TIMEOUT_SECONDS="$ODOO_REQUEST_TIMEOUT_SECONDS" ALLOW_PUBLIC_REGISTRATION="false" RBAC_BOOTSTRAP_ADMIN_EMAILS="sistemas@asiati.com.co,talentohumano@asiati.com.co" sudo -H -E /tmp/ai-recruiter-deploy-api.sh
+            DATABASE_URL="\$DATABASE_URL_VALUE" AWS_ACCOUNT_ID="$AWS_ACCOUNT_ID" ECR_TAG="${{ github.sha }}" IMPORT_STAGING_BUCKET="$IMPORT_STAGING_BUCKET" IMPORT_QUEUE_URL="$IMPORT_QUEUE_URL" TRAINING_CONTENT_BUCKET="$TRAINING_CONTENT_BUCKET" EMPLOYEE_DOCUMENTS_BUCKET="$EMPLOYEE_DOCUMENTS_BUCKET" EMPLOYEE_DOCUMENTS_PREFIX="$EMPLOYEE_DOCUMENTS_PREFIX" EMPLOYEE_CONTRACT_TEMPLATE_KEY="$EMPLOYEE_CONTRACT_TEMPLATE_KEY" EMPLOYEE_CONTRACT_TEMPLATE_MANIFEST_KEY="$EMPLOYEE_CONTRACT_TEMPLATE_MANIFEST_KEY" EMPLOYEE_DOCUMENT_MAX_UPLOAD_BYTES="$EMPLOYEE_DOCUMENT_MAX_UPLOAD_BYTES" EMPLOYEE_DOCUMENT_PRESIGN_TTL_SECONDS="$EMPLOYEE_DOCUMENT_PRESIGN_TTL_SECONDS" IMPORT_EVALUATION_CONCURRENCY="1" S3_BUCKET="$S3_BUCKET" KNOWLEDGE_BASE_ID="$KNOWLEDGE_BASE_ID" DATA_SOURCE_ID="$DATA_SOURCE_ID" COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID" COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" ODOO_ENABLED="$ODOO_ENABLED" ODOO_BASE_URL="$ODOO_BASE_URL" ODOO_DATABASE="$ODOO_DATABASE" ODOO_USERNAME="$ODOO_USERNAME" ODOO_SECRET_ID="$ODOO_SECRET_ID" ODOO_REQUEST_TIMEOUT_SECONDS="$ODOO_REQUEST_TIMEOUT_SECONDS" ALLOW_PUBLIC_REGISTRATION="false" RBAC_BOOTSTRAP_ADMIN_EMAILS="sistemas@asiati.com.co,talentohumano@asiati.com.co" sudo -H -E /tmp/ai-recruiter-deploy-api.sh
             API_STATUS=\$(sudo docker inspect ai-recruiter-api --format '{{.State.Status}}')
             API_IMAGE=\$(sudo docker inspect ai-recruiter-api --format '{{.Config.Image}}')
             test "\$API_STATUS" = running
