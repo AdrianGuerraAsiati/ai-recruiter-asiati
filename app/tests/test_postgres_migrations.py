@@ -485,3 +485,12 @@ def test_alembic_head_builds_current_postgres_schema():
         assert revision == "039"
     finally:
         engine.dispose()
+
+def test_employee_document_signed_upload_concurrency_after_migrations():
+    """Run the signed-version race test against the migrated PostgreSQL schema."""
+    from app.tests.test_employee_documents_postgres import (
+        test_concurrent_signed_uploads_allocate_distinct_versions,
+    )
+
+    test_concurrent_signed_uploads_allocate_distinct_versions()
+
