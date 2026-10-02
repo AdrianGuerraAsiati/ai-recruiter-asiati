@@ -151,4 +151,38 @@ describe("Administrative dashboard", () => {
       });
     },
   );
+  it("keeps recruitment metrics when employee summary is unavailable", async () => {
+    api.get.mockImplementation((url) => {
+      if (url === "/jobs") {
+        return Promise.resolve({
+          data: [
+            { job_id: "job-1", title: "Uno", candidate_count: 2 },
+            { job_id: "job-2", title: "Dos", candidate_count: 0 },
+          ],
+        });
+      }
+      if (url === "/candidates") {
+        return Promise.resolve({
+          data: {
+            items: [{ id: "candidate-1", name: "Ana" }],
+            total: 37,
+            page: 1,
+            page_size: 20,
+            pages: 2,
+          },
+        });
+      }
+      if (url === "/employees/summary") {
+        return Promise.reject(new Error("summary unavailable"));
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+
+    mockAdministrativeSession("ADMIN");
+    renderPage();
+
+    expect(await screen.findByText("Candidatos registrados")).toBeInTheDocument();
+    expect(screen.getByText("37")).toBeInTheDocument();
+    expect(screen.getByText("50%")).toBeInTheDocument();
+  });
 });
