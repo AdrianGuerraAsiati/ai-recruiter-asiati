@@ -28,10 +28,7 @@ from app.domains.training.errors import (
 )
 from app.domains.training.policies import is_system_managed_course as _is_system_managed_course
 from app.domains.training.policies import validate_system_managed_course_update
-from app.domains.training.video_progress import (
-    reject_manual_video_completion,
-    video_progress_payload,
-)
+from app.domains.training.video_progress import reject_manual_video_completion, video_progress_payload
 
 
 logger = logging.getLogger(__name__)
@@ -195,11 +192,7 @@ def lesson_payload(
         "checklist_completed_items": list(
             (progress_details or {}).get("completed_items") or []
         ),
-        "video_progress": (
-            video_progress_payload(progress_details)
-            if str(lesson.content_type or "").upper() == "VIDEO"
-            else None
-        ),
+        "video_progress": video_progress_payload(progress_details) if str(lesson.content_type or "").upper() == "VIDEO" else None,
         "position": lesson.position,
         "completed": completed,
     }
@@ -995,11 +988,7 @@ def ensure_asiati_onboarding_for_active_employees(
     if not _is_system_managed_course(course) or course.status != "PUBLISHED":
         raise TrainingStateError("The automatic onboarding course is not available.")
 
-    employees = (
-        db.query(UserProfile)
-        .filter(UserProfile.status == "ACTIVE")
-        .all()
-    )
+    employees = db.query(UserProfile).filter(UserProfile.status == "ACTIVE").all()
     if not employees:
         return 0
 
