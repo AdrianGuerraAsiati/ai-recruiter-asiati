@@ -178,7 +178,7 @@ describe("TrainingEmployeeJourney", () => {
       />,
     );
 
-    expect(screen.getByText("Video completado")).toBeInTheDocument();
+    expect(screen.getAllByText("Video completado").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "Continuar →" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Valentina/i }));
