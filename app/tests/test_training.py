@@ -66,6 +66,7 @@ def _published_course(db):
         description="Contexto de la empresa",
         video_url="https://cdn.example.com/intro.mp4",
         duration_seconds=120,
+        content_type="ARTICLE",
     )
     service.update_course(
         db,
@@ -290,6 +291,7 @@ def _published_course_with_quiz(db):
         description=None,
         video_url=None,
         duration_seconds=None,
+        content_type="ARTICLE",
     )
     quiz = service.create_quiz(
         db,
@@ -602,6 +604,7 @@ def _published_onboarding_course(db, *, with_quiz=False):
         description=None,
         video_url=None,
         duration_seconds=None,
+        content_type="ARTICLE",
     )
     question = None
     if with_quiz:
@@ -623,11 +626,11 @@ def _published_onboarding_course(db, *, with_quiz=False):
     return course, lesson, question
 
 
-def test_not_required_employee_cannot_access_existing_onboarding_assignment(db):
+def test_active_employee_keeps_access_to_common_onboarding(db):
     employee = _employee(db)
     course, _, _ = _published_onboarding_course(db)
 
-    service.assign_course(
+    assignment = service.assign_course(
         db,
         course_id=course.id,
         employee_id=employee.id,
@@ -637,13 +640,15 @@ def test_not_required_employee_cannot_access_existing_onboarding_assignment(db):
     employee.onboarding_status = "NOT_REQUIRED"
     db.commit()
 
-    assert service.list_my_training(db, employee.id) == []
-    with pytest.raises(service.TrainingNotFound):
-        service.require_my_assignment(
-            db,
-            employee_id=employee.id,
-            course_id=course.id,
-        )
+    items = service.list_my_training(db, employee.id)
+    resolved = service.require_my_assignment(
+        db,
+        employee_id=employee.id,
+        course_id=course.id,
+    )
+
+    assert [item["course"]["id"] for item in items] == [course.id]
+    assert resolved.id == assignment.id
 
 
 def test_onboarding_assignment_stays_pending_until_employee_activity(db):
@@ -747,6 +752,7 @@ def test_onboarding_waits_for_all_assigned_onboarding_courses(db):
         description=None,
         video_url=None,
         duration_seconds=None,
+        content_type="ARTICLE",
     )
     service.update_course(db, second_course.id, status="PUBLISHED")
 
@@ -1021,6 +1027,128 @@ def test_employee_journey_hides_video_placeholders_without_media(db):
             employee_id=employee.id,
             lesson_id=pending.id,
         )
+
+
+def test_video_requires_eighty_percent_unique_playback_to_complete(db):
+    employee = _employee(db)
+    course = service.create_course(
+        db,
+        title="Video 80",
+        description=None,
+        created_by_sub="admin-sub",
+    )
+    module = service.add_module(
+        db,
+        course_id=course.id,
+        title="Video",
+        description=None,
+    )
+    lesson = service.add_lesson(
+        db,
+        module_id=module.id,
+        title="Video obligatorio",
+        description=None,
+        video_url="https://cdn.example.com/video.mp4",
+        duration_seconds=100,
+        content_type="VIDEO",
+    )
+    service.update_course(db, course.id, status="PUBLISHED")
+    assignment = service.assign_course(
+        db,
+        course_id=course.id,
+        employee_id=employee.id,
+        assigned_by_sub="admin-sub",
+    )
+
+    with pytest.raises(service.TrainingStateError):
+        service.complete_lesson(
+            db,
+            employee_id=employee.id,
+            lesson_id=lesson.id,
+        )
+
+    for start, end in [(0, 25), (25, 50), (50, 75)]:
+        payload = service.update_video_progress(
+            db,
+            employee_id=employee.id,
+            lesson_id=lesson.id,
+            duration_seconds=100,
+            played_from_seconds=start,
+            played_to_seconds=end,
+            position_seconds=end,
+        )
+
+    db.refresh(assignment)
+    watched = payload["course"]["modules"][0]["lessons"][0]
+    assert watched["completed"] is False
+    assert watched["video_progress"]["watched_percent"] == 75.0
+    assert assignment.status == "ASSIGNED"
+
+    payload = service.update_video_progress(
+        db,
+        employee_id=employee.id,
+        lesson_id=lesson.id,
+        duration_seconds=100,
+        played_from_seconds=75,
+        played_to_seconds=80,
+        position_seconds=80,
+    )
+
+    db.refresh(assignment)
+    watched = payload["course"]["modules"][0]["lessons"][0]
+    assert watched["completed"] is True
+    assert watched["video_progress"]["watched_percent"] == 80.0
+    assert assignment.status == "COMPLETED"
+
+
+def test_video_progress_does_not_double_count_replayed_ranges(db):
+    employee = _employee(db)
+    course = service.create_course(
+        db,
+        title="Video ranges",
+        description=None,
+        created_by_sub="admin-sub",
+    )
+    module = service.add_module(db, course_id=course.id, title="Video", description=None)
+    lesson = service.add_lesson(
+        db,
+        module_id=module.id,
+        title="Video",
+        description=None,
+        video_url="https://cdn.example.com/video.mp4",
+        duration_seconds=100,
+        content_type="VIDEO",
+    )
+    service.update_course(db, course.id, status="PUBLISHED")
+    service.assign_course(
+        db,
+        course_id=course.id,
+        employee_id=employee.id,
+        assigned_by_sub="admin-sub",
+    )
+
+    service.update_video_progress(
+        db,
+        employee_id=employee.id,
+        lesson_id=lesson.id,
+        duration_seconds=100,
+        played_from_seconds=0,
+        played_to_seconds=20,
+        position_seconds=20,
+    )
+    payload = service.update_video_progress(
+        db,
+        employee_id=employee.id,
+        lesson_id=lesson.id,
+        duration_seconds=100,
+        played_from_seconds=0,
+        played_to_seconds=20,
+        position_seconds=20,
+    )
+
+    progress = payload["course"]["modules"][0]["lessons"][0]["video_progress"]
+    assert progress["watched_seconds"] == 20.0
+    assert progress["watched_percent"] == 20.0
 
 
 def test_checklist_progress_is_persisted_and_resumed(db):
@@ -1483,15 +1611,16 @@ def test_system_managed_asiati_onboarding_is_assigned_to_all_active_employees(db
     )
     assigned_employee_ids = {assignment.employee_id for assignment in assignments}
 
-    assert created == 2
+    assert created == 3
     assert repeated == 0
-    assert assigned_employee_ids == {first.id, second.id}
+    assert assigned_employee_ids == {first.id, second.id, exempt.id}
     assert all(
         assignment.assigned_by_sub == service.SYSTEM_ONBOARDING_ACTOR
         for assignment in assignments
     )
     assert disabled.id not in assigned_employee_ids
-    assert exempt.id not in assigned_employee_ids
+    db.refresh(exempt)
+    assert exempt.onboarding_status == "PENDING"
 
 
 def test_system_managed_asiati_onboarding_rejects_manual_assignment(db):
