@@ -283,7 +283,10 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ai_recruiter_test
         run: |
-          python -m pytest app/tests/test_postgres_migrations.py -v --tb=short
+          python -m pytest \
+            app/tests/test_postgres_migrations.py \
+            app/tests/test_employee_documents_postgres.py \
+            -v --tb=short
 
   # ─────────────────────────────────────────────────────────
   # FRONTEND LINT & BUILD
