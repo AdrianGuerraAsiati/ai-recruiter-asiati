@@ -201,6 +201,12 @@ jobs:
           echo "LIGHTSAIL_SSH_USER=$SSH_USER" >> "$GITHUB_ENV"
           echo "INSTANCE_IP=$INSTANCE_IP" >> "$GITHUB_ENV"
 
+      - name: Reclaim Docker disk before identity check
+        run: |
+          set -euo pipefail
+          SSH=(-i "$LIGHTSAIL_KEY_FILE" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/lightsail-known-hosts)
+          ssh "${SSH[@]}" "$LIGHTSAIL_SSH_USER@$INSTANCE_IP" 'set -euo pipefail; echo DOCKER_EMERGENCY_BEFORE; sudo docker system df || true; sudo docker container prune -f; sudo docker image prune -a -f; sudo docker builder prune -a -f; echo DOCKER_EMERGENCY_AFTER; sudo docker system df; df -h /'
+
       - name: Verify existing Roles Anywhere identity
         run: |
           set -euo pipefail
