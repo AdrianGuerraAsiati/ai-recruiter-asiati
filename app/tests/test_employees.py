@@ -24,6 +24,7 @@ class FakeCognitoClient:
         self.updated = []
         self.disabled = []
         self.enabled = []
+        self.passwords = []
 
     def admin_create_user(self, **kwargs):
         self.created.append(kwargs)
@@ -59,6 +60,9 @@ class FakeCognitoClient:
 
     def admin_enable_user(self, **kwargs):
         self.enabled.append(kwargs)
+
+    def admin_set_user_password(self, **kwargs):
+        self.passwords.append(kwargs)
 
 
 @pytest.fixture()
@@ -122,6 +126,7 @@ def test_create_employee_provisions_cognito_and_employee_role(db):
 
     profile = service.create_employee(
         db,
+        username="new.employee",
         email=" New.Employee@ASIATI.com.co ",
         first_name="New",
         last_name="Employee",
@@ -134,11 +139,14 @@ def test_create_employee_provisions_cognito_and_employee_role(db):
     )
 
     assert profile.email == "new.employee@asiati.com.co"
+    assert profile.login_username == "new.employee"
     assert profile.onboarding_status == "PENDING"
     assert service.roles_for_profile(db, profile.id) == [EMPLOYEE]
     assert profile.hire_date == date(2026, 9, 24)
     assert cognito.created[0]["UserPoolId"] == "pool-test"
-    assert cognito.created[0]["DesiredDeliveryMediums"] == ["EMAIL"]
+    assert cognito.created[0]["MessageAction"] == "SUPPRESS"
+    assert "TemporaryPassword" in cognito.created[0]
+    assert "DesiredDeliveryMediums" not in cognito.created[0]
     assert cognito.deleted == []
 
 
@@ -161,6 +169,7 @@ def test_create_employee_falls_back_to_admin_get_user_for_sub(db):
 
     profile = service.create_employee(
         db,
+        username="fallback.user",
         email="fallback@asiati.com.co",
         first_name="Fallback",
         last_name="User",
@@ -179,6 +188,7 @@ def test_create_employee_rejects_duplicate_profile_before_cognito(db):
     with pytest.raises(service.EmployeeAlreadyExists):
         service.create_employee(
             db,
+            username="duplicate.user",
             email="duplicate@asiati.com.co",
             first_name="Duplicate",
             last_name="Employee",
@@ -303,23 +313,34 @@ def test_update_employee_can_change_hire_date(db):
     assert updated.hire_date == date(2026, 9, 30)
 
 
-def test_update_employee_can_toggle_onboarding_requirement(db):
+def test_update_employee_keeps_onboarding_required_for_active_employee(db):
     employee = _profile(db, email="onboarding@asiati.com.co", role=EMPLOYEE)
-    employee.onboarding_status = "IN_PROGRESS"
+    employee.onboarding_status = "NOT_REQUIRED"
     db.commit()
 
-    exempt = service.update_employee(
+    updated = service.update_employee(
         db,
         employee.id,
         changes={"onboarding_required": False},
         cognito_client=FakeCognitoClient(),
     )
-    assert exempt.onboarding_status == "NOT_REQUIRED"
+    assert updated.onboarding_status == "PENDING"
 
-    required = service.update_employee(
+
+def test_reset_employee_password_returns_temporary_password_without_storing_it(db):
+    employee = _profile(db, email="password@asiati.com.co", role=EMPLOYEE)
+    employee.login_username = "password.user"
+    db.commit()
+    cognito = FakeCognitoClient()
+
+    profile, temporary_password = service.reset_employee_temporary_password(
         db,
         employee.id,
-        changes={"onboarding_required": True},
-        cognito_client=FakeCognitoClient(),
+        cognito_client=cognito,
     )
-    assert required.onboarding_status == "PENDING"
+
+    assert profile.login_username == "password.user"
+    assert len(temporary_password) >= 8
+    assert cognito.passwords[0]["Username"] == "password@asiati.com.co"
+    assert cognito.passwords[0]["Permanent"] is False
+    assert cognito.passwords[0]["Password"] == temporary_password

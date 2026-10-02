@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import date
 import os
+import secrets
+import string
 
 from botocore.exceptions import ClientError
 from sqlalchemy import or_
@@ -22,6 +24,14 @@ class EmployeeAlreadyExists(Exception):
     pass
 
 
+class EmployeeUsernameExists(Exception):
+    pass
+
+
+class EmployeeUsernameInvalid(Exception):
+    pass
+
+
 class EmployeeIdentityError(Exception):
     pass
 
@@ -32,6 +42,32 @@ class EmployeeProvisioningError(Exception):
 
 class EmployeeStateError(Exception):
     pass
+
+
+def normalize_login_username(value: str | None) -> str:
+    normalized = str(value or "").strip().casefold()
+    allowed = set("abcdefghijklmnopqrstuvwxyz0123456789._-")
+    if (
+        len(normalized) < 3
+        or len(normalized) > 40
+        or any(char not in allowed for char in normalized)
+        or not normalized[0].isalnum()
+        or not normalized[-1].isalnum()
+    ):
+        raise EmployeeUsernameInvalid()
+    return normalized
+
+
+def generate_temporary_password(length: int = 14) -> str:
+    alphabet = string.ascii_letters + string.digits
+    while True:
+        value = "".join(secrets.choice(alphabet) for _ in range(length))
+        if (
+            any(char.islower() for char in value)
+            and any(char.isupper() for char in value)
+            and any(char.isdigit() for char in value)
+        ):
+            return value
 
 
 def _user_pool_id() -> str:
@@ -85,6 +121,7 @@ def employee_payload(db: Session, profile: UserProfile) -> dict:
         "id": profile.id,
         "cognito_sub": profile.cognito_sub,
         "email": profile.email,
+        "username": profile.login_username,
         "first_name": profile.first_name,
         "last_name": profile.last_name,
         "job_title": profile.job_title,
@@ -129,6 +166,7 @@ def list_employees(
         query = query.filter(
             or_(
                 UserProfile.email.ilike(pattern),
+                UserProfile.login_username.ilike(pattern),
                 UserProfile.first_name.ilike(pattern),
                 UserProfile.last_name.ilike(pattern),
                 UserProfile.job_title.ilike(pattern),
@@ -210,9 +248,10 @@ def ensure_existing_cognito_profile(
     return profile
 
 
-def create_employee(
+def provision_employee(
     db: Session,
     *,
+    username: str,
     email: str,
     first_name: str,
     last_name: str,
@@ -222,26 +261,36 @@ def create_employee(
     role_code: str = EMPLOYEE,
     created_by_sub: str | None = None,
     cognito_client=None,
-) -> UserProfile:
+) -> tuple[UserProfile, str]:
     email = normalize_email(email)
+    login_username = normalize_login_username(username)
     if db.query(UserProfile).filter(UserProfile.email == email).first() is not None:
         raise EmployeeAlreadyExists()
+    if (
+        db.query(UserProfile)
+        .filter(UserProfile.login_username == login_username)
+        .first()
+        is not None
+    ):
+        raise EmployeeUsernameExists()
 
     client = cognito_client or get_admin_cognito_client()
     pool_id = _user_pool_id()
+    temporary_password = generate_temporary_password()
     cognito_created = False
 
     try:
         response = client.admin_create_user(
             UserPoolId=pool_id,
             Username=email,
+            TemporaryPassword=temporary_password,
+            MessageAction="SUPPRESS",
             UserAttributes=[
                 {"Name": "email", "Value": email},
                 {"Name": "email_verified", "Value": "true"},
                 {"Name": "given_name", "Value": first_name},
                 {"Name": "family_name", "Value": last_name},
             ],
-            DesiredDeliveryMediums=["EMAIL"],
         )
         cognito_created = True
         user = response.get("User") or {}
@@ -255,6 +304,7 @@ def create_employee(
         profile = UserProfile(
             cognito_sub=sub,
             email=email,
+            login_username=login_username,
             first_name=first_name,
             last_name=last_name,
             job_title=job_title,
@@ -274,7 +324,7 @@ def create_employee(
         )
         db.commit()
         db.refresh(profile)
-        return profile
+        return profile, temporary_password
     except ClientError as exc:
         db.rollback()
         code = str(exc.response.get("Error", {}).get("Code") or "")
@@ -296,6 +346,96 @@ def create_employee(
         raise
 
 
+def create_employee(
+    db: Session,
+    *,
+    username: str,
+    email: str,
+    first_name: str,
+    last_name: str,
+    job_title: str | None,
+    department: str | None,
+    hire_date: date | None = None,
+    role_code: str = EMPLOYEE,
+    created_by_sub: str | None = None,
+    cognito_client=None,
+) -> UserProfile:
+    profile, _temporary_password = provision_employee(
+        db,
+        username=username,
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        job_title=job_title,
+        department=department,
+        hire_date=hire_date,
+        role_code=role_code,
+        created_by_sub=created_by_sub,
+        cognito_client=cognito_client,
+    )
+    return profile
+
+
+def set_employee_username(
+    db: Session,
+    employee_id: str,
+    *,
+    username: str,
+) -> UserProfile:
+    profile = require_employee(db, employee_id)
+    normalized = normalize_login_username(username)
+    conflict = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.login_username == normalized,
+            UserProfile.id != employee_id,
+        )
+        .first()
+    )
+    if conflict is not None:
+        raise EmployeeUsernameExists()
+    profile.login_username = normalized
+    db.commit()
+    db.refresh(profile)
+    return profile
+
+
+def username_available(
+    db: Session,
+    *,
+    username: str,
+    exclude_employee_id: str | None = None,
+) -> tuple[str, bool]:
+    normalized = normalize_login_username(username)
+    query = db.query(UserProfile).filter(UserProfile.login_username == normalized)
+    if exclude_employee_id:
+        query = query.filter(UserProfile.id != exclude_employee_id)
+    return normalized, query.first() is None
+
+
+def reset_employee_temporary_password(
+    db: Session,
+    employee_id: str,
+    *,
+    cognito_client=None,
+) -> tuple[UserProfile, str]:
+    profile = require_employee(db, employee_id)
+    if not profile.login_username:
+        raise EmployeeUsernameInvalid()
+    temporary_password = generate_temporary_password()
+    client = cognito_client or get_admin_cognito_client()
+    try:
+        client.admin_set_user_password(
+            UserPoolId=_user_pool_id(),
+            Username=profile.email,
+            Password=temporary_password,
+            Permanent=False,
+        )
+    except ClientError as exc:
+        code = str(exc.response.get("Error", {}).get("Code") or "")
+        raise EmployeeProvisioningError(code or "Cognito error") from exc
+    return profile, temporary_password
+
 def update_employee(
     db: Session,
     employee_id: str,
@@ -304,7 +444,6 @@ def update_employee(
     cognito_client=None,
 ) -> UserProfile:
     profile = require_employee(db, employee_id)
-    onboarding_required = changes.pop("onboarding_required", None)
     allowed = {"first_name", "last_name", "job_title", "department", "hire_date"}
     changes = {key: value for key, value in changes.items() if key in allowed}
 
@@ -329,9 +468,7 @@ def update_employee(
     for key, value in changes.items():
         setattr(profile, key, value)
 
-    if onboarding_required is False:
-        profile.onboarding_status = "NOT_REQUIRED"
-    elif onboarding_required is True and profile.onboarding_status == "NOT_REQUIRED":
+    if profile.status == "ACTIVE" and profile.onboarding_status == "NOT_REQUIRED":
         profile.onboarding_status = "PENDING"
 
     db.commit()

@@ -13,15 +13,13 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    JSON,
     Text,
     UniqueConstraint,
 )
-from sqlalchemy import JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-
 from app.db import Base
-
 
 class Candidate(Base):
     __tablename__ = "candidates"
@@ -702,12 +700,15 @@ class UserProfile(Base):
     __table_args__ = (
         UniqueConstraint("cognito_sub", name="uq_user_profiles_cognito_sub"),
         UniqueConstraint("email", name="uq_user_profiles_email"),
+        UniqueConstraint("login_username", name="uq_user_profiles_login_username"),
         Index("idx_user_profiles_status", "status"),
+        Index("idx_user_profiles_login_username", "login_username"),
     )
 
     id = Column(Text, primary_key=True, default=lambda: str(uuid.uuid4()))
     cognito_sub = Column(Text, nullable=False)
     email = Column(Text, nullable=False)
+    login_username = Column(Text, nullable=True)
     first_name = Column(Text, nullable=True)
     last_name = Column(Text, nullable=True)
     job_title = Column(Text, nullable=True)
@@ -741,7 +742,6 @@ class UserProfile(Base):
         foreign_keys="EmployeeScoreEvent.employee_id",
         passive_deletes=True,
     )
-
 
 class Role(Base):
     """Named RBAC role used to group permissions."""
@@ -805,7 +805,6 @@ class UserRole(Base):
 
     user = relationship("UserProfile", back_populates="role_assignments")
     role = relationship("Role", back_populates="user_assignments")
-
 
 class RolePermission(Base):
     __tablename__ = "role_permissions"

@@ -16,8 +16,11 @@ function AuthBrand() {
 function Login() {
   const navigate = useNavigate();
   const { refreshSession } = useSession();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [challengeSession, setChallengeSession] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -27,7 +30,13 @@ function Login() {
     setLoading(true);
 
     try {
-      const { data } = await api.post("/auth/login", { email, password });
+      const { data } = await api.post("/auth/login", { username, password });
+      if (data?.challenge_name === "NEW_PASSWORD_REQUIRED" && data?.session) {
+        setChallengeSession(data.session);
+        setNewPassword("");
+        setConfirmPassword("");
+        return;
+      }
       setAccessToken(data.access_token);
       await refreshSession();
       navigate("/dashboard");
@@ -35,15 +44,44 @@ function Login() {
       setError(getApiErrorMessage(err, {
         action: "iniciar sesión",
         resource: "tu cuenta",
-        fallback: "El correo o la contraseña no coinciden con una cuenta activa. Verifica ambos datos antes de reintentar.",
+        fallback: "El usuario o la contraseña no coinciden con una cuenta activa. Verifica ambos datos antes de reintentar.",
         statusMessages: {
-          401: "El correo o la contraseña no coinciden con una cuenta activa. Verifica ambos datos antes de reintentar.",
+          401: "El usuario o la contraseña no coinciden con una cuenta activa. Verifica ambos datos antes de reintentar.",
         },
       }));
     } finally {
       setLoading(false);
     }
   }
+
+  async function handleNewPassword(event) {
+    event.preventDefault();
+    setError("");
+    if (newPassword !== confirmPassword) {
+      setError("Las contraseñas no coinciden.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data } = await api.post("/auth/login/new-password", {
+        username,
+        session: challengeSession,
+        new_password: newPassword,
+      });
+      setAccessToken(data.access_token);
+      await refreshSession();
+      navigate("/dashboard");
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "actualizar tu contraseña",
+        resource: "tu cuenta",
+        fallback: "No fue posible guardar la nueva contraseña. Inicia sesión nuevamente.",
+      }));
+    } finally {
+      setLoading(false);
+    }
+  }
+
 
   return (
     <main className="auth-page">
@@ -109,23 +147,69 @@ function Login() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label htmlFor="email">Correo electrónico</label>
-              <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nombre@empresa.com" autoComplete="email" required />
-            </div>
-            <div className="form-group">
-              <label htmlFor="password">Contraseña</label>
-              <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Ingresa tu contraseña" autoComplete="current-password" required />
-            </div>
+          {challengeSession ? (
+            <form onSubmit={handleNewPassword}>
+              <div className="auth-first-access-note">
+                <strong>Primer acceso</strong>
+                <p>Por seguridad debes cambiar la contraseña temporal antes de continuar.</p>
+              </div>
+              <div className="form-group">
+                <label htmlFor="new-password">Nueva contraseña</label>
+                <input
+                  id="new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="confirm-password">Confirmar contraseña</label>
+                <input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                />
+              </div>
+              {error && <div className="login-error" role="alert">{error}</div>}
+              <button type="submit" className="login-button" disabled={loading}>
+                {loading ? "Guardando contraseña…" : "Guardar y continuar"}
+                {!loading && <span aria-hidden="true">→</span>}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              <div className="form-group">
+                <label htmlFor="username">Usuario</label>
+                <input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Tu usuario de Talent"
+                  autoComplete="username"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="password">Contraseña</label>
+                <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Ingresa tu contraseña" autoComplete="current-password" required />
+              </div>
 
-            {error && <div className="login-error" role="alert">{error}</div>}
+              {error && <div className="login-error" role="alert">{error}</div>}
 
-            <button type="submit" className="login-button" disabled={loading}>
-              {loading ? "Verificando acceso…" : "Iniciar sesión"}
-              {!loading && <span aria-hidden="true">→</span>}
-            </button>
-          </form>
+              <button type="submit" className="login-button" disabled={loading}>
+                {loading ? "Verificando acceso…" : "Iniciar sesión"}
+                {!loading && <span aria-hidden="true">→</span>}
+              </button>
+            </form>
+          )}
 
           <p className="login-register">El acceso es administrado por el equipo autorizado de ASIATI.</p>
           <p className="auth-security"><span aria-hidden="true">●</span> Acceso corporativo protegido</p>

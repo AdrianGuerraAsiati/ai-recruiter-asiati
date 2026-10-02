@@ -8,8 +8,10 @@ from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.orm import Session
 
-from app.deps import get_current_principal
+from app.deps import get_current_principal, get_db
+from app.models import UserProfile
 from app.infrastructure.bedrock.session import get_cached_session
 
 logger = logging.getLogger(__name__)
@@ -31,9 +33,30 @@ def get_admin_cognito_client():
     return get_cached_session().client("cognito-idp", region_name=AWS_REGION)
 
 
-class CredentialsRequest(BaseModel):
-    email: str = Field(min_length=3, max_length=320)
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=1, max_length=256)
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        return value.strip().casefold()
+
+
+class NewPasswordRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=320)
+    session: str = Field(min_length=1, max_length=4096)
+    new_password: str = Field(min_length=8, max_length=256)
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        return value.strip().casefold()
+
+
+class RegisterRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=8, max_length=256)
 
     @field_validator("email")
     @classmethod
@@ -47,12 +70,39 @@ class CredentialsRequest(BaseModel):
         return normalized
 
 
-class LoginRequest(CredentialsRequest):
-    pass
+def _resolve_cognito_username(db: Session, login_username: str) -> str:
+    normalized = login_username.strip().casefold()
+    if "@" in normalized:
+        return normalized
+    profile = (
+        db.query(UserProfile)
+        .filter(UserProfile.login_username == normalized)
+        .one_or_none()
+    )
+    if profile is None or profile.status != "ACTIVE":
+        raise HTTPException(status_code=401, detail="Usuario o contrasena incorrectos.")
+    return profile.email
 
 
-class RegisterRequest(CredentialsRequest):
-    password: str = Field(min_length=8, max_length=256)
+def _json_auth_response(auth: dict) -> JSONResponse:
+    access_token = auth.get("AccessToken")
+    if not access_token:
+        raise HTTPException(status_code=401, detail="No fue posible completar el inicio de sesion.")
+    resp = JSONResponse({
+        "access_token": access_token,
+        "expires_in": auth.get("ExpiresIn"),
+    })
+    if auth.get("RefreshToken"):
+        resp.set_cookie(
+            "ai_recruiter_refresh",
+            auth["RefreshToken"],
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=86400 * 30,
+            path="/",
+        )
+    return resp
 
 
 def public_registration_enabled() -> bool:
@@ -66,48 +116,81 @@ def public_registration_enabled() -> bool:
 
 
 @router.post("/login")
-def login(body: LoginRequest):
+def login(body: LoginRequest, db: Session = Depends(get_db)):
+    cognito_username = _resolve_cognito_username(db, body.username)
     try:
         response = cognito_client.initiate_auth(
             ClientId=COGNITO_CLIENT_ID,
             AuthFlow="USER_PASSWORD_AUTH",
             AuthParameters={
-                "USERNAME": body.email,
+                "USERNAME": cognito_username,
                 "PASSWORD": body.password,
             },
         )
-        auth = response.get("AuthenticationResult", {})
-        access_token = auth.get("AccessToken")
-        if not access_token:
-            challenge = str(response.get("ChallengeName") or "").strip()
-            logger.warning("Cognito login did not return an access token; challenge=%s", challenge)
+        challenge = str(response.get("ChallengeName") or "").strip()
+        if challenge == "NEW_PASSWORD_REQUIRED":
+            return {
+                "challenge_name": challenge,
+                "session": response.get("Session"),
+                "username": body.username,
+            }
+        if challenge:
+            logger.warning("Unsupported Cognito login challenge=%s", challenge)
             raise HTTPException(
                 status_code=403,
                 detail="El inicio de sesion requiere un paso adicional no soportado.",
             )
-        resp = JSONResponse({
-            "access_token": access_token,
-            "expires_in": auth.get("ExpiresIn"),
-        })
-        if auth.get("RefreshToken"):
-            resp.set_cookie(
-                "ai_recruiter_refresh",
-                auth["RefreshToken"],
-                httponly=True,
-                secure=True,
-                samesite="lax",
-                max_age=86400 * 30,
-                path="/",
-            )
-        return resp
+        auth = response.get("AuthenticationResult", {})
+        return _json_auth_response(auth)
     except ClientError as e:
         error_code = e.response["Error"].get("Code", "")
         logger.warning("Cognito login error: %s", error_code)
         if error_code in ("NotAuthorizedException", "UserNotFoundException"):
-            raise HTTPException(status_code=401, detail="Correo o contrasena incorrectos.")
+            raise HTTPException(status_code=401, detail="Usuario o contrasena incorrectos.")
         if error_code == "UserNotConfirmedException":
             raise HTTPException(status_code=403, detail="Tu cuenta todavia no ha sido confirmada.")
         raise HTTPException(status_code=500, detail="No fue posible iniciar sesion.")
+
+
+@router.post("/login/new-password")
+def complete_new_password(
+    body: NewPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    cognito_username = _resolve_cognito_username(db, body.username)
+    try:
+        response = cognito_client.respond_to_auth_challenge(
+            ClientId=COGNITO_CLIENT_ID,
+            ChallengeName="NEW_PASSWORD_REQUIRED",
+            Session=body.session,
+            ChallengeResponses={
+                "USERNAME": cognito_username,
+                "NEW_PASSWORD": body.new_password,
+            },
+        )
+        auth = response.get("AuthenticationResult", {})
+        return _json_auth_response(auth)
+    except ClientError as e:
+        error_code = str(e.response.get("Error", {}).get("Code") or "")
+        logger.warning("Cognito new-password challenge error: %s", error_code)
+        if error_code in {
+            "NotAuthorizedException",
+            "ExpiredCodeException",
+            "CodeMismatchException",
+        }:
+            raise HTTPException(
+                status_code=401,
+                detail="La sesion temporal expiro. Inicia sesion nuevamente.",
+            )
+        if error_code == "InvalidPasswordException":
+            raise HTTPException(
+                status_code=400,
+                detail="La nueva contrasena no cumple los requisitos de seguridad.",
+            )
+        raise HTTPException(
+            status_code=500,
+            detail="No fue posible actualizar la contrasena.",
+        )
 
 
 @router.post("/register")

@@ -13,6 +13,7 @@ from app.domains.employees.schemas import (
     CreateEmployeeRequest,
     SetEmployeeRoleRequest,
     SetEmployeeStatusRequest,
+    SetEmployeeUsernameRequest,
     UpdateEmployeeRequest,
 )
 from app.domains.training import service as training_service
@@ -87,6 +88,10 @@ def _translate_service_error(exc: Exception):
             status_code=409,
             detail="Ya existe un usuario con este correo.",
         )
+    if isinstance(exc, service.EmployeeUsernameExists):
+        raise HTTPException(status_code=409, detail="Ese usuario ya existe.")
+    if isinstance(exc, service.EmployeeUsernameInvalid):
+        raise HTTPException(status_code=422, detail="El usuario no tiene un formato valido.")
     if isinstance(exc, service.EmployeeStateError):
         raise HTTPException(status_code=422, detail="Estado de empleado no valido.")
     if isinstance(exc, service.EmployeeIdentityError):
@@ -139,6 +144,24 @@ def get_employee_summary(
     return service.employee_summary(db)
 
 
+@router.get("/credentials/availability")
+def check_username_availability(
+    username: str = Query(..., min_length=3, max_length=40),
+    exclude_employee_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employees.credentials.manage")),
+):
+    try:
+        normalized, available = service.username_available(
+            db,
+            username=username,
+            exclude_employee_id=exclude_employee_id,
+        )
+        return {"username": normalized, "available": available}
+    except Exception as exc:
+        _translate_service_error(exc)
+
+
 @router.get("/{employee_id}")
 def get_employee(
     employee_id: str,
@@ -160,8 +183,9 @@ def create_employee(
 ):
     _enforce_assignable_role(principal, body.role)
     try:
-        employee = service.create_employee(
+        employee, temporary_password = service.provision_employee(
             db,
+            username=body.username,
             email=body.email,
             first_name=body.first_name,
             last_name=body.last_name,
@@ -176,7 +200,55 @@ def create_employee(
             employee_id=employee.id,
             created_by_sub=principal.get("sub"),
         )
+        return {
+            "employee": service.employee_payload(db, employee),
+            "credentials": {
+                "username": employee.login_username,
+                "temporary_password": temporary_password,
+                "must_change_password": True,
+            },
+        }
+    except Exception as exc:
+        _translate_service_error(exc)
+
+
+@router.put("/{employee_id}/credentials/username")
+def update_employee_username(
+    employee_id: str,
+    body: SetEmployeeUsernameRequest,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employees.credentials.manage")),
+):
+    try:
+        employee = service.set_employee_username(
+            db,
+            employee_id,
+            username=body.username,
+        )
         return service.employee_payload(db, employee)
+    except Exception as exc:
+        _translate_service_error(exc)
+
+
+@router.post("/{employee_id}/credentials/reset-password")
+def reset_employee_password(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employees.credentials.manage")),
+):
+    try:
+        employee, temporary_password = service.reset_employee_temporary_password(
+            db,
+            employee_id,
+        )
+        return {
+            "employee": service.employee_payload(db, employee),
+            "credentials": {
+                "username": employee.login_username,
+                "temporary_password": temporary_password,
+                "must_change_password": True,
+            },
+        }
     except Exception as exc:
         _translate_service_error(exc)
 
@@ -194,12 +266,11 @@ def update_employee(
             employee_id,
             changes=body.model_dump(exclude_unset=True),
         )
-        if body.onboarding_required is True:
-            _ensure_automatic_onboarding(
-                db,
-                employee_id=employee.id,
-                created_by_sub=_principal.get("sub"),
-            )
+        _ensure_automatic_onboarding(
+            db,
+            employee_id=employee.id,
+            created_by_sub=_principal.get("sub"),
+        )
         return service.employee_payload(db, employee)
     except Exception as exc:
         _translate_service_error(exc)

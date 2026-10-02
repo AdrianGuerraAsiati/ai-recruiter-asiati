@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import JobHireModal from "../features/jobs/JobHireModal";
 
 const FORM = {
+  username: "ana.perez",
   email: "ana@test.com",
   first_name: "Ana",
   last_name: "Pérez",
@@ -53,7 +54,8 @@ describe("JobHireModal", () => {
     expect(screen.getByText("Ana Pérez")).toBeInTheDocument();
     expect(screen.getByText("Backend Developer")).toBeInTheDocument();
     expect(screen.getByLabelText("Nombre")).toHaveValue("Ana");
-    expect(screen.getByLabelText("Correo de acceso")).toHaveValue("ana@test.com");
+    expect(screen.getByLabelText("Usuario de Talent")).toHaveValue("ana.perez");
+    expect(screen.getByLabelText("Correo de contacto")).toHaveValue("ana@test.com");
     expect(screen.getByLabelText("Fecha de ingreso")).toHaveValue("2026-09-28");
   });
 

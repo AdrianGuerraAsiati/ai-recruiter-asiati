@@ -194,7 +194,7 @@ def test_login_returns_only_access_token_and_sets_lax_refresh_cookie(monkeypatch
 
     response = auth_routes.login(
         auth_routes.LoginRequest(
-            email="Recruiter@Example.COM",
+            username="Recruiter@Example.COM",
             password="pw",
         )
     )
@@ -221,7 +221,7 @@ def test_login_rejects_challenge_without_access_token(monkeypatch):
     with pytest.raises(HTTPException) as exc_info:
         auth_routes.login(
             auth_routes.LoginRequest(
-                email="recruiter@example.com",
+                username="recruiter@example.com",
                 password="pw",
             )
         )

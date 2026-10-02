@@ -28,6 +28,7 @@ from app.domains.training.errors import (
 )
 from app.domains.training.policies import is_system_managed_course as _is_system_managed_course
 from app.domains.training.policies import validate_system_managed_course_update
+from app.domains.training.video_progress import reject_manual_video_completion, video_progress_payload
 
 
 logger = logging.getLogger(__name__)
@@ -191,6 +192,7 @@ def lesson_payload(
         "checklist_completed_items": list(
             (progress_details or {}).get("completed_items") or []
         ),
+        "video_progress": video_progress_payload(progress_details) if str(lesson.content_type or "").upper() == "VIDEO" else None,
         "position": lesson.position,
         "completed": completed,
     }
@@ -951,8 +953,10 @@ def ensure_employee_asiati_onboarding(
     """Ensure one active employee receives the system-managed ASIATI onboarding."""
 
     employee = require_employee(db, employee_id)
-    if employee.status != "ACTIVE" or employee.onboarding_status == "NOT_REQUIRED":
+    if employee.status != "ACTIVE":
         return None
+    if employee.onboarding_status == "NOT_REQUIRED":
+        employee.onboarding_status = "PENDING"
 
     course = ensure_published_asiati_onboarding(
         db,
@@ -975,7 +979,7 @@ def ensure_asiati_onboarding_for_active_employees(
     course: TrainingCourse | None = None,
     created_by_sub: str | None = None,
 ) -> int:
-    """Backfill the system onboarding for all active profiles that require onboarding."""
+    """Ensure every active profile has the shared ASIATI onboarding."""
 
     course = course or ensure_published_asiati_onboarding(
         db,
@@ -984,14 +988,7 @@ def ensure_asiati_onboarding_for_active_employees(
     if not _is_system_managed_course(course) or course.status != "PUBLISHED":
         raise TrainingStateError("The automatic onboarding course is not available.")
 
-    employees = (
-        db.query(UserProfile)
-        .filter(
-            UserProfile.status == "ACTIVE",
-            UserProfile.onboarding_status != "NOT_REQUIRED",
-        )
-        .all()
-    )
+    employees = db.query(UserProfile).filter(UserProfile.status == "ACTIVE").all()
     if not employees:
         return 0
 
@@ -1009,26 +1006,27 @@ def ensure_asiati_onboarding_for_active_employees(
     }
 
     created = 0
-    created_employees: list[UserProfile] = []
     for employee in employees:
-        if employee.id in existing_ids:
-            continue
-        db.add(
-            TrainingAssignment(
-                course_id=course.id,
-                employee_id=employee.id,
-                status="ASSIGNED",
-                assigned_by_sub=SYSTEM_ONBOARDING_ACTOR,
-            )
-        )
-        created += 1
-        created_employees.append(employee)
+        if employee.onboarding_status == "NOT_REQUIRED":
+            employee.onboarding_status = "PENDING"
+            employee.onboarding_started_at = None
+            employee.onboarding_completed_at = None
 
-    if created:
-        db.flush()
-        for employee in created_employees:
-            _sync_employee_onboarding(db, employee.id)
-        db.commit()
+        if employee.id not in existing_ids:
+            db.add(
+                TrainingAssignment(
+                    course_id=course.id,
+                    employee_id=employee.id,
+                    status="ASSIGNED",
+                    assigned_by_sub=SYSTEM_ONBOARDING_ACTOR,
+                )
+            )
+            created += 1
+
+    db.flush()
+    for employee in employees:
+        _sync_employee_onboarding(db, employee.id)
+    db.commit()
 
     return created
 
@@ -1187,10 +1185,13 @@ def list_course_assignments(db: Session, course_id: str) -> list[dict]:
 
 
 def list_my_training(db: Session, employee_id: str) -> list[dict]:
-    query = db.query(TrainingAssignment).filter(TrainingAssignment.employee_id == employee_id)
-    if require_employee(db, employee_id).onboarding_status == "NOT_REQUIRED":
-        query = query.join(TrainingCourse).filter(TrainingCourse.is_onboarding.is_(False))
-    assignments = query.order_by(TrainingAssignment.assigned_at.desc()).all()
+    require_employee(db, employee_id)
+    assignments = (
+        db.query(TrainingAssignment)
+        .filter(TrainingAssignment.employee_id == employee_id)
+        .order_by(TrainingAssignment.assigned_at.desc())
+        .all()
+    )
     return [assignment_payload(db, assignment) for assignment in assignments]
 
 
@@ -1209,8 +1210,6 @@ def require_my_assignment(
         .one_or_none()
     )
     if assignment is None:
-        raise TrainingNotFound()
-    if assignment.course.is_onboarding and require_employee(db, employee_id).onboarding_status == "NOT_REQUIRED":
         raise TrainingNotFound()
     return assignment
 
@@ -1274,6 +1273,7 @@ def complete_lesson(
         raise TrainingStateError("This lesson is not assigned to your profile.")
     if not _lesson_visible_to_employee(lesson):
         raise TrainingStateError("This lesson is not available yet.")
+    reject_manual_video_completion(lesson)
     if (
         str(lesson.content_type or "").upper() == "CHECKLIST"
         and list(lesson.checklist_items or [])

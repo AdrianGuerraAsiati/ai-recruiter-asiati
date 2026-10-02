@@ -185,19 +185,35 @@ describe("Employees administration", () => {
   });
 
   it("creates employees as EMPLOYEE from an admin session", async () => {
-    api.post.mockResolvedValueOnce({ data: { id: "new-employee" } });
+    api.post.mockResolvedValueOnce({
+      data: {
+        employee: {
+          id: "new-employee",
+          username: "lgomez",
+          first_name: "Luis",
+          last_name: "Gómez",
+        },
+        credentials: {
+          username: "lgomez",
+          temporary_password: "TempPass123",
+          must_change_password: true,
+        },
+      },
+    });
     renderPage();
 
     await screen.findByText("Ana Pérez");
     fireEvent.click(screen.getByRole("button", { name: /crear empleado/i }));
 
+    fireEvent.change(screen.getByLabelText("Usuario de Talent"), { target: { value: "lgomez" } });
     fireEvent.change(screen.getByLabelText("Nombre"), { target: { value: "Luis" } });
     fireEvent.change(screen.getByLabelText("Apellido"), { target: { value: "Gómez" } });
-    fireEvent.change(screen.getByLabelText("Correo corporativo"), { target: { value: "luis@asiati.com.co" } });
+    fireEvent.change(screen.getByLabelText("Correo de contacto"), { target: { value: "luis@asiati.com.co" } });
     fireEvent.click(screen.getByRole("button", { name: "Crear empleado" }));
 
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith("/employees", expect.objectContaining({
+        username: "lgomez",
         email: "luis@asiati.com.co",
         first_name: "Luis",
         last_name: "Gómez",
@@ -205,9 +221,13 @@ describe("Employees administration", () => {
         role: "EMPLOYEE",
       }));
     });
+
+    expect(
+      await screen.findByRole("link", { name: `${window.location.origin}/` }),
+    ).toHaveAttribute("href", `${window.location.origin}/`);
   });
 
-  it("lets an admin edit cargo, role and onboarding requirement", async () => {
+  it("lets an admin edit cargo and role while onboarding stays automatic", async () => {
     api.put.mockResolvedValue({ data: {} });
     renderPage();
 
@@ -222,9 +242,7 @@ describe("Employees administration", () => {
     fireEvent.change(screen.getByLabelText("Rol"), {
       target: { value: "ADMIN" },
     });
-    fireEvent.change(screen.getByLabelText("Onboarding ASIATI"), {
-      target: { value: "NOT_REQUIRED" },
-    });
+    expect(screen.getByText("Asignación automática")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
 
     await waitFor(() => {
@@ -237,7 +255,6 @@ describe("Employees administration", () => {
         {
           job_title: "Líder comercial",
           department: "Ventas",
-          onboarding_required: false,
         },
       );
     });

@@ -72,6 +72,7 @@ def hire_candidate(
     job_id: str,
     candidate_id: str,
     created_by_sub: str,
+    username: str,
     email: str | None = None,
     first_name: str | None = None,
     last_name: str | None = None,
@@ -93,6 +94,7 @@ def hire_candidate(
     if candidate.is_banned:
         raise HiringConflictError("No puedes contratar un candidato vetado.")
 
+    resolved_username = employees_service.normalize_login_username(username)
     resolved_email = normalize_email(email or candidate.email or "")
     if not resolved_email:
         raise HiringValidationError(
@@ -114,11 +116,13 @@ def hire_candidate(
         .one_or_none()
     )
     employee_created = False
+    temporary_password = None
 
     if employee is None:
         try:
-            employee = employees_service.create_employee(
+            employee, temporary_password = employees_service.provision_employee(
                 db,
+                username=resolved_username,
                 email=resolved_email,
                 first_name=resolved_first,
                 last_name=resolved_last,
@@ -146,6 +150,17 @@ def hire_candidate(
     if employee.status != "ACTIVE":
         raise HiringConflictError(
             "Ya existe un usuario deshabilitado con este correo."
+        )
+
+    if employee.login_username and employee.login_username != resolved_username:
+        raise HiringConflictError(
+            f"El empleado existente ya usa el usuario {employee.login_username}."
+        )
+    if not employee.login_username:
+        employee = employees_service.set_employee_username(
+            db,
+            employee.id,
+            username=resolved_username,
         )
 
     changed = False
@@ -244,6 +259,15 @@ def hire_candidate(
         "hired_at": link.hired_at.isoformat() if link.hired_at else None,
         "employee_created": employee_created,
         "employee": employees_service.employee_payload(db, employee),
+        "credentials": (
+            {
+                "username": employee.login_username,
+                "temporary_password": temporary_password,
+                "must_change_password": True,
+            }
+            if temporary_password
+            else None
+        ),
         "onboarding_assignment": training_service.assignment_payload(db, assignment),
         "odoo_applicant_sync": odoo_sync_service.applicant_sync_payload(applicant_sync),
         "odoo_sync": odoo_sync_service.sync_payload(odoo_sync),

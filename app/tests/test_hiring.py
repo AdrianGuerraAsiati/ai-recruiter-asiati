@@ -9,6 +9,7 @@ from app.access_control import ensure_rbac_catalog
 from app.db import Base
 from app.domains.hiring import service as hiring_service
 from app.domains.training import service as training_service
+from app.domains.training import video_progress as training_video_progress
 from app.models import (
     Candidate,
     Job,
@@ -24,8 +25,10 @@ class FakeCognito:
     def __init__(self):
         self.created = []
 
-    def admin_create_user(self, *, UserPoolId, Username, UserAttributes, DesiredDeliveryMediums):
+    def admin_create_user(self, *, UserPoolId, Username, UserAttributes, TemporaryPassword, MessageAction):
         self.created.append(Username)
+        assert TemporaryPassword
+        assert MessageAction == "SUPPRESS"
         return {
             "User": {
                 "Attributes": [
@@ -49,7 +52,7 @@ class FakeCognito:
 
 
 class ExistingCognitoUser(FakeCognito):
-    def admin_create_user(self, *, UserPoolId, Username, UserAttributes, DesiredDeliveryMediums):
+    def admin_create_user(self, *, UserPoolId, Username, UserAttributes, TemporaryPassword, MessageAction):
         self.created.append(Username)
         raise ClientError(
             {
@@ -112,6 +115,7 @@ def _hire(db, *, cognito, job, candidate):
         job_id=job.id,
         candidate_id=candidate.id,
         created_by_sub="admin-sub",
+        username="ana.perez",
         department="Tecnología",
         cognito_client=cognito,
     )
@@ -150,6 +154,9 @@ def test_hire_creates_employee_marks_application_and_assigns_onboarding(db, monk
     assert link.employee_id == employee.id
     assert link.hired_at is not None
     assert employee.email == "ana@example.com"
+    assert employee.login_username == "ana.perez"
+    assert result["credentials"]["username"] == "ana.perez"
+    assert result["credentials"]["temporary_password"]
     assert employee.first_name == "Ana"
     assert employee.last_name == "Pérez"
     assert employee.job_title == "Backend Developer"
@@ -220,6 +227,7 @@ def test_admin_can_hire_candidate_created_by_another_admin(db):
         job_id=job.id,
         candidate_id=candidate.id,
         created_by_sub="other-admin-sub",
+        username="ana.perez",
         department="Tecnología",
         cognito_client=cognito,
     )
@@ -284,6 +292,7 @@ def test_same_candidate_hired_for_two_jobs_reuses_employee_and_onboarding(db):
         job_id=second_job.id,
         candidate_id=candidate.id,
         created_by_sub="admin-sub",
+        username="ana.perez",
         department="Tecnología",
         cognito_client=cognito,
     )
@@ -306,6 +315,40 @@ def test_same_candidate_hired_for_two_jobs_reuses_employee_and_onboarding(db):
     assert odoo_sync.source_job_candidate_id == second_link.id
     assert odoo_sync.payload["source"]["job_id"] == second_job.id
     assert cognito.created == ["ana@example.com"]
+
+
+
+def _complete_required_lesson(db, *, employee_id: str, lesson: dict) -> None:
+    if lesson["content_type"] == "CHECKLIST":
+        training_service.update_checklist_progress(
+            db,
+            employee_id=employee_id,
+            lesson_id=lesson["id"],
+            completed_items=list(range(len(lesson["checklist_items"]))),
+        )
+        return
+    if lesson["content_type"] == "VIDEO":
+        duration = float(lesson.get("duration_seconds") or 100)
+        target = duration * 0.80
+        start = 0.0
+        while start < target:
+            end = min(start + 20.0, target)
+            training_video_progress.update_video_progress(
+                db,
+                employee_id=employee_id,
+                lesson_id=lesson["id"],
+                duration_seconds=duration,
+                played_from_seconds=start,
+                played_to_seconds=end,
+                position_seconds=end,
+            )
+            start = end
+        return
+    training_service.complete_lesson(
+        db,
+        employee_id=employee_id,
+        lesson_id=lesson["id"],
+    )
 
 
 def test_hired_employee_onboarding_moves_pending_to_in_progress_to_completed(db):
@@ -336,19 +379,7 @@ def test_hired_employee_onboarding_moves_pending_to_in_progress_to_completed(db)
     assert required_lessons
 
     first = required_lessons[0]
-    if first["content_type"] == "CHECKLIST":
-        training_service.update_checklist_progress(
-            db,
-            employee_id=employee_id,
-            lesson_id=first["id"],
-            completed_items=list(range(len(first["checklist_items"]))),
-        )
-    else:
-        training_service.complete_lesson(
-            db,
-            employee_id=employee_id,
-            lesson_id=first["id"],
-        )
+    _complete_required_lesson(db, employee_id=employee_id, lesson=first)
 
     db.refresh(employee)
     assert employee.onboarding_status == "IN_PROGRESS"
@@ -356,19 +387,7 @@ def test_hired_employee_onboarding_moves_pending_to_in_progress_to_completed(db)
     assert employee.onboarding_completed_at is None
 
     for lesson in required_lessons[1:]:
-        if lesson["content_type"] == "CHECKLIST":
-            training_service.update_checklist_progress(
-                db,
-                employee_id=employee_id,
-                lesson_id=lesson["id"],
-                completed_items=list(range(len(lesson["checklist_items"]))),
-            )
-        else:
-            training_service.complete_lesson(
-                db,
-                employee_id=employee_id,
-                lesson_id=lesson["id"],
-            )
+        _complete_required_lesson(db, employee_id=employee_id, lesson=lesson)
 
     assignment = (
         db.query(TrainingAssignment)

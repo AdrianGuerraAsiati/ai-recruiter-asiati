@@ -35,6 +35,10 @@ def _translate(exc: Exception):
             status_code=409,
             detail="Ya existe un usuario con este correo.",
         )
+    if isinstance(exc, employees_service.EmployeeUsernameExists):
+        raise HTTPException(status_code=409, detail="Ese usuario ya existe.")
+    if isinstance(exc, employees_service.EmployeeUsernameInvalid):
+        raise HTTPException(status_code=422, detail="El usuario no tiene un formato valido.")
     if isinstance(
         exc,
         (
@@ -68,6 +72,7 @@ def hire_candidate(
             job_id=job_id,
             candidate_id=candidate_id,
             created_by_sub=principal["sub"],
+            username=body.username,
             email=body.email,
             first_name=body.first_name,
             last_name=body.last_name,

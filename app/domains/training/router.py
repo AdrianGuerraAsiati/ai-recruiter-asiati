@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_permission
-from app.domains.training import service
+from app.domains.training import service, video_progress
 from app.domains.training.schemas import (
     CreateCourseRequest,
     CreateLessonRequest,
@@ -18,6 +18,7 @@ from app.domains.training.schemas import (
     UpdateCourseRequest,
     UpdateLessonRequest,
     UpdateModuleRequest,
+    UpdateVideoProgressRequest,
 )
 
 
@@ -362,6 +363,27 @@ def complete_lesson(
             db,
             employee_id=principal["profile"]["id"],
             lesson_id=lesson_id,
+        )
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.put("/me/lessons/{lesson_id}/video-progress")
+def update_video_progress(
+    lesson_id: str,
+    body: UpdateVideoProgressRequest,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("training.consume")),
+):
+    try:
+        return video_progress.update_video_progress(
+            db,
+            employee_id=principal["profile"]["id"],
+            lesson_id=lesson_id,
+            duration_seconds=body.duration_seconds,
+            played_from_seconds=body.played_from_seconds,
+            played_to_seconds=body.played_to_seconds,
+            position_seconds=body.position_seconds,
         )
     except Exception as exc:
         _translate(exc)

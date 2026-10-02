@@ -38,6 +38,7 @@ PERMISSION_DEFINITIONS = {
     "employees.update": "Editar empleados.",
     "employees.disable": "Activar o desactivar empleados.",
     "employees.roles.manage": "Administrar roles de empleados.",
+    "employees.credentials.manage": "Administrar usuarios y restablecer credenciales de empleados.",
     "training.read": "Consultar el catálogo de capacitación.",
     "training.manage": "Crear y editar cursos, módulos y contenidos.",
     "training.assign": "Asignar capacitación a empleados.",

@@ -252,3 +252,20 @@ class FinalizeLessonVideoUploadRequest(BaseModel):
     @classmethod
     def normalize_video_finalize_text(cls, value: str) -> str:
         return value.strip()
+
+
+class UpdateVideoProgressRequest(BaseModel):
+    duration_seconds: float = Field(gt=0, le=86_400)
+    played_from_seconds: float = Field(ge=0, le=86_400)
+    played_to_seconds: float = Field(gt=0, le=86_400)
+    position_seconds: float = Field(ge=0, le=86_400)
+
+    @model_validator(mode="after")
+    def validate_segment(self):
+        if self.played_to_seconds <= self.played_from_seconds:
+            raise ValueError("played_to_seconds must be greater than played_from_seconds")
+        if self.played_to_seconds - self.played_from_seconds > 30:
+            raise ValueError("video progress segment is too large")
+        if self.position_seconds > self.duration_seconds + 1:
+            raise ValueError("position_seconds exceeds duration")
+        return self
