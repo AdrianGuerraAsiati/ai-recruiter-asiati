@@ -97,6 +97,10 @@ function Jobs() {
     job_title: "",
     department: "",
     hire_date: todayInputValue(),
+    contract_type: "Indefinido",
+    contract_start_date: todayInputValue(),
+    contract_end_date: "",
+    monthly_wage: "",
   });
   const [hiring, setHiring] = useState(false);
   const [hireError, setHireError] = useState("");
@@ -353,6 +357,10 @@ function Jobs() {
       job_title: viewJob?.title || "",
       department: "",
       hire_date: todayInputValue(),
+      contract_type: "Indefinido",
+      contract_start_date: todayInputValue(),
+      contract_end_date: "",
+      monthly_wage: "",
     });
     setHireError("");
   }
@@ -360,6 +368,25 @@ function Jobs() {
   async function confirmHire(event) {
     event.preventDefault();
     if (!viewJob || !hireTarget || hiring) return;
+    if (!String(hireForm.contract_type || "").trim()) {
+      setHireError("Define el tipo de contrato.");
+      return;
+    }
+    if (!String(hireForm.contract_start_date || "").trim()) {
+      setHireError("Define la fecha de inicio del contrato.");
+      return;
+    }
+    if (!(Number(hireForm.monthly_wage) > 0)) {
+      setHireError("Define un salario mensual mayor que cero.");
+      return;
+    }
+    if (
+      hireForm.contract_end_date
+      && hireForm.contract_end_date < hireForm.contract_start_date
+    ) {
+      setHireError("La fecha de finalización no puede ser anterior al inicio.");
+      return;
+    }
 
     setHiring(true);
     setHireError("");
@@ -374,6 +401,12 @@ function Jobs() {
           job_title: hireForm.job_title || null,
           department: hireForm.department || null,
           hire_date: hireForm.hire_date || null,
+          contract: {
+            contract_type: hireForm.contract_type.trim(),
+            start_date: hireForm.contract_start_date,
+            end_date: hireForm.contract_end_date || null,
+            monthly_wage: Number(hireForm.monthly_wage),
+          },
         },
       );
       setJobCandidates((current) => current.map((candidate) => (
