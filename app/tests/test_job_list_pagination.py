@@ -167,7 +167,7 @@ def test_jobs_page_rejects_unsupported_sort(client, db_session):
 
     response = client.get(
         "/api/jobs/page",
-        params={"page": 1, "page_size": 12, "sort": "title_desc"},
+        params={"page": 1, "page_size": 12, "sort": "title_random"},
     )
 
     assert response.status_code == 422
