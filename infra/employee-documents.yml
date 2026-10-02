@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Private employee document bucket for AI Recruiter.
+
+Parameters:
+  RuntimeRoleArn:
+    Type: String
+    Description: ARN of the existing AiRecruiterBedrockRuntimeRole used by the API.
+
+Resources:
+  EmployeeDocumentsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName:
+        Fn::Sub: "ai-recruiter-employee-documents-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Project
+          Value: ai-recruiter
+        - Key: Purpose
+          Value: confidential-employee-documents
+
+  EmployeeDocumentsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: EmployeeDocumentsBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: RuntimeReadContractTemplates
+            Effect: Allow
+            Principal:
+              AWS:
+                Ref: RuntimeRoleArn
+            Action:
+              - s3:GetObject
+            Resource:
+              Fn::Sub:
+                - "${BucketArn}/templates/contracts/*"
+                - BucketArn:
+                    Fn::GetAtt:
+                      - EmployeeDocumentsBucket
+                      - Arn
+          - Sid: RuntimeManageEmployeeDocuments
+            Effect: Allow
+            Principal:
+              AWS:
+                Ref: RuntimeRoleArn
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource:
+              Fn::Sub:
+                - "${BucketArn}/employee-documents/*"
+                - BucketArn:
+                    Fn::GetAtt:
+                      - EmployeeDocumentsBucket
+                      - Arn
+
+Outputs:
+  EmployeeDocumentsBucket:
+    Description: Private S3 bucket for confidential employee documents.
+    Value:
+      Ref: EmployeeDocumentsBucket
