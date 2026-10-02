@@ -1,0 +1,1 @@
+"""Synthetic employee-document fixtures."""
