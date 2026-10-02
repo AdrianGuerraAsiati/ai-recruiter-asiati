@@ -6,34 +6,6 @@ import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
 
 function AuthBrand() {
-  async function handleNewPassword(event) {
-    event.preventDefault();
-    setError("");
-    if (newPassword !== confirmPassword) {
-      setError("Las contraseñas no coinciden.");
-      return;
-    }
-    setLoading(true);
-    try {
-      const { data } = await api.post("/auth/login/new-password", {
-        username,
-        session: challengeSession,
-        new_password: newPassword,
-      });
-      setAccessToken(data.access_token);
-      await refreshSession();
-      navigate("/dashboard");
-    } catch (err) {
-      setError(getApiErrorMessage(err, {
-        action: "actualizar tu contraseña",
-        resource: "tu cuenta",
-        fallback: "No fue posible guardar la nueva contraseña. Inicia sesión nuevamente.",
-      }));
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
     <div className="auth-brand">
       <BrandMark />
@@ -81,6 +53,35 @@ function Login() {
       setLoading(false);
     }
   }
+
+  async function handleNewPassword(event) {
+    event.preventDefault();
+    setError("");
+    if (newPassword !== confirmPassword) {
+      setError("Las contraseñas no coinciden.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data } = await api.post("/auth/login/new-password", {
+        username,
+        session: challengeSession,
+        new_password: newPassword,
+      });
+      setAccessToken(data.access_token);
+      await refreshSession();
+      navigate("/dashboard");
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "actualizar tu contraseña",
+        resource: "tu cuenta",
+        fallback: "No fue posible guardar la nueva contraseña. Inicia sesión nuevamente.",
+      }));
+    } finally {
+      setLoading(false);
+    }
+  }
+
 
   return (
     <main className="auth-page">
