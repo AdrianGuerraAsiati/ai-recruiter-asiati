@@ -53,6 +53,10 @@ def list_jobs_page(
         query = query.order_by(candidate_count.desc(), Job.created_at.desc(), Job.id.asc())
     elif sort == "candidates_asc":
         query = query.order_by(candidate_count.asc(), Job.created_at.desc(), Job.id.asc())
+    elif sort == "title_asc":
+        query = query.order_by(func.lower(Job.title).asc(), Job.id.asc())
+    elif sort == "title_desc":
+        query = query.order_by(func.lower(Job.title).desc(), Job.id.asc())
     elif sort == "created_asc":
         query = query.order_by(Job.created_at.asc(), Job.id.asc())
     else:

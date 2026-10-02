@@ -45,3 +45,45 @@ def test_candidates_endpoint_returns_fixed_page_of_20_with_metadata():
     finally:
         db.close()
         engine.dispose()
+
+
+def test_candidates_endpoint_supports_alphabetical_name_sort():
+    engine, db = _db()
+    try:
+        db.add_all(
+            [
+                Candidate(name="Zoe", owner_sub="owner-1", metadata_={}),
+                Candidate(name="Ana", owner_sub="owner-1", metadata_={}),
+                Candidate(name="Carlos", owner_sub="owner-2", metadata_={}),
+            ]
+        )
+        db.commit()
+
+        ascending = candidates_router.list_candidates(
+            page=1,
+            page_size=20,
+            sort="name_asc",
+            db=db,
+            _user={"sub": "owner-1"},
+        )
+        assert [item["name"] for item in ascending["items"]] == [
+            "Ana",
+            "Carlos",
+            "Zoe",
+        ]
+
+        descending = candidates_router.list_candidates(
+            page=1,
+            page_size=20,
+            sort="name_desc",
+            db=db,
+            _user={"sub": "owner-1"},
+        )
+        assert [item["name"] for item in descending["items"]] == [
+            "Zoe",
+            "Carlos",
+            "Ana",
+        ]
+    finally:
+        db.close()
+        engine.dispose()

@@ -1,7 +1,7 @@
 """Candidates repository."""
 
 from datetime import datetime, timezone
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -36,15 +36,22 @@ def list_candidates_page(
     owner_sub: str | None = None,
     page: int = 1,
     page_size: int = 20,
+    sort: str = "created_desc",
 ) -> tuple[list[Candidate], int]:
     """Return one stable candidate page and its total count."""
     query = db.query(Candidate)
     if owner_sub is not None:
         query = query.filter(Candidate.owner_sub == owner_sub)
     total = query.count() or 0
+    if sort == "name_asc":
+        query = query.order_by(func.lower(Candidate.name).asc(), Candidate.id.asc())
+    elif sort == "name_desc":
+        query = query.order_by(func.lower(Candidate.name).desc(), Candidate.id.asc())
+    else:
+        query = query.order_by(Candidate.created_at.desc(), Candidate.id.desc())
+
     items = (
-        query.order_by(Candidate.created_at.desc(), Candidate.id.desc())
-        .offset((page - 1) * page_size)
+        query.offset((page - 1) * page_size)
         .limit(page_size)
         .all()
     )

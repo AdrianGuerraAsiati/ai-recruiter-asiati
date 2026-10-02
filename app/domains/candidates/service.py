@@ -82,12 +82,14 @@ def list_candidates_page(
     *,
     page: int = 1,
     page_size: int = 20,
+    sort: str = "created_desc",
 ):
     return candidates_repository.list_candidates_page(
         db,
         owner_sub=None,
         page=page,
         page_size=page_size,
+        sort=sort,
     )
 
 

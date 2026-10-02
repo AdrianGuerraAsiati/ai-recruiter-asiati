@@ -56,6 +56,8 @@ def list_jobs_page(
         "created_asc",
         "candidates_desc",
         "candidates_asc",
+        "title_asc",
+        "title_desc",
     ] = Query("created_desc"),
     q: str = Query("", max_length=120),
 ):

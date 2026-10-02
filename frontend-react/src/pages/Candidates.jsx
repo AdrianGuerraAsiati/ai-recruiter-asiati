@@ -27,19 +27,25 @@ function Candidates() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(0);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [restrictionTarget, setRestrictionTarget] = useState(null);
   const [restrictionMode, setRestrictionMode] = useState("ban");
   const [restrictionReason, setRestrictionReason] = useState("");
   const [restrictionSaving, setRestrictionSaving] = useState(false);
 
   const requestedJobId = searchParams.get("job_id") || "";
+  const requestedSort = searchParams.get("sort") || "created_desc";
+  const candidateSort = ["created_desc", "name_asc", "name_desc"].includes(requestedSort)
+    ? requestedSort
+    : "created_desc";
 
   const loadData = useCallback(async (targetPage = page) => {
     setLoadError("");
     try {
       const [candidatesResponse, jobsResponse] = await Promise.all([
-        api.get(`/candidates?page=${targetPage}&page_size=${PAGE_SIZE}`),
+        api.get(
+          `/candidates?page=${targetPage}&page_size=${PAGE_SIZE}${candidateSort === "created_desc" ? "" : `&sort=${candidateSort}`}`,
+        ),
         api.get("/jobs"),
       ]);
 
@@ -62,7 +68,7 @@ function Candidates() {
         fallback: "No se pudo completar el directorio porque candidatos o vacantes no respondieron. Recarga la página antes de asignar perfiles.",
       }));
     }
-  }, [page]);
+  }, [candidateSort, page]);
 
   useEffect(() => {
     // The initial request synchronizes this view with the API.
@@ -88,6 +94,14 @@ function Candidates() {
       return;
     }
     void loadData(1);
+  }
+
+  function changeCandidateSort(nextSort) {
+    const next = new URLSearchParams(searchParams);
+    if (nextSort === "created_desc") next.delete("sort");
+    else next.set("sort", nextSort);
+    setSearchParams(next, { replace: true });
+    setPage(1);
   }
 
   async function evaluate(candidateId) {
@@ -319,6 +333,19 @@ function Candidates() {
               : "perfiles disponibles"}
           </p>
         </div>
+        <label className="candidate-sort-control">
+          <span>Ordenar por</span>
+          <select
+            className="select"
+            aria-label="Ordenar candidatos"
+            value={candidateSort}
+            onChange={(event) => changeCandidateSort(event.target.value)}
+          >
+            <option value="created_desc">Más recientes</option>
+            <option value="name_asc">Nombre A–Z</option>
+            <option value="name_desc">Nombre Z–A</option>
+          </select>
+        </label>
       </div>
 
       {candidates.length === 0 ? (
@@ -372,6 +399,7 @@ function Candidates() {
             <div className="controls candidate-directory-controls">
               <select
                 className="select"
+                aria-label={`Vacante para ${candidate.name || "candidato"}`}
                 value={selectedJob[candidate.candidate_id] || ""}
                 onChange={(event) =>
                   setSelectedJob((current) => ({

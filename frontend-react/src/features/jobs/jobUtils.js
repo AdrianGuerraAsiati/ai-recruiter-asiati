@@ -5,6 +5,8 @@ export const SORT_OPTIONS = new Set([
   "created_asc",
   "candidates_desc",
   "candidates_asc",
+  "title_asc",
+  "title_desc",
 ]);
 
 export function positiveInteger(value, fallback) {
