@@ -399,6 +399,7 @@ function Candidates() {
             <div className="controls candidate-directory-controls">
               <select
                 className="select"
+                aria-label={`Vacante para ${candidate.name || "candidato"}`}
                 value={selectedJob[candidate.candidate_id] || ""}
                 onChange={(event) =>
                   setSelectedJob((current) => ({
