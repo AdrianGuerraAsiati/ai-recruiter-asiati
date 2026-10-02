@@ -59,7 +59,7 @@ def test_register_auto_confirms_cognito_user_with_signed_session(monkeypatch):
 
     response = auth_routes.register(
         auth_routes.RegisterRequest(
-            username="recruiter@example.com",
+            email="recruiter@example.com",
             password="StrongPass123",
         )
     )
