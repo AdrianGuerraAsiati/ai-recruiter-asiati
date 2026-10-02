@@ -1,5 +1,5 @@
 // eslint-disable-next-line no-unused-vars
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef } from "react";
 
 import {
   EmptyState,
@@ -23,24 +23,7 @@ function TrackedTrainingVideo({ lesson, onVideoProgress }) {
   const segmentStartRef = useRef(null);
   const lastObservedTimeRef = useRef(null);
   const requestInFlightRef = useRef(false);
-  const [watchedPercent, setWatchedPercent] = useState(
-    Number(lesson?.video_progress?.watched_percent || 0),
-  );
-
-  useEffect(() => {
-    segmentStartRef.current = null;
-    lastObservedTimeRef.current = null;
-    setWatchedPercent(Number(lesson?.video_progress?.watched_percent || 0));
-  }, [lesson?.id, lesson?.video_progress?.watched_percent]);
-
-  function progressFromResponse(data) {
-    const updated = (data?.course?.modules || [])
-      .flatMap((module) => module.lessons || [])
-      .find((item) => item.id === lesson.id);
-    if (updated?.video_progress) {
-      setWatchedPercent(Number(updated.video_progress.watched_percent || 0));
-    }
-  }
+  const watchedPercent = Number(lesson?.video_progress?.watched_percent || 0);
 
   async function flushSegment(endTime) {
     const video = videoRef.current;
@@ -53,13 +36,12 @@ function TrackedTrainingVideo({ lesson, onVideoProgress }) {
     requestInFlightRef.current = true;
     segmentStartRef.current = end;
     try {
-      const data = await onVideoProgress(lesson, {
+      await onVideoProgress(lesson, {
         duration_seconds: Number(video.duration || lesson.duration_seconds || 0),
         played_from_seconds: start,
         played_to_seconds: end,
         position_seconds: Number(video.currentTime || end),
       });
-      progressFromResponse(data);
     } finally {
       requestInFlightRef.current = false;
     }
@@ -459,6 +441,7 @@ export default function TrainingEmployeeJourney({
                             <div className={`training-video training-journey-video ${isPortraitOnboardingModule(activeJourneyLesson.module) ? "is-portrait" : ""}`}>
                               {isDirectVideo(activeJourneyLesson.video_url) ? (
                                 <TrackedTrainingVideo
+                                  key={activeJourneyLesson.id}
                                   lesson={activeJourneyLesson}
                                   onVideoProgress={updateVideoProgress}
                                 />
