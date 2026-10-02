@@ -18,9 +18,11 @@ class FakeOdooClient:
         *,
         existing=None,
         publication_field="website_published",
+        include_location_fields=False,
     ):
         self.existing = existing
         self.publication_field = publication_field
+        self.include_location_fields = include_location_fields
         self.created = []
         self.written = []
         self.searches = []
@@ -38,11 +40,26 @@ class FakeOdooClient:
                 "readonly": False,
                 "type": "boolean",
             }
+        if self.include_location_fields:
+            fields["address_id"] = {
+                "readonly": False,
+                "type": "many2one",
+                "relation": "res.partner",
+            }
+            fields["contract_type_id"] = {
+                "readonly": False,
+                "type": "many2one",
+                "relation": "hr.contract.type",
+            }
         return fields
 
     def search_read(self, model, domain, *, fields=None, limit=None):
-        assert model == "hr.job"
         self.searches.append((model, domain, fields, limit))
+        if model == "res.partner":
+            return [{"id": 33, "city": "Bogotá"}]
+        if model == "hr.contract.type":
+            return [{"id": 44, "name": "Full-Time"}]
+        assert model == "hr.job"
         if domain and domain[0][0] == "id":
             record_id = int(domain[0][2])
             if self.existing and int(self.existing["id"]) == record_id:
@@ -358,3 +375,40 @@ def test_sync_all_backfills_existing_talent_vacancies(db):
     } == {active.id, paused.id}
     assert len(client.created) == 2
     assert {row["website_published"] for row in client.created} == {True, False}
+
+
+
+def test_job_publication_resolves_existing_location_and_employment_type(db):
+    delivery = _publication_module()
+    Sync = _sync_model()
+    job = _job(db)
+    sync = Sync(
+        job_id=job.id,
+        idempotency_key=f"job:{job.id}",
+        payload={
+            "schema_version": 1,
+            "operation": "UPSERT_JOB",
+            "job": {
+                "external_id": job.id,
+                "title": job.title,
+                "description": job.description,
+                "status": "ACTIVE",
+                "country_code": "CO",
+                "city": "Bogotá",
+                "employment_type": "FULL_TIME",
+            },
+        },
+        status="PENDING",
+    )
+    db.add(sync)
+    db.commit()
+
+    client = FakeOdooClient(
+        publication_field="website_published",
+        include_location_fields=True,
+    )
+    result = delivery.sync_job_now(db, job_id=job.id, client=client)
+
+    assert result["status"] == "SYNCED"
+    assert client.created[0]["address_id"] == 33
+    assert client.created[0]["contract_type_id"] == 44
