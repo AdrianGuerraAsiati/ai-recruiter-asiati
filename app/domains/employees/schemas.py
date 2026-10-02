@@ -11,6 +11,7 @@ EmployeeStatus = Literal["ACTIVE", "DISABLED"]
 
 
 class CreateEmployeeRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=40)
     email: str = Field(min_length=3, max_length=320)
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
@@ -18,6 +19,17 @@ class CreateEmployeeRequest(BaseModel):
     department: str | None = Field(default=None, max_length=160)
     hire_date: date | None = None
     role: RoleCode = "EMPLOYEE"
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        normalized = value.strip().casefold()
+        allowed = set("abcdefghijklmnopqrstuvwxyz0123456789._-")
+        if not normalized or any(char not in allowed for char in normalized):
+            raise ValueError("invalid username")
+        if not normalized[0].isalnum() or not normalized[-1].isalnum():
+            raise ValueError("invalid username")
+        return normalized
 
     @field_validator("email")
     @classmethod
@@ -50,7 +62,6 @@ class UpdateEmployeeRequest(BaseModel):
     job_title: str | None = Field(default=None, max_length=160)
     department: str | None = Field(default=None, max_length=160)
     hire_date: date | None = None
-    onboarding_required: bool | None = None
 
     @field_validator("first_name", "last_name", "job_title", "department")
     @classmethod
@@ -67,3 +78,18 @@ class SetEmployeeRoleRequest(BaseModel):
 
 class SetEmployeeStatusRequest(BaseModel):
     status: EmployeeStatus
+
+
+class SetEmployeeUsernameRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=40)
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        normalized = value.strip().casefold()
+        allowed = set("abcdefghijklmnopqrstuvwxyz0123456789._-")
+        if not normalized or any(char not in allowed for char in normalized):
+            raise ValueError("invalid username")
+        if not normalized[0].isalnum() or not normalized[-1].isalnum():
+            raise ValueError("invalid username")
+        return normalized
