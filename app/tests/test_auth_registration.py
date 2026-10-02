@@ -159,7 +159,7 @@ def test_register_does_not_expose_provider_error_message(monkeypatch):
     with pytest.raises(HTTPException) as exc_info:
         auth_routes.register(
             auth_routes.RegisterRequest(
-                username="recruiter@example.com",
+                email="recruiter@example.com",
                 password="StrongPass123",
             )
         )
