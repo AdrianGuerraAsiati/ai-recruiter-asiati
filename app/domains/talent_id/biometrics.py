@@ -8,6 +8,7 @@ from typing import Protocol
 
 from sqlalchemy.orm import Session
 
+from app.domains.talent_id import consent
 from app.domains.talent_id.models import (
     TalentBiometricEnrollment,
     TalentEmployeeAttendanceSetting,
@@ -19,12 +20,18 @@ class BiometricEmployeeNotAllowed(Exception):
     pass
 
 
+class BiometricConsentRequired(Exception):
+    pass
+
+
 class BiometricProvider(Protocol):
     provider_name: str
 
     def enroll(self, *, provider_user_id: str, image_bytes: bytes): ...
 
     def recognize(self, *, image_bytes: bytes, threshold: float): ...
+
+    def delete_user(self, *, provider_user_id: str): ...
 
 
 @dataclass(frozen=True)
@@ -70,6 +77,8 @@ def enroll_employee(
     employee_id: str,
     image_bytes: bytes,
 ) -> TalentBiometricEnrollment:
+    if consent.current_status(db, employee_id) != "AUTHORIZED":
+        raise BiometricConsentRequired()
     employee = _allowed_employee(db, employee_id)
     result = provider.enroll(
         provider_user_id=employee.id,
@@ -142,6 +151,9 @@ def recognize_employee(
     if enrollment is None:
         return None
 
+    if consent.current_status(db, enrollment.employee_id) != "AUTHORIZED":
+        return None
+
     try:
         employee = _allowed_employee(db, enrollment.employee_id)
     except BiometricEmployeeNotAllowed:
@@ -152,3 +164,25 @@ def recognize_employee(
         display_name=_display_name(employee),
         similarity=float(match.similarity),
     )
+
+
+
+def revoke_employee_enrollment(
+    db: Session,
+    *,
+    provider: BiometricProvider,
+    employee_id: str,
+) -> bool:
+    """Disable local recognition immediately and delete the provider user."""
+    enrollment = get_employee_enrollment(db, employee_id)
+    if enrollment is None:
+        return False
+
+    provider_user_id = enrollment.provider_user_id
+    enrollment.active = False
+    enrollment.face_count = 0
+    db.commit()
+    db.refresh(enrollment)
+
+    provider.delete_user(provider_user_id=provider_user_id)
+    return True
