@@ -178,7 +178,7 @@ function TalentId() {
       <PageHeader
         eyebrow="Asistencia · Talent ID"
         title="Administración de Talent ID"
-        description="Configura sedes, jornadas, fotos de reconocimiento y credenciales de los kioscos de asistencia facial desde un solo lugar."
+        description="Configura sedes, jornadas, consentimiento, reconocimiento facial, QR móvil y credenciales de los kioscos de asistencia desde un solo lugar."
         actions={(
           <button className="btn btn-secondary" type="button" onClick={loadAll} disabled={loading}>
             Actualizar
