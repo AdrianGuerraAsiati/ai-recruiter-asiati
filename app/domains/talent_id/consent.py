@@ -209,6 +209,17 @@ def request_otp(
     ):
         raise ConsentOtpCooldown("Espera antes de solicitar un nuevo código.")
 
+    # Only one OTP challenge may remain usable for an employee. Invalidating
+    # older challenges prevents an OTP requested before a revocation from
+    # being replayed to authorize again later.
+    db.query(TalentBiometricConsentOtp).filter(
+        TalentBiometricConsentOtp.employee_id == employee.id,
+        TalentBiometricConsentOtp.used_at.is_(None),
+    ).update(
+        {"used_at": now},
+        synchronize_session=False,
+    )
+
     challenge_id = str(uuid.uuid4())
     otp = f"{secrets.randbelow(1_000_000):06d}"
     challenge = TalentBiometricConsentOtp(
@@ -269,6 +280,8 @@ def _latest_open_challenge(
 def _validate_transition(current: str, decision: str) -> None:
     if decision not in {"AUTHORIZED", "DENIED", "REVOKED"}:
         raise ConsentStateError("Decisión de consentimiento inválida.")
+    if current == decision:
+        raise ConsentStateError("Esa decisión ya se encuentra vigente.")
     if decision == "REVOKED" and current != "AUTHORIZED":
         raise ConsentStateError("Solo una autorización vigente puede revocarse.")
     if current == "AUTHORIZED" and decision == "DENIED":
