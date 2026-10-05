@@ -189,6 +189,16 @@ describe("Talent ID administration", () => {
       if (url === "/talent-id/employees/employee-1/biometrics") {
         return Promise.resolve({ data: { enrolled: true, face_count: 2, active: true, enrolled_at: "2026-10-05T15:00:00Z" } });
       }
+      if (url === "/talent-id/employees/employee-1/consent") {
+        return Promise.resolve({
+          data: {
+            status: "AUTHORIZED",
+            signed_at: "2026-10-05T14:55:00Z",
+            document_version: "1.1",
+            has_signed_document: true,
+          },
+        });
+      }
       return Promise.reject(new Error(`Unexpected GET ${url}`));
     });
 
@@ -207,7 +217,6 @@ describe("Talent ID administration", () => {
     fireEvent.change(screen.getByLabelText("Fotos del empleado"), {
       target: { files: [photoOne, photoTwo] },
     });
-    fireEvent.click(screen.getByText(/Confirmo que el empleado autorizó/));
     fireEvent.click(screen.getByRole("button", { name: "Agregar fotos" }));
 
     await waitFor(() => {
@@ -216,6 +225,22 @@ describe("Talent ID administration", () => {
     expect(api.post.mock.calls[0][0]).toBe("/talent-id/employees/employee-1/biometrics/enroll");
     expect(api.post.mock.calls[0][1]).toBeInstanceOf(FormData);
     expect(await screen.findByText("2 fotos registradas para reconocimiento facial.")).toBeInTheDocument();
+  });
+
+  it("blocks admin enrollment when employee consent is pending", async () => {
+    render(<TalentId />);
+    await screen.findByText("Fotos para reconocimiento facial");
+
+    fireEvent.change(screen.getByLabelText("Empleado"), {
+      target: { value: "employee-1" },
+    });
+
+    expect(await screen.findByText(/Autorización biométrica: Pendiente/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Talento Humano no puede autorizar en su nombre/i),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Fotos del empleado")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Agregar fotos" })).toBeDisabled();
   });
 
   it("lets an admin complete a missing employee name from Talent ID", async () => {
