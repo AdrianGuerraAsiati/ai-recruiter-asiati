@@ -228,7 +228,52 @@ describe("Employees administration", () => {
     ).toHaveAttribute("href", `${window.location.origin}/`);
   });
 
-  it("lets an admin edit name, cargo and role while onboarding stays automatic", async () => {
+  it("lets an admin edit profile and Talent ID attendance together", async () => {
+    api.get.mockImplementation((url) => {
+      if (url === "/employees") {
+        return Promise.resolve({
+          data: {
+            items: [
+              {
+                id: "employee-1",
+                email: "employee@asiati.com.co",
+                first_name: "Ana",
+                last_name: "Pérez",
+                job_title: "Comercial",
+                department: "Ventas",
+                hire_date: "2026-09-24",
+                onboarding_status: "IN_PROGRESS",
+                onboarding_required: true,
+                onboarding: null,
+                status: "ACTIVE",
+                roles: ["EMPLOYEE"],
+              },
+            ],
+          },
+        });
+      }
+      if (url === "/talent-id/sites") {
+        return Promise.resolve({
+          data: { items: [{ id: "site-1", name: "Bogotá Principal", code: "BOG", active: true }] },
+        });
+      }
+      if (url === "/talent-id/schedules") {
+        return Promise.resolve({
+          data: { items: [{ id: "schedule-1", name: "Administrativo", start_time: "08:30:00", end_time: "18:00:00", active: true }] },
+        });
+      }
+      if (url === "/talent-id/employees/employee-1/attendance") {
+        return Promise.resolve({
+          data: {
+            configured: false,
+            site_id: null,
+            schedule_id: null,
+            attendance_eligible: false,
+          },
+        });
+      }
+      return Promise.resolve({ data: {} });
+    });
     api.put.mockResolvedValue({ data: {} });
     renderPage();
 
@@ -250,6 +295,8 @@ describe("Employees administration", () => {
       target: { value: "ADMIN" },
     });
     expect(screen.getByText("Asignación automática")).toBeInTheDocument();
+    expect(await screen.findByText("Configuración de marcación")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Habilitar marcación de asistencia"));
     fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
 
     await waitFor(() => {
@@ -264,6 +311,14 @@ describe("Employees administration", () => {
           last_name: "Pérez Gómez",
           job_title: "Líder comercial",
           department: "Ventas",
+        },
+      );
+      expect(api.put).toHaveBeenCalledWith(
+        "/talent-id/employees/employee-1/attendance",
+        {
+          site_id: "site-1",
+          schedule_id: "schedule-1",
+          attendance_eligible: true,
         },
       );
     });
