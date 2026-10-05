@@ -205,3 +205,46 @@ def test_provider_user_id_is_stable_employee_identity(db):
     )
 
     assert enrollment.provider_user_id == employee.id
+
+
+
+class FailingDeleteProvider(FakeProvider):
+    def delete_user(self, *, provider_user_id: str):
+        self.deleted_user_ids.append(provider_user_id)
+        raise RuntimeError("provider unavailable")
+
+
+def test_provider_cleanup_failure_is_persisted_for_retry(db):
+    employee = _employee(db, suffix="purge-failure")
+    provider = FakeProvider()
+    enrollment = biometrics.enroll_employee(
+        db,
+        provider=provider,
+        employee_id=employee.id,
+        image_bytes=b"jpeg",
+    )
+
+    failing = FailingDeleteProvider()
+    with pytest.raises(RuntimeError, match="provider unavailable"):
+        biometrics.revoke_employee_enrollment(
+            db,
+            employee_id=employee.id,
+            provider=failing,
+        )
+
+    db.refresh(enrollment)
+    assert enrollment.active is False
+    assert enrollment.face_count == 0
+    assert enrollment.provider_cleanup_pending is True
+    assert "provider unavailable" in enrollment.provider_cleanup_last_error
+    assert enrollment.provider_cleanup_attempted_at is not None
+
+    recovery = FakeProvider()
+    recovered = biometrics.retry_provider_cleanup(
+        db,
+        employee_id=employee.id,
+        provider=recovery,
+    )
+    assert recovered.provider_cleanup_pending is False
+    assert recovered.provider_cleanup_last_error is None
+    assert recovery.deleted_user_ids == [employee.id]
