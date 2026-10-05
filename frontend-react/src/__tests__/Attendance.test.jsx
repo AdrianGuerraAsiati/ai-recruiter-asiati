@@ -156,11 +156,12 @@ describe("Attendance dashboard", () => {
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith(
         "/talent-id/attendance/manual",
-        {
+        expect.objectContaining({
           employee_id: "employee-1",
           event_type: "check_in",
           reason: "Falla temporal del kiosco",
-        },
+          occurred_at: expect.any(String),
+        }),
       );
     });
     expect(await screen.findByText(/marcación manual registrada/i)).toBeInTheDocument();
