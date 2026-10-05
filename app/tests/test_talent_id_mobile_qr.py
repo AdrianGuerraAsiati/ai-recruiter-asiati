@@ -195,9 +195,9 @@ def test_kiosk_consumes_qr_once_and_records_qr_method(db):
     employee = _employee(db)
     _site, kiosk, _secret = _attendance_ready(db, employee)
     private_key, jwk = _key_pair()
-    device = mobile_qr.register_mobile_device(
+    device = _link_device(
         db,
-        employee_id=employee.id,
+        employee,
         label="Celular",
         public_key_jwk=jwk,
     )
