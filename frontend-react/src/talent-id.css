@@ -1,0 +1,415 @@
+/* Talent ID administration — device credential workspace */
+
+.talent-id-page .talent-id-admin-grid {
+  align-items: start;
+}
+
+.talent-id-page .talent-id-device-card {
+  overflow: hidden;
+  padding: 0;
+}
+
+.talent-id-device-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 26px 26px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.talent-id-device-heading h2 {
+  margin: 2px 0 8px;
+}
+
+.talent-id-device-heading .muted {
+  max-width: 720px;
+  line-height: 1.55;
+}
+
+.talent-id-device-count {
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  border: 1px solid color-mix(in srgb, var(--blue) 18%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--blue) 7%, var(--surface));
+  color: var(--blue);
+  font-size: .72rem;
+  font-weight: 800;
+}
+
+.talent-id-device-create {
+  margin: 20px 26px 0;
+  padding: 18px;
+  border-color: color-mix(in srgb, var(--blue) 16%, var(--border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--blue) 4%, var(--surface-soft)), var(--surface-soft));
+}
+
+.talent-id-form-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.talent-id-form-heading strong,
+.talent-id-form-heading span {
+  display: block;
+}
+
+.talent-id-form-heading strong {
+  color: var(--ink);
+  font-family: "Manrope", sans-serif;
+  font-size: .95rem;
+}
+
+.talent-id-form-heading span {
+  margin-top: 4px;
+  color: var(--ink-faint);
+  font-size: .76rem;
+  line-height: 1.45;
+}
+
+.talent-id-device-form-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, .8fr) minmax(260px, 1.2fr);
+  gap: 14px;
+}
+
+.talent-id-device-secret {
+  margin: 18px 26px 0;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--warning) 36%, var(--border));
+  border-radius: 15px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--warning) 9%, var(--surface)), var(--surface));
+  box-shadow: 0 8px 26px color-mix(in srgb, var(--warning) 8%, transparent);
+}
+
+.talent-id-secret-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.talent-id-secret-heading > div > strong,
+.talent-id-secret-heading > div > span {
+  display: block;
+}
+
+.talent-id-secret-heading > div > strong {
+  color: var(--ink);
+  font-family: "Manrope", sans-serif;
+  font-size: .98rem;
+}
+
+.talent-id-secret-heading > div > span {
+  margin-top: 4px;
+  color: var(--ink-soft);
+  font-size: .78rem;
+}
+
+.talent-id-one-time-badge {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: .68rem;
+  font-weight: 800;
+}
+
+.talent-id-credentials-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.talent-id-credential-field,
+.talent-id-device-id-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.talent-id-credential-field > div,
+.talent-id-device-id-row > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.talent-id-credential-field span,
+.talent-id-device-id-row span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--ink-faint);
+  font-size: .65rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.talent-id-credential-field code,
+.talent-id-device-id-row code {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.talent-id-copy-button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding-inline: 12px;
+  font-size: .74rem;
+}
+
+.talent-id-secret-note {
+  margin-top: 12px;
+  color: var(--ink-soft);
+  font-size: .74rem;
+  line-height: 1.5;
+}
+
+.talent-id-device-list-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 26px 26px 12px;
+}
+
+.talent-id-device-list-heading h3 {
+  font-size: .98rem;
+}
+
+.talent-id-device-list-heading p {
+  margin-top: 4px;
+  color: var(--ink-faint);
+  font-size: .76rem;
+}
+
+.talent-id-device-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0 26px 26px;
+}
+
+.talent-id-device-grid > .empty-state {
+  grid-column: 1 / -1;
+}
+
+.talent-id-device-item {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+
+.talent-id-device-item:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--blue) 22%, var(--border));
+  box-shadow: 0 12px 28px rgba(10, 28, 55, .08);
+}
+
+.talent-id-device-item.is-revoked {
+  opacity: .78;
+  background: color-mix(in srgb, var(--danger) 2%, var(--surface));
+}
+
+.talent-id-device-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 13px;
+}
+
+.talent-id-device-identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.talent-id-device-icon {
+  display: grid;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--violet) 11%, var(--surface));
+  color: var(--violet);
+  font-family: "Manrope", sans-serif;
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+.talent-id-device-identity > div {
+  min-width: 0;
+}
+
+.talent-id-device-identity strong,
+.talent-id-device-identity small {
+  display: block;
+}
+
+.talent-id-device-identity strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: .86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.talent-id-device-identity small {
+  margin-top: 4px;
+  color: var(--ink-faint);
+  font-size: .7rem;
+  line-height: 1.4;
+}
+
+.talent-id-device-item .status-disabled {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.talent-id-device-id-row {
+  margin-bottom: 13px;
+  background: var(--surface-soft);
+}
+
+.talent-id-device-actions,
+.talent-id-device-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.talent-id-device-actions .btn,
+.talent-id-device-edit-actions .btn {
+  min-height: 38px;
+  padding-inline: 12px;
+  font-size: .74rem;
+}
+
+.talent-id-device-edit {
+  padding: 13px;
+  border: 1px solid color-mix(in srgb, var(--blue) 20%, var(--border));
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.talent-id-device-edit .form-group {
+  margin-bottom: 12px;
+}
+
+.talent-id-device-edit input,
+.talent-id-device-edit select {
+  min-height: 43px;
+  padding-block: 10px;
+}
+
+.talent-id-device-edit-actions {
+  justify-content: flex-end;
+}
+
+.talent-id-device-confirm {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--warning) 28%, var(--border));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--warning) 7%, var(--surface));
+}
+
+.talent-id-device-confirm p {
+  color: var(--ink-soft);
+  font-size: .76rem;
+  line-height: 1.5;
+}
+
+.talent-id-device-confirm > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.talent-id-device-confirm .btn {
+  min-height: 36px;
+  padding-inline: 11px;
+  font-size: .72rem;
+}
+
+@media (max-width: 980px) {
+  .talent-id-device-grid,
+  .talent-id-credentials-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .talent-id-device-heading,
+  .talent-id-secret-heading,
+  .talent-id-device-item-top {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .talent-id-device-heading,
+  .talent-id-device-create,
+  .talent-id-device-secret,
+  .talent-id-device-list-heading,
+  .talent-id-device-grid {
+    margin-left: 16px;
+    margin-right: 16px;
+  }
+
+  .talent-id-device-heading {
+    margin: 0;
+    padding: 20px 16px 16px;
+  }
+
+  .talent-id-device-create {
+    margin-top: 16px;
+  }
+
+  .talent-id-device-grid {
+    padding: 0 0 18px;
+  }
+
+  .talent-id-device-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .talent-id-credential-field,
+  .talent-id-device-id-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .talent-id-copy-button {
+    width: 100%;
+  }
+
+  .talent-id-device-actions .btn {
+    flex: 1 1 calc(50% - 8px);
+  }
+}
