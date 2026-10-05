@@ -1,9 +1,12 @@
 package com.asiati.talentid
 
 import android.os.Bundle
+import android.graphics.Color
 import android.view.WindowManager
+import androidx.activity.SystemBarStyle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.asiati.talentid.core.network.TalentIdApi
 import com.asiati.talentid.core.security.DeviceCredentialStore
@@ -15,6 +18,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(
+                Color.TRANSPARENT,
+                Color.TRANSPARENT,
+            ),
+            navigationBarStyle = SystemBarStyle.light(
+                Color.TRANSPARENT,
+                Color.TRANSPARENT,
+            ),
+        )
 
         val factory = KioskViewModel.Factory(
             credentialStore = DeviceCredentialStore(applicationContext),
