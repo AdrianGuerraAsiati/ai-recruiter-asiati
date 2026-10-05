@@ -45,21 +45,39 @@ describe("MobileAttendanceCard", () => {
     loadMobileDeviceCredential.mockResolvedValue(null);
   });
 
-  it("links the current phone with a public key", async () => {
-    api.post.mockResolvedValueOnce({
-      data: {
-        id: "mobile-1",
-        employee_id: "employee-1",
-        label: "Mi celular",
-        active: true,
-        created_at: "2026-10-05T20:00:00Z",
-        last_used_at: null,
-      },
-    });
+  it("requires email OTP before linking the current phone", async () => {
+    api.post
+      .mockResolvedValueOnce({
+        data: {
+          challenge_id: "link-challenge-1",
+          delivery: "EMAIL",
+          destination: "em***@asiati.com.co",
+          expires_in_seconds: 600,
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: "mobile-1",
+          employee_id: "employee-1",
+          label: "Mi celular",
+          active: true,
+          created_at: "2026-10-05T20:00:00Z",
+          last_used_at: null,
+        },
+      });
 
     render(<MobileAttendanceCard />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Vincular este celular" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Verificar y vincular" }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith("/talent-id/mobile-devices/link-otp");
+    });
+
+    fireEvent.change(screen.getByLabelText("Código de 6 dígitos"), {
+      target: { value: "123456" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar y vincular" }));
 
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith(
@@ -69,6 +87,8 @@ describe("MobileAttendanceCard", () => {
             kty: "EC",
             crv: "P-256",
           }),
+          link_challenge_id: "link-challenge-1",
+          link_otp: "123456",
         }),
       );
     });
