@@ -70,6 +70,26 @@ autorizado y en la sede asignada al empleado.
 La marcación manual auditada queda como contingencia administrativa. El consentimiento
 biométrico no se usa como requisito para acceder a esta alternativa.
 
+
+## Contingencia manual auditada
+
+Cuando un empleado no pueda marcar mediante reconocimiento facial ni QR móvil, un usuario con
+permiso `talent_id.manage` puede registrar una entrada o salida manual desde la vista de
+Asistencia. La operación exige:
+
+- empleado activo y habilitado para asistencia;
+- sede y horario configurados;
+- tipo de evento (entrada/salida);
+- fecha y hora de la contingencia;
+- motivo obligatorio;
+- identidad del administrador autenticado.
+
+Las marcaciones manuales se almacenan con método `MANUAL`, `manual_reason` y
+`created_by_sub`. No se permite editar destructivamente una marcación existente para
+ocultar la trazabilidad. La fecha de contingencia no puede estar en el futuro y se limita a
+31 días hacia atrás.
+
+
 ## Configuración
 
 Variables de entorno:
@@ -98,7 +118,7 @@ En producción:
   almacenarse en el repositorio.
 - `TALENT_ID_CONSENT_FROM_EMAIL` debe corresponder a una identidad habilitada para envío.
 - El runtime necesita permiso mínimo para enviar el correo OTP.
-- La migración Alembic `039` debe aplicarse antes de habilitar la interfaz.
+- Las migraciones Alembic deben aplicarse hasta `042` antes de habilitar la interfaz.
 
 ## Endpoints
 
@@ -121,6 +141,7 @@ Marcación QR del empleado:
 
 Administración:
 
+- `POST /api/talent-id/attendance/manual`
 - `GET /api/talent-id/employees/{employee_id}/consent`
 - `GET /api/talent-id/employees/{employee_id}/consent/document`
 
