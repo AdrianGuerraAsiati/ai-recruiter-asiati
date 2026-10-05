@@ -66,8 +66,35 @@ function TalentId() {
   }, []);
 
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    let cancelled = false;
+
+    Promise.all([
+      api.get("/talent-id/sites"),
+      api.get("/talent-id/schedules"),
+      api.get("/talent-id/devices"),
+    ])
+      .then(([sitesResponse, schedulesResponse, devicesResponse]) => {
+        if (cancelled) return;
+        setSites(sitesResponse.data?.items || []);
+        setSchedules(schedulesResponse.data?.items || []);
+        setDevices(devicesResponse.data?.items || []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(getApiErrorMessage(err, {
+          action: "cargar la configuración de Talent ID",
+          resource: "Talent ID",
+          fallback: "No se pudo cargar sedes, horarios y kioscos.",
+        }));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const activeSites = useMemo(
     () => sites.filter((site) => site.active !== false),
