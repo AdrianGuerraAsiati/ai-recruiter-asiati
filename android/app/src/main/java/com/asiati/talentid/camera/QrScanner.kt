@@ -76,24 +76,23 @@ fun rememberQrScannerController(
                 val mediaImage = imageProxy.image
                 if (mediaImage == null) {
                     imageProxy.close()
-                    return@Analyzer
+                } else {
+                    val input = InputImage.fromMediaImage(
+                        mediaImage,
+                        imageProxy.imageInfo.rotationDegrees,
+                    )
+                    scanner.process(input)
+                        .addOnSuccessListener { barcodes ->
+                            barcodes.asSequence()
+                                .mapNotNull { barcode -> barcode.rawValue }
+                                .mapNotNull(::extractTalentQrToken)
+                                .firstOrNull()
+                                ?.let(currentCallback.value)
+                        }
+                        .addOnCompleteListener {
+                            imageProxy.close()
+                        }
                 }
-
-                val input = InputImage.fromMediaImage(
-                    mediaImage,
-                    imageProxy.imageInfo.rotationDegrees,
-                )
-                scanner.process(input)
-                    .addOnSuccessListener { barcodes ->
-                        barcodes.asSequence()
-                            .mapNotNull { barcode -> barcode.rawValue }
-                            .mapNotNull(::extractTalentQrToken)
-                            .firstOrNull()
-                            ?.let(currentCallback.value)
-                    }
-                    .addOnCompleteListener {
-                        imageProxy.close()
-                    }
             },
         )
         controller.bindToLifecycle(lifecycleOwner)
