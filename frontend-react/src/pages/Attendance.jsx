@@ -325,7 +325,6 @@ function Attendance() {
                 id="manual-attendance-time"
                 type="datetime-local"
                 value={manual.occurred_at}
-                max={localDateTimeValue(new Date(Date.now() + 5 * 60 * 1000))}
                 onChange={(event) => setManual({ ...manual, occurred_at: event.target.value })}
                 required
               />
