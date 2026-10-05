@@ -309,3 +309,28 @@ def test_mobile_link_rejects_wrong_otp(db):
             link_otp_secret="link-test-secret",
         )
     assert mobile_qr.list_mobile_devices(db, employee.id) == []
+
+
+
+def test_mobile_link_otp_requires_employee_email(db):
+    employee = UserProfile(
+        cognito_sub="sub-mobile-no-email",
+        email="",
+        first_name="Sin",
+        last_name="Correo",
+        status="ACTIVE",
+    )
+    db.add(employee)
+    db.commit()
+    db.refresh(employee)
+
+    with pytest.raises(mobile_qr.MobileLinkOtpUnavailable, match="correo"):
+        mobile_qr.request_mobile_link_otp(
+            db,
+            employee_id=employee.id,
+            otp_secret="link-test-secret",
+            ttl_seconds=600,
+            cooldown_seconds=0,
+            max_attempts=5,
+            send_otp=lambda *_args: None,
+        )
