@@ -22,6 +22,11 @@ from app.domains.evaluations.rules import (
     normalize_requirement,
     recommendation_for_score,
 )
+from app.domains.evaluations.scoring import (
+    calculate_weighted_match_score,
+    mandatory_gaps,
+    normalize_requirement_profiles,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -106,26 +111,17 @@ def evaluate_candidate(
         "extraer requisitos",
     )
 
-    requirements_from_job = extraction.get("requirements", [])
-    if not isinstance(requirements_from_job, list):
-        requirements_from_job = []
+    raw_requirements = extraction.get("requirements", [])
+    if not isinstance(raw_requirements, list):
+        raw_requirements = []
 
-    # Normalize requirements
-    normalized_requirements = []
-    seen = set()
-    for requirement in requirements_from_job:
-        if not isinstance(requirement, str):
-            continue
-        normalized = normalize_requirement(requirement).strip()
-        if not normalized:
-            continue
-        key = normalized.lower()
-        if key not in seen:
-            seen.add(key)
-            normalized_requirements.append(normalized)
-    requirements_from_job = normalized_requirements
+    requirement_profiles = normalize_requirement_profiles(raw_requirements)
+    uses_weighted_scoring = any(
+        profile.get("_expose_scoring_metadata") is True
+        for profile in requirement_profiles
+    )
 
-    if not requirements_from_job:
+    if not requirement_profiles:
         return {
             "match_score": 0,
             "recommendation": "EVALUATION_FAILED",
@@ -138,7 +134,9 @@ def evaluate_candidate(
         }
 
     # STEP 2: Prepare requirements text
-    requirements_text = "\n".join(f"- {r}" for r in requirements_from_job)
+    requirements_text = "\n".join(
+        f"- {profile['requirement']}" for profile in requirement_profiles
+    )
 
     # STEP 3: Evaluate requirements against CV
     evaluation_chain = CANDIDATE_EVALUATION_PROMPT | get_llm()
@@ -184,40 +182,38 @@ def evaluate_candidate(
             "evidence": evidence,
         }
 
-    # Guarantee all requirements are present
+    # Guarantee all requirements are present and attach the job scoring profile.
     final_requirements = []
-    for requirement in requirements_from_job:
-        normalized_requirement = normalize_requirement(requirement).strip()
+    for profile in requirement_profiles:
+        normalized_requirement = profile["requirement"]
         key = normalized_requirement.lower().strip()
         existing = evaluated.get(key)
-        if existing:
-            final_requirements.append(
+
+        item = {
+            "requirement": normalized_requirement,
+            "status": (
+                existing.get("status", "MISSING")
+                if existing
+                else "MISSING"
+            ),
+            "evidence": existing.get("evidence") if existing else None,
+        }
+
+        if profile.get("_expose_scoring_metadata") is True:
+            item.update(
                 {
-                    "requirement": normalized_requirement,
-                    "status": existing.get("status", "MISSING"),
-                    "evidence": existing.get("evidence"),
-                }
-            )
-        else:
-            final_requirements.append(
-                {
-                    "requirement": normalized_requirement,
-                    "status": "MISSING",
-                    "evidence": None,
+                    "category": profile["category"],
+                    "importance": profile["importance"],
+                    "mandatory": profile["mandatory"],
+                    "weight": profile["weight"],
                 }
             )
 
-    # Calculate score
+        final_requirements.append(item)
+
+    # Calculate deterministic weighted score.
     total = len(final_requirements)
-    points = 0
-    for requirement in final_requirements:
-        status = requirement.get("status", "MISSING")
-        if status == "MATCH":
-            points += 1
-        elif status == "PARTIAL":
-            points += 0.5
-
-    match_score = round((points / total) * 100) if total > 0 else 0
+    match_score = calculate_weighted_match_score(final_requirements)
 
     # Recommendation
     recommendation = recommendation_for_score(match_score)
@@ -233,6 +229,8 @@ def evaluate_candidate(
         for r in final_requirements
         if r.get("status") in {"PARTIAL", "MISSING"}
     ]
+
+    missing_mandatory = mandatory_gaps(final_requirements)
 
     # Summary
     match_count = sum(1 for r in final_requirements if r["status"] == "MATCH")
@@ -262,6 +260,11 @@ def evaluate_candidate(
         parts.append(
             f" Las áreas de mejora identificadas son: {', '.join(gaps[:3])}."
         )
+    if missing_mandatory:
+        parts.append(
+            " Requiere revisión humana por requisitos obligatorios sin evidencia: "
+            f"{', '.join(missing_mandatory[:3])}."
+        )
 
     summary = "".join(parts)
 
@@ -276,7 +279,7 @@ def evaluate_candidate(
             f"del candidato a las necesidades específicas de la vacante."
         )
 
-    return {
+    result = {
         "match_score": match_score,
         "recommendation": recommendation,
         "requirements": final_requirements,
@@ -284,3 +287,13 @@ def evaluate_candidate(
         "gaps": gaps,
         "summary": summary,
     }
+
+    if uses_weighted_scoring:
+        result.update(
+            {
+                "scoring_version": "weighted_requirements_v2",
+                "mandatory_gaps": missing_mandatory,
+            }
+        )
+
+    return result
