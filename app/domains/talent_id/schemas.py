@@ -1,6 +1,6 @@
 """Request schemas for Talent ID administration."""
 
-from datetime import time
+from datetime import datetime, time
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -73,3 +73,4 @@ class ManualAttendanceRequest(BaseModel):
     employee_id: str = Field(min_length=1, max_length=80)
     event_type: Literal["check_in", "check_out"]
     reason: str = Field(min_length=5, max_length=500)
+    occurred_at: datetime | None = None
