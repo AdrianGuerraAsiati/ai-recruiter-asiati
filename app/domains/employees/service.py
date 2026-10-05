@@ -204,7 +204,7 @@ def ensure_existing_cognito_profile(
 
     email = normalize_email(email)
     existing = db.query(UserProfile).filter(UserProfile.email == email).one_or_none()
-    if existing is not None:
+    if existing is not None and existing.cognito_sub:
         return existing
 
     client = cognito_client or get_admin_cognito_client()
@@ -227,7 +227,7 @@ def ensure_existing_cognito_profile(
     if not sub:
         raise EmployeeIdentityError("Cognito did not return a stable subject")
 
-    profile = (
+    profile = existing or (
         db.query(UserProfile)
         .filter(UserProfile.cognito_sub == sub)
         .one_or_none()
@@ -244,7 +244,11 @@ def ensure_existing_cognito_profile(
         )
         db.add(profile)
     else:
+        profile.cognito_sub = sub
         profile.email = email
+        profile.status = "ACTIVE"
+        if profile.onboarding_status == "NOT_REQUIRED":
+            profile.onboarding_status = "PENDING"
 
     db.commit()
     db.refresh(profile)
