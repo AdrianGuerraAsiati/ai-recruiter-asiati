@@ -64,8 +64,35 @@ function TalentId() {
   }, []);
 
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    let cancelled = false;
+
+    Promise.all([
+      api.get("/talent-id/sites"),
+      api.get("/talent-id/schedules"),
+      api.get("/talent-id/devices"),
+    ])
+      .then(([sitesResponse, schedulesResponse, devicesResponse]) => {
+        if (cancelled) return;
+        setSites(sitesResponse.data?.items || []);
+        setSchedules(schedulesResponse.data?.items || []);
+        setDevices(devicesResponse.data?.items || []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(getApiErrorMessage(err, {
+          action: "cargar la configuración de Talent ID",
+          resource: "Talent ID",
+          fallback: "No se pudo cargar sedes, horarios y kioscos. Reintenta antes de provisionar un dispositivo.",
+        }));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const activeSites = useMemo(
     () => sites.filter((site) => site.active !== false),
@@ -80,11 +107,8 @@ function TalentId() {
     [devices],
   );
 
-  useEffect(() => {
-    if (!deviceForm.site_id && activeSites.length === 1) {
-      setDeviceForm((current) => ({ ...current, site_id: activeSites[0].id }));
-    }
-  }, [activeSites, deviceForm.site_id]);
+  const selectedDeviceSiteId =
+    deviceForm.site_id || (activeSites.length === 1 ? activeSites[0].id : "");
 
   async function createSite(event) {
     event.preventDefault();
@@ -139,7 +163,7 @@ function TalentId() {
 
   async function provisionDevice(event) {
     event.preventDefault();
-    if (!deviceForm.site_id) {
+    if (!selectedDeviceSiteId) {
       setError("Selecciona una sede para el kiosco.");
       return;
     }
@@ -150,7 +174,7 @@ function TalentId() {
     setProvisionedDevice(null);
     try {
       const { data } = await api.post("/talent-id/devices", {
-        site_id: deviceForm.site_id,
+        site_id: selectedDeviceSiteId,
         name: deviceForm.name.trim(),
       });
       setProvisionedDevice(data);
@@ -341,7 +365,7 @@ function TalentId() {
                 <label htmlFor="talent-device-site">Sede del kiosco</label>
                 <select
                   id="talent-device-site"
-                  value={deviceForm.site_id}
+                  value={selectedDeviceSiteId}
                   onChange={(event) => setDeviceForm({ ...deviceForm, site_id: event.target.value })}
                   required
                   disabled={activeSites.length === 0}
