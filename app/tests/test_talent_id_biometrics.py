@@ -1,6 +1,7 @@
 """Biometric Talent ID service coverage."""
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 import pytest
 from sqlalchemy import create_engine
@@ -9,7 +10,10 @@ from sqlalchemy.orm import sessionmaker
 import app.models  # noqa: F401
 from app.db import Base
 from app.domains.talent_id import biometrics, service
-from app.domains.talent_id.models import TalentBiometricEnrollment
+from app.domains.talent_id.models import (
+    TalentBiometricConsentEvent,
+    TalentBiometricEnrollment,
+)
 from app.models import UserProfile
 
 
@@ -58,6 +62,23 @@ def db():
         engine.dispose()
 
 
+def _authorize_biometrics(db, employee):
+    db.add(
+        TalentBiometricConsentEvent(
+            employee_id=employee.id,
+            decision="AUTHORIZED",
+            document_version="test",
+            document_sha256="d" * 64,
+            pdf_sha256="p" * 64,
+            signed_pdf=b"%PDF-test",
+            verified_email=employee.email,
+            evidence={"source": "test"},
+            signed_at=datetime.now(timezone.utc),
+        )
+    )
+    db.commit()
+
+
 def _employee(db, *, suffix="one"):
     employee = UserProfile(
         cognito_sub=f"sub-{suffix}",
@@ -90,6 +111,7 @@ def _employee(db, *, suffix="one"):
         schedule_id=schedule.id,
         attendance_eligible=True,
     )
+    _authorize_biometrics(db, employee)
     return employee
 
 
