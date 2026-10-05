@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import api from "../api/client";
 import TalentIdDeviceManager from "../components/TalentIdDeviceManager";
+import TalentIdFaceEnrollment from "../components/TalentIdFaceEnrollment";
 import PageHeader from "../components/ui/PageHeader";
 import { EmptyState, FeedbackMessage, LoadingState, MetricCard } from "../components/ui/StatePanel";
 import { getApiErrorMessage } from "../utils/errors";
@@ -33,6 +34,7 @@ function TalentId() {
   const [sites, setSites] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [devices, setDevices] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
   const [error, setError] = useState("");
@@ -46,19 +48,21 @@ function TalentId() {
     setError("");
 
     try {
-      const [sitesResponse, schedulesResponse, devicesResponse] = await Promise.all([
+      const [sitesResponse, schedulesResponse, devicesResponse, employeesResponse] = await Promise.all([
         api.get("/talent-id/sites"),
         api.get("/talent-id/schedules"),
         api.get("/talent-id/devices"),
+        api.get("/employees", { params: { status: "ACTIVE" } }),
       ]);
       setSites(sitesResponse.data?.items || []);
       setSchedules(schedulesResponse.data?.items || []);
       setDevices(devicesResponse.data?.items || []);
+      setEmployees(employeesResponse.data?.items || []);
     } catch (err) {
       setError(getApiErrorMessage(err, {
         action: "cargar la configuración de Talent ID",
         resource: "Talent ID",
-        fallback: "No se pudo cargar sedes, horarios y kioscos.",
+        fallback: "No se pudo cargar sedes, horarios, empleados y kioscos.",
       }));
     } finally {
       if (!silent) setLoading(false);
@@ -72,19 +76,21 @@ function TalentId() {
       api.get("/talent-id/sites"),
       api.get("/talent-id/schedules"),
       api.get("/talent-id/devices"),
+      api.get("/employees", { params: { status: "ACTIVE" } }),
     ])
-      .then(([sitesResponse, schedulesResponse, devicesResponse]) => {
+      .then(([sitesResponse, schedulesResponse, devicesResponse, employeesResponse]) => {
         if (cancelled) return;
         setSites(sitesResponse.data?.items || []);
         setSchedules(schedulesResponse.data?.items || []);
         setDevices(devicesResponse.data?.items || []);
+        setEmployees(employeesResponse.data?.items || []);
       })
       .catch((err) => {
         if (cancelled) return;
         setError(getApiErrorMessage(err, {
           action: "cargar la configuración de Talent ID",
           resource: "Talent ID",
-          fallback: "No se pudo cargar sedes, horarios y kioscos.",
+          fallback: "No se pudo cargar sedes, horarios, empleados y kioscos.",
         }));
       })
       .finally(() => {
@@ -167,7 +173,7 @@ function TalentId() {
       <PageHeader
         eyebrow="Asistencia · Talent ID"
         title="Administración de Talent ID"
-        description="Configura sedes, jornadas y credenciales de los kioscos de asistencia facial desde un solo lugar."
+        description="Configura sedes, jornadas, fotos de reconocimiento y credenciales de los kioscos de asistencia facial desde un solo lugar."
         actions={(
           <button className="btn btn-secondary" type="button" onClick={loadAll} disabled={loading}>
             Actualizar
@@ -183,6 +189,7 @@ function TalentId() {
         <MetricCard icon="employee" label="Sedes activas" value={activeSites.length} detail="Disponibles para asistencia" tone="blue" />
         <MetricCard icon="calendar" label="Horarios activos" value={activeSchedules.length} detail="Disponibles para empleados" tone="cyan" />
         <MetricCard icon="profile" label="Kioscos activos" value={activeDevices.length} detail={`${devices.length} dispositivos registrados`} tone="violet" />
+        <MetricCard icon="users" label="Empleados activos" value={employees.length} detail="Disponibles para enrolamiento" />
       </section>
 
       {loading ? (
@@ -316,6 +323,8 @@ function TalentId() {
               ))}
             </div>
           </section>
+
+          <TalentIdFaceEnrollment employees={employees} />
 
           <TalentIdDeviceManager
             sites={sites}

@@ -202,7 +202,7 @@ function TalentIdDeviceManager({
     <section className="panel talent-id-admin-card talent-id-device-card">
       <div className="talent-id-device-heading">
         <div>
-          <span className="eyebrow">3 · Dispositivos</span>
+          <span className="eyebrow">4 · Dispositivos</span>
           <h2>Credenciales de kioscos</h2>
           <p className="muted">
             Crea, consulta, edita y revoca el acceso de las tablets. Los secretos nunca se almacenan en texto plano.

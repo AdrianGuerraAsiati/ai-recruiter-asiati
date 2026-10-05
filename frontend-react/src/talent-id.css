@@ -413,3 +413,323 @@
     flex: 1 1 calc(50% - 8px);
   }
 }
+
+
+/* Employee face enrollment */
+
+.talent-id-biometric-card {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  padding: 0;
+}
+
+.talent-id-biometric-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 26px;
+  border-bottom: 1px solid var(--border);
+}
+
+.talent-id-biometric-heading h2 {
+  margin: 2px 0 8px;
+}
+
+.talent-id-biometric-heading .muted {
+  max-width: 720px;
+  line-height: 1.55;
+}
+
+.talent-id-biometric-body {
+  display: grid;
+  gap: 16px;
+  padding: 22px 26px 26px;
+}
+
+.talent-id-employee-select {
+  max-width: 680px;
+  margin: 0;
+}
+
+.talent-id-employee-select small {
+  display: block;
+  margin-top: 7px;
+  color: var(--ink-faint);
+  font-size: .74rem;
+  line-height: 1.45;
+}
+
+.talent-id-biometric-empty {
+  display: grid;
+  gap: 5px;
+  min-height: 118px;
+  padding: 22px;
+  place-content: center;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+
+.talent-id-biometric-empty strong {
+  color: var(--ink);
+  font-size: .9rem;
+}
+
+.talent-id-biometric-empty span {
+  color: var(--ink-faint);
+  font-size: .76rem;
+}
+
+.talent-id-biometric-workspace {
+  display: grid;
+  gap: 16px;
+}
+
+.talent-id-selected-employee {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.talent-id-employee-avatar {
+  display: grid;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--blue) 10%, var(--surface));
+  color: var(--blue);
+  font-family: "Manrope", sans-serif;
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.talent-id-selected-employee > div:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+}
+
+.talent-id-selected-employee strong,
+.talent-id-selected-employee small {
+  display: block;
+}
+
+.talent-id-selected-employee strong {
+  color: var(--ink);
+  font-size: .9rem;
+}
+
+.talent-id-selected-employee small {
+  margin-top: 3px;
+  color: var(--ink-faint);
+  font-size: .73rem;
+}
+
+.talent-id-biometric-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.talent-id-biometric-statuses .status-disabled {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.talent-id-biometric-blocker {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--border));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--warning) 7%, var(--surface));
+  color: var(--ink-soft);
+  font-size: .77rem;
+  line-height: 1.5;
+}
+
+.talent-id-photo-form {
+  display: grid;
+  gap: 14px;
+}
+
+.talent-id-photo-dropzone {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 94px;
+  padding: 18px;
+  border: 1px dashed color-mix(in srgb, var(--blue) 35%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--blue) 3%, var(--surface-soft));
+}
+
+.talent-id-photo-dropzone.is-disabled {
+  opacity: .58;
+}
+
+.talent-id-photo-dropzone > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.talent-id-photo-dropzone strong,
+.talent-id-photo-dropzone span {
+  display: block;
+}
+
+.talent-id-photo-dropzone strong {
+  color: var(--ink);
+  font-size: .88rem;
+}
+
+.talent-id-photo-dropzone span {
+  margin-top: 4px;
+  color: var(--ink-faint);
+  font-size: .73rem;
+  line-height: 1.45;
+}
+
+.talent-id-photo-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.talent-id-photo-selection {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.talent-id-photo-selection > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+}
+
+.talent-id-photo-selection > div > span {
+  display: grid;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--violet) 9%, var(--surface-soft));
+  color: var(--violet);
+  font-size: .6rem;
+  font-weight: 800;
+}
+
+.talent-id-photo-selection > div > div {
+  min-width: 0;
+}
+
+.talent-id-photo-selection strong,
+.talent-id-photo-selection small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.talent-id-photo-selection strong {
+  color: var(--ink);
+  font-size: .76rem;
+}
+
+.talent-id-photo-selection small {
+  margin-top: 3px;
+  color: var(--ink-faint);
+  font-size: .67rem;
+}
+
+.talent-id-biometric-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--ink-soft);
+  font-size: .76rem;
+  line-height: 1.45;
+}
+
+.talent-id-biometric-consent input {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.talent-id-biometric-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding-top: 4px;
+}
+
+.talent-id-biometric-actions strong,
+.talent-id-biometric-actions small {
+  display: block;
+}
+
+.talent-id-biometric-actions strong {
+  color: var(--ink);
+  font-size: .8rem;
+}
+
+.talent-id-biometric-actions small {
+  margin-top: 4px;
+  color: var(--ink-faint);
+  font-size: .7rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+  .talent-id-biometric-card {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 700px) {
+  .talent-id-biometric-heading,
+  .talent-id-selected-employee,
+  .talent-id-biometric-actions,
+  .talent-id-photo-dropzone {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .talent-id-biometric-heading {
+    padding: 20px 16px 16px;
+  }
+
+  .talent-id-biometric-body {
+    padding: 16px;
+  }
+
+  .talent-id-biometric-statuses {
+    justify-content: flex-start;
+  }
+
+  .talent-id-photo-dropzone .btn,
+  .talent-id-biometric-actions .btn {
+    width: 100%;
+  }
+
+  .talent-id-photo-selection {
+    grid-template-columns: 1fr;
+  }
+}
