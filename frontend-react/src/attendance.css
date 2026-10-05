@@ -152,7 +152,7 @@
 
 .attendance-manual-form {
   display: grid;
-  grid-template-columns: minmax(220px, 1.1fr) minmax(150px, .55fr) minmax(280px, 1.6fr) auto;
+  grid-template-columns: minmax(210px, 1.1fr) minmax(120px, .5fr) minmax(190px, .8fr) minmax(260px, 1.4fr) auto;
   gap: 12px;
   align-items: end;
 }
