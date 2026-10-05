@@ -1,6 +1,6 @@
 // eslint-disable-next-line no-unused-vars
 import React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
@@ -26,7 +26,7 @@ function formatEnrollmentDate(value) {
 }
 
 function EmployeeBiometricModal({ employee, open, onClose }) {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [savingAttendance, setSavingAttendance] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -57,69 +57,65 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
     [schedules],
   );
 
-  const loadPilotState = useCallback(async () => {
-    if (!open || !employee?.id) return;
-
-    setLoading(true);
-    setError("");
-    setSuccess("");
-    try {
-      const [sitesResponse, schedulesResponse, attendanceResponse, biometricResponse] =
-        await Promise.all([
-          api.get("/talent-id/sites"),
-          api.get("/talent-id/schedules"),
-          api.get(`/talent-id/employees/${employee.id}/attendance`),
-          api.get(`/talent-id/employees/${employee.id}/biometrics`),
-        ]);
-
-      const nextSites = sitesResponse.data?.items || [];
-      const nextSchedules = schedulesResponse.data?.items || [];
-      const nextAttendance = attendanceResponse.data || {};
-      setSites(nextSites);
-      setSchedules(nextSchedules);
-      setAttendance({
-        configured: Boolean(nextAttendance.configured),
-        site_id:
-          nextAttendance.site_id
-          || (nextSites.filter((item) => item.active !== false).length === 1
-            ? nextSites.find((item) => item.active !== false)?.id
-            : "")
-          || "",
-        schedule_id:
-          nextAttendance.schedule_id
-          || (nextSchedules.filter((item) => item.active !== false).length === 1
-            ? nextSchedules.find((item) => item.active !== false)?.id
-            : "")
-          || "",
-        attendance_eligible: Boolean(nextAttendance.attendance_eligible),
-      });
-      setBiometric({
-        enrolled: Boolean(biometricResponse.data?.enrolled),
-        face_count: Number(biometricResponse.data?.face_count || 0),
-        active: Boolean(biometricResponse.data?.active),
-        enrolled_at: biometricResponse.data?.enrolled_at || null,
-      });
-    } catch (err) {
-      setError(getApiErrorMessage(err, {
-        action: "cargar la configuración biométrica",
-        resource: "Talent ID",
-        fallback: "No pudimos cargar sedes, horario o estado biométrico. Cierra el panel y vuelve a intentarlo.",
-      }));
-    } finally {
-      setLoading(false);
-    }
-  }, [employee?.id, open]);
-
   useEffect(() => {
-    if (open) {
-      loadPilotState();
-    } else {
-      setImage(null);
-      setConsentConfirmed(false);
-      setError("");
-      setSuccess("");
-    }
-  }, [loadPilotState, open]);
+    if (!open || !employee?.id) return undefined;
+
+    let cancelled = false;
+
+    Promise.all([
+      api.get("/talent-id/sites"),
+      api.get("/talent-id/schedules"),
+      api.get(`/talent-id/employees/${employee.id}/attendance`),
+      api.get(`/talent-id/employees/${employee.id}/biometrics`),
+    ])
+      .then(([sitesResponse, schedulesResponse, attendanceResponse, biometricResponse]) => {
+        if (cancelled) return;
+
+        const nextSites = sitesResponse.data?.items || [];
+        const nextSchedules = schedulesResponse.data?.items || [];
+        const nextAttendance = attendanceResponse.data || {};
+
+        setSites(nextSites);
+        setSchedules(nextSchedules);
+        setAttendance({
+          configured: Boolean(nextAttendance.configured),
+          site_id:
+            nextAttendance.site_id
+            || (nextSites.filter((item) => item.active !== false).length === 1
+              ? nextSites.find((item) => item.active !== false)?.id
+              : "")
+            || "",
+          schedule_id:
+            nextAttendance.schedule_id
+            || (nextSchedules.filter((item) => item.active !== false).length === 1
+              ? nextSchedules.find((item) => item.active !== false)?.id
+              : "")
+            || "",
+          attendance_eligible: Boolean(nextAttendance.attendance_eligible),
+        });
+        setBiometric({
+          enrolled: Boolean(biometricResponse.data?.enrolled),
+          face_count: Number(biometricResponse.data?.face_count || 0),
+          active: Boolean(biometricResponse.data?.active),
+          enrolled_at: biometricResponse.data?.enrolled_at || null,
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(getApiErrorMessage(err, {
+          action: "cargar la configuración biométrica",
+          resource: "Talent ID",
+          fallback: "No pudimos cargar sedes, horario o estado biométrico. Cierra el panel y vuelve a intentarlo.",
+        }));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [employee?.id, open]);
 
   if (!open || !employee) return null;
 
