@@ -12,6 +12,8 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    JSON,
+    LargeBinary,
     Text,
     Time,
     UniqueConstraint,
@@ -121,6 +123,73 @@ class TalentBiometricEnrollment(Base):
     face_count = Column(Integer, nullable=False, default=0)
     active = Column(Boolean, nullable=False, default=True)
     enrolled_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+
+
+class TalentBiometricConsentOtp(Base):
+    """Short-lived OTP challenge used to sign a biometric consent decision."""
+
+    __tablename__ = "talent_biometric_consent_otps"
+    __table_args__ = (
+        CheckConstraint(
+            "attempts >= 0 AND max_attempts > 0",
+            name="ck_talent_biometric_consent_otp_attempts",
+        ),
+        Index(
+            "idx_talent_biometric_consent_otps_employee_created",
+            "employee_id",
+            "created_at",
+        ),
+    )
+
+    id = Column(Text, primary_key=True, default=_uuid)
+    employee_id = Column(
+        Text,
+        ForeignKey("user_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    otp_hash = Column(Text, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used_at = Column(DateTime(timezone=True), nullable=True)
+    attempts = Column(Integer, nullable=False, default=0)
+    max_attempts = Column(Integer, nullable=False, default=5)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+
+
+class TalentBiometricConsentEvent(Base):
+    """Append-only evidence for biometric authorization, denial or revocation."""
+
+    __tablename__ = "talent_biometric_consent_events"
+    __table_args__ = (
+        CheckConstraint(
+            "decision IN ('AUTHORIZED', 'DENIED', 'REVOKED')",
+            name="ck_talent_biometric_consent_events_decision",
+        ),
+        Index(
+            "idx_talent_biometric_consent_events_employee_signed",
+            "employee_id",
+            "signed_at",
+        ),
+    )
+
+    id = Column(Text, primary_key=True, default=_uuid)
+    employee_id = Column(
+        Text,
+        ForeignKey("user_profiles.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    decision = Column(Text, nullable=False)
+    document_version = Column(Text, nullable=False)
+    document_sha256 = Column(Text, nullable=False)
+    pdf_sha256 = Column(Text, nullable=False)
+    signed_pdf = Column(LargeBinary, nullable=False)
+    verified_email = Column(Text, nullable=False)
+    otp_challenge_id = Column(
+        Text,
+        ForeignKey("talent_biometric_consent_otps.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    evidence = Column(JSON, nullable=True)
+    signed_at = Column(DateTime(timezone=True), nullable=False, default=_now)
 
 
 class TalentAttendanceEvent(Base):
