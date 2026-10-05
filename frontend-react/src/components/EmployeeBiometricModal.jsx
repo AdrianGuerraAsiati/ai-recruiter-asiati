@@ -52,6 +52,8 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
     document_version: null,
     has_signed_document: false,
   });
+  const [mobileDevices, setMobileDevices] = useState([]);
+  const [revokingMobile, setRevokingMobile] = useState("");
 
   const activeSites = useMemo(
     () => sites.filter((item) => item.active !== false),
@@ -73,8 +75,9 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
       api.get(`/talent-id/employees/${employee.id}/attendance`),
       api.get(`/talent-id/employees/${employee.id}/biometrics`),
       api.get(`/talent-id/employees/${employee.id}/consent`),
+      api.get(`/talent-id/employees/${employee.id}/mobile-devices`),
     ])
-      .then(([sitesResponse, schedulesResponse, attendanceResponse, biometricResponse, consentResponse]) => {
+      .then(([sitesResponse, schedulesResponse, attendanceResponse, biometricResponse, consentResponse, mobileDevicesResponse]) => {
         if (cancelled) return;
 
         const nextSites = sitesResponse.data?.items || [];
@@ -111,6 +114,7 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
           document_version: consentResponse.data?.document_version || null,
           has_signed_document: Boolean(consentResponse.data?.has_signed_document),
         });
+        setMobileDevices(mobileDevicesResponse.data?.items || []);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -164,6 +168,30 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
       }));
     } finally {
       setSavingAttendance(false);
+    }
+  }
+
+
+  async function revokeMobileDevice(deviceId) {
+    setRevokingMobile(deviceId);
+    setError("");
+    setSuccess("");
+    try {
+      await api.delete(
+        `/talent-id/employees/${employee.id}/mobile-devices/${deviceId}`,
+      );
+      setMobileDevices((current) => current.map((item) => (
+        item.id === deviceId ? { ...item, active: false } : item
+      )));
+      setSuccess("Celular revocado. El empleado deberá verificar un nuevo dispositivo con OTP para volver a usar QR.");
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "revocar el celular vinculado",
+        resource: "Talent ID",
+        fallback: "No se pudo revocar el dispositivo móvil.",
+      }));
+    } finally {
+      setRevokingMobile("");
     }
   }
 
@@ -412,6 +440,32 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
                   No es posible enrolar el rostro hasta que exista una autorización biométrica vigente.
                 </div>
               )}
+
+              <div className="talent-id-consent">
+                <span>
+                  <strong>
+                    Alternativa no biométrica: {
+                      mobileDevices.some((item) => item.active)
+                        ? "Celular vinculado"
+                        : "Sin celular vinculado"
+                    }
+                  </strong>
+                  <small>
+                    El empleado vincula su propio celular desde Mi perfil con OTP. El QR dinámico funciona aunque no autorice reconocimiento facial.
+                  </small>
+                </span>
+                {mobileDevices.filter((item) => item.active).map((device) => (
+                  <button
+                    key={device.id}
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={revokingMobile === device.id}
+                    onClick={() => revokeMobileDevice(device.id)}
+                  >
+                    {revokingMobile === device.id ? "Revocando…" : "Revocar celular"}
+                  </button>
+                ))}
+              </div>
 
               <div className="talent-id-privacy-note">
                 Talent procesa esta imagen para el enrolamiento y no la guarda como archivo original. El estado biométrico conserva identificadores del proveedor y cantidad de rostros.
