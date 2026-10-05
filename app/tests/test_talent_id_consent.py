@@ -167,3 +167,31 @@ def test_wrong_otp_increments_attempts_and_never_stores_plaintext(db):
     challenge = db.query(talent_models.TalentBiometricConsentOtp).one()
     assert challenge.attempts == 1
     assert challenge.otp_hash != "000000"
+
+
+
+def test_consent_otp_requires_employee_email(db):
+    employee = UserProfile(
+        cognito_sub="sub-no-email",
+        email="",
+        login_username="sin-correo",
+        first_name="Sin",
+        last_name="Correo",
+        status="ACTIVE",
+    )
+    db.add(employee)
+    db.commit()
+    db.refresh(employee)
+
+    with pytest.raises(consent.ConsentOtpUnavailable, match="correo"):
+        consent.request_otp(
+            db,
+            employee_id=employee.id,
+            decision="AUTHORIZED",
+            expected_document_version=consent.BIOMETRIC_CONSENT_VERSION,
+            otp_secret="test-secret",
+            ttl_seconds=600,
+            cooldown_seconds=0,
+            max_attempts=5,
+            send_otp=lambda *_args: None,
+        )
