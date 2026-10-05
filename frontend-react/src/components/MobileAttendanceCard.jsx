@@ -292,7 +292,7 @@ function MobileAttendanceCard() {
                 onChange={(event) => setLinkOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                pattern="\d{6}"
+                pattern="[0-9]{6}"
                 placeholder="000000"
                 required
               />
