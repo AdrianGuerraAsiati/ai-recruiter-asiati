@@ -104,6 +104,18 @@ def enroll_employee(
     return enrollment
 
 
+
+def get_employee_enrollment(
+    db: Session,
+    employee_id: str,
+) -> TalentBiometricEnrollment | None:
+    """Return the current biometric enrollment record, if any."""
+    return (
+        db.query(TalentBiometricEnrollment)
+        .filter(TalentBiometricEnrollment.employee_id == employee_id)
+        .one_or_none()
+    )
+
 def recognize_employee(
     db: Session,
     *,
