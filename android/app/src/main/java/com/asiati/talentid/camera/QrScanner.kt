@@ -18,7 +18,6 @@ import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
 import java.net.URI
 import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
 
 private const val TALENT_QR_SCHEME = "talentid"
 private const val TALENT_QR_HOST = "attendance"
@@ -37,7 +36,7 @@ fun extractTalentQrToken(rawValue: String): String? {
             if (pieces.size != 2 || pieces[0] != "token") {
                 null
             } else {
-                URLDecoder.decode(pieces[1], StandardCharsets.UTF_8)
+                URLDecoder.decode(pieces[1], "UTF-8")
             }
         }
         ?.firstOrNull()
