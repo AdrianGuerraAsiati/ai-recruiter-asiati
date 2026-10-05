@@ -270,12 +270,15 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
     }
   }
 
+  const biometricReady =
+    consent.status === "AUTHORIZED"
+    && biometric.active
+    && biometric.face_count >= 2;
+  const qrReady = mobileDevices.some((item) => item.active);
   const readyForKiosk =
     attendance.configured
     && attendance.attendance_eligible
-    && consent.status === "AUTHORIZED"
-    && biometric.active
-    && biometric.face_count >= 2;
+    && (biometricReady || qrReady);
 
   return (
     <div className="modal-overlay" role="presentation" onMouseDown={onClose}>
@@ -313,7 +316,11 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
               </div>
               <div>
                 <span>Biometría</span>
-                <strong>{biometric.active ? "Activa" : "No activa"}</strong>
+                <strong>{biometricReady ? "Lista" : "No disponible"}</strong>
+              </div>
+              <div>
+                <span>QR móvil</span>
+                <strong>{qrReady ? "Listo" : "No vinculado"}</strong>
               </div>
             </div>
 
