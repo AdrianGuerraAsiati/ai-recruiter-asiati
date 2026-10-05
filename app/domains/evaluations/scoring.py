@@ -159,3 +159,15 @@ def mandatory_gaps(requirements: list[dict]) -> list[str]:
         and item.get("status") == "MISSING"
         and item.get("requirement")
     ]
+
+
+def cap_score_for_mandatory_gaps(
+    score: int,
+    requirements: list[dict],
+    *,
+    maximum_score: int = 59,
+) -> int:
+    """Prevent a high-match label when an explicit must-have is missing."""
+    if mandatory_gaps(requirements):
+        return min(int(score), maximum_score)
+    return int(score)
