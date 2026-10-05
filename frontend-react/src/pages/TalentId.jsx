@@ -324,7 +324,10 @@ function TalentId() {
             </div>
           </section>
 
-          <TalentIdFaceEnrollment employees={employees} />
+          <TalentIdFaceEnrollment
+            employees={employees}
+            onEmployeeUpdated={() => loadAll({ silent: true })}
+          />
 
           <TalentIdDeviceManager
             sites={sites}
