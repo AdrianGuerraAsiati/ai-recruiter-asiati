@@ -7,6 +7,7 @@ must not implicitly create a Cognito account or expose temporary credentials.
 from __future__ import annotations
 
 from collections import Counter
+from datetime import date
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -22,7 +23,9 @@ class OdooEmployeeImportError(RuntimeError):
 
 
 def _text(value: Any) -> str | None:
-    normalized = str(value or "").strip()
+    if value is None or value is False:
+        return None
+    normalized = str(value).strip()
     return normalized or None
 
 
@@ -75,6 +78,16 @@ def _employee_status(row: dict) -> str:
     return "ACTIVE" if row.get("active", True) is not False else "DISABLED"
 
 
+def _hire_date(row: dict) -> date | None:
+    value = _text(row.get("first_contract_date"))
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value[:10])
+    except ValueError:
+        return None
+
+
 def _job_title(row: dict) -> str | None:
     return _text(row.get("job_title")) or _many2one_name(row.get("job_id"))
 
@@ -105,10 +118,13 @@ def _apply_odoo_values(
         # guessing culturally-specific first/last-name boundaries.
         profile.first_name = name or profile.first_name or f"Empleado Odoo {row['id']}"
         profile.last_name = None
+        profile.email = imported_email
         profile.status = _employee_status(row)
         profile.onboarding_status = "NOT_REQUIRED"
-
-    if profile.email is None and imported_email:
+        imported_hire_date = _hire_date(row)
+        if imported_hire_date is not None:
+            profile.hire_date = imported_hire_date
+    elif profile.email is None and imported_email:
         profile.email = imported_email
 
     title = _job_title(row)
@@ -160,8 +176,10 @@ def sync_employees_from_odoo(
             if imported_email and email_counts[imported_email] > 1:
                 duplicate_email_rows += 1
                 match_email = None
+                safe_email = None
             else:
                 match_email = imported_email
+                safe_email = imported_email
 
             profile = (
                 db.query(UserProfile)
@@ -176,13 +194,13 @@ def sync_employees_from_odoo(
             if profile is None:
                 profile = UserProfile(
                     cognito_sub=None,
-                    email=imported_email if email_counts.get(imported_email, 0) <= 1 else None,
+                    email=safe_email,
                     login_username=None,
                     first_name=_text(row.get("name")) or f"Empleado Odoo {odoo_id}",
                     last_name=None,
                     job_title=_job_title(row),
                     department=_department(row),
-                    hire_date=None,
+                    hire_date=_hire_date(row),
                     onboarding_status="NOT_REQUIRED",
                     status=_employee_status(row),
                     created_by_sub=actor_sub,
@@ -201,7 +219,7 @@ def sync_employees_from_odoo(
                 _apply_odoo_values(
                     profile,
                     row=row,
-                    imported_email=imported_email,
+                    imported_email=safe_email,
                 )
                 updated += 1
 
