@@ -170,10 +170,10 @@ def recognize_employee(
 def revoke_employee_enrollment(
     db: Session,
     *,
-    provider: BiometricProvider,
     employee_id: str,
+    provider: BiometricProvider | None = None,
 ) -> bool:
-    """Disable local recognition immediately and delete the provider user."""
+    """Disable local recognition immediately and optionally purge the provider."""
     enrollment = get_employee_enrollment(db, employee_id)
     if enrollment is None:
         return False
@@ -184,5 +184,6 @@ def revoke_employee_enrollment(
     db.commit()
     db.refresh(enrollment)
 
-    provider.delete_user(provider_user_id=provider_user_id)
+    if provider is not None:
+        provider.delete_user(provider_user_id=provider_user_id)
     return True
