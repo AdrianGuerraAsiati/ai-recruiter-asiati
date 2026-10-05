@@ -1,7 +1,6 @@
 package com.asiati.talentid.camera
 
 import android.content.Context
-import android.net.Uri
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
@@ -13,20 +12,38 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import com.google.mlkit.vision.barcode.Barcode
+import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
+import java.net.URI
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 
 private const val TALENT_QR_SCHEME = "talentid"
 private const val TALENT_QR_HOST = "attendance"
 
 fun extractTalentQrToken(rawValue: String): String? {
-    val uri = runCatching { Uri.parse(rawValue.trim()) }.getOrNull() ?: return null
+    val uri = runCatching { URI(rawValue.trim()) }.getOrNull() ?: return null
     if (uri.scheme != TALENT_QR_SCHEME || uri.host != TALENT_QR_HOST) {
         return null
     }
-    val token = uri.getQueryParameter("token")?.trim().orEmpty()
+
+    val token = uri.rawQuery
+        ?.split("&")
+        ?.asSequence()
+        ?.mapNotNull { part ->
+            val pieces = part.split("=", limit = 2)
+            if (pieces.size != 2 || pieces[0] != "token") {
+                null
+            } else {
+                URLDecoder.decode(pieces[1], StandardCharsets.UTF_8)
+            }
+        }
+        ?.firstOrNull()
+        ?.trim()
+        .orEmpty()
+
     return token.takeIf { it.length >= 16 }
 }
 
