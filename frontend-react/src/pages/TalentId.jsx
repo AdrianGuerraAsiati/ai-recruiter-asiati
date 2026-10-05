@@ -7,6 +7,7 @@ import TalentIdDeviceManager from "../components/TalentIdDeviceManager";
 import PageHeader from "../components/ui/PageHeader";
 import { EmptyState, FeedbackMessage, LoadingState, MetricCard } from "../components/ui/StatePanel";
 import { getApiErrorMessage } from "../utils/errors";
+import "../talent-id.css";
 
 
 function emptySiteForm() {
