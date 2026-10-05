@@ -1,105 +1,54 @@
-# Playbook de Rollback Rápido — Canary DNS
+# Playbook de Rollback — Talent Intelligence
 
-## Variables
+La estrategia actual de despliegue usa imágenes ECR inmutables por SHA y conserva las
+imágenes recientes en la instancia para rollback rápido.
 
-```bash
-export REEMPLAZAR_HOSTED_ZONE_ID="REEMPLAZAR_AQUI"
-export REEMPLAZAR_ALB_DNS="REEMPLAZAR_AQUI"
-export REEMPLAZAR_ALB_HOSTED_ZONE_ID="REEMPLAZAR_AQUI"
-export REEMPLAZAR_LIGHTSAIL_LB_DNS="REEMPLAZAR_AQUI"
-export REEMPLAZAR_LIGHTSAIL_HOSTED_ZONE_ID="REEMPLAZAR_AQUI"
-export REEMPLAZAR_DOMAIN="REEMPLAZAR_AQUI"
-```
+## Rollback automático
 
----
+Los scripts:
 
-## Paso 1 — Revertir Route53 a 100% OLD
+- `scripts/deploy-api.sh`
+- `scripts/deploy-worker.sh`
+- `scripts/deploy-frontend.sh`
 
-```bash
-# Aplicar change-batch de rollback
-aws route53 change-resource-record-sets \
-  --hosted-zone-id "$REEMPLAZAR_HOSTED_ZONE_ID" \
-  --change-batch file://infra/rollback-100-old.json
+capturan la imagen anterior antes de reemplazar el contenedor. Si la nueva versión no
+supera su verificación, restauran automáticamente la imagen anterior.
 
-# Verificar que el cambio se aplicó
-aws route53 list-resource-record-sets \
-  --hosted-zone-id "$REEMPLAZAR_HOSTED_ZONE_ID" \
-  --query "ResourceRecordSets[?Name=='api.${REEMPLAZAR_DOMAIN}.'].{Name:Name,SetIdentifier:SetIdentifier,Weight:Weight}" \
-  --output table
-```
-
-## Paso 2 — Desactivar feature flag (alternativa)
+## Identificar versión actual
 
 ```bash
-# Si usas feature flag en frontend, desactivar via S3/Parameter Store
-aws ssm put-parameter \
-  --name "/ai-recruiter/USE_NEW_BACKEND" \
-  --value "false" \
-  --type String \
-  --overwrite
-
-# O via S3 (si el frontend lee de ahí)
-aws s3 cp s3://REEMPLAZAR_AQUI/config.json s3://REEMPLAZAR_AQUI/config.json \
-  --metadata '{"USE_NEW_BACKEND":"false"}' \
-  --metadata-directive REPLACE
+sudo docker inspect ai-recruiter-api --format '{{.Config.Image}}'
+sudo docker inspect ai-recruiter-worker --format '{{.Config.Image}}'
+sudo docker inspect ai-recruiter-web --format '{{.Config.Image}}'
 ```
 
-## Paso 3 — Verificar post-rollback
+## Ver imágenes disponibles
 
 ```bash
-# 3.1 Health check OLD
-curl -sf "https://api.${REEMPLAZAR_DOMAIN}/health" | python -m json.tool
-
-# 3.2 Health check NEW (debe seguir respondiendo pero sin tráfico)
-curl -sf "https://REEMPLAZAR_AQUI/health" | python -m json.tool
-
-# 3.3 Smoke tests
-OLD_BASE="https://api.${REEMPLAZAR_DOMAIN}" \
-NEW_BASE="https://REEMPLAZAR_AQUI" \
-JOB_ID="REEMPLAZAR_AQUI" \
-python scripts/smoke_canary.py
-
-# 3.4 Verificar logs CloudWatch (no errores nuevos)
-aws logs filter-log-events \
-  --log-group-name "/ecs/ai-recruiter-api" \
-  --filter-pattern "ERROR" \
-  --start-time $(($(date +%s) * 1000 - 600000)) \
-  --region "$AWS_REGION" \
-  --query "events | length(@)" \
-  --output text
+sudo docker image ls --digests
 ```
 
-## Paso 4 — Escalar si persiste el problema
+El despliegue conserva varias imágenes recientes para permitir recuperación sin
+reconstrucción.
 
-```bash
-# Si el OLD backend tiene problemas después del rollback:
-# 1. Verificar ECS tasks
-aws ecs describe-services \
-  --cluster ai-recruiter-cluster \
-  --services ai-recruiter-api \
-  --query "services[0].deployments[*].{Status:status,Running:runningCount}"
+## Regla para rollback manual
 
-# 2. Escalar si es necesario
-aws ecs update-service \
-  --cluster ai-recruiter-cluster \
-  --service ai-recruiter-api \
-  --desired-count 3 \
-  --region "$AWS_REGION"
+1. Confirmar que el problema comenzó con un despliegue concreto.
+2. Confirmar que PostgreSQL está sano.
+3. Identificar el SHA estable anterior.
+4. Reutilizar los scripts de deploy con ese SHA en lugar de crear contenedores ad hoc.
+5. Verificar `/api/live`, `/api/ready` y frontend.
+6. No promover `latest` hasta terminar la validación.
 
-# 3. Esperar estabilidad
-aws ecs wait services-stable \
-  --cluster ai-recruiter-cluster \
-  --services ai-recruiter-api \
-  --region "$AWS_REGION"
-```
+## Base de datos
 
-## Checklist de verificación
+Un rollback de aplicación **no revierte automáticamente una migración de esquema**.
 
-| # | Verificación | Comando | Estado |
-|---|-------------|---------|--------|
-| 1 | Route53 100% OLD | `list-resource-record-sets` | ☐ |
-| 2 | Health OLD 200 | `curl /health` | ☐ |
-| 3 | Health NEW 200 | `curl /health` | ☐ |
-| 4 | Smoke tests OK | `smoke_canary.py` | ☐ |
-| 5 | Logs sin errores | `filter-log-events ERROR` | ☐ |
-| 6 | Tráfico normal | CloudWatch metrics | ☐ |
+Antes de cualquier restauración de DB:
+
+- validar el backup;
+- validar checksum;
+- confirmar explícitamente el destino;
+- usar `scripts/restore-postgres.sh`.
+
+No ejecutar restore si un rollback de imagen es suficiente.
