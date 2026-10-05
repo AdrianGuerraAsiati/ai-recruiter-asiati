@@ -35,12 +35,18 @@ private data class PendingAttendance(
     val idempotencyKey: String,
 )
 
+private data class PendingQrAttendance(
+    val token: String,
+    val eventType: AttendanceEventType,
+)
+
 class KioskViewModel(
     private val credentialStore: DeviceCredentialStore,
     private val api: TalentIdApi,
 ) : ViewModel() {
     private var credentials: DeviceCredentials? = credentialStore.load()
     private var pendingAttendance: PendingAttendance? = null
+    private var pendingQrAttendance: PendingQrAttendance? = null
 
     private val _state = MutableStateFlow(
         KioskUiState(credentialsConfigured = credentials != null),
@@ -84,6 +90,7 @@ class KioskViewModel(
     fun clearProvisioning() {
         pendingAttendance?.image?.delete()
         pendingAttendance = null
+        pendingQrAttendance = null
         credentials = null
         credentialStore.clear()
         _state.value = KioskUiState()
@@ -129,9 +136,23 @@ class KioskViewModel(
     }
 
     fun retryPending() {
-        if (pendingAttendance != null) {
-            submitPending()
+        when {
+            pendingAttendance != null -> submitPending()
+            pendingQrAttendance != null -> submitPendingQr()
         }
+    }
+
+    fun submitQrAttendance(
+        token: String,
+        eventType: AttendanceEventType,
+    ) {
+        pendingAttendance?.image?.delete()
+        pendingAttendance = null
+        pendingQrAttendance = PendingQrAttendance(
+            token = token,
+            eventType = eventType,
+        )
+        submitPendingQr()
     }
 
     fun dismissResult() {
@@ -185,6 +206,51 @@ class KioskViewModel(
         }
     }
 
+
+    private fun submitPendingQr() {
+        val currentCredentials = credentials ?: return
+        val pending = pendingQrAttendance ?: return
+
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    submitting = true,
+                    error = null,
+                    retryAvailable = false,
+                )
+            }
+
+            try {
+                val result = api.submitQr(
+                    credentials = currentCredentials,
+                    token = pending.token,
+                    eventType = pending.eventType,
+                )
+                pendingQrAttendance = null
+                _state.update {
+                    it.copy(
+                        submitting = false,
+                        lastResult = result,
+                        error = null,
+                        retryAvailable = false,
+                    )
+                }
+            } catch (error: Throwable) {
+                val canRetry = error is IOException && error !is TalentIdApiException
+                if (!canRetry) {
+                    pendingQrAttendance = null
+                }
+                _state.update {
+                    it.copy(
+                        submitting = false,
+                        error = userMessage(error),
+                        retryAvailable = canRetry,
+                    )
+                }
+            }
+        }
+    }
+
     private fun setError(message: String) {
         _state.update { it.copy(error = message) }
     }
@@ -192,8 +258,10 @@ class KioskViewModel(
     private fun userMessage(error: Throwable): String = when (error) {
         is TalentIdApiException -> when (error.statusCode) {
             401 -> "Este dispositivo no está autorizado."
-            404 -> "No pudimos reconocer al empleado."
-            409 -> "La marcación ya fue utilizada para otra operación."
+            404 -> "No pudimos validar la marcación."
+            409 -> "Este código ya fue utilizado para otra operación."
+            410 -> "El código QR expiró. Genera uno nuevo en tu celular."
+            422 -> error.message ?: "El código QR o la solicitud no son válidos."
             else -> error.message ?: "Talent ID rechazó la solicitud."
         }
         is IOException -> "No hay conexión con Talent ID."
