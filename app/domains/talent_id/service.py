@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import secrets
 import uuid
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -417,9 +417,22 @@ def record_manual_attendance(
     event_type: str,
     reason: str,
     created_by_sub: str,
+    occurred_at: datetime | None = None,
 ) -> tuple[TalentAttendanceEvent, bool]:
     """Create an audited contingency attendance event at the employee's assigned site."""
     settings = get_employee_attendance_settings(db, employee_id)
+    effective_time = occurred_at or _now()
+    if effective_time.tzinfo is None:
+        effective_time = effective_time.replace(tzinfo=timezone.utc)
+    else:
+        effective_time = effective_time.astimezone(timezone.utc)
+
+    now = _now()
+    if effective_time > now.replace(microsecond=0) + timedelta(minutes=5):
+        raise ValueError("La hora de contingencia no puede estar en el futuro.")
+    if effective_time < now - timedelta(days=31):
+        raise ValueError("La marcación manual solo puede registrarse hasta 31 días atrás.")
+
     if not settings.attendance_eligible:
         raise EmployeeNotEligibleForAttendance()
     if not settings.site_id:
@@ -436,6 +449,7 @@ def record_manual_attendance(
         recognition_confidence=None,
         manual_reason=reason,
         created_by_sub=created_by_sub,
+        occurred_at=effective_time,
     )
 
 
