@@ -43,6 +43,8 @@ CORE_TABLES = {
     "talent_employee_attendance_settings",
     "talent_kiosk_devices",
     "talent_biometric_enrollments",
+    "talent_biometric_consent_otps",
+    "talent_biometric_consent_events",
     "talent_attendance_events",
 }
 
@@ -104,6 +106,8 @@ def test_alembic_head_builds_current_postgres_schema():
             "talent_employee_attendance_settings",
             "talent_kiosk_devices",
             "talent_biometric_enrollments",
+            "talent_biometric_consent_otps",
+            "talent_biometric_consent_events",
             "talent_attendance_events",
         }.issubset(tables)
 
@@ -465,6 +469,6 @@ def test_alembic_head_builds_current_postgres_schema():
         assert admin_score_grants == 4
         assert admin_write_grants == {"candidates.manage", "ranking.recalculate"}
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
-        assert revision == "038"
+        assert revision == "039"
     finally:
         engine.dispose()
