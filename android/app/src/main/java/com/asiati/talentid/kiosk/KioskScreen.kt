@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -325,8 +326,12 @@ private fun KioskScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(if (wideLayout) 28.dp else 18.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+                .systemBarsPadding()
+                .padding(
+                    horizontal = if (wideLayout) 28.dp else 14.dp,
+                    vertical = if (wideLayout) 24.dp else 12.dp,
+                ),
+            verticalArrangement = Arrangement.spacedBy(if (wideLayout) 18.dp else 12.dp),
         ) {
             KioskHeader(context)
 
@@ -345,6 +350,25 @@ private fun KioskScreen(
                     lifecycleOwner = lifecycleOwner,
                 )
 
+                val captureAndSubmit: (AttendanceEventType) -> Unit = { eventType ->
+                    captureError = null
+                    capturing = true
+                    scope.launch {
+                        runCatching {
+                            captureKioskPhoto(
+                                context = androidContext,
+                                controller = controller,
+                            )
+                        }.onSuccess { photoFile ->
+                            onSubmit(photoFile, eventType)
+                            capturing = false
+                        }.onFailure {
+                            capturing = false
+                            captureError = "No fue posible tomar la fotografía. Intenta de nuevo."
+                        }
+                    }
+                }
+
                 if (wideLayout) {
                     Row(
                         modifier = Modifier
@@ -362,24 +386,7 @@ private fun KioskScreen(
                             state = state.copy(submitting = state.submitting || capturing),
                             captureError = captureError,
                             onRetryPending = onRetryPending,
-                            onEvent = { eventType ->
-                                captureError = null
-                                capturing = true
-                                scope.launch {
-                                    runCatching {
-                                        captureKioskPhoto(
-                                            context = androidContext,
-                                            controller = controller,
-                                        )
-                                    }.onSuccess { photoFile ->
-                                        onSubmit(photoFile, eventType)
-                                        capturing = false
-                                    }.onFailure {
-                                        capturing = false
-                                        captureError = "No fue posible tomar la fotografía. Intenta de nuevo."
-                                    }
-                                }
-                            },
+                            onEvent = captureAndSubmit,
                         )
                     }
                 } else {
@@ -389,36 +396,21 @@ private fun KioskScreen(
                             .weight(1f),
                         controller = controller,
                         submitting = state.submitting || capturing,
+                        compact = true,
                     )
-                    ActionPanel(
+                    MobileActionPanel(
                         modifier = Modifier.fillMaxWidth(),
                         state = state.copy(submitting = state.submitting || capturing),
                         captureError = captureError,
                         onRetryPending = onRetryPending,
-                        horizontalActions = true,
-                        onEvent = { eventType ->
-                            captureError = null
-                            capturing = true
-                            scope.launch {
-                                runCatching {
-                                    captureKioskPhoto(
-                                        context = androidContext,
-                                        controller = controller,
-                                    )
-                                }.onSuccess { photoFile ->
-                                    onSubmit(photoFile, eventType)
-                                    capturing = false
-                                }.onFailure {
-                                    capturing = false
-                                    captureError = "No fue posible tomar la fotografía. Intenta de nuevo."
-                                }
-                            }
-                        },
+                        onEvent = captureAndSubmit,
                     )
                 }
             }
 
-            FooterNote()
+            if (wideLayout) {
+                FooterNote()
+            }
         }
 
         state.lastResult?.let { result ->
@@ -472,43 +464,31 @@ private fun KioskHeader(context: KioskContext) {
                 )
             }
         } else {
-            Column(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    BrandBadge()
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Talent ID",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = TalentNavy,
-                        )
-                        Text(
-                            text = context.siteName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TalentInkSoft,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    StatusPill(
-                        label = "Conectado",
-                        color = TalentSuccess,
-                        background = TalentSuccessSoft,
+                BrandBadge()
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Talent ID",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = TalentNavy,
+                    )
+                    Text(
+                        text = context.siteName + " · " + context.deviceName,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TalentInkSoft,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Text(
-                    text = context.deviceName,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TalentInkSoft,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                StatusPill(
+                    label = "En línea",
+                    color = TalentSuccess,
+                    background = TalentSuccessSoft,
                 )
             }
         }
@@ -538,33 +518,39 @@ private fun CameraStage(
     modifier: Modifier,
     controller: androidx.camera.view.LifecycleCameraController,
     submitting: Boolean,
+    compact: Boolean = false,
 ) {
+    val cornerRadius = if (compact) 24.dp else 30.dp
+
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(30.dp),
+        shape = RoundedCornerShape(cornerRadius),
         color = TalentNavy,
-        shadowElevation = 4.dp,
+        shadowElevation = if (compact) 6.dp else 4.dp,
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             CameraPreview(
                 controller = controller,
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(30.dp)),
+                    .clip(RoundedCornerShape(cornerRadius)),
             )
 
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 18.dp)
+                    .padding(top = if (compact) 12.dp else 18.dp)
                     .background(
-                        color = TalentNavy.copy(alpha = 0.76f),
+                        color = TalentNavy.copy(alpha = 0.78f),
                         shape = RoundedCornerShape(18.dp),
                     )
-                    .padding(horizontal = 16.dp, vertical = 9.dp),
+                    .padding(
+                        horizontal = if (compact) 13.dp else 16.dp,
+                        vertical = if (compact) 7.dp else 9.dp,
+                    ),
             ) {
                 Text(
-                    text = "Mira a la cámara y centra tu rostro",
+                    text = if (compact) "Centra tu rostro" else "Mira a la cámara y centra tu rostro",
                     color = Color.White,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
@@ -574,21 +560,31 @@ private fun CameraStage(
             FaceGuide(
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .size(width = 205.dp, height = 270.dp),
+                    .size(
+                        width = if (compact) 168.dp else 205.dp,
+                        height = if (compact) 220.dp else 270.dp,
+                    ),
             )
 
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(18.dp)
+                    .padding(if (compact) 12.dp else 18.dp)
                     .background(
-                        color = TalentNavy.copy(alpha = 0.76f),
+                        color = TalentNavy.copy(alpha = 0.78f),
                         shape = RoundedCornerShape(16.dp),
                     )
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                    .padding(
+                        horizontal = if (compact) 12.dp else 14.dp,
+                        vertical = if (compact) 7.dp else 8.dp,
+                    ),
             ) {
                 Text(
-                    text = "Una persona · rostro visible · buena iluminación",
+                    text = if (compact) {
+                        "Rostro completo · buena iluminación"
+                    } else {
+                        "Una persona · rostro visible · buena iluminación"
+                    },
                     color = Color.White.copy(alpha = 0.92f),
                     style = MaterialTheme.typography.labelMedium,
                     textAlign = TextAlign.Center,
@@ -599,15 +595,15 @@ private fun CameraStage(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(TalentNavy.copy(alpha = 0.78f)),
+                        .background(TalentNavy.copy(alpha = 0.80f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 14.dp),
                     ) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(48.dp),
+                            modifier = Modifier.size(if (compact) 42.dp else 48.dp),
                             color = TalentCyan,
                             trackColor = Color.White.copy(alpha = 0.18f),
                         )
@@ -618,8 +614,12 @@ private fun CameraStage(
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            text = "Mantén el rostro frente a la cámara",
-                            color = Color.White.copy(alpha = 0.75f),
+                            text = if (compact) {
+                                "Mantén el rostro centrado"
+                            } else {
+                                "Mantén el rostro frente a la cámara"
+                            },
+                            color = Color.White.copy(alpha = 0.78f),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
@@ -640,6 +640,83 @@ private fun FaceGuide(modifier: Modifier = Modifier) {
             color = TalentCyan.copy(alpha = 0.55f),
             style = Stroke(width = 1.dp.toPx()),
         )
+    }
+}
+
+@Composable
+private fun MobileActionPanel(
+    modifier: Modifier,
+    state: KioskUiState,
+    captureError: String?,
+    onRetryPending: () -> Unit,
+    onEvent: (AttendanceEventType) -> Unit,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(24.dp),
+        color = Color.White,
+        shadowElevation = 6.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "Registra tu asistencia",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TalentInk,
+                )
+                Text(
+                    text = "Toca una opción y mantén el rostro dentro de la guía.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TalentInkSoft,
+                )
+            }
+
+            captureError?.let { ErrorBanner(it) }
+            state.error?.let { ErrorBanner(it) }
+
+            if (state.retryAvailable) {
+                RetryBanner(
+                    enabled = !state.submitting,
+                    onRetry = onRetryPending,
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                AttendanceAction(
+                    modifier = Modifier.weight(1f),
+                    title = "Entrada",
+                    subtitle = "Inicio",
+                    primary = true,
+                    enabled = !state.submitting,
+                    compact = true,
+                    onClick = { onEvent(AttendanceEventType.CHECK_IN) },
+                )
+                AttendanceAction(
+                    modifier = Modifier.weight(1f),
+                    title = "Salida",
+                    subtitle = "Fin",
+                    primary = false,
+                    enabled = !state.submitting,
+                    compact = true,
+                    onClick = { onEvent(AttendanceEventType.CHECK_OUT) },
+                )
+            }
+
+            Text(
+                modifier = Modifier.fillMaxWidth(),
+                text = "La imagen se usa únicamente para verificar esta marcación.",
+                style = MaterialTheme.typography.labelSmall,
+                color = TalentInkSoft,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
@@ -750,11 +827,12 @@ private fun AttendanceAction(
     subtitle: String,
     primary: Boolean,
     enabled: Boolean,
+    compact: Boolean = false,
     onClick: () -> Unit,
 ) {
     if (primary) {
         Button(
-            modifier = modifier.heightIn(min = 76.dp),
+            modifier = modifier.heightIn(min = if (compact) 66.dp else 76.dp),
             enabled = enabled,
             shape = RoundedCornerShape(18.dp),
             colors = ButtonDefaults.buttonColors(
@@ -781,7 +859,7 @@ private fun AttendanceAction(
         }
     } else {
         FilledTonalButton(
-            modifier = modifier.heightIn(min = 76.dp),
+            modifier = modifier.heightIn(min = if (compact) 66.dp else 76.dp),
             enabled = enabled,
             shape = RoundedCornerShape(18.dp),
             colors = ButtonDefaults.filledTonalButtonColors(
@@ -909,90 +987,103 @@ private fun SuccessOverlay(
     result: AttendanceResult,
     onDismiss: () -> Unit,
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(TalentNavy.copy(alpha = 0.68f))
-            .padding(24.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Surface(
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val compact = maxWidth < 620.dp
+
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = 500.dp),
-            shape = RoundedCornerShape(30.dp),
-            color = Color.White,
-            shadowElevation = 16.dp,
+                .fillMaxSize()
+                .background(TalentNavy.copy(alpha = 0.64f))
+                .padding(if (compact) 16.dp else 24.dp),
+            contentAlignment = if (compact) Alignment.BottomCenter else Alignment.Center,
         ) {
-            Column(
-                modifier = Modifier.padding(30.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 500.dp),
+                shape = RoundedCornerShape(if (compact) 26.dp else 30.dp),
+                color = Color.White,
+                shadowElevation = 16.dp,
             ) {
-                Surface(
-                    modifier = Modifier.size(76.dp),
-                    shape = CircleShape,
-                    color = TalentSuccessSoft,
+                Column(
+                    modifier = Modifier.padding(if (compact) 22.dp else 30.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 9.dp else 12.dp),
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "✓",
-                            color = TalentSuccess,
-                            style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.Bold,
-                        )
+                    Surface(
+                        modifier = Modifier.size(if (compact) 60.dp else 76.dp),
+                        shape = CircleShape,
+                        color = TalentSuccessSoft,
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "✓",
+                                color = TalentSuccess,
+                                style = if (compact) {
+                                    MaterialTheme.typography.headlineMedium
+                                } else {
+                                    MaterialTheme.typography.headlineLarge
+                                },
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
                     }
+
+                    Text(
+                        text = "Marcación registrada",
+                        style = if (compact) {
+                            MaterialTheme.typography.titleLarge
+                        } else {
+                            MaterialTheme.typography.headlineSmall
+                        },
+                        fontWeight = FontWeight.Bold,
+                        color = TalentInk,
+                        textAlign = TextAlign.Center,
+                    )
+
+                    Text(
+                        text = result.displayName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TalentNavy,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+
+                    StatusPill(
+                        label = if (result.eventType == AttendanceEventType.CHECK_IN) {
+                            "Entrada registrada"
+                        } else {
+                            "Salida registrada"
+                        },
+                        color = TalentSuccess,
+                        background = TalentSuccessSoft,
+                    )
+
+                    Text(
+                        text = "Identidad verificada · " +
+                            String.format("%.1f", result.similarity) + "%",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TalentInkSoft,
+                    )
+
+                    Button(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 52.dp),
+                        onClick = onDismiss,
+                    ) {
+                        Text("Listo")
+                    }
+
+                    Text(
+                        text = "Se cerrará automáticamente en unos segundos.",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TalentInkSoft,
+                        textAlign = TextAlign.Center,
+                    )
                 }
-
-                Text(
-                    text = "Marcación registrada",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = TalentInk,
-                    textAlign = TextAlign.Center,
-                )
-
-                Text(
-                    text = result.displayName,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TalentNavy,
-                    textAlign = TextAlign.Center,
-                )
-
-                StatusPill(
-                    label = if (result.eventType == AttendanceEventType.CHECK_IN) {
-                        "Entrada registrada"
-                    } else {
-                        "Salida registrada"
-                    },
-                    color = TalentSuccess,
-                    background = TalentSuccessSoft,
-                )
-
-                Text(
-                    text = "Identidad verificada · " +
-                        String.format("%.1f", result.similarity) + "%",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TalentInkSoft,
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Button(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 52.dp),
-                    onClick = onDismiss,
-                ) {
-                    Text("Listo")
-                }
-
-                Text(
-                    text = "Esta confirmación se cerrará automáticamente.",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = TalentInkSoft,
-                )
             }
         }
     }
