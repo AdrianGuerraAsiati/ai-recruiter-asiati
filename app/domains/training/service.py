@@ -26,8 +26,11 @@ from app.domains.training.errors import (
     TrainingNotFound,
     TrainingStateError,
 )
-from app.domains.training.policies import is_system_managed_course as _is_system_managed_course
-from app.domains.training.policies import validate_system_managed_course_update
+from app.domains.training.policies import (
+    is_system_managed_course as _is_system_managed_course,
+    lesson_visible_to_employee,
+    validate_system_managed_course_update,
+)
 from app.domains.training.video_progress import reject_manual_video_completion, video_progress_payload
 
 
@@ -91,23 +94,6 @@ def _module_applies(
     return True
 
 
-ASIATI_PENDING_CORPORATE_VIDEO_TITLES = {
-    "Módulo 1 · ASIATI",
-    "Módulo 2 · ASIATI",
-    "Módulo 3 · ASIATI",
-}
-
-
-def _lesson_visible_to_employee(lesson: TrainingLesson) -> bool:
-    if (
-        lesson.title in ASIATI_PENDING_CORPORATE_VIDEO_TITLES
-        and not lesson.video_storage_key
-        and not lesson.video_url
-    ):
-        return False
-    return True
-
-
 def _module_lessons(
     module: TrainingModule,
     employee: UserProfile | None = None,
@@ -118,7 +104,7 @@ def _module_lessons(
     return [
         lesson
         for lesson in lessons
-        if _lesson_visible_to_employee(lesson)
+        if lesson_visible_to_employee(lesson)
     ]
 
 
@@ -1278,7 +1264,7 @@ def complete_lesson(
         raise TrainingStateError("This course is not available.")
     if not _module_applies(lesson.module, assignment.employee):
         raise TrainingStateError("This lesson is not assigned to your profile.")
-    if not _lesson_visible_to_employee(lesson):
+    if not lesson_visible_to_employee(lesson):
         raise TrainingStateError("This lesson is not available yet.")
     reject_manual_video_completion(lesson)
     if (
@@ -1332,7 +1318,7 @@ def update_checklist_progress(
         raise TrainingStateError("This course is not available.")
     if not _module_applies(lesson.module, assignment.employee):
         raise TrainingStateError("This lesson is not assigned to your profile.")
-    if not _lesson_visible_to_employee(lesson):
+    if not lesson_visible_to_employee(lesson):
         raise TrainingStateError("This lesson is not available yet.")
     if str(lesson.content_type or "").upper() != "CHECKLIST":
         raise TrainingStateError("This lesson is not a checklist.")
