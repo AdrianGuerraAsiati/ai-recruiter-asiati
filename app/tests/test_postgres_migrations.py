@@ -477,7 +477,16 @@ def test_alembic_head_builds_current_postgres_schema():
 
         assert admin_score_grants == 4
         assert admin_write_grants == {"candidates.manage", "ranking.recalculate"}
+        attendance_columns = {
+            column["name"]
+            for column in inspector.get_columns("talent_attendance_events")
+        }
+        assert {
+            "manual_reason",
+            "created_by_sub",
+        }.issubset(attendance_columns)
+
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
-        assert revision == "041"
+        assert revision == "042"
     finally:
         engine.dispose()
