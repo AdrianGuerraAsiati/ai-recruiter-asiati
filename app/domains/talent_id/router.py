@@ -158,6 +158,33 @@ def create_schedule(
     return service.schedule_payload(schedule)
 
 
+@router.get("/employees/{employee_id}/attendance")
+def get_employee_attendance(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.read")),
+):
+    try:
+        service.get_employee(db, employee_id)
+        settings = service.get_employee_attendance_settings(db, employee_id)
+    except service.TalentIdNotFound:
+        return {
+            "employee_id": employee_id,
+            "configured": False,
+            "site_id": None,
+            "schedule_id": None,
+            "attendance_eligible": False,
+        }
+
+    return {
+        "employee_id": settings.employee_id,
+        "configured": True,
+        "site_id": settings.site_id,
+        "schedule_id": settings.schedule_id,
+        "attendance_eligible": bool(settings.attendance_eligible),
+    }
+
+
 @router.put("/employees/{employee_id}/attendance")
 def configure_employee_attendance(
     employee_id: str,
@@ -181,6 +208,38 @@ def configure_employee_attendance(
         "site_id": settings.site_id,
         "schedule_id": settings.schedule_id,
         "attendance_eligible": bool(settings.attendance_eligible),
+    }
+
+
+@router.get("/employees/{employee_id}/biometrics")
+def get_employee_biometrics(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.read")),
+):
+    try:
+        service.get_employee(db, employee_id)
+    except Exception as exc:
+        return _translate(exc)
+
+    enrollment = biometrics.get_employee_enrollment(db, employee_id)
+    if enrollment is None:
+        return {
+            "employee_id": employee_id,
+            "enrolled": False,
+            "provider": None,
+            "face_count": 0,
+            "active": False,
+            "enrolled_at": None,
+        }
+
+    return {
+        "employee_id": enrollment.employee_id,
+        "enrolled": True,
+        "provider": enrollment.provider,
+        "face_count": int(enrollment.face_count or 0),
+        "active": bool(enrollment.active),
+        "enrolled_at": enrollment.enrolled_at.isoformat(),
     }
 
 
