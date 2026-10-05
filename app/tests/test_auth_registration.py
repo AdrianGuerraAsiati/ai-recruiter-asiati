@@ -208,6 +208,8 @@ def test_login_returns_only_access_token_and_sets_lax_refresh_cookie(monkeypatch
     assert "httponly" in set_cookie
     assert "secure" in set_cookie
     assert "samesite=lax" in set_cookie
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["pragma"] == "no-cache"
     assert "id-token-should-not-be-returned" not in response.body.decode("utf-8")
 
 

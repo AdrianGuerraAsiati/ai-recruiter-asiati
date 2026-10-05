@@ -48,7 +48,7 @@ def test_candidate_import_bucket_cors_is_explicit_and_upload_only():
 
     assert set(rule["AllowedMethods"]) == {"POST", "HEAD"}
     assert set(rule["AllowedOrigins"]) == {
-        "https://ai.adrianguerra.net",
+        "https://talent.asiaticorp.com",
         "http://localhost:5173",
         "http://localhost:5174",
         "http://localhost:5175",
@@ -120,48 +120,15 @@ def test_candidate_import_template_exposes_runtime_outputs_and_parameter():
 
 
 
-def test_candidate_import_template_has_operational_cloudwatch_alarms():
+
+def test_candidate_import_template_does_not_provision_fixed_cost_monitoring():
     template = _template()
     resources = template["Resources"]
 
-    assert template["Parameters"]["AlarmTopicArn"]["Default"] == ""
-    assert template["Parameters"]["EnableOperationalAlarms"]["Default"] == "false"
-    assert set(template["Parameters"]["EnableOperationalAlarms"]["AllowedValues"]) == {
-        "true",
-        "false",
-    }
-    assert "CreateOperationalAlarms" in template["Conditions"]
-    assert "HasAlarmTopic" in template["Conditions"]
-
-    for resource_name in (
-        "ImportDlqVisibleMessagesAlarm",
-        "ImportQueueBacklogAlarm",
-        "ImportQueueOldestMessageAlarm",
-    ):
-        assert resources[resource_name]["Condition"] == "CreateOperationalAlarms"
-
-    dlq_alarm = resources["ImportDlqVisibleMessagesAlarm"]["Properties"]
-    backlog_alarm = resources["ImportQueueBacklogAlarm"]["Properties"]
-    age_alarm = resources["ImportQueueOldestMessageAlarm"]["Properties"]
-
-    assert dlq_alarm["MetricName"] == "ApproximateNumberOfMessagesVisible"
-    assert dlq_alarm["Threshold"] == 1
-    assert dlq_alarm["TreatMissingData"] == "notBreaching"
-
-    assert backlog_alarm["MetricName"] == "ApproximateNumberOfMessagesVisible"
-    assert backlog_alarm["Threshold"] == 50
-    assert backlog_alarm["EvaluationPeriods"] == 2
-
-    assert age_alarm["MetricName"] == "ApproximateAgeOfOldestMessage"
-    assert age_alarm["Threshold"] == 900
-    assert age_alarm["EvaluationPeriods"] == 2
-
-    for alarm in (dlq_alarm, backlog_alarm, age_alarm):
-        assert alarm["Namespace"] == "AWS/SQS"
-        assert alarm["AlarmActions"]["Fn::If"][0] == "HasAlarmTopic"
-
-    assert set(template["Outputs"]) >= {
-        "ImportDlqAlarmName",
-        "ImportQueueBacklogAlarmName",
-        "ImportQueueOldestMessageAlarmName",
-    }
+    assert "AlarmTopicArn" not in template["Parameters"]
+    assert "EnableOperationalAlarms" not in template["Parameters"]
+    assert all(
+        resource.get("Type") != "AWS::CloudWatch::Alarm"
+        for resource in resources.values()
+    )
+    assert all("Alarm" not in output_name for output_name in template["Outputs"])

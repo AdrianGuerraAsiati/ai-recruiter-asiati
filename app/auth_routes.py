@@ -92,6 +92,8 @@ def _json_auth_response(auth: dict) -> JSONResponse:
         "access_token": access_token,
         "expires_in": auth.get("ExpiresIn"),
     })
+    resp.headers["Cache-Control"] = "no-store"
+    resp.headers["Pragma"] = "no-cache"
     if auth.get("RefreshToken"):
         resp.set_cookie(
             "ai_recruiter_refresh",
@@ -274,6 +276,8 @@ def refresh(request: Request):
             "access_token": access_token,
             "expires_in": auth.get("ExpiresIn"),
         })
+        resp.headers["Cache-Control"] = "no-store"
+        resp.headers["Pragma"] = "no-cache"
         if auth.get("RefreshToken"):
             resp.set_cookie(
                 "ai_recruiter_refresh",

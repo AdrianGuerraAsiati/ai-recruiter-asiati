@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.auth_routes import router as auth_router
-from app.config import CORS_ORIGINS, get_database_url
+from app.config import CORS_ORIGINS, api_docs_enabled, get_database_url
 from app.access_control import ensure_rbac_catalog
 from app.db import SessionLocal
 from app.domains.candidate_imports.router import router as candidate_imports_router
@@ -36,10 +36,14 @@ logger = logging.getLogger(__name__)
 def create_app() -> FastAPI:
     """Build the FastAPI application without changing its public contract."""
     configure_logging()
+    expose_docs = api_docs_enabled()
     app = FastAPI(
         title="AI Recruiter API (PostgreSQL)",
         description="Ranking de candidatos con PostgreSQL + advisory locks",
         version="2.0.0",
+        docs_url="/docs" if expose_docs else None,
+        redoc_url="/redoc" if expose_docs else None,
+        openapi_url="/openapi.json" if expose_docs else None,
     )
 
     install_request_observability(app)

@@ -15,6 +15,7 @@ run_frontend() {
     --name "$CONTAINER_NAME" \
     --network "$NETWORK_NAME" \
     --restart unless-stopped \
+    --security-opt no-new-privileges:true \
     --pids-limit 128 \
     --log-opt max-size=10m \
     --log-opt max-file=3 \
