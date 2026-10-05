@@ -1,6 +1,6 @@
 // eslint-disable-next-line no-unused-vars
 import React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
@@ -35,7 +35,7 @@ function BiometricConsentCard() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -50,11 +50,14 @@ function BiometricConsentCard() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    void load();
-  }, []);
+    const timeoutId = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [load]);
 
   const status = state?.status || "PENDING";
   const statusCopy = STATUS_COPY[status] || STATUS_COPY.PENDING;
@@ -263,7 +266,7 @@ function BiometricConsentCard() {
             onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
             inputMode="numeric"
             autoComplete="one-time-code"
-            pattern="\d{6}"
+            pattern="[0-9]{6}"
             placeholder="000000"
             required
           />

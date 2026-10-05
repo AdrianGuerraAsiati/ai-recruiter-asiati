@@ -1,7 +1,7 @@
 """Domain policies for protected training resources."""
 
 from app.domains.training.errors import TrainingStateError
-from app.domains.training.models import TrainingCourse
+from app.domains.training.models import TrainingCourse, TrainingLesson
 
 
 def is_system_managed_course(course: TrainingCourse) -> bool:
@@ -27,3 +27,19 @@ def validate_system_managed_course_update(
         raise TrainingStateError(
             "The corporate onboarding publication status is managed by the system."
         )
+
+
+
+ASIATI_PENDING_CORPORATE_VIDEO_TITLES = {
+    "Módulo 1 · ASIATI",
+    "Módulo 2 · ASIATI",
+    "Módulo 3 · ASIATI",
+}
+
+
+def lesson_visible_to_employee(lesson: TrainingLesson) -> bool:
+    return not (
+        lesson.title in ASIATI_PENDING_CORPORATE_VIDEO_TITLES
+        and not lesson.video_storage_key
+        and not lesson.video_url
+    )

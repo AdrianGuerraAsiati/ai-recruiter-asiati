@@ -497,6 +497,6 @@ def test_alembic_head_builds_current_postgres_schema():
         }.issubset(attendance_columns)
 
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
-        assert revision == "043"
+        assert revision == "044"
     finally:
         engine.dispose()

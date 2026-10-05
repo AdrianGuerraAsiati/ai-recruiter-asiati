@@ -26,8 +26,11 @@ from app.domains.training.errors import (
     TrainingNotFound,
     TrainingStateError,
 )
-from app.domains.training.policies import is_system_managed_course as _is_system_managed_course
-from app.domains.training.policies import validate_system_managed_course_update
+from app.domains.training.policies import (
+    is_system_managed_course as _is_system_managed_course,
+    lesson_visible_to_employee as _lesson_visible_to_employee,
+    validate_system_managed_course_update,
+)
 from app.domains.training.video_progress import reject_manual_video_completion, video_progress_payload
 
 
@@ -87,23 +90,6 @@ def _module_applies(
     if job_target and job_target != _normalize_scope(employee.job_title):
         return False
     if department_target and department_target != _normalize_scope(employee.department):
-        return False
-    return True
-
-
-ASIATI_PENDING_CORPORATE_VIDEO_TITLES = {
-    "Módulo 1 · ASIATI",
-    "Módulo 2 · ASIATI",
-    "Módulo 3 · ASIATI",
-}
-
-
-def _lesson_visible_to_employee(lesson: TrainingLesson) -> bool:
-    if (
-        lesson.title in ASIATI_PENDING_CORPORATE_VIDEO_TITLES
-        and not lesson.video_storage_key
-        and not lesson.video_url
-    ):
         return False
     return True
 
