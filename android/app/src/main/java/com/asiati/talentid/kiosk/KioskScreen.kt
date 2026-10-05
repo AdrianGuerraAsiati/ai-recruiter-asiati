@@ -295,6 +295,7 @@ private fun KioskScreen(
         )
     }
     var captureError by remember { mutableStateOf<String?>(null) }
+    var capturing by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -355,15 +356,16 @@ private fun KioskScreen(
                         CameraStage(
                             modifier = Modifier.weight(1.55f),
                             controller = controller,
-                            submitting = state.submitting,
+                            submitting = state.submitting || capturing,
                         )
                         ActionPanel(
                             modifier = Modifier.weight(0.85f),
-                            state = state,
+                            state = state.copy(submitting = state.submitting || capturing),
                             captureError = captureError,
                             onRetryPending = onRetryPending,
                             onEvent = { eventType ->
                                 captureError = null
+                                capturing = true
                                 scope.launch {
                                     runCatching {
                                         captureKioskPhoto(
@@ -372,7 +374,9 @@ private fun KioskScreen(
                                         )
                                     }.onSuccess { photoFile ->
                                         onSubmit(photoFile, eventType)
+                                        capturing = false
                                     }.onFailure {
+                                        capturing = false
                                         captureError = "No fue posible tomar la fotografía. Intenta de nuevo."
                                     }
                                 }
@@ -385,16 +389,17 @@ private fun KioskScreen(
                             .fillMaxWidth()
                             .weight(1f),
                         controller = controller,
-                        submitting = state.submitting,
+                        submitting = state.submitting || capturing,
                     )
                     ActionPanel(
                         modifier = Modifier.fillMaxWidth(),
-                        state = state,
+                        state = state.copy(submitting = state.submitting || capturing),
                         captureError = captureError,
                         onRetryPending = onRetryPending,
                         horizontalActions = true,
                         onEvent = { eventType ->
                             captureError = null
+                            capturing = true
                             scope.launch {
                                 runCatching {
                                     captureKioskPhoto(
@@ -426,55 +431,104 @@ private fun KioskScreen(
 
 @Composable
 private fun KioskHeader(context: KioskContext) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Surface(
-            modifier = Modifier.size(46.dp),
-            shape = RoundedCornerShape(14.dp),
-            color = TalentNavy,
-        ) {
-            Box(contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        if (maxWidth >= 620.dp) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BrandBadge()
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Talent ID",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = TalentNavy,
+                    )
+                    Text(
+                        text = context.siteName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TalentInkSoft,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                StatusPill(
+                    label = "Kiosco conectado",
+                    color = TalentSuccess,
+                    background = TalentSuccessSoft,
+                )
+
                 Text(
-                    text = "TI",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.widthIn(max = 180.dp),
+                    text = context.deviceName,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TalentInkSoft,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    BrandBadge()
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Talent ID",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = TalentNavy,
+                        )
+                        Text(
+                            text = context.siteName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TalentInkSoft,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    StatusPill(
+                        label = "Conectado",
+                        color = TalentSuccess,
+                        background = TalentSuccessSoft,
+                    )
+                }
+                Text(
+                    text = context.deviceName,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TalentInkSoft,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
+    }
+}
 
-        Column(modifier = Modifier.weight(1f)) {
+@Composable
+private fun BrandBadge() {
+    Surface(
+        modifier = Modifier.size(46.dp),
+        shape = RoundedCornerShape(14.dp),
+        color = TalentNavy,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
             Text(
-                text = "Talent ID",
-                style = MaterialTheme.typography.headlineSmall,
+                text = "TI",
+                color = Color.White,
                 fontWeight = FontWeight.Bold,
-                color = TalentNavy,
-            )
-            Text(
-                text = context.siteName,
-                style = MaterialTheme.typography.bodyMedium,
-                color = TalentInkSoft,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleMedium,
             )
         }
-
-        StatusPill(
-            label = "Kiosco conectado",
-            color = TalentSuccess,
-            background = TalentSuccessSoft,
-        )
-
-        Text(
-            text = context.deviceName,
-            style = MaterialTheme.typography.labelMedium,
-            color = TalentInkSoft,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
 
