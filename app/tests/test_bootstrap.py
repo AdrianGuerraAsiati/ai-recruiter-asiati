@@ -53,3 +53,14 @@ def test_create_app_exposes_critical_routes():
 
 def test_main_app_uses_same_public_contract():
     assert _critical_paths(app) == _critical_paths(create_app())
+
+
+def test_create_app_can_hide_http_api_documentation(monkeypatch):
+    monkeypatch.setenv("API_DOCS_ENABLED", "false")
+    application = create_app()
+
+    assert application.docs_url is None
+    assert application.redoc_url is None
+    assert application.openapi_url is None
+    # The internal OpenAPI contract still exists for tests and tooling.
+    assert "/api/jobs" in application.openapi()["paths"]
