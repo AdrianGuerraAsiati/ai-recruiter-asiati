@@ -52,6 +52,7 @@ run_api() {
   docker run -d \
     --name "$CONTAINER_NAME" \
     --restart unless-stopped \
+    --security-opt no-new-privileges:true \
     --network "$NETWORK_NAME" \
     --add-host=host.docker.internal:host-gateway \
     --pids-limit 256 \
