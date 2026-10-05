@@ -191,3 +191,32 @@ def test_existing_principal_resolution_does_not_commit_when_nothing_changes(db, 
 
     assert principal["roles"] == [EMPLOYEE]
     assert commits == []
+
+
+
+def test_authenticated_identity_adopts_existing_odoo_profile_by_email(db):
+    ensure_rbac_catalog(db)
+    db.commit()
+    imported = UserProfile(
+        cognito_sub=None,
+        email="imported@asiati.com.co",
+        odoo_employee_id="77",
+        first_name="Empleado Importado",
+        onboarding_status="NOT_REQUIRED",
+        status="ACTIVE",
+    )
+    db.add(imported)
+    db.flush()
+    assign_role(db, imported, EMPLOYEE)
+    db.commit()
+
+    principal = resolve_principal(
+        db,
+        {"sub": "cognito-imported-77", "email": "imported@asiati.com.co"},
+    )
+
+    db.refresh(imported)
+    assert principal["profile"]["id"] == imported.id
+    assert imported.cognito_sub == "cognito-imported-77"
+    assert imported.onboarding_status == "PENDING"
+    assert db.query(UserProfile).count() == 1
