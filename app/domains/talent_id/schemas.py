@@ -27,3 +27,9 @@ class ConfigureEmployeeAttendanceRequest(BaseModel):
 class ProvisionKioskRequest(BaseModel):
     site_id: str
     name: str = Field(min_length=2, max_length=120)
+
+
+class UpdateKioskRequest(BaseModel):
+    site_id: str | None = None
+    name: str | None = Field(default=None, min_length=2, max_length=120)
+    active: bool | None = None
