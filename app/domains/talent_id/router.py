@@ -30,6 +30,7 @@ from app.domains.talent_id.schemas import (
     RegisterMobileDeviceRequest,
     KioskQrAttendanceRequest,
     IssueMobileQrRequest,
+    ManualAttendanceRequest,
     CreateScheduleRequest,
     CreateSiteRequest,
     ProvisionKioskRequest,
@@ -561,6 +562,35 @@ def create_schedule(
     except Exception as exc:
         return _translate(exc)
     return service.schedule_payload(schedule)
+
+
+@router.post("/attendance/manual", status_code=201)
+def create_manual_attendance(
+    body: ManualAttendanceRequest,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("talent_id.manage")),
+):
+    actor_sub = str(principal.get("sub") or "").strip()
+    if not actor_sub:
+        raise HTTPException(
+            status_code=403,
+            detail="No fue posible identificar al administrador.",
+        )
+    try:
+        event, created = service.record_manual_attendance(
+            db,
+            employee_id=body.employee_id,
+            event_type=body.event_type,
+            reason=body.reason,
+            created_by_sub=actor_sub,
+        )
+    except Exception as exc:
+        return _translate(exc)
+
+    return {
+        **service.attendance_event_payload(event),
+        "created": created,
+    }
 
 
 @router.get("/attendance/report")
