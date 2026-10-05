@@ -13,6 +13,7 @@ const pageTitles = {
   "/employees": "Empleados",
   "/access": "Usuarios y accesos",
   "/talent-id": "Talent ID",
+  "/attendance": "Asistencia",
   "/direction/scores": "Calificación de empleados",
   "/training": "Capacitación",
   "/progress": "Mi progreso",
