@@ -477,6 +477,16 @@ def test_alembic_head_builds_current_postgres_schema():
 
         assert admin_score_grants == 4
         assert admin_write_grants == {"candidates.manage", "ranking.recalculate"}
+        biometric_enrollment_columns = {
+            column["name"]
+            for column in inspector.get_columns("talent_biometric_enrollments")
+        }
+        assert {
+            "provider_cleanup_pending",
+            "provider_cleanup_last_error",
+            "provider_cleanup_attempted_at",
+        }.issubset(biometric_enrollment_columns)
+
         attendance_columns = {
             column["name"]
             for column in inspector.get_columns("talent_attendance_events")
@@ -487,6 +497,6 @@ def test_alembic_head_builds_current_postgres_schema():
         }.issubset(attendance_columns)
 
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
-        assert revision == "042"
+        assert revision == "043"
     finally:
         engine.dispose()
