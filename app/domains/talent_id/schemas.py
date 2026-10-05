@@ -37,6 +37,11 @@ class UpdateKioskRequest(BaseModel):
 
 
 
+class RequestBiometricConsentOtp(BaseModel):
+    decision: Literal["AUTHORIZED", "DENIED", "REVOKED"]
+    document_version: str = Field(min_length=1, max_length=32)
+
+
 class SignBiometricConsentRequest(BaseModel):
     decision: Literal["AUTHORIZED", "DENIED", "REVOKED"]
     otp: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
