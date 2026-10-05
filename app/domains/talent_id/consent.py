@@ -9,6 +9,7 @@ import textwrap
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Callable
+from zoneinfo import ZoneInfo
 
 import fitz
 from sqlalchemy.orm import Session
@@ -306,14 +307,17 @@ def _render_signed_pdf(
     signed_at: datetime,
     event_id: str,
 ) -> bytes:
-    local_time = signed_at.astimezone(
-        __import__("zoneinfo").ZoneInfo("America/Bogota")
-    )
+    local_time = signed_at.astimezone(ZoneInfo("America/Bogota"))
     decision_label = {
         "AUTHORIZED": "AUTORIZO",
         "DENIED": "NO AUTORIZO",
         "REVOKED": "REVOCO AUTORIZACIÓN PREVIA",
     }[decision]
+
+    document_lines = []
+    for paragraph in BIOMETRIC_CONSENT_TEXT.split("\n\n"):
+        document_lines.extend(textwrap.wrap(paragraph, width=95))
+        document_lines.append("")
 
     lines = [
         "ASIATI - TALENT INTELLIGENCE",
@@ -325,8 +329,7 @@ def _render_signed_pdf(
         f"Correo verificado: {employee.email}",
         f"ID interno: {employee.id}",
         "",
-        *textwrap.wrap(BIOMETRIC_CONSENT_TEXT, width=95),
-        "",
+        *document_lines,
         f"DECISIÓN DEL TITULAR: {decision_label}",
         f"Fecha y hora: {local_time.strftime('%Y-%m-%d %H:%M:%S %Z')}",
         f"ID de evidencia: {event_id}",
