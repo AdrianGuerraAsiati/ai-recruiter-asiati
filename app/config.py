@@ -126,6 +126,15 @@ class TalentIdConsentSettings:
 
 
 @dataclass(frozen=True)
+class TalentIdQrSettings:
+    """Linked-mobile QR attendance settings."""
+
+    challenge_ttl_seconds: int
+    token_ttl_seconds: int
+    max_signature_attempts: int
+
+
+@dataclass(frozen=True)
 class IndeedResumeAgentSettings:
     """Non-secret settings for the machine that downloads Indeed resumes."""
 
@@ -186,6 +195,27 @@ def get_talent_id_consent_settings() -> TalentIdConsentSettings:
         otp_max_attempts=max(
             1,
             int(os.getenv("TALENT_ID_CONSENT_OTP_MAX_ATTEMPTS", "5")),
+        ),
+    )
+
+
+def get_talent_id_qr_settings() -> TalentIdQrSettings:
+    """Return short-lived linked-mobile QR attendance settings."""
+    return TalentIdQrSettings(
+        challenge_ttl_seconds=max(
+            15,
+            int(os.getenv("TALENT_ID_QR_CHALLENGE_TTL_SECONDS", "60")),
+        ),
+        token_ttl_seconds=max(
+            10,
+            min(
+                60,
+                int(os.getenv("TALENT_ID_QR_TOKEN_TTL_SECONDS", "30")),
+            ),
+        ),
+        max_signature_attempts=max(
+            1,
+            int(os.getenv("TALENT_ID_QR_MAX_SIGNATURE_ATTEMPTS", "5")),
         ),
     )
 
