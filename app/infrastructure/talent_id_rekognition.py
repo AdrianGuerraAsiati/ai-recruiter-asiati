@@ -130,8 +130,32 @@ class RekognitionBiometricProvider:
             )
         except ClientError as exc:
             code = exc.response.get("Error", {}).get("Code")
-            if code != "ConflictException":
-                raise
+            if code == "ConflictException":
+                return
+            if code == "InvalidParameterException" and self._user_exists(provider_user_id):
+                return
+            raise
+
+    def _user_exists(self, provider_user_id: str) -> bool:
+        next_token = None
+        while True:
+            params = {
+                "CollectionId": self._collection_id,
+                "MaxResults": 100,
+            }
+            if next_token:
+                params["NextToken"] = next_token
+
+            response = self._client.list_users(**params)
+            if any(
+                str(user.get("UserId") or "") == provider_user_id
+                for user in response.get("Users", [])
+            ):
+                return True
+
+            next_token = response.get("NextToken")
+            if not next_token:
+                return False
 
 
 def get_rekognition_client():
