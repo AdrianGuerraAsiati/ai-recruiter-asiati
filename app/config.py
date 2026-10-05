@@ -164,6 +164,20 @@ def get_database_url() -> str:
     return os.getenv("DATABASE_URL", "")
 
 
+def api_docs_enabled() -> bool:
+    """Return whether interactive API documentation is exposed over HTTP.
+
+    Local and test environments keep the existing developer-friendly default.
+    Production deployment explicitly sets API_DOCS_ENABLED=false.
+    """
+    return os.getenv("API_DOCS_ENABLED", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def get_import_staging_bucket() -> str:
     """Return the dedicated private bucket used for temporary import uploads."""
     return os.environ["IMPORT_STAGING_BUCKET"]
