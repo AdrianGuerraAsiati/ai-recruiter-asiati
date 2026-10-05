@@ -731,6 +731,14 @@ async function recalculateRanking() {
     return "ranking-badge--failed";
   }
 
+  function getImportanceLabel(importance) {
+    if (importance === "CRITICAL") return "Crítico";
+    if (importance === "HIGH") return "Alto";
+    if (importance === "MEDIUM") return "Medio";
+    if (importance === "LOW") return "Deseable";
+    return null;
+  }
+
   // ============================================================
   // RENDER
   // ============================================================
@@ -1326,12 +1334,25 @@ async function recalculateRanking() {
               {requirementsLoading && <p className="muted">Cargando requisitos...</p>}
               {requirementsError && <p className="muted" role="alert">{requirementsError}</p>}
               {!requirementsLoading && !requirementsError && requirements.length === 0 && <p className="muted">No hay requisitos disponibles.</p>}
+              {!requirementsLoading && requirements.some((req) => req.mandatory && req.status === "MISSING") && (
+                <div className="ranking-mandatory-warning" role="alert">
+                  Hay requisitos obligatorios sin evidencia. El puntaje queda limitado para evitar una recomendación alta basada en requisitos secundarios.
+                </div>
+              )}
               {requirements.map((req, i) => (
                 <div key={i} className="ranking-modal-requirement">
-                  <strong>{req.requirement}</strong>
-                  <span className={`ranking-badge ranking-modal-requirement-badge ${getRequirementClass(req.status)}`}>
-                    {getRequirementLabel(req.status)}
-                  </span>
+                  <div className="ranking-modal-requirement-header">
+                    <strong>{req.requirement}</strong>
+                    <span className={`ranking-badge ranking-modal-requirement-badge ${getRequirementClass(req.status)}`}>
+                      {getRequirementLabel(req.status)}
+                    </span>
+                  </div>
+                  {req.importance && (
+                    <div className="ranking-requirement-meta">
+                      <span>{getImportanceLabel(req.importance)}{req.weight ? ` · peso ${req.weight}` : ""}</span>
+                      {req.mandatory && <span className="ranking-mandatory-badge">Obligatorio</span>}
+                    </div>
+                  )}
                   {req.evidence && <p className="ranking-modal-evidence"><strong>Evidencia:</strong> {req.evidence}</p>}
                 </div>
               ))}
