@@ -1,0 +1,101 @@
+# Talent ID — consentimiento biométrico y firma electrónica
+
+## Objetivo
+
+Talent ID no puede enrolar ni reconocer biometría facial de un empleado sin una decisión
+biométrica vigente firmada por el propio titular. La autorización de uso de imagen corporativa
+es independiente y no habilita reconocimiento facial.
+
+## Estados
+
+- `PENDING`: el empleado aún no ha firmado una decisión.
+- `AUTHORIZED`: reconocimiento facial permitido.
+- `DENIED`: el empleado decidió no autorizar biometría.
+- `REVOKED`: existía una autorización previa y el empleado la revocó.
+
+Los administradores pueden consultar el estado y descargar la evidencia firmada, pero no
+pueden cambiar el estado de consentimiento.
+
+## Firma electrónica
+
+1. El empleado inicia sesión en Talent.
+2. En **Mi perfil** revisa la versión vigente de la autorización.
+3. Selecciona Autorizar, No autorizar o, cuando corresponda, Revocar.
+4. Talent genera un OTP de seis dígitos vinculado a:
+   - empleado,
+   - decisión,
+   - versión exacta del documento.
+5. El OTP se envía al correo registrado del empleado.
+6. El empleado confirma el OTP.
+7. Talent genera un PDF de evidencia y conserva:
+   - decisión,
+   - versión del documento,
+   - SHA-256 del documento base,
+   - SHA-256 del PDF firmado,
+   - fecha/hora del servidor,
+   - correo verificado mediante OTP,
+   - identificador de la cuenta autenticada,
+   - hashes de IP y User-Agent para trazabilidad.
+
+El OTP se almacena únicamente como HMAC-SHA256 y expira. Solicitar un nuevo OTP invalida
+los desafíos anteriores para impedir reutilización.
+
+## Enrolamiento y revocación
+
+El endpoint administrativo de enrolamiento valida en backend que el estado sea
+`AUTHORIZED`. La interfaz administrativa no contiene un checkbox para que Talento Humano
+declare consentimiento en nombre del empleado.
+
+Si el empleado firma `DENIED` o `REVOKED`, el reconocimiento queda bloqueado por estado.
+Cuando existe un enrolamiento activo, Talent lo desactiva localmente e intenta eliminar del
+proveedor biométrico el usuario y los vectores faciales asociados. Un fallo temporal del
+proveedor no vuelve a habilitar el reconocimiento.
+
+## Alternativa no biométrica
+
+La decisión biométrica no controla la elegibilidad laboral ni la posibilidad de registrar
+asistencia. Para `DENIED` y `REVOKED` debe mantenerse un mecanismo alternativo no
+biométrico.
+
+La alternativa prevista para la siguiente fase es **QR dinámico + dispositivo móvil
+previamente vinculado**, con marcación manual auditada como contingencia. El consentimiento
+no se amarra a una tecnología específica para permitir evolucionar este mecanismo sin pedir
+una nueva autorización biométrica.
+
+## Configuración
+
+Variables de entorno:
+
+```text
+TALENT_ID_CONSENT_FROM_EMAIL=
+TALENT_ID_CONSENT_OTP_SECRET=
+TALENT_ID_CONSENT_OTP_TTL_SECONDS=600
+TALENT_ID_CONSENT_OTP_COOLDOWN_SECONDS=60
+TALENT_ID_CONSENT_OTP_MAX_ATTEMPTS=5
+```
+
+En producción:
+
+- `TALENT_ID_CONSENT_OTP_SECRET` debe ser un secreto aleatorio de alta entropía y no debe
+  almacenarse en el repositorio.
+- `TALENT_ID_CONSENT_FROM_EMAIL` debe corresponder a una identidad habilitada para envío.
+- El runtime necesita permiso mínimo para enviar el correo OTP.
+- La migración Alembic `039` debe aplicarse antes de habilitar la interfaz.
+
+## Endpoints
+
+Empleado autenticado:
+
+- `GET /api/talent-id/consent`
+- `POST /api/talent-id/consent/otp`
+- `POST /api/talent-id/consent/sign`
+- `GET /api/talent-id/consent/document`
+
+Administración:
+
+- `GET /api/talent-id/employees/{employee_id}/consent`
+- `GET /api/talent-id/employees/{employee_id}/consent/document`
+
+El enrolamiento existente en
+`POST /api/talent-id/employees/{employee_id}/biometrics/enroll` rechaza solicitudes sin
+consentimiento `AUTHORIZED`.
