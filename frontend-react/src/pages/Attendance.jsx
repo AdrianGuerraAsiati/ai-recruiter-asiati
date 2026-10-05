@@ -31,6 +31,12 @@ function defaultRange() {
 }
 
 
+function localDateTimeValue(date = new Date()) {
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+
 function employeeLabel(employee) {
   const name = [employee?.first_name, employee?.last_name].filter(Boolean).join(" ");
   return name
@@ -85,6 +91,7 @@ function Attendance() {
     employee_id: "",
     event_type: "check_in",
     reason: "",
+    occurred_at: localDateTimeValue(),
   });
 
   useEffect(() => {
@@ -156,16 +163,26 @@ function Attendance() {
     setError("");
     setManualSuccess("");
     try {
+      const occurredAt = new Date(manual.occurred_at);
+      if (Number.isNaN(occurredAt.getTime())) {
+        setError("Selecciona una fecha y hora válidas para la contingencia.");
+        return;
+      }
       await api.post("/talent-id/attendance/manual", {
         employee_id: manual.employee_id,
         event_type: manual.event_type,
         reason: manual.reason.trim(),
+        occurred_at: occurredAt.toISOString(),
       });
       const employee = employees.find((item) => item.id === manual.employee_id);
       setManualSuccess(
         `Marcación manual registrada para ${employee ? employeeLabel(employee) : "el empleado"}. La operación quedó auditada.`,
       );
-      setManual((current) => ({ ...current, reason: "" }));
+      setManual((current) => ({
+        ...current,
+        reason: "",
+        occurred_at: localDateTimeValue(),
+      }));
       await loadReport();
     } catch (err) {
       setError(getApiErrorMessage(err, {
@@ -300,6 +317,18 @@ function Attendance() {
                 <option value="check_in">Entrada</option>
                 <option value="check_out">Salida</option>
               </select>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="manual-attendance-time">Fecha y hora</label>
+              <input
+                id="manual-attendance-time"
+                type="datetime-local"
+                value={manual.occurred_at}
+                max={localDateTimeValue(new Date(Date.now() + 5 * 60 * 1000))}
+                onChange={(event) => setManual({ ...manual, occurred_at: event.target.value })}
+                required
+              />
             </div>
 
             <div className="form-group attendance-manual-reason">
