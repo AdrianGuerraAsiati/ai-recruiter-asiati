@@ -228,7 +228,7 @@ describe("Employees administration", () => {
     ).toHaveAttribute("href", `${window.location.origin}/`);
   });
 
-  it("lets an admin edit cargo and role while onboarding stays automatic", async () => {
+  it("lets an admin edit name, cargo and role while onboarding stays automatic", async () => {
     api.put.mockResolvedValue({ data: {} });
     renderPage();
 
@@ -237,6 +237,12 @@ describe("Employees administration", () => {
 
     expect(screen.getByRole("heading", { name: "Editar integrante" })).toBeInTheDocument();
 
+    fireEvent.change(screen.getByLabelText("Nombre", { selector: "#employee-edit-first-name" }), {
+      target: { value: "Ana María" },
+    });
+    fireEvent.change(screen.getByLabelText("Apellido", { selector: "#employee-edit-last-name" }), {
+      target: { value: "Pérez Gómez" },
+    });
     fireEvent.change(screen.getByLabelText("Cargo"), {
       target: { value: "Líder comercial" },
     });
@@ -254,6 +260,8 @@ describe("Employees administration", () => {
       expect(api.put).toHaveBeenCalledWith(
         "/employees/employee-1",
         {
+          first_name: "Ana María",
+          last_name: "Pérez Gómez",
           job_title: "Líder comercial",
           department: "Ventas",
         },
