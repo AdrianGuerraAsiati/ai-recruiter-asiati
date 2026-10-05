@@ -297,6 +297,7 @@ def test_mobile_link_rejects_wrong_otp(db):
         send_otp=sender,
     )
 
+    wrong_otp = "000000" if delivered["code"] != "000000" else "000001"
     with pytest.raises(mobile_qr.MobileLinkOtpInvalid):
         mobile_qr.register_mobile_device(
             db,
@@ -304,9 +305,7 @@ def test_mobile_link_rejects_wrong_otp(db):
             label="Celular",
             public_key_jwk=jwk,
             link_challenge_id=challenge["challenge_id"],
-            link_otp="000000",
+            link_otp=wrong_otp,
             link_otp_secret="link-test-secret",
         )
-
-    assert delivered["code"] != "000000"
     assert mobile_qr.list_mobile_devices(db, employee.id) == []
