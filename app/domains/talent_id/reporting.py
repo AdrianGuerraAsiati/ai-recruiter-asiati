@@ -265,6 +265,11 @@ def build_attendance_report(
             "days_with_activity": len(rows),
             "check_ins": check_in_count,
             "check_outs": check_out_count,
+            "manual_events": sum(
+                1
+                for event, _local_time in filtered_events
+                if event.method == "MANUAL"
+            ),
             "late_arrivals": late_days,
             "incomplete_days": sum(1 for row in rows if row["status"] == "INCOMPLETE"),
             "on_time_rate": (
