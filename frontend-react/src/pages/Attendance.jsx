@@ -124,7 +124,10 @@ function Attendance() {
   }, [canReadAll, employeeId, range.end_date, range.start_date]);
 
   useEffect(() => {
-    void loadReport();
+    const timeoutId = window.setTimeout(() => {
+      void loadReport();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [loadReport]);
 
   const summary = report?.summary || {};
