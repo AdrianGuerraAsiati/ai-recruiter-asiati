@@ -54,7 +54,7 @@ function TalentId() {
         api.get("/talent-id/schedules"),
         api.get("/talent-id/devices"),
         api.get("/employees", { params: { status: "ACTIVE" } }),
-        api.get("/talent-id/readiness"),
+        api.get("/talent-id/readiness").catch(() => ({ data: null })),
       ]);
       setSites(sitesResponse.data?.items || []);
       setSchedules(schedulesResponse.data?.items || []);
@@ -80,7 +80,7 @@ function TalentId() {
       api.get("/talent-id/schedules"),
       api.get("/talent-id/devices"),
       api.get("/employees", { params: { status: "ACTIVE" } }),
-      api.get("/talent-id/readiness"),
+      api.get("/talent-id/readiness").catch(() => ({ data: null })),
     ])
       .then(([sitesResponse, schedulesResponse, devicesResponse, employeesResponse, readinessResponse]) => {
         if (cancelled) return;
