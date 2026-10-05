@@ -8,6 +8,7 @@ from typing import Protocol
 
 from sqlalchemy.orm import Session
 
+from app.domains.talent_id import consent
 from app.domains.talent_id.models import (
     TalentBiometricEnrollment,
     TalentEmployeeAttendanceSetting,
@@ -19,12 +20,18 @@ class BiometricEmployeeNotAllowed(Exception):
     pass
 
 
+class BiometricConsentRequired(Exception):
+    pass
+
+
 class BiometricProvider(Protocol):
     provider_name: str
 
     def enroll(self, *, provider_user_id: str, image_bytes: bytes): ...
 
     def recognize(self, *, image_bytes: bytes, threshold: float): ...
+
+    def delete_user(self, *, provider_user_id: str): ...
 
 
 @dataclass(frozen=True)
@@ -70,6 +77,8 @@ def enroll_employee(
     employee_id: str,
     image_bytes: bytes,
 ) -> TalentBiometricEnrollment:
+    if consent.current_status(db, employee_id) != "AUTHORIZED":
+        raise BiometricConsentRequired()
     employee = _allowed_employee(db, employee_id)
     result = provider.enroll(
         provider_user_id=employee.id,
@@ -99,6 +108,9 @@ def enroll_employee(
     enrollment.provider_user_id = str(result.provider_user_id)
     enrollment.face_count = int(enrollment.face_count or 0) + len(face_ids)
     enrollment.active = True
+    enrollment.provider_cleanup_pending = False
+    enrollment.provider_cleanup_last_error = None
+    enrollment.provider_cleanup_attempted_at = None
     db.commit()
     db.refresh(enrollment)
     return enrollment
@@ -142,6 +154,9 @@ def recognize_employee(
     if enrollment is None:
         return None
 
+    if consent.current_status(db, enrollment.employee_id) != "AUTHORIZED":
+        return None
+
     try:
         employee = _allowed_employee(db, enrollment.employee_id)
     except BiometricEmployeeNotAllowed:
@@ -152,3 +167,77 @@ def recognize_employee(
         display_name=_display_name(employee),
         similarity=float(match.similarity),
     )
+
+
+
+def _attempt_provider_cleanup(
+    db: Session,
+    *,
+    enrollment: TalentBiometricEnrollment,
+    provider: BiometricProvider,
+) -> None:
+    enrollment.provider_cleanup_pending = True
+    enrollment.provider_cleanup_attempted_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(enrollment)
+
+    try:
+        provider.delete_user(provider_user_id=enrollment.provider_user_id)
+    except Exception as exc:
+        enrollment.provider_cleanup_pending = True
+        enrollment.provider_cleanup_last_error = str(exc)[:1000] or exc.__class__.__name__
+        enrollment.provider_cleanup_attempted_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(enrollment)
+        raise
+
+    enrollment.provider_cleanup_pending = False
+    enrollment.provider_cleanup_last_error = None
+    enrollment.provider_cleanup_attempted_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(enrollment)
+
+
+def revoke_employee_enrollment(
+    db: Session,
+    *,
+    employee_id: str,
+    provider: BiometricProvider | None = None,
+) -> bool:
+    """Disable recognition immediately and track provider deletion until confirmed."""
+    enrollment = get_employee_enrollment(db, employee_id)
+    if enrollment is None:
+        return False
+
+    enrollment.active = False
+    enrollment.face_count = 0
+    enrollment.provider_cleanup_pending = True
+    enrollment.provider_cleanup_last_error = None
+    db.commit()
+    db.refresh(enrollment)
+
+    if provider is not None:
+        _attempt_provider_cleanup(
+            db,
+            enrollment=enrollment,
+            provider=provider,
+        )
+    return True
+
+
+def retry_provider_cleanup(
+    db: Session,
+    *,
+    employee_id: str,
+    provider: BiometricProvider,
+) -> TalentBiometricEnrollment:
+    enrollment = get_employee_enrollment(db, employee_id)
+    if enrollment is None:
+        raise ValueError("El empleado no tiene enrolamiento biométrico.")
+
+    _attempt_provider_cleanup(
+        db,
+        enrollment=enrollment,
+        provider=provider,
+    )
+    return enrollment

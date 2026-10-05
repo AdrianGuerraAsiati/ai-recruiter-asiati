@@ -2,7 +2,7 @@
 
 import asyncio
 from dataclasses import dataclass
-from datetime import time
+from datetime import datetime, time, timezone
 from io import BytesIO
 
 import pytest
@@ -14,6 +14,7 @@ from starlette.datastructures import Headers
 import app.models  # noqa: F401
 from app.db import Base
 from app.domains.talent_id import biometrics, service
+from app.domains.talent_id.models import TalentBiometricConsentEvent
 from app.domains.talent_id.router import (
     _read_image,
     recognize_and_record_attendance,
@@ -46,6 +47,9 @@ class FakeProvider:
     def recognize(self, *, image_bytes: bytes, threshold: float):
         self.recognize_calls += 1
         return self.match
+
+    def delete_user(self, *, provider_user_id: str):
+        return None
 
 
 @pytest.fixture()
@@ -101,6 +105,20 @@ def _setup(db):
         schedule_id=schedule.id,
         attendance_eligible=True,
     )
+    db.add(
+        TalentBiometricConsentEvent(
+            employee_id=employee.id,
+            decision="AUTHORIZED",
+            document_version="test",
+            document_sha256="d" * 64,
+            pdf_sha256="p" * 64,
+            signed_pdf=b"%PDF-test",
+            verified_email=employee.email,
+            evidence={"source": "test"},
+            signed_at=datetime.now(timezone.utc),
+        )
+    )
+    db.commit()
     device, secret = service.provision_kiosk(
         db,
         site_id=site.id,

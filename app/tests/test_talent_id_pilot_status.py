@@ -1,6 +1,6 @@
 """Pilot status coverage for Talent ID employee enrollment."""
 
-from datetime import time
+from datetime import datetime, time, timezone
 
 import pytest
 from fastapi import HTTPException
@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker
 import app.models  # noqa: F401
 from app.db import Base
 from app.domains.talent_id import biometrics, router, service
+from app.domains.talent_id.models import TalentBiometricConsentEvent
 from app.models import UserProfile
 
 
@@ -26,6 +27,9 @@ class _Provider:
         result = _Enrollment()
         result.provider_user_id = provider_user_id
         return result
+
+    def delete_user(self, *, provider_user_id: str):
+        return None
 
 
 @pytest.fixture()
@@ -135,6 +139,20 @@ def test_biometric_status_tracks_enrollment_without_raw_image_storage(db):
         schedule_id=schedule.id,
         attendance_eligible=True,
     )
+    db.add(
+        TalentBiometricConsentEvent(
+            employee_id=employee.id,
+            decision="AUTHORIZED",
+            document_version="test",
+            document_sha256="d" * 64,
+            pdf_sha256="p" * 64,
+            signed_pdf=b"%PDF-test",
+            verified_email=employee.email,
+            evidence={"source": "test"},
+            signed_at=datetime.now(timezone.utc),
+        )
+    )
+    db.commit()
     biometrics.enroll_employee(
         db,
         provider=_Provider(),

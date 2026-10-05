@@ -130,3 +130,59 @@
     flex-direction: column;
   }
 }
+
+
+.attendance-manual {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.attendance-manual-heading h2 {
+  margin: 2px 0 5px;
+}
+
+.attendance-manual-heading p {
+  margin: 0;
+  max-width: 760px;
+  color: var(--ink-faint);
+  font-size: .78rem;
+  line-height: 1.55;
+}
+
+.attendance-manual-form {
+  display: grid;
+  grid-template-columns: minmax(210px, 1.1fr) minmax(120px, .5fr) minmax(190px, .8fr) minmax(260px, 1.4fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.attendance-manual-form .form-group {
+  margin: 0;
+}
+
+.attendance-manual-note {
+  color: var(--warning) !important;
+  font-weight: 700;
+  max-width: 220px;
+}
+
+@media (max-width: 1050px) {
+  .attendance-manual-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .attendance-manual-reason {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 620px) {
+  .attendance-manual-form {
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-manual-reason {
+    grid-column: auto;
+  }
+}

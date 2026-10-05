@@ -2,13 +2,20 @@ name: android-ci
 
 on:
   push:
+    branches: [main]
     paths:
       - "android/**"
       - ".github/workflows/android-ci.yml"
   pull_request:
+    branches: [main]
     paths:
       - "android/**"
       - ".github/workflows/android-ci.yml"
+
+
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:

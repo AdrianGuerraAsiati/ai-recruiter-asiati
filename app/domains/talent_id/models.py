@@ -12,6 +12,8 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    JSON,
+    LargeBinary,
     Text,
     Time,
     UniqueConstraint,
@@ -120,7 +122,201 @@ class TalentBiometricEnrollment(Base):
     provider_user_id = Column(Text, nullable=False, unique=True)
     face_count = Column(Integer, nullable=False, default=0)
     active = Column(Boolean, nullable=False, default=True)
+    provider_cleanup_pending = Column(Boolean, nullable=False, default=False)
+    provider_cleanup_last_error = Column(Text, nullable=True)
+    provider_cleanup_attempted_at = Column(DateTime(timezone=True), nullable=True)
     enrolled_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+
+
+class TalentBiometricConsentOtp(Base):
+    """Short-lived OTP challenge used to sign a biometric consent decision."""
+
+    __tablename__ = "talent_biometric_consent_otps"
+    __table_args__ = (
+        CheckConstraint(
+            "attempts >= 0 AND max_attempts > 0",
+            name="ck_talent_biometric_consent_otp_attempts",
+        ),
+        Index(
+            "idx_talent_biometric_consent_otps_employee_created",
+            "employee_id",
+            "created_at",
+        ),
+    )
+
+    id = Column(Text, primary_key=True, default=_uuid)
+    employee_id = Column(
+        Text,
+        ForeignKey("user_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    decision = Column(Text, nullable=False)
+    document_version = Column(Text, nullable=False)
+    otp_hash = Column(Text, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used_at = Column(DateTime(timezone=True), nullable=True)
+    attempts = Column(Integer, nullable=False, default=0)
+    max_attempts = Column(Integer, nullable=False, default=5)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+
+
+class TalentBiometricConsentEvent(Base):
+    """Append-only evidence for biometric authorization, denial or revocation."""
+
+    __tablename__ = "talent_biometric_consent_events"
+    __table_args__ = (
+        CheckConstraint(
+            "decision IN ('AUTHORIZED', 'DENIED', 'REVOKED')",
+            name="ck_talent_biometric_consent_events_decision",
+        ),
+        Index(
+            "idx_talent_biometric_consent_events_employee_signed",
+            "employee_id",
+            "signed_at",
+        ),
+    )
+
+    id = Column(Text, primary_key=True, default=_uuid)
+    employee_id = Column(
+        Text,
+        ForeignKey("user_profiles.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    decision = Column(Text, nullable=False)
+    document_version = Column(Text, nullable=False)
+    document_sha256 = Column(Text, nullable=False)
+    pdf_sha256 = Column(Text, nullable=False)
+    signed_pdf = Column(LargeBinary, nullable=False)
+    verified_email = Column(Text, nullable=False)
+    otp_challenge_id = Column(
+        Text,
+        ForeignKey("talent_biometric_consent_otps.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    evidence = Column(JSON, nullable=True)
+    signed_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+
+
+class TalentMobileDeviceLinkOtp(Base):
+    """OTP challenge used to authorize linking or replacing a mobile device."""
+
+    __tablename__ = "talent_mobile_device_link_otps"
+    __table_args__ = (
+        CheckConstraint(
+            "attempts >= 0 AND max_attempts > 0",
+            name="ck_talent_mobile_device_link_otp_attempts",
+        ),
+        Index(
+            "idx_talent_mobile_device_link_otps_employee_created",
+            "employee_id",
+            "created_at",
+        ),
+    )
+
+    id = Column(Text, primary_key=True, default=_uuid)
+    employee_id = Column(
+        Text,
+        ForeignKey("user_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    otp_hash = Column(Text, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used_at = Column(DateTime(timezone=True), nullable=True)
+    attempts = Column(Integer, nullable=False, default=0)
+    max_attempts = Column(Integer, nullable=False, default=5)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+
+
+class TalentMobileDevice(Base):
+    """Employee-owned mobile credential backed by a non-exportable browser key."""
+
+    __tablename__ = "talent_mobile_devices"
+    __table_args__ = (
+        Index(
+            "idx_talent_mobile_devices_employee_active",
+            "employee_id",
+            "active",
+        ),
+    )
+
+    id = Column(Text, primary_key=True, default=_uuid)
+    employee_id = Column(
+        Text,
+        ForeignKey("user_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    label = Column(Text, nullable=False)
+    public_key_jwk = Column(JSON, nullable=False)
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class TalentMobileQrChallenge(Base):
+    """Short-lived proof-of-possession challenge for one linked mobile device."""
+
+    __tablename__ = "talent_mobile_qr_challenges"
+    __table_args__ = (
+        CheckConstraint(
+            "attempts >= 0",
+            name="ck_talent_mobile_qr_challenge_attempts",
+        ),
+        Index(
+            "idx_talent_mobile_qr_challenges_device_created",
+            "mobile_device_id",
+            "created_at",
+        ),
+    )
+
+    id = Column(Text, primary_key=True, default=_uuid)
+    employee_id = Column(
+        Text,
+        ForeignKey("user_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    mobile_device_id = Column(
+        Text,
+        ForeignKey("talent_mobile_devices.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    nonce_hash = Column(Text, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used_at = Column(DateTime(timezone=True), nullable=True)
+    attempts = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+
+
+class TalentMobileQrToken(Base):
+    """One-time QR credential consumed by an authorized Talent ID kiosk."""
+
+    __tablename__ = "talent_mobile_qr_tokens"
+    __table_args__ = (
+        UniqueConstraint(
+            "token_hash",
+            name="uq_talent_mobile_qr_tokens_hash",
+        ),
+        Index(
+            "idx_talent_mobile_qr_tokens_employee_created",
+            "employee_id",
+            "created_at",
+        ),
+    )
+
+    id = Column(Text, primary_key=True, default=_uuid)
+    employee_id = Column(
+        Text,
+        ForeignKey("user_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    mobile_device_id = Column(
+        Text,
+        ForeignKey("talent_mobile_devices.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    token_hash = Column(Text, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
 
 
 class TalentAttendanceEvent(Base):
@@ -171,3 +367,5 @@ class TalentAttendanceEvent(Base):
     occurred_at = Column(DateTime(timezone=True), nullable=False, default=_now)
     idempotency_key = Column(Text, nullable=False)
     recognition_confidence = Column(Float, nullable=True)
+    manual_reason = Column(Text, nullable=True)
+    created_by_sub = Column(Text, nullable=True)

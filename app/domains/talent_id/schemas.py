@@ -1,6 +1,7 @@
 """Request schemas for Talent ID administration."""
 
-from datetime import time
+from datetime import datetime, time
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -33,3 +34,43 @@ class UpdateKioskRequest(BaseModel):
     site_id: str | None = None
     name: str | None = Field(default=None, min_length=2, max_length=120)
     active: bool | None = None
+
+
+
+class RequestBiometricConsentOtp(BaseModel):
+    decision: Literal["AUTHORIZED", "DENIED", "REVOKED"]
+    document_version: str = Field(min_length=1, max_length=32)
+
+
+class SignBiometricConsentRequest(BaseModel):
+    decision: Literal["AUTHORIZED", "DENIED", "REVOKED"]
+    otp: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+    document_version: str = Field(min_length=1, max_length=32)
+
+
+
+class RegisterMobileDeviceRequest(BaseModel):
+    label: str = Field(default="Mi celular", min_length=2, max_length=80)
+    public_key_jwk: dict
+    link_challenge_id: str = Field(min_length=8, max_length=80)
+    link_otp: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+
+class IssueMobileQrRequest(BaseModel):
+    device_id: str = Field(min_length=8, max_length=80)
+    challenge_id: str = Field(min_length=8, max_length=80)
+    nonce: str = Field(min_length=16, max_length=256)
+    signature: str = Field(min_length=32, max_length=256)
+
+
+class KioskQrAttendanceRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=512)
+    event_type: Literal["check_in", "check_out"]
+
+
+
+class ManualAttendanceRequest(BaseModel):
+    employee_id: str = Field(min_length=1, max_length=80)
+    event_type: Literal["check_in", "check_out"]
+    reason: str = Field(min_length=5, max_length=500)
+    occurred_at: datetime | None = None

@@ -1,5 +1,6 @@
 """HTTP routes for Talent ID administration and kiosk devices."""
 
+import logging
 from datetime import date
 
 from botocore.exceptions import ClientError
@@ -11,19 +12,38 @@ from fastapi import (
     Header,
     HTTPException,
     Query,
+    Request,
+    Response,
     UploadFile,
 )
 from sqlalchemy.orm import Session
 
-from app.config import get_talent_id_biometric_settings
+from app.config import (
+    get_talent_id_biometric_settings,
+    get_talent_id_consent_settings,
+    get_talent_id_qr_settings,
+)
 from app.deps import get_current_principal, get_db, require_permission
-from app.domains.talent_id import biometrics, reporting, service
+from app.domains.talent_id import biometrics, consent, mobile_qr, reporting, service
+from app.domains.talent_id.models import TalentBiometricEnrollment
 from app.domains.talent_id.schemas import (
     ConfigureEmployeeAttendanceRequest,
+    RegisterMobileDeviceRequest,
+    KioskQrAttendanceRequest,
+    IssueMobileQrRequest,
+    ManualAttendanceRequest,
     CreateScheduleRequest,
     CreateSiteRequest,
     ProvisionKioskRequest,
+    RequestBiometricConsentOtp,
+    SignBiometricConsentRequest,
     UpdateKioskRequest,
+)
+from app.infrastructure.talent_id_consent_email import (
+    ConsentEmailDeliveryError,
+    MobileLinkEmailDeliveryError,
+    send_consent_otp,
+    send_mobile_link_otp,
 )
 from app.infrastructure.talent_id_rekognition import (
     FaceAssociationError,
@@ -32,6 +52,8 @@ from app.infrastructure.talent_id_rekognition import (
     get_rekognition_client,
 )
 
+
+logger = logging.getLogger(__name__)
 
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png"}
@@ -104,6 +126,446 @@ def _attendance_response(event, *, created: bool) -> dict:
     }
 
 
+
+def _principal_employee_id(principal: dict) -> str:
+    employee_id = str((principal.get("profile") or {}).get("id") or "").strip()
+    if not employee_id:
+        raise HTTPException(status_code=403, detail="Perfil de empleado no disponible.")
+    return employee_id
+
+
+def _consent_error(exc: Exception):
+    if isinstance(exc, consent.ConsentOtpCooldown):
+        raise HTTPException(status_code=429, detail=str(exc))
+    if isinstance(exc, consent.ConsentOtpUnavailable):
+        raise HTTPException(status_code=503, detail=str(exc))
+    if isinstance(exc, ConsentEmailDeliveryError):
+        raise HTTPException(status_code=503, detail=str(exc))
+    if isinstance(exc, consent.ConsentOtpExpired):
+        raise HTTPException(status_code=410, detail=str(exc))
+    if isinstance(exc, consent.ConsentOtpLocked):
+        raise HTTPException(status_code=429, detail=str(exc))
+    if isinstance(exc, (consent.ConsentOtpInvalid, consent.ConsentStateError, ValueError)):
+        raise HTTPException(status_code=422, detail=str(exc))
+    raise exc
+
+
+def _mobile_qr_error(exc: Exception):
+    if isinstance(exc, mobile_qr.MobileLinkOtpCooldown):
+        raise HTTPException(status_code=429, detail=str(exc))
+    if isinstance(exc, mobile_qr.MobileLinkOtpUnavailable):
+        raise HTTPException(status_code=503, detail=str(exc))
+    if isinstance(exc, MobileLinkEmailDeliveryError):
+        raise HTTPException(status_code=503, detail=str(exc))
+    if isinstance(exc, mobile_qr.MobileLinkOtpExpired):
+        raise HTTPException(status_code=410, detail=str(exc))
+    if isinstance(exc, mobile_qr.MobileLinkOtpLocked):
+        raise HTTPException(status_code=429, detail=str(exc))
+    if isinstance(exc, mobile_qr.MobileLinkOtpInvalid):
+        raise HTTPException(status_code=422, detail=str(exc))
+    if isinstance(exc, mobile_qr.MobileDeviceNotFound):
+        raise HTTPException(status_code=404, detail=str(exc))
+    if isinstance(
+        exc,
+        (
+            mobile_qr.MobileDeviceSignatureInvalid,
+            mobile_qr.MobileQrChallengeInvalid,
+            mobile_qr.MobileQrTokenInvalid,
+        ),
+    ):
+        raise HTTPException(status_code=422, detail=str(exc))
+    if isinstance(exc, mobile_qr.MobileQrTokenExpired):
+        raise HTTPException(status_code=410, detail=str(exc))
+    if isinstance(exc, mobile_qr.MobileQrTokenUsed):
+        raise HTTPException(status_code=409, detail=str(exc))
+    return _translate(exc)
+
+
+def _disable_biometrics_after_opt_out(db: Session, employee_id: str) -> None:
+    enrollment = biometrics.get_employee_enrollment(db, employee_id)
+    if enrollment is None:
+        return
+
+    settings = get_talent_id_biometric_settings()
+    provider = None
+    if settings.collection_id:
+        provider = RekognitionBiometricProvider(
+            client=get_rekognition_client(),
+            collection_id=settings.collection_id,
+            association_threshold=settings.association_threshold,
+        )
+
+    try:
+        biometrics.revoke_employee_enrollment(
+            db,
+            employee_id=employee_id,
+            provider=provider,
+        )
+    except Exception:
+        # Consent revocation remains effective locally even if provider cleanup
+        # fails. The enrollment is flagged so an admin can retry deletion.
+        logger.exception(
+            "Provider cleanup failed after biometric consent opt-out for %s",
+            employee_id,
+        )
+
+
+@router.get("/consent")
+def get_my_biometric_consent(
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    try:
+        return consent.consent_payload(db, employee_id, include_document=True)
+    except Exception as exc:
+        return _consent_error(exc)
+
+
+@router.post("/consent/otp")
+def request_my_biometric_consent_otp(
+    body: RequestBiometricConsentOtp,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    settings = get_talent_id_consent_settings()
+    try:
+        return consent.request_otp(
+            db,
+            employee_id=employee_id,
+            decision=body.decision,
+            expected_document_version=body.document_version,
+            otp_secret=settings.otp_secret,
+            ttl_seconds=settings.otp_ttl_seconds,
+            cooldown_seconds=settings.otp_cooldown_seconds,
+            max_attempts=settings.otp_max_attempts,
+            send_otp=send_consent_otp,
+        )
+    except Exception as exc:
+        return _consent_error(exc)
+
+
+@router.post("/consent/sign")
+def sign_my_biometric_consent(
+    body: SignBiometricConsentRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    settings = get_talent_id_consent_settings()
+    client_ip = request.client.host if request.client else None
+    evidence = {
+        "auth_sub": principal.get("sub"),
+        "ip_hash": consent.hash_evidence_value(settings.otp_secret, client_ip),
+        "user_agent_hash": consent.hash_evidence_value(
+            settings.otp_secret,
+            request.headers.get("user-agent"),
+        ),
+    }
+    try:
+        event = consent.sign_decision(
+            db,
+            employee_id=employee_id,
+            decision=body.decision,
+            otp=body.otp,
+            expected_document_version=body.document_version,
+            otp_secret=settings.otp_secret,
+            evidence=evidence,
+        )
+    except Exception as exc:
+        return _consent_error(exc)
+
+    if event.decision in {"DENIED", "REVOKED"}:
+        _disable_biometrics_after_opt_out(db, employee_id)
+
+    return consent.consent_payload(db, employee_id, include_document=False)
+
+
+@router.get("/consent/document")
+def download_my_biometric_consent(
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    event = consent.get_latest_event(db, employee_id)
+    if event is None or not event.signed_pdf:
+        raise HTTPException(status_code=404, detail="Aún no existe un documento firmado.")
+    return Response(
+        content=bytes(event.signed_pdf),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                'attachment; filename="ASIATI_Autorizacion_Biometrica_Talent_ID.pdf"'
+            )
+        },
+    )
+
+
+@router.get("/employees/{employee_id}/consent")
+def get_employee_biometric_consent(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.read")),
+):
+    try:
+        return consent.consent_payload(db, employee_id, include_document=False)
+    except Exception as exc:
+        return _consent_error(exc)
+
+
+@router.get("/employees/{employee_id}/consent/document")
+def download_employee_biometric_consent(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.read")),
+):
+    event = consent.get_latest_event(db, employee_id)
+    if event is None or not event.signed_pdf:
+        raise HTTPException(status_code=404, detail="Aún no existe un documento firmado.")
+    return Response(
+        content=bytes(event.signed_pdf),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="Talent_ID_{employee_id}_consentimiento.pdf"'
+            )
+        },
+    )
+
+
+
+
+@router.get("/employees/{employee_id}/mobile-devices")
+def list_employee_mobile_devices(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.read")),
+):
+    try:
+        items = [
+            mobile_qr.mobile_device_payload(device)
+            for device in mobile_qr.list_mobile_devices(db, employee_id)
+        ]
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+    return {"items": items, "total": len(items)}
+
+
+@router.delete("/employees/{employee_id}/mobile-devices/{device_id}")
+def revoke_employee_mobile_device(
+    employee_id: str,
+    device_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.manage")),
+):
+    try:
+        device = mobile_qr.revoke_mobile_device(
+            db,
+            employee_id=employee_id,
+            device_id=device_id,
+        )
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+    return {
+        "device": mobile_qr.mobile_device_payload(device),
+        "revoked": True,
+    }
+
+
+@router.get("/mobile-devices")
+def list_my_mobile_devices(
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    try:
+        items = [
+            mobile_qr.mobile_device_payload(device)
+            for device in mobile_qr.list_mobile_devices(db, employee_id)
+        ]
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+    return {"items": items, "total": len(items)}
+
+
+
+@router.post("/mobile-devices/link-otp")
+def request_my_mobile_device_link_otp(
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    settings = get_talent_id_qr_settings()
+    try:
+        return mobile_qr.request_mobile_link_otp(
+            db,
+            employee_id=employee_id,
+            otp_secret=settings.link_otp_secret,
+            ttl_seconds=settings.link_otp_ttl_seconds,
+            cooldown_seconds=settings.link_otp_cooldown_seconds,
+            max_attempts=settings.link_otp_max_attempts,
+            send_otp=send_mobile_link_otp,
+        )
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+
+
+@router.post("/mobile-devices", status_code=201)
+def link_my_mobile_device(
+    body: RegisterMobileDeviceRequest,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    try:
+        settings = get_talent_id_qr_settings()
+        device = mobile_qr.register_mobile_device(
+            db,
+            employee_id=employee_id,
+            label=body.label,
+            public_key_jwk=body.public_key_jwk,
+            link_challenge_id=body.link_challenge_id,
+            link_otp=body.link_otp,
+            link_otp_secret=settings.link_otp_secret,
+        )
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+    return mobile_qr.mobile_device_payload(device)
+
+
+@router.delete("/mobile-devices/{device_id}")
+def revoke_my_mobile_device(
+    device_id: str,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    try:
+        device = mobile_qr.revoke_mobile_device(
+            db,
+            employee_id=employee_id,
+            device_id=device_id,
+        )
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+    return {
+        "device": mobile_qr.mobile_device_payload(device),
+        "revoked": True,
+    }
+
+
+@router.post("/mobile-devices/{device_id}/challenge")
+def create_my_mobile_qr_challenge(
+    device_id: str,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    settings = get_talent_id_qr_settings()
+    try:
+        return mobile_qr.create_signing_challenge(
+            db,
+            employee_id=employee_id,
+            device_id=device_id,
+            ttl_seconds=settings.challenge_ttl_seconds,
+        )
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+
+
+@router.post("/mobile-qr")
+def issue_my_mobile_qr(
+    body: IssueMobileQrRequest,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    settings = get_talent_id_qr_settings()
+    try:
+        issued = mobile_qr.issue_qr_token(
+            db,
+            employee_id=employee_id,
+            device_id=body.device_id,
+            challenge_id=body.challenge_id,
+            nonce=body.nonce,
+            signature_b64url=body.signature,
+            token_ttl_seconds=settings.token_ttl_seconds,
+            max_signature_attempts=settings.max_signature_attempts,
+        )
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+
+    return {
+        "qr_image": mobile_qr.render_qr_svg_data_url(issued["qr_payload"]),
+        "expires_at": issued["expires_at"],
+        "ttl_seconds": issued["ttl_seconds"],
+        "device": issued["device"],
+    }
+
+
+@router.get("/readiness")
+def talent_id_readiness(
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.read")),
+):
+    biometric_settings = get_talent_id_biometric_settings()
+    consent_settings = get_talent_id_consent_settings()
+    qr_settings = get_talent_id_qr_settings()
+
+    active_sites = sum(1 for item in service.list_sites(db) if item.active)
+    active_schedules = sum(1 for item in service.list_schedules(db) if item.active)
+    active_kiosks = sum(1 for item in service.list_kiosks(db) if item.active)
+    pending_cleanup = (
+        db.query(TalentBiometricEnrollment)
+        .filter(TalentBiometricEnrollment.provider_cleanup_pending.is_(True))
+        .count()
+    )
+
+    checks = {
+        "biometric_provider": bool(biometric_settings.collection_id),
+        "consent_email_sender": bool(consent_settings.from_email),
+        "consent_otp_secret": bool(consent_settings.otp_secret),
+        "mobile_link_email_sender": bool(qr_settings.from_email),
+        "mobile_link_otp_secret": bool(qr_settings.link_otp_secret),
+        "active_site": active_sites > 0,
+        "active_schedule": active_schedules > 0,
+        "active_kiosk": active_kiosks > 0,
+    }
+    issues = []
+    labels = {
+        "biometric_provider": "Configurar la colección biométrica.",
+        "consent_email_sender": "Configurar el remitente de correo para firma biométrica.",
+        "consent_otp_secret": "Configurar el secreto OTP de consentimiento.",
+        "mobile_link_email_sender": "Configurar el remitente de correo para vincular celulares.",
+        "mobile_link_otp_secret": "Configurar el secreto OTP para vincular celulares.",
+        "active_site": "Crear al menos una sede activa.",
+        "active_schedule": "Crear al menos un horario activo.",
+        "active_kiosk": "Provisionar al menos un kiosco activo.",
+    }
+    for key, passed in checks.items():
+        if not passed:
+            issues.append(labels[key])
+
+    return {
+        "ready_for_pilot": all(checks.values()),
+        "checks": checks,
+        "issues": issues,
+        "counts": {
+            "active_sites": active_sites,
+            "active_schedules": active_schedules,
+            "active_kiosks": active_kiosks,
+            "pending_biometric_cleanup": pending_cleanup,
+        },
+        "warnings": (
+            [f"{pending_cleanup} eliminación(es) biométrica(s) pendientes en el proveedor."]
+            if pending_cleanup
+            else []
+        ),
+    }
+
+
 @router.get("/sites")
 def list_sites(
     db: Session = Depends(get_db),
@@ -160,6 +622,36 @@ def create_schedule(
     except Exception as exc:
         return _translate(exc)
     return service.schedule_payload(schedule)
+
+
+@router.post("/attendance/manual", status_code=201)
+def create_manual_attendance(
+    body: ManualAttendanceRequest,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("talent_id.manage")),
+):
+    actor_sub = str(principal.get("sub") or "").strip()
+    if not actor_sub:
+        raise HTTPException(
+            status_code=403,
+            detail="No fue posible identificar al administrador.",
+        )
+    try:
+        event, created = service.record_manual_attendance(
+            db,
+            employee_id=body.employee_id,
+            event_type=body.event_type,
+            reason=body.reason,
+            created_by_sub=actor_sub,
+            occurred_at=body.occurred_at,
+        )
+    except Exception as exc:
+        return _translate(exc)
+
+    return {
+        **service.attendance_event_payload(event),
+        "created": created,
+    }
 
 
 @router.get("/attendance/report")
@@ -281,6 +773,9 @@ def get_employee_biometrics(
             "provider": None,
             "face_count": 0,
             "active": False,
+            "provider_cleanup_pending": False,
+            "provider_cleanup_last_error": None,
+            "provider_cleanup_attempted_at": None,
             "enrolled_at": None,
         }
 
@@ -290,7 +785,53 @@ def get_employee_biometrics(
         "provider": enrollment.provider,
         "face_count": int(enrollment.face_count or 0),
         "active": bool(enrollment.active),
+        "provider_cleanup_pending": bool(enrollment.provider_cleanup_pending),
+        "provider_cleanup_last_error": enrollment.provider_cleanup_last_error,
+        "provider_cleanup_attempted_at": (
+            enrollment.provider_cleanup_attempted_at.isoformat()
+            if enrollment.provider_cleanup_attempted_at
+            else None
+        ),
         "enrolled_at": enrollment.enrolled_at.isoformat(),
+    }
+
+
+@router.post("/employees/{employee_id}/biometrics/purge-provider")
+def retry_employee_biometric_provider_cleanup(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.manage")),
+    provider: RekognitionBiometricProvider = Depends(get_biometric_provider),
+):
+    try:
+        enrollment = biometrics.retry_provider_cleanup(
+            db,
+            employee_id=employee_id,
+            provider=provider,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ClientError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="No fue posible eliminar todavía los datos biométricos del proveedor.",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="La limpieza biométrica sigue pendiente. Intenta nuevamente.",
+        ) from exc
+
+    return {
+        "employee_id": enrollment.employee_id,
+        "provider_cleanup_pending": bool(enrollment.provider_cleanup_pending),
+        "provider_cleanup_last_error": enrollment.provider_cleanup_last_error,
+        "provider_cleanup_attempted_at": (
+            enrollment.provider_cleanup_attempted_at.isoformat()
+            if enrollment.provider_cleanup_attempted_at
+            else None
+        ),
+        "purged": not bool(enrollment.provider_cleanup_pending),
     }
 
 
@@ -310,6 +851,11 @@ async def enroll_employee_biometrics(
             employee_id=employee_id,
             image_bytes=image_bytes,
         )
+    except biometrics.BiometricConsentRequired as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="El empleado debe firmar una autorización biométrica vigente antes del enrolamiento.",
+        ) from exc
     except biometrics.BiometricEmployeeNotAllowed as exc:
         raise HTTPException(
             status_code=403,
@@ -456,6 +1002,45 @@ def kiosk_context(
         "device": service.kiosk_payload(device),
         "site_name": site.name,
         "site_timezone": site.timezone,
+    }
+
+
+
+@kiosk_router.post("/qr")
+def consume_mobile_qr_attendance(
+    body: KioskQrAttendanceRequest,
+    x_device_id: str = Header(alias="X-Device-Id"),
+    x_device_secret: str = Header(alias="X-Device-Secret"),
+    db: Session = Depends(get_db),
+):
+    try:
+        kiosk = service.authenticate_kiosk(
+            db,
+            device_id=x_device_id,
+            secret=x_device_secret,
+        )
+    except service.InvalidKioskCredentials as exc:
+        raise HTTPException(
+            status_code=401,
+            detail="Credenciales de dispositivo inválidas.",
+        ) from exc
+
+    try:
+        employee, event, created = mobile_qr.consume_qr_attendance(
+            db,
+            raw_token=body.token,
+            kiosk_device=kiosk,
+            event_type=body.event_type,
+        )
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+
+    return {
+        "employee_id": employee.id,
+        "display_name": service.employee_display_name(employee),
+        "verification_method": "qr",
+        "similarity": None,
+        "attendance": _attendance_response(event, created=created),
     }
 
 

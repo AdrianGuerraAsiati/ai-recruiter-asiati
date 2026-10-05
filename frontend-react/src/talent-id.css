@@ -554,6 +554,26 @@
   line-height: 1.5;
 }
 
+.talent-id-biometric-blocker > strong,
+.talent-id-biometric-blocker > span,
+.talent-id-biometric-blocker > small {
+  display: block;
+}
+
+.talent-id-biometric-blocker > strong {
+  margin-bottom: 3px;
+  color: var(--ink);
+}
+
+.talent-id-biometric-blocker > small {
+  margin-top: 5px;
+  color: var(--ink-faint);
+}
+
+.talent-id-biometric-blocker > .btn {
+  margin-top: 10px;
+}
+
 .talent-id-photo-form {
   display: grid;
   gap: 14px;
@@ -670,6 +690,41 @@
 .talent-id-biometric-consent input {
   flex: 0 0 auto;
   margin-top: 2px;
+}
+
+.talent-id-biometric-consent-status {
+  display: flex;
+  width: 100%;
+  max-width: none;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.talent-id-biometric-consent-status > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.talent-id-biometric-consent-status strong,
+.talent-id-biometric-consent-status span {
+  display: block;
+}
+
+.talent-id-biometric-consent-status strong {
+  color: var(--ink);
+  font-size: .78rem;
+}
+
+.talent-id-biometric-consent-status span {
+  margin-top: 4px;
+  color: var(--ink-faint);
+  font-size: .72rem;
+  line-height: 1.5;
+}
+
+.talent-id-biometric-consent-status .btn {
+  flex: 0 0 auto;
 }
 
 .talent-id-biometric-actions {
@@ -962,5 +1017,88 @@
   .employee-edit-section-heading small {
     max-width: none;
     text-align: left;
+  }
+}
+
+
+/* Talent ID pilot readiness */
+
+.talent-id-readiness {
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px;
+  border-color: color-mix(in srgb, var(--blue) 18%, var(--border));
+}
+
+.talent-id-readiness.is-ready {
+  border-color: color-mix(in srgb, var(--success) 28%, var(--border));
+  background: color-mix(in srgb, var(--success) 4%, var(--surface));
+}
+
+.talent-id-readiness.needs-attention {
+  border-color: color-mix(in srgb, var(--warning) 30%, var(--border));
+  background: color-mix(in srgb, var(--warning) 5%, var(--surface));
+}
+
+.talent-id-readiness-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.talent-id-readiness-heading h2 {
+  margin: 2px 0 5px;
+  font-size: 1.05rem;
+}
+
+.talent-id-readiness-heading p {
+  margin: 0;
+  max-width: 760px;
+  color: var(--ink-faint);
+  font-size: .77rem;
+  line-height: 1.5;
+}
+
+.talent-id-readiness-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.talent-id-readiness-item {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: .7rem;
+  font-weight: 700;
+}
+
+.talent-id-readiness-item.is-issue {
+  border-color: color-mix(in srgb, var(--warning) 28%, var(--border));
+  color: var(--warning);
+}
+
+.talent-id-readiness-item.is-warning {
+  border-color: color-mix(in srgb, var(--danger) 22%, var(--border));
+  color: var(--danger);
+}
+
+@media (max-width: 700px) {
+  .talent-id-readiness-heading {
+    flex-direction: column;
+  }
+}
+
+
+@media (max-width: 700px) {
+  .talent-id-biometric-consent-status {
+    flex-direction: column;
+  }
+
+  .talent-id-biometric-consent-status .btn {
+    width: 100%;
   }
 }

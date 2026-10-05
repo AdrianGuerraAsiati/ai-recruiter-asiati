@@ -13,6 +13,7 @@ class FakeRekognitionClient:
     def __init__(self):
         self.created = []
         self.deleted = []
+        self.deleted_users = []
         self.search_response = {"UserMatches": []}
         self.index_response = {
             "FaceRecords": [{"Face": {"FaceId": "face-1"}}],
@@ -58,6 +59,10 @@ class FakeRekognitionClient:
 
     def delete_faces(self, **kwargs):
         self.deleted.append(kwargs)
+        return {}
+
+    def delete_user(self, **kwargs):
+        self.deleted_users.append(kwargs)
         return {}
 
     def search_users_by_image(self, **kwargs):
@@ -202,3 +207,18 @@ def test_recognition_returns_best_user_match():
     assert match is not None
     assert match.provider_user_id == "employee-1"
     assert match.similarity == 99.6
+
+
+
+def test_delete_user_purges_associated_face_vectors():
+    client = FakeRekognitionClient()
+    client.faces = [
+        {"FaceId": "face-1", "UserId": "employee-1"},
+        {"FaceId": "face-2", "UserId": "employee-2"},
+        {"FaceId": "face-3", "UserId": "employee-1"},
+    ]
+
+    _provider(client).delete_user(provider_user_id="employee-1")
+
+    assert client.deleted_users[0]["UserId"] == "employee-1"
+    assert client.deleted[0]["FaceIds"] == ["face-1", "face-3"]

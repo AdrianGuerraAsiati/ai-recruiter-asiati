@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, time, timezone
+import uuid
+from datetime import datetime, time, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -335,6 +336,9 @@ def record_attendance(
     method: str,
     idempotency_key: str,
     recognition_confidence: float | None = None,
+    manual_reason: str | None = None,
+    created_by_sub: str | None = None,
+    occurred_at: datetime | None = None,
 ) -> tuple[TalentAttendanceEvent, bool]:
     existing = (
         db.query(TalentAttendanceEvent)
@@ -377,6 +381,17 @@ def record_attendance(
     if normalized_method not in {"FACE", "PIN", "QR", "MANUAL"}:
         raise ValueError("unsupported attendance method")
 
+    normalized_reason = (manual_reason or "").strip() or None
+    normalized_actor = (created_by_sub or "").strip() or None
+    if normalized_method == "MANUAL":
+        if normalized_reason is None or len(normalized_reason) < 5:
+            raise ValueError("La marcación manual requiere un motivo de al menos 5 caracteres.")
+        if normalized_actor is None:
+            raise ValueError("La marcación manual requiere identificar al administrador.")
+    else:
+        normalized_reason = None
+        normalized_actor = None
+
     event = TalentAttendanceEvent(
         employee_id=employee_id,
         site_id=site_id,
@@ -385,12 +400,57 @@ def record_attendance(
         method=normalized_method,
         idempotency_key=idempotency_key.strip(),
         recognition_confidence=recognition_confidence,
-        occurred_at=_now(),
+        manual_reason=normalized_reason,
+        created_by_sub=normalized_actor,
+        occurred_at=occurred_at or _now(),
     )
     db.add(event)
     db.commit()
     db.refresh(event)
     return event, True
+
+
+def record_manual_attendance(
+    db: Session,
+    *,
+    employee_id: str,
+    event_type: str,
+    reason: str,
+    created_by_sub: str,
+    occurred_at: datetime | None = None,
+) -> tuple[TalentAttendanceEvent, bool]:
+    """Create an audited contingency attendance event at the employee's assigned site."""
+    settings = get_employee_attendance_settings(db, employee_id)
+    effective_time = occurred_at or _now()
+    if effective_time.tzinfo is None:
+        effective_time = effective_time.replace(tzinfo=timezone.utc)
+    else:
+        effective_time = effective_time.astimezone(timezone.utc)
+
+    now = _now()
+    if effective_time > now.replace(microsecond=0) + timedelta(minutes=5):
+        raise ValueError("La hora de contingencia no puede estar en el futuro.")
+    if effective_time < now - timedelta(days=31):
+        raise ValueError("La marcación manual solo puede registrarse hasta 31 días atrás.")
+
+    if not settings.attendance_eligible:
+        raise EmployeeNotEligibleForAttendance()
+    if not settings.site_id:
+        raise TalentIdNotFound("El empleado no tiene una sede asignada.")
+
+    return record_attendance(
+        db,
+        employee_id=employee_id,
+        site_id=settings.site_id,
+        device_id=None,
+        event_type=event_type,
+        method="MANUAL",
+        idempotency_key=f"manual:{uuid.uuid4()}",
+        recognition_confidence=None,
+        manual_reason=reason,
+        created_by_sub=created_by_sub,
+        occurred_at=effective_time,
+    )
 
 
 def site_payload(site: TalentSite) -> dict:
@@ -438,4 +498,6 @@ def attendance_event_payload(event: TalentAttendanceEvent) -> dict:
         "method": event.method,
         "occurred_at": event.occurred_at.isoformat(),
         "recognition_confidence": event.recognition_confidence,
+        "manual_reason": event.manual_reason,
+        "created_by_sub": event.created_by_sub,
     }

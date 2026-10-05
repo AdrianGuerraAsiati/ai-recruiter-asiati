@@ -1,0 +1,165 @@
+.mobile-attendance-card {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.mobile-attendance-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.mobile-attendance-heading h2 {
+  margin: 4px 0 6px;
+}
+
+.mobile-attendance-heading p,
+.mobile-attendance-link p,
+.mobile-attendance-generate p,
+.mobile-attendance-qr-copy p,
+.mobile-attendance-security p {
+  margin: 0;
+  color: var(--text-muted, #667085);
+  line-height: 1.55;
+}
+
+.mobile-device-status {
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+  background: rgba(100, 116, 139, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.mobile-device-status.is-linked {
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.mobile-attendance-link,
+.mobile-attendance-generate,
+.mobile-attendance-device,
+.mobile-attendance-security {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 14px;
+}
+
+.mobile-attendance-device > div {
+  display: grid;
+  gap: 3px;
+}
+
+.mobile-attendance-device span,
+.mobile-attendance-device small {
+  color: var(--text-muted, #667085);
+}
+
+.mobile-attendance-warning {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.12);
+  line-height: 1.5;
+}
+
+.mobile-attendance-qr {
+  display: grid;
+  grid-template-columns: minmax(220px, 310px) 1fr;
+  gap: 24px;
+  align-items: center;
+  padding: 18px;
+  border-radius: 18px;
+  background: var(--surface-subtle, rgba(248, 250, 252, 0.7));
+  border: 1px solid var(--border-color, #e5e7eb);
+}
+
+.mobile-attendance-qr-frame {
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.mobile-attendance-qr-frame img {
+  display: block;
+  width: 100%;
+  max-width: 290px;
+  aspect-ratio: 1;
+}
+
+.mobile-attendance-qr-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.mobile-attendance-countdown {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-weight: 800;
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.mobile-attendance-countdown.is-expiring {
+  background: rgba(245, 158, 11, 0.16);
+}
+
+.mobile-attendance-security {
+  align-items: flex-start;
+  flex-direction: column;
+  background: rgba(59, 130, 246, 0.06);
+}
+
+@media (max-width: 720px) {
+  .mobile-attendance-heading,
+  .mobile-attendance-link,
+  .mobile-attendance-generate,
+  .mobile-attendance-device {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mobile-attendance-qr {
+    grid-template-columns: 1fr;
+  }
+
+  .mobile-attendance-qr-frame {
+    max-width: 360px;
+    width: 100%;
+    margin: 0 auto;
+  }
+}
+
+
+.mobile-attendance-link-otp {
+  display: grid;
+  gap: 10px;
+  min-width: min(100%, 320px);
+}
+
+.mobile-attendance-link-otp label {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.mobile-attendance-link-otp input {
+  width: 100%;
+  max-width: 220px;
+  letter-spacing: 0.35em;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.mobile-attendance-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

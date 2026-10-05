@@ -39,6 +39,7 @@ function TalentId() {
   const [saving, setSaving] = useState("");
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [readiness, setReadiness] = useState(null);
   const [siteForm, setSiteForm] = useState(() => emptySiteForm());
   const [scheduleForm, setScheduleForm] = useState(() => emptyScheduleForm());
 
@@ -48,16 +49,18 @@ function TalentId() {
     setError("");
 
     try {
-      const [sitesResponse, schedulesResponse, devicesResponse, employeesResponse] = await Promise.all([
+      const [sitesResponse, schedulesResponse, devicesResponse, employeesResponse, readinessResponse] = await Promise.all([
         api.get("/talent-id/sites"),
         api.get("/talent-id/schedules"),
         api.get("/talent-id/devices"),
         api.get("/employees", { params: { status: "ACTIVE" } }),
+        api.get("/talent-id/readiness").catch(() => ({ data: null })),
       ]);
       setSites(sitesResponse.data?.items || []);
       setSchedules(schedulesResponse.data?.items || []);
       setDevices(devicesResponse.data?.items || []);
       setEmployees(employeesResponse.data?.items || []);
+      setReadiness(readinessResponse.data || null);
     } catch (err) {
       setError(getApiErrorMessage(err, {
         action: "cargar la configuración de Talent ID",
@@ -77,13 +80,15 @@ function TalentId() {
       api.get("/talent-id/schedules"),
       api.get("/talent-id/devices"),
       api.get("/employees", { params: { status: "ACTIVE" } }),
+      api.get("/talent-id/readiness").catch(() => ({ data: null })),
     ])
-      .then(([sitesResponse, schedulesResponse, devicesResponse, employeesResponse]) => {
+      .then(([sitesResponse, schedulesResponse, devicesResponse, employeesResponse, readinessResponse]) => {
         if (cancelled) return;
         setSites(sitesResponse.data?.items || []);
         setSchedules(schedulesResponse.data?.items || []);
         setDevices(devicesResponse.data?.items || []);
         setEmployees(employeesResponse.data?.items || []);
+        setReadiness(readinessResponse.data || null);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -173,7 +178,7 @@ function TalentId() {
       <PageHeader
         eyebrow="Asistencia · Talent ID"
         title="Administración de Talent ID"
-        description="Configura sedes, jornadas, fotos de reconocimiento y credenciales de los kioscos de asistencia facial desde un solo lugar."
+        description="Configura sedes, jornadas, consentimiento, reconocimiento facial, QR móvil y credenciales de los kioscos de asistencia desde un solo lugar."
         actions={(
           <button className="btn btn-secondary" type="button" onClick={loadAll} disabled={loading}>
             Actualizar
@@ -184,6 +189,39 @@ function TalentId() {
 
       {error && <FeedbackMessage title="Talent ID requiere atención">{error}</FeedbackMessage>}
       {feedback && <div className="talent-id-success" role="status">{feedback}</div>}
+
+      {readiness && (
+        <section
+          className={`panel talent-id-readiness ${readiness.ready_for_pilot ? "is-ready" : "needs-attention"}`}
+          aria-label="Preparación de Talent ID"
+        >
+          <div className="talent-id-readiness-heading">
+            <div>
+              <span className="eyebrow">Preparación del piloto</span>
+              <h2>{readiness.ready_for_pilot ? "Configuración técnica lista" : "Faltan configuraciones para el piloto"}</h2>
+              <p>
+                {readiness.ready_for_pilot
+                  ? "Biometría, firma electrónica, QR móvil, sede, horario y kiosco tienen la configuración mínima."
+                  : "Completa los puntos pendientes antes de probar el flujo de punta a punta."}
+              </p>
+            </div>
+            <span className={`status-pill ${readiness.ready_for_pilot ? "" : "status-disabled"}`}>
+              <i /> {readiness.ready_for_pilot ? "Listo" : "Pendiente"}
+            </span>
+          </div>
+
+          {(readiness.issues?.length > 0 || readiness.warnings?.length > 0) && (
+            <div className="talent-id-readiness-items">
+              {(readiness.issues || []).map((item) => (
+                <span key={item} className="talent-id-readiness-item is-issue">{item}</span>
+              ))}
+              {(readiness.warnings || []).map((item) => (
+                <span key={item} className="talent-id-readiness-item is-warning">{item}</span>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="metrics-grid talent-id-metrics" aria-label="Estado de Talent ID">
         <MetricCard icon="employee" label="Sedes activas" value={activeSites.length} detail="Disponibles para asistencia" tone="blue" />

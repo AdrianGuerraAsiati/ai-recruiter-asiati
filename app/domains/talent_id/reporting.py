@@ -151,18 +151,22 @@ def build_attendance_report(
         site = sites.get(day_events[0][0].site_id)
 
         check_ins = [
-            local_time
+            (event, local_time)
             for event, local_time in day_events
             if event.event_type == "CHECK_IN"
         ]
         check_outs = [
-            local_time
+            (event, local_time)
             for event, local_time in day_events
             if event.event_type == "CHECK_OUT"
         ]
 
-        first_in = min(check_ins) if check_ins else None
-        last_out = max(check_outs) if check_outs else None
+        first_in_pair = min(check_ins, key=lambda item: item[1]) if check_ins else None
+        last_out_pair = max(check_outs, key=lambda item: item[1]) if check_outs else None
+        first_in_event = first_in_pair[0] if first_in_pair else None
+        last_out_event = last_out_pair[0] if last_out_pair else None
+        first_in = first_in_pair[1] if first_in_pair else None
+        last_out = last_out_pair[1] if last_out_pair else None
 
         late_minutes = 0
         if first_in and schedule:
@@ -208,7 +212,22 @@ def build_attendance_report(
                     schedule.end_time.isoformat() if schedule else None
                 ),
                 "check_in": first_in.isoformat() if first_in else None,
+                "check_in_method": first_in_event.method if first_in_event else None,
+                "check_in_manual_reason": (
+                    first_in_event.manual_reason
+                    if first_in_event and first_in_event.method == "MANUAL"
+                    else None
+                ),
                 "check_out": last_out.isoformat() if last_out else None,
+                "check_out_method": last_out_event.method if last_out_event else None,
+                "check_out_manual_reason": (
+                    last_out_event.manual_reason
+                    if last_out_event and last_out_event.method == "MANUAL"
+                    else None
+                ),
+                "has_manual_adjustment": any(
+                    event.method == "MANUAL" for event, _local_time in day_events
+                ),
                 "late_minutes": late_minutes,
                 "worked_minutes": worked_minutes,
                 "status": status,
@@ -246,6 +265,11 @@ def build_attendance_report(
             "days_with_activity": len(rows),
             "check_ins": check_in_count,
             "check_outs": check_out_count,
+            "manual_events": sum(
+                1
+                for event, _local_time in filtered_events
+                if event.method == "MANUAL"
+            ),
             "late_arrivals": late_days,
             "incomplete_days": sum(1 for row in rows if row["status"] == "INCOMPLETE"),
             "on_time_rate": (

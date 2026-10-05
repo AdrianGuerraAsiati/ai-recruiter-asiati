@@ -11,6 +11,7 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 
 enum class AttendanceEventType(val apiValue: String) {
@@ -28,7 +29,8 @@ data class KioskContext(
 data class AttendanceResult(
     val employeeId: String,
     val displayName: String,
-    val similarity: Double,
+    val similarity: Double?,
+    val verificationMethod: String,
     val eventType: AttendanceEventType,
     val occurredAt: String,
     val created: Boolean,
@@ -100,7 +102,47 @@ class TalentIdApi(
             AttendanceResult(
                 employeeId = json.getString("employee_id"),
                 displayName = json.getString("display_name"),
-                similarity = json.getDouble("similarity"),
+                similarity = json.optDouble("similarity").takeUnless { it.isNaN() },
+                verificationMethod = json.optString("verification_method", "face"),
+                eventType = AttendanceEventType.entries.first {
+                    it.apiValue == attendance.getString("event_type")
+                },
+                occurredAt = attendance.getString("occurred_at"),
+                created = attendance.getBoolean("created"),
+            )
+        }
+    }
+
+
+    suspend fun submitQr(
+        credentials: DeviceCredentials,
+        token: String,
+        eventType: AttendanceEventType,
+    ): AttendanceResult = withContext(Dispatchers.IO) {
+        val jsonBody = JSONObject()
+            .put("token", token)
+            .put("event_type", eventType.apiValue)
+            .toString()
+            .toRequestBody("application/json; charset=utf-8".toMediaType())
+
+        val request = Request.Builder()
+            .url(url("/v1/kiosk/qr"))
+            .header("X-Device-Id", credentials.deviceId)
+            .header("X-Device-Secret", credentials.secret)
+            .post(jsonBody)
+            .build()
+
+        client.newCall(request).execute().use { response ->
+            val body = response.body.string()
+            ensureSuccess(response.code, body)
+
+            val json = JSONObject(body)
+            val attendance = json.getJSONObject("attendance")
+            AttendanceResult(
+                employeeId = json.getString("employee_id"),
+                displayName = json.getString("display_name"),
+                similarity = null,
+                verificationMethod = json.optString("verification_method", "qr"),
                 eventType = AttendanceEventType.entries.first {
                     it.apiValue == attendance.getString("event_type")
                 },

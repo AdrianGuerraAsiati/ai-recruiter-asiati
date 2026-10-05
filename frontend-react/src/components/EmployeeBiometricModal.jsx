@@ -44,9 +44,20 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
     face_count: 0,
     active: false,
     enrolled_at: null,
+    provider_cleanup_pending: false,
+    provider_cleanup_last_error: null,
+    provider_cleanup_attempted_at: null,
   });
+  const [purgingBiometric, setPurgingBiometric] = useState(false);
   const [image, setImage] = useState(null);
-  const [consentConfirmed, setConsentConfirmed] = useState(false);
+  const [consent, setConsent] = useState({
+    status: "PENDING",
+    signed_at: null,
+    document_version: null,
+    has_signed_document: false,
+  });
+  const [mobileDevices, setMobileDevices] = useState([]);
+  const [revokingMobile, setRevokingMobile] = useState("");
 
   const activeSites = useMemo(
     () => sites.filter((item) => item.active !== false),
@@ -67,8 +78,10 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
       api.get("/talent-id/schedules"),
       api.get(`/talent-id/employees/${employee.id}/attendance`),
       api.get(`/talent-id/employees/${employee.id}/biometrics`),
+      api.get(`/talent-id/employees/${employee.id}/consent`),
+      api.get(`/talent-id/employees/${employee.id}/mobile-devices`),
     ])
-      .then(([sitesResponse, schedulesResponse, attendanceResponse, biometricResponse]) => {
+      .then(([sitesResponse, schedulesResponse, attendanceResponse, biometricResponse, consentResponse, mobileDevicesResponse]) => {
         if (cancelled) return;
 
         const nextSites = sitesResponse.data?.items || [];
@@ -98,7 +111,17 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
           face_count: Number(biometricResponse.data?.face_count || 0),
           active: Boolean(biometricResponse.data?.active),
           enrolled_at: biometricResponse.data?.enrolled_at || null,
+          provider_cleanup_pending: Boolean(biometricResponse.data?.provider_cleanup_pending),
+          provider_cleanup_last_error: biometricResponse.data?.provider_cleanup_last_error || null,
+          provider_cleanup_attempted_at: biometricResponse.data?.provider_cleanup_attempted_at || null,
         });
+        setConsent({
+          status: consentResponse.data?.status || "PENDING",
+          signed_at: consentResponse.data?.signed_at || null,
+          document_version: consentResponse.data?.document_version || null,
+          has_signed_document: Boolean(consentResponse.data?.has_signed_document),
+        });
+        setMobileDevices(mobileDevicesResponse.data?.items || []);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -155,6 +178,83 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
     }
   }
 
+
+
+  async function downloadConsentDocument() {
+    setError("");
+    setSuccess("");
+    try {
+      const response = await api.get(
+        `/talent-id/employees/${employee.id}/consent/document`,
+        { responseType: "blob" },
+      );
+      const url = URL.createObjectURL(response.data);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `Talent_ID_${employee.id}_consentimiento.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "descargar la autorización biométrica",
+        resource: "Talent ID",
+        fallback: "No se pudo descargar el documento firmado del empleado.",
+      }));
+    }
+  }
+
+
+  async function retryBiometricPurge() {
+    setPurgingBiometric(true);
+    setError("");
+    setSuccess("");
+    try {
+      const { data } = await api.post(
+        `/talent-id/employees/${employee.id}/biometrics/purge-provider`,
+      );
+      setBiometric((current) => ({
+        ...current,
+        provider_cleanup_pending: Boolean(data?.provider_cleanup_pending),
+        provider_cleanup_last_error: data?.provider_cleanup_last_error || null,
+        provider_cleanup_attempted_at: data?.provider_cleanup_attempted_at || null,
+      }));
+      setSuccess("La eliminación de los datos biométricos en el proveedor fue confirmada.");
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "eliminar los datos biométricos del proveedor",
+        resource: "Talent ID",
+        fallback: "La eliminación sigue pendiente. Intenta nuevamente más tarde.",
+      }));
+    } finally {
+      setPurgingBiometric(false);
+    }
+  }
+
+  async function revokeMobileDevice(deviceId) {
+    setRevokingMobile(deviceId);
+    setError("");
+    setSuccess("");
+    try {
+      await api.delete(
+        `/talent-id/employees/${employee.id}/mobile-devices/${deviceId}`,
+      );
+      setMobileDevices((current) => current.map((item) => (
+        item.id === deviceId ? { ...item, active: false } : item
+      )));
+      setSuccess("Celular revocado. El empleado deberá verificar un nuevo dispositivo con OTP para volver a usar QR.");
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "revocar el celular vinculado",
+        resource: "Talent ID",
+        fallback: "No se pudo revocar el dispositivo móvil.",
+      }));
+    } finally {
+      setRevokingMobile("");
+    }
+  }
+
   function selectImage(event) {
     const file = event.target.files?.[0] || null;
     setError("");
@@ -190,8 +290,8 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
       setError("Selecciona o captura una fotografía del empleado.");
       return;
     }
-    if (!consentConfirmed) {
-      setError("Confirma la autorización del empleado antes de enviar biometría.");
+    if (consent.status !== "AUTHORIZED") {
+      setError("El empleado debe firmar la autorización biométrica desde su perfil antes del enrolamiento.");
       return;
     }
 
@@ -212,9 +312,11 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
         face_count: Number(data?.face_count || 0),
         active: Boolean(data?.active),
         enrolled_at: data?.enrolled_at || new Date().toISOString(),
+        provider_cleanup_pending: false,
+        provider_cleanup_last_error: null,
+        provider_cleanup_attempted_at: null,
       });
       setImage(null);
-      setConsentConfirmed(false);
       setSuccess(
         Number(data?.face_count || 0) >= 2
           ? "Rostro agregado. Ya hay múltiples referencias para iniciar la prueba en kiosco."
@@ -231,11 +333,15 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
     }
   }
 
+  const biometricReady =
+    consent.status === "AUTHORIZED"
+    && biometric.active
+    && biometric.face_count >= 2;
+  const qrReady = mobileDevices.some((item) => item.active);
   const readyForKiosk =
     attendance.configured
     && attendance.attendance_eligible
-    && biometric.active
-    && biometric.face_count >= 2;
+    && (biometricReady || qrReady);
 
   return (
     <div className="modal-overlay" role="presentation" onMouseDown={onClose}>
@@ -273,7 +379,11 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
               </div>
               <div>
                 <span>Biometría</span>
-                <strong>{biometric.active ? "Activa" : "No activa"}</strong>
+                <strong>{biometricReady ? "Lista" : "No disponible"}</strong>
+              </div>
+              <div>
+                <span>QR móvil</span>
+                <strong>{qrReady ? "Listo" : "No vinculado"}</strong>
               </div>
             </div>
 
@@ -376,20 +486,100 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
                 <small>{image ? `${image.name} · ${Math.max(1, Math.round(image.size / 1024))} KB` : "JPEG o PNG · máximo 5 MB"}</small>
               </div>
 
-              <label className="talent-id-consent">
-                <input
-                  type="checkbox"
-                  checked={consentConfirmed}
-                  onChange={(event) => setConsentConfirmed(event.target.checked)}
-                />
+              <div className="talent-id-consent">
                 <span>
-                  Confirmo que el empleado autorizó el enrolamiento facial para control de asistencia en este piloto.
+                  <strong>
+                    Autorización biométrica: {
+                      consent.status === "AUTHORIZED"
+                        ? "Autorizada"
+                        : consent.status === "DENIED"
+                          ? "No autorizada"
+                          : consent.status === "REVOKED"
+                            ? "Revocada"
+                            : "Pendiente"
+                    }
+                  </strong>
+                  <small>
+                    La decisión solo puede firmarla el empleado desde Mi perfil mediante OTP. Un administrador no puede autorizarla en su nombre.
+                    {consent.signed_at
+                      ? ` Última decisión: ${new Date(consent.signed_at).toLocaleString("es-CO")}.`
+                      : ""}
+                  </small>
                 </span>
-              </label>
+                {consent.has_signed_document && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={downloadConsentDocument}
+                  >
+                    Descargar autorización
+                  </button>
+                )}
+              </div>
+
+              {consent.status !== "AUTHORIZED" && (
+                <div className="talent-id-biometric-blocker">
+                  No es posible enrolar el rostro hasta que exista una autorización biométrica vigente.
+                </div>
+              )}
+
+              <div className="talent-id-consent">
+                <span>
+                  <strong>
+                    Alternativa no biométrica: {
+                      mobileDevices.some((item) => item.active)
+                        ? "Celular vinculado"
+                        : "Sin celular vinculado"
+                    }
+                  </strong>
+                  <small>
+                    El empleado vincula su propio celular desde Mi perfil con OTP. El QR dinámico funciona aunque no autorice reconocimiento facial.
+                  </small>
+                  {mobileDevices.filter((item) => item.active).map((device) => (
+                    <small key={device.id}>
+                      {device.label || "Celular vinculado"}
+                      {device.last_used_at
+                        ? ` · último uso ${new Date(device.last_used_at).toLocaleString("es-CO")}`
+                        : " · aún sin marcaciones"}
+                    </small>
+                  ))}
+                </span>
+                {mobileDevices.filter((item) => item.active).map((device) => (
+                  <button
+                    key={device.id}
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={revokingMobile === device.id}
+                    onClick={() => revokeMobileDevice(device.id)}
+                  >
+                    {revokingMobile === device.id ? "Revocando…" : "Revocar celular"}
+                  </button>
+                ))}
+              </div>
 
               <div className="talent-id-privacy-note">
                 Talent procesa esta imagen para el enrolamiento y no la guarda como archivo original. El estado biométrico conserva identificadores del proveedor y cantidad de rostros.
               </div>
+
+              {biometric.provider_cleanup_pending && (
+                <div className="talent-id-biometric-blocker">
+                  <strong>Eliminación del proveedor pendiente</strong>
+                  <span>
+                    El reconocimiento ya está deshabilitado en Talent, pero aún falta confirmar la eliminación de los datos biométricos en el proveedor.
+                  </span>
+                  {biometric.provider_cleanup_last_error && (
+                    <small>{biometric.provider_cleanup_last_error}</small>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={purgingBiometric}
+                    onClick={retryBiometricPurge}
+                  >
+                    {purgingBiometric ? "Reintentando…" : "Reintentar eliminación"}
+                  </button>
+                </div>
+              )}
 
               <button
                 className="btn btn-primary"
@@ -399,7 +589,7 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
                   || !attendance.configured
                   || !attendance.attendance_eligible
                   || !image
-                  || !consentConfirmed
+                  || consent.status !== "AUTHORIZED"
                 }
               >
                 {uploading ? "Enrolando…" : biometric.enrolled ? "Agregar otra fotografía" : "Enrolar rostro"}
