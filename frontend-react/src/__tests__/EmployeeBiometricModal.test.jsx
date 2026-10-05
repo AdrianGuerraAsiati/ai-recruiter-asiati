@@ -253,6 +253,9 @@ describe("EmployeeBiometricModal", () => {
     );
 
     expect(await screen.findByText(/alternativa no biométrica: celular vinculado/i)).toBeInTheDocument();
+    expect(screen.getByText("Listo para kiosco")).toBeInTheDocument();
+    expect(screen.getByText("QR móvil")).toBeInTheDocument();
+    expect(screen.getByText("Listo")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Revocar celular" }));
 
     await waitFor(() => {
