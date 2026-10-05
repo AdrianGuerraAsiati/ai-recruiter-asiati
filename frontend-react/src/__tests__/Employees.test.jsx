@@ -296,7 +296,7 @@ describe("Employees administration", () => {
     });
     expect(screen.getByText("Asignación automática")).toBeInTheDocument();
     expect(await screen.findByText("Configuración de marcación")).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText("Habilitar marcación de asistencia"));
+    fireEvent.click(screen.getByLabelText(/Habilitar marcación de asistencia/i));
     fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
 
     await waitFor(() => {
