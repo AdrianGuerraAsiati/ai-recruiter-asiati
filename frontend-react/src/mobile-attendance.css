@@ -137,3 +137,29 @@
     margin: 0 auto;
   }
 }
+
+
+.mobile-attendance-link-otp {
+  display: grid;
+  gap: 10px;
+  min-width: min(100%, 320px);
+}
+
+.mobile-attendance-link-otp label {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.mobile-attendance-link-otp input {
+  width: 100%;
+  max-width: 220px;
+  letter-spacing: 0.35em;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.mobile-attendance-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
