@@ -73,7 +73,17 @@ function TalentIdFaceEnrollment({
     ])
       .then(([attendanceResponse, biometricResponse]) => {
         if (cancelled) return;
-        setAttendance(attendanceResponse.data || {});
+        const currentAttendance = attendanceResponse.data || {};
+        const activeSites = sites.filter((item) => item.active !== false);
+        const activeSchedules = schedules.filter((item) => item.active !== false);
+        setAttendance({
+          configured: Boolean(currentAttendance.configured),
+          site_id: currentAttendance.site_id
+            || (activeSites.length === 1 ? activeSites[0].id : ""),
+          schedule_id: currentAttendance.schedule_id
+            || (activeSchedules.length === 1 ? activeSchedules[0].id : ""),
+          attendance_eligible: Boolean(currentAttendance.attendance_eligible),
+        });
         setBiometric(biometricResponse.data || {});
       })
       .catch((err) => {
@@ -91,7 +101,7 @@ function TalentIdFaceEnrollment({
     return () => {
       cancelled = true;
     };
-  }, [employeeId]);
+  }, [employeeId, schedules, sites]);
 
   function changeEmployee(event) {
     const nextEmployeeId = event.target.value;
