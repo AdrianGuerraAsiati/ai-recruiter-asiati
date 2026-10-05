@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import { FeedbackMessage, LoadingState } from "./ui/StatePanel";
+import TalentIdAttendanceFields from "./TalentIdAttendanceFields";
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_BATCH_FILES = 5;
@@ -28,7 +29,12 @@ function employeeInitials(employee) {
   return `${first}${last}`.toUpperCase() || employee?.email?.[0]?.toUpperCase() || "?";
 }
 
-function TalentIdFaceEnrollment({ employees = [], onEmployeeUpdated }) {
+function TalentIdFaceEnrollment({
+  employees = [],
+  sites = [],
+  schedules = [],
+  onEmployeeUpdated,
+}) {
   const [employeeId, setEmployeeId] = useState("");
   const [attendance, setAttendance] = useState(null);
   const [biometric, setBiometric] = useState(null);
@@ -40,6 +46,7 @@ function TalentIdFaceEnrollment({ employees = [], onEmployeeUpdated }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [savingName, setSavingName] = useState(false);
+  const [savingAttendance, setSavingAttendance] = useState(false);
   const [nameForm, setNameForm] = useState({ first_name: "", last_name: "" });
 
   const activeEmployees = useMemo(
@@ -66,7 +73,17 @@ function TalentIdFaceEnrollment({ employees = [], onEmployeeUpdated }) {
     ])
       .then(([attendanceResponse, biometricResponse]) => {
         if (cancelled) return;
-        setAttendance(attendanceResponse.data || {});
+        const currentAttendance = attendanceResponse.data || {};
+        const activeSites = sites.filter((item) => item.active !== false);
+        const activeSchedules = schedules.filter((item) => item.active !== false);
+        setAttendance({
+          configured: Boolean(currentAttendance.configured),
+          site_id: currentAttendance.site_id
+            || (activeSites.length === 1 ? activeSites[0].id : ""),
+          schedule_id: currentAttendance.schedule_id
+            || (activeSchedules.length === 1 ? activeSchedules[0].id : ""),
+          attendance_eligible: Boolean(currentAttendance.attendance_eligible),
+        });
         setBiometric(biometricResponse.data || {});
       })
       .catch((err) => {
@@ -84,7 +101,7 @@ function TalentIdFaceEnrollment({ employees = [], onEmployeeUpdated }) {
     return () => {
       cancelled = true;
     };
-  }, [employeeId]);
+  }, [employeeId, schedules, sites]);
 
   function changeEmployee(event) {
     const nextEmployeeId = event.target.value;
@@ -132,6 +149,47 @@ function TalentIdFaceEnrollment({ employees = [], onEmployeeUpdated }) {
       }));
     } finally {
       setSavingName(false);
+    }
+  }
+
+  async function saveAttendance() {
+    if (!employeeId || !attendance) return;
+    if (!attendance.site_id || !attendance.schedule_id) {
+      setError("Selecciona una sede y un horario antes de guardar la asistencia.");
+      return;
+    }
+
+    setSavingAttendance(true);
+    setError("");
+    setSuccess("");
+    try {
+      const { data } = await api.put(
+        `/talent-id/employees/${employeeId}/attendance`,
+        {
+          site_id: attendance.site_id,
+          schedule_id: attendance.schedule_id,
+          attendance_eligible: Boolean(attendance.attendance_eligible),
+        },
+      );
+      setAttendance({
+        configured: true,
+        site_id: data?.site_id || attendance.site_id,
+        schedule_id: data?.schedule_id || attendance.schedule_id,
+        attendance_eligible: Boolean(data?.attendance_eligible),
+      });
+      setSuccess(
+        data?.attendance_eligible
+          ? "Asistencia habilitada. Ya puedes registrar las fotos del empleado."
+          : "Asistencia guardada como deshabilitada.",
+      );
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "guardar la configuración de asistencia",
+        resource: "Talent ID",
+        fallback: "No se pudo guardar la sede, el horario o el estado de asistencia.",
+      }));
+    } finally {
+      setSavingAttendance(false);
     }
   }
 
@@ -335,11 +393,33 @@ function TalentIdFaceEnrollment({ employees = [], onEmployeeUpdated }) {
               </div>
             </div>
 
-            {!attendanceReady && (
-              <div className="talent-id-biometric-blocker">
-                Antes de agregar fotos, habilita la asistencia de este empleado y asígnale sede y horario desde su configuración de Talent ID.
-              </div>
-            )}
+            <TalentIdAttendanceFields
+              attendance={attendance || {
+                configured: false,
+                site_id: "",
+                schedule_id: "",
+                attendance_eligible: false,
+              }}
+              sites={sites}
+              schedules={schedules}
+              onChange={setAttendance}
+              disabled={savingAttendance}
+            />
+            <div className="talent-id-attendance-save-row">
+              <span>
+                {attendanceReady
+                  ? "La marcación está lista para este empleado."
+                  : "Configura sede, horario y habilita la asistencia para continuar con biometría."}
+              </span>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={saveAttendance}
+                disabled={savingAttendance || !attendance?.site_id || !attendance?.schedule_id}
+              >
+                {savingAttendance ? "Guardando…" : "Guardar asistencia"}
+              </button>
+            </div>
 
             <form className="talent-id-photo-form" onSubmit={uploadPhotos}>
               <div className={`talent-id-photo-dropzone ${attendanceReady ? "" : "is-disabled"}`}>
@@ -376,17 +456,18 @@ function TalentIdFaceEnrollment({ employees = [], onEmployeeUpdated }) {
                 </div>
               )}
 
-              <label className="talent-id-biometric-consent">
+              <div className="talent-id-biometric-consent">
                 <input
+                  id="talent-id-biometric-consent"
                   type="checkbox"
                   checked={consentConfirmed}
                   onChange={(event) => setConsentConfirmed(event.target.checked)}
                   disabled={!attendanceReady || uploading}
                 />
-                <span>
+                <label htmlFor="talent-id-biometric-consent">
                   Confirmo que el empleado autorizó el uso de sus datos biométricos para control de asistencia.
-                </span>
-              </label>
+                </label>
+              </div>
 
               <div className="talent-id-biometric-actions">
                 <div>

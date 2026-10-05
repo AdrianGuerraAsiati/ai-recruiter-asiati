@@ -326,6 +326,8 @@ function TalentId() {
 
           <TalentIdFaceEnrollment
             employees={employees}
+            sites={sites}
+            schedules={schedules}
             onEmployeeUpdated={() => loadAll({ silent: true })}
           />
 
