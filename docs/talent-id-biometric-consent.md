@@ -71,6 +71,24 @@ La marcación manual auditada queda como contingencia administrativa. El consent
 biométrico no se usa como requisito para acceder a esta alternativa.
 
 
+
+## Eliminación biométrica pendiente
+
+Al negar o revocar una autorización vigente, Talent bloquea inmediatamente el reconocimiento
+facial y marca el enrolamiento como inactivo. La eliminación en el proveedor biométrico se
+intenta en ese mismo flujo.
+
+Si el proveedor no responde, Talent conserva el estado
+`provider_cleanup_pending=true`, el último error y la fecha del intento. El administrador
+puede reintentar la eliminación desde el panel del empleado mediante:
+
+- `POST /api/talent-id/employees/{employee_id}/biometrics/purge-provider`
+
+La revocación sigue siendo efectiva aunque el proveedor externo esté temporalmente
+indisponible; el pendiente existe únicamente para garantizar la eliminación posterior de los
+datos biométricos externos.
+
+
 ## Contingencia manual auditada
 
 Cuando un empleado no pueda marcar mediante reconocimiento facial ni QR móvil, un usuario con
@@ -118,7 +136,7 @@ En producción:
   almacenarse en el repositorio.
 - `TALENT_ID_CONSENT_FROM_EMAIL` debe corresponder a una identidad habilitada para envío.
 - El runtime necesita permiso mínimo para enviar el correo OTP.
-- Las migraciones Alembic deben aplicarse hasta `042` antes de habilitar la interfaz.
+- Las migraciones Alembic deben aplicarse hasta `043` antes de habilitar la interfaz.
 
 ## Endpoints
 
