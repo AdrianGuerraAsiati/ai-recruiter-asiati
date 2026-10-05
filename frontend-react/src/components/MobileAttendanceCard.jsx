@@ -30,6 +30,8 @@ function secondsRemaining(expiresAt, nowMs) {
 function MobileAttendanceCard() {
   const [loading, setLoading] = useState(true);
   const [linking, setLinking] = useState(false);
+  const [linkOtpInfo, setLinkOtpInfo] = useState(null);
+  const [linkOtp, setLinkOtp] = useState("");
   const [generating, setGenerating] = useState(false);
   const [devices, setDevices] = useState([]);
   const [localCredential, setLocalCredential] = useState(null);
@@ -92,9 +94,36 @@ function MobileAttendanceCard() {
     }
   }, []);
 
-  async function linkThisDevice() {
+  async function requestLinkOtp() {
     if (!supported) {
       setError("Este navegador no soporta la vinculación criptográfica requerida por Talent ID.");
+      return;
+    }
+
+    setLinking(true);
+    setError("");
+    setFeedback("");
+    setQr(null);
+    try {
+      const { data } = await api.post("/talent-id/mobile-devices/link-otp");
+      setLinkOtpInfo(data);
+      setLinkOtp("");
+      setFeedback(`Enviamos un código de 6 dígitos a ${data.destination}.`);
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "enviar el código para vincular este celular",
+        resource: "Talent ID",
+        fallback: "No fue posible enviar el código de verificación.",
+      }));
+    } finally {
+      setLinking(false);
+    }
+  }
+
+  async function linkThisDevice(event) {
+    event?.preventDefault();
+    if (!linkOtpInfo?.challenge_id || !/^\d{6}$/.test(linkOtp)) {
+      setError("Ingresa el código de 6 dígitos enviado a tu correo.");
       return;
     }
 
@@ -108,6 +137,8 @@ function MobileAttendanceCard() {
       const { data } = await api.post("/talent-id/mobile-devices", {
         label,
         public_key_jwk: publicKeyJwk,
+        link_challenge_id: linkOtpInfo.challenge_id,
+        link_otp: linkOtp,
       });
       await saveMobileDeviceCredential({
         deviceId: data.id,
@@ -120,6 +151,8 @@ function MobileAttendanceCard() {
         privateKey,
       });
       setDevices([data]);
+      setLinkOtpInfo(null);
+      setLinkOtp("");
       setFeedback("Este celular quedó vinculado. La llave privada permanece local y no es exportable.");
     } catch (err) {
       setError(getApiErrorMessage(err, {
@@ -237,17 +270,55 @@ function MobileAttendanceCard() {
           <div>
             <strong>Vincular este celular</strong>
             <p>
-              Talent crea una llave ECDSA P-256 local. La llave privada se guarda como no exportable en el navegador y no se envía al servidor.
+              Talent crea una llave ECDSA P-256 local. Antes de reemplazar o vincular un celular, verificamos tu identidad con un código enviado al correo registrado.
             </p>
           </div>
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={linking}
-            onClick={linkThisDevice}
-          >
-            {linking ? "Vinculando…" : "Vincular este celular"}
-          </button>
+
+          {!linkOtpInfo ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={linking}
+              onClick={requestLinkOtp}
+            >
+              {linking ? "Enviando código…" : "Verificar y vincular"}
+            </button>
+          ) : (
+            <form className="mobile-attendance-link-otp" onSubmit={linkThisDevice}>
+              <label htmlFor="mobile-link-otp">Código de 6 dígitos</label>
+              <input
+                id="mobile-link-otp"
+                value={linkOtp}
+                onChange={(event) => setLinkOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="\d{6}"
+                placeholder="000000"
+                required
+              />
+              <div className="mobile-attendance-link-actions">
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={linking || linkOtp.length !== 6}
+                >
+                  {linking ? "Vinculando…" : "Confirmar y vincular"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={linking}
+                  onClick={() => {
+                    setLinkOtpInfo(null);
+                    setLinkOtp("");
+                    setError("");
+                  }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       ) : (
         <>
@@ -317,7 +388,7 @@ function MobileAttendanceCard() {
       <div className="mobile-attendance-security">
         <strong>Por qué es más seguro que un PIN</strong>
         <p>
-          La marcación exige este dispositivo vinculado, una firma criptográfica local y un QR de un solo uso con expiración corta. Compartir usuario y contraseña no basta para generar el código.
+          La vinculación exige un OTP enviado al correo registrado. Después, cada marcación requiere este dispositivo, una firma criptográfica local y un QR de un solo uso con expiración corta. Compartir solo el usuario y la contraseña no basta para registrar asistencia.
         </p>
       </div>
     </section>
