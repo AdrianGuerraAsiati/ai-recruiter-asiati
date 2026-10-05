@@ -65,7 +65,7 @@ describe("Talent ID administration", () => {
   it("shows the current pilot infrastructure", async () => {
     render(<TalentId />);
 
-    expect(await screen.findByText("Bogotá Principal")).toBeInTheDocument();
+    expect((await screen.findAllByText("Bogotá Principal")).length).toBeGreaterThan(0);
     expect(screen.getByText("Administrativo")).toBeInTheDocument();
     expect(screen.getByText("Sedes activas")).toBeInTheDocument();
     expect(screen.getByText("Horarios activos")).toBeInTheDocument();
@@ -76,7 +76,7 @@ describe("Talent ID administration", () => {
     api.post.mockResolvedValue({ data: { id: "site-2" } });
     render(<TalentId />);
 
-    await screen.findByText("Bogotá Principal");
+    await screen.findAllByText("Bogotá Principal");
 
     fireEvent.change(screen.getByLabelText("Nombre de sede"), {
       target: { value: "Medellín" },
@@ -119,7 +119,7 @@ describe("Talent ID administration", () => {
 
     render(<TalentId />);
 
-    await screen.findByText("Bogotá Principal");
+    await screen.findAllByText("Bogotá Principal");
     expect(screen.getByLabelText("Sede del kiosco")).toHaveValue("site-1");
 
     fireEvent.click(
