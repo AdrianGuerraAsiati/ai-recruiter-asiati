@@ -1,5 +1,6 @@
 """HTTP routes for Talent ID administration and kiosk devices."""
 
+import logging
 from datetime import date
 
 from botocore.exceptions import ClientError
@@ -11,19 +12,26 @@ from fastapi import (
     Header,
     HTTPException,
     Query,
+    Request,
+    Response,
     UploadFile,
 )
 from sqlalchemy.orm import Session
 
-from app.config import get_talent_id_biometric_settings
+from app.config import get_talent_id_biometric_settings, get_talent_id_consent_settings
 from app.deps import get_current_principal, get_db, require_permission
-from app.domains.talent_id import biometrics, reporting, service
+from app.domains.talent_id import biometrics, consent, reporting, service
 from app.domains.talent_id.schemas import (
     ConfigureEmployeeAttendanceRequest,
     CreateScheduleRequest,
     CreateSiteRequest,
     ProvisionKioskRequest,
+    SignBiometricConsentRequest,
     UpdateKioskRequest,
+)
+from app.infrastructure.talent_id_consent_email import (
+    ConsentEmailDeliveryError,
+    send_consent_otp,
 )
 from app.infrastructure.talent_id_rekognition import (
     FaceAssociationError,
@@ -32,6 +40,8 @@ from app.infrastructure.talent_id_rekognition import (
     get_rekognition_client,
 )
 
+
+logger = logging.getLogger(__name__)
 
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png"}
@@ -102,6 +112,182 @@ def _attendance_response(event, *, created: bool) -> dict:
         "recognition_confidence": event.recognition_confidence,
         "created": created,
     }
+
+
+
+def _principal_employee_id(principal: dict) -> str:
+    employee_id = str((principal.get("profile") or {}).get("id") or "").strip()
+    if not employee_id:
+        raise HTTPException(status_code=403, detail="Perfil de empleado no disponible.")
+    return employee_id
+
+
+def _consent_error(exc: Exception):
+    if isinstance(exc, consent.ConsentOtpCooldown):
+        raise HTTPException(status_code=429, detail=str(exc))
+    if isinstance(exc, consent.ConsentOtpUnavailable):
+        raise HTTPException(status_code=503, detail=str(exc))
+    if isinstance(exc, ConsentEmailDeliveryError):
+        raise HTTPException(status_code=503, detail=str(exc))
+    if isinstance(exc, consent.ConsentOtpExpired):
+        raise HTTPException(status_code=410, detail=str(exc))
+    if isinstance(exc, consent.ConsentOtpLocked):
+        raise HTTPException(status_code=429, detail=str(exc))
+    if isinstance(exc, (consent.ConsentOtpInvalid, consent.ConsentStateError, ValueError)):
+        raise HTTPException(status_code=422, detail=str(exc))
+    raise exc
+
+
+def _disable_biometrics_after_opt_out(db: Session, employee_id: str) -> None:
+    enrollment = biometrics.get_employee_enrollment(db, employee_id)
+    if enrollment is None or not enrollment.active:
+        return
+
+    settings = get_talent_id_biometric_settings()
+    if not settings.collection_id:
+        enrollment.active = False
+        enrollment.face_count = 0
+        db.commit()
+        return
+
+    provider = RekognitionBiometricProvider(
+        client=get_rekognition_client(),
+        collection_id=settings.collection_id,
+        association_threshold=settings.association_threshold,
+    )
+    try:
+        biometrics.revoke_employee_enrollment(
+            db,
+            provider=provider,
+            employee_id=employee_id,
+        )
+    except ClientError:
+        logger.exception(
+            "Provider cleanup failed after biometric consent opt-out for %s",
+            employee_id,
+        )
+
+
+@router.get("/consent")
+def get_my_biometric_consent(
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    try:
+        return consent.consent_payload(db, employee_id, include_document=True)
+    except Exception as exc:
+        return _consent_error(exc)
+
+
+@router.post("/consent/otp")
+def request_my_biometric_consent_otp(
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    settings = get_talent_id_consent_settings()
+    try:
+        return consent.request_otp(
+            db,
+            employee_id=employee_id,
+            otp_secret=settings.otp_secret,
+            ttl_seconds=settings.otp_ttl_seconds,
+            cooldown_seconds=settings.otp_cooldown_seconds,
+            max_attempts=settings.otp_max_attempts,
+            send_otp=send_consent_otp,
+        )
+    except Exception as exc:
+        return _consent_error(exc)
+
+
+@router.post("/consent/sign")
+def sign_my_biometric_consent(
+    body: SignBiometricConsentRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    settings = get_talent_id_consent_settings()
+    client_ip = request.client.host if request.client else None
+    evidence = {
+        "auth_sub": principal.get("sub"),
+        "ip_hash": consent.hash_evidence_value(settings.otp_secret, client_ip),
+        "user_agent_hash": consent.hash_evidence_value(
+            settings.otp_secret,
+            request.headers.get("user-agent"),
+        ),
+    }
+    try:
+        event = consent.sign_decision(
+            db,
+            employee_id=employee_id,
+            decision=body.decision,
+            otp=body.otp,
+            expected_document_version=body.document_version,
+            otp_secret=settings.otp_secret,
+            evidence=evidence,
+        )
+    except Exception as exc:
+        return _consent_error(exc)
+
+    if event.decision in {"DENIED", "REVOKED"}:
+        _disable_biometrics_after_opt_out(db, employee_id)
+
+    return consent.consent_payload(db, employee_id, include_document=False)
+
+
+@router.get("/consent/document")
+def download_my_biometric_consent(
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    event = consent.get_latest_event(db, employee_id)
+    if event is None or not event.signed_pdf:
+        raise HTTPException(status_code=404, detail="Aún no existe un documento firmado.")
+    return Response(
+        content=bytes(event.signed_pdf),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                'attachment; filename="ASIATI_Autorizacion_Biometrica_Talent_ID.pdf"'
+            )
+        },
+    )
+
+
+@router.get("/employees/{employee_id}/consent")
+def get_employee_biometric_consent(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.read")),
+):
+    try:
+        return consent.consent_payload(db, employee_id, include_document=False)
+    except Exception as exc:
+        return _consent_error(exc)
+
+
+@router.get("/employees/{employee_id}/consent/document")
+def download_employee_biometric_consent(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.read")),
+):
+    event = consent.get_latest_event(db, employee_id)
+    if event is None or not event.signed_pdf:
+        raise HTTPException(status_code=404, detail="Aún no existe un documento firmado.")
+    return Response(
+        content=bytes(event.signed_pdf),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="Talent_ID_{employee_id}_consentimiento.pdf"'
+            )
+        },
+    )
 
 
 @router.get("/sites")
@@ -310,6 +496,11 @@ async def enroll_employee_biometrics(
             employee_id=employee_id,
             image_bytes=image_bytes,
         )
+    except biometrics.BiometricConsentRequired as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="El empleado debe firmar una autorización biométrica vigente antes del enrolamiento.",
+        ) from exc
     except biometrics.BiometricEmployeeNotAllowed as exc:
         raise HTTPException(
             status_code=403,
