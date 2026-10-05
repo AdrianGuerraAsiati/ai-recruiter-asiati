@@ -24,6 +24,7 @@ from app.domains.evaluations.rules import (
 )
 from app.domains.evaluations.scoring import (
     calculate_weighted_match_score,
+    cap_score_for_mandatory_gaps,
     mandatory_gaps,
     normalize_requirement_profiles,
 )
@@ -214,6 +215,11 @@ def evaluate_candidate(
     # Calculate deterministic weighted score.
     total = len(final_requirements)
     match_score = calculate_weighted_match_score(final_requirements)
+    missing_mandatory = mandatory_gaps(final_requirements)
+    match_score = cap_score_for_mandatory_gaps(
+        match_score,
+        final_requirements,
+    )
 
     # Recommendation
     recommendation = recommendation_for_score(match_score)
@@ -229,8 +235,6 @@ def evaluate_candidate(
         for r in final_requirements
         if r.get("status") in {"PARTIAL", "MISSING"}
     ]
-
-    missing_mandatory = mandatory_gaps(final_requirements)
 
     # Summary
     match_count = sum(1 for r in final_requirements if r["status"] == "MATCH")
