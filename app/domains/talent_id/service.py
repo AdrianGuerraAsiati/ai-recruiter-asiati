@@ -211,9 +211,75 @@ def provision_kiosk(
 def list_kiosks(db: Session) -> list[TalentKioskDevice]:
     return (
         db.query(TalentKioskDevice)
-        .order_by(TalentKioskDevice.created_at.desc())
+        .order_by(TalentKioskDevice.active.desc(), TalentKioskDevice.created_at.desc())
         .all()
     )
+
+
+def get_kiosk(db: Session, device_id: str) -> TalentKioskDevice:
+    device = (
+        db.query(TalentKioskDevice)
+        .filter(TalentKioskDevice.id == device_id)
+        .one_or_none()
+    )
+    if device is None:
+        raise TalentIdNotFound("Dispositivo no encontrado.")
+    return device
+
+
+def update_kiosk(
+    db: Session,
+    *,
+    device_id: str,
+    site_id: str | None = None,
+    name: str | None = None,
+    active: bool | None = None,
+) -> TalentKioskDevice:
+    device = get_kiosk(db, device_id)
+
+    if site_id is not None and site_id != device.site_id:
+        _require_site(db, site_id)
+        device.site_id = site_id
+
+    if name is not None:
+        normalized_name = name.strip()
+        if len(normalized_name) < 2:
+            raise ValueError("El nombre del dispositivo es demasiado corto.")
+        device.name = normalized_name
+
+    if active is not None:
+        device.active = active
+
+    db.commit()
+    db.refresh(device)
+    return device
+
+
+def rotate_kiosk_secret(
+    db: Session,
+    *,
+    device_id: str,
+) -> tuple[TalentKioskDevice, str]:
+    device = get_kiosk(db, device_id)
+    secret = secrets.token_urlsafe(32)
+    device.token_hash = hash_device_secret(secret)
+    db.commit()
+    db.refresh(device)
+    return device, secret
+
+
+def revoke_kiosk(
+    db: Session,
+    *,
+    device_id: str,
+) -> TalentKioskDevice:
+    device = get_kiosk(db, device_id)
+    device.active = False
+    # Replacing the hash invalidates the previously issued credential immediately.
+    device.token_hash = hash_device_secret(secrets.token_urlsafe(48))
+    db.commit()
+    db.refresh(device)
+    return device
 
 
 def authenticate_kiosk(
@@ -354,6 +420,8 @@ def kiosk_payload(device: TalentKioskDevice) -> dict:
         "site_id": device.site_id,
         "name": device.name,
         "active": bool(device.active),
+        "secret_retrievable": False,
+        "created_at": device.created_at.isoformat(),
         "last_seen_at": (
             device.last_seen_at.isoformat() if device.last_seen_at else None
         ),

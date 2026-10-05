@@ -3,9 +3,11 @@ import React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import api from "../api/client";
+import TalentIdDeviceManager from "../components/TalentIdDeviceManager";
 import PageHeader from "../components/ui/PageHeader";
 import { EmptyState, FeedbackMessage, LoadingState, MetricCard } from "../components/ui/StatePanel";
 import { getApiErrorMessage } from "../utils/errors";
+import "../talent-id.css";
 
 
 function emptySiteForm() {
@@ -37,12 +39,12 @@ function TalentId() {
   const [feedback, setFeedback] = useState("");
   const [siteForm, setSiteForm] = useState(() => emptySiteForm());
   const [scheduleForm, setScheduleForm] = useState(() => emptyScheduleForm());
-  const [deviceForm, setDeviceForm] = useState({ site_id: "", name: "Recepción" });
-  const [provisionedDevice, setProvisionedDevice] = useState(null);
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
+  const loadAll = useCallback(async (options = {}) => {
+    const silent = options?.silent === true;
+    if (!silent) setLoading(true);
     setError("");
+
     try {
       const [sitesResponse, schedulesResponse, devicesResponse] = await Promise.all([
         api.get("/talent-id/sites"),
@@ -56,10 +58,10 @@ function TalentId() {
       setError(getApiErrorMessage(err, {
         action: "cargar la configuración de Talent ID",
         resource: "Talent ID",
-        fallback: "No se pudo cargar sedes, horarios y kioscos. Reintenta antes de provisionar un dispositivo.",
+        fallback: "No se pudo cargar sedes, horarios y kioscos.",
       }));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -82,7 +84,7 @@ function TalentId() {
         setError(getApiErrorMessage(err, {
           action: "cargar la configuración de Talent ID",
           resource: "Talent ID",
-          fallback: "No se pudo cargar sedes, horarios y kioscos. Reintenta antes de provisionar un dispositivo.",
+          fallback: "No se pudo cargar sedes, horarios y kioscos.",
         }));
       })
       .finally(() => {
@@ -107,14 +109,12 @@ function TalentId() {
     [devices],
   );
 
-  const selectedDeviceSiteId =
-    deviceForm.site_id || (activeSites.length === 1 ? activeSites[0].id : "");
-
   async function createSite(event) {
     event.preventDefault();
     setSaving("site");
     setError("");
     setFeedback("");
+
     try {
       await api.post("/talent-id/sites", {
         name: siteForm.name.trim(),
@@ -123,7 +123,7 @@ function TalentId() {
       });
       setSiteForm(emptySiteForm());
       setFeedback("Sede creada. Ya puede asignarse a empleados y kioscos.");
-      await loadAll();
+      await loadAll({ silent: true });
     } catch (err) {
       setError(getApiErrorMessage(err, {
         action: "crear la sede",
@@ -140,6 +140,7 @@ function TalentId() {
     setSaving("schedule");
     setError("");
     setFeedback("");
+
     try {
       await api.post("/talent-id/schedules", {
         name: scheduleForm.name.trim(),
@@ -149,7 +150,7 @@ function TalentId() {
       });
       setScheduleForm(emptyScheduleForm());
       setFeedback("Horario creado. Ya puede asignarse a empleados.");
-      await loadAll();
+      await loadAll({ silent: true });
     } catch (err) {
       setError(getApiErrorMessage(err, {
         action: "crear el horario",
@@ -161,51 +162,12 @@ function TalentId() {
     }
   }
 
-  async function provisionDevice(event) {
-    event.preventDefault();
-    if (!selectedDeviceSiteId) {
-      setError("Selecciona una sede para el kiosco.");
-      return;
-    }
-
-    setSaving("device");
-    setError("");
-    setFeedback("");
-    setProvisionedDevice(null);
-    try {
-      const { data } = await api.post("/talent-id/devices", {
-        site_id: selectedDeviceSiteId,
-        name: deviceForm.name.trim(),
-      });
-      setProvisionedDevice(data);
-      setDeviceForm((current) => ({ ...current, name: "Recepción" }));
-      await loadAll();
-    } catch (err) {
-      setError(getApiErrorMessage(err, {
-        action: "provisionar el kiosco",
-        resource: "Talent ID",
-        fallback: "No se pudo generar el acceso del kiosco. Verifica la sede y vuelve a intentarlo.",
-      }));
-    } finally {
-      setSaving("");
-    }
-  }
-
-  async function copySecret(value) {
-    try {
-      await navigator.clipboard.writeText(value);
-      setFeedback("Secreto copiado. Guárdalo directamente en el dispositivo; no volverá a mostrarse.");
-    } catch {
-      setFeedback("No pudimos copiar automáticamente. Selecciona el secreto y cópialo manualmente.");
-    }
-  }
-
   return (
     <div className="page talent-id-page">
       <PageHeader
-        eyebrow="Asistencia · Piloto"
-        title="Talent ID"
-        description="Prepara sedes, horarios y kioscos para probar marcación facial de asistencia desde recepción."
+        eyebrow="Asistencia · Talent ID"
+        title="Administración de Talent ID"
+        description="Configura sedes, jornadas y credenciales de los kioscos de asistencia facial desde un solo lugar."
         actions={(
           <button className="btn btn-secondary" type="button" onClick={loadAll} disabled={loading}>
             Actualizar
@@ -220,7 +182,7 @@ function TalentId() {
       <section className="metrics-grid talent-id-metrics" aria-label="Estado de Talent ID">
         <MetricCard icon="employee" label="Sedes activas" value={activeSites.length} detail="Disponibles para asistencia" tone="blue" />
         <MetricCard icon="calendar" label="Horarios activos" value={activeSchedules.length} detail="Disponibles para empleados" tone="cyan" />
-        <MetricCard icon="profile" label="Kioscos activos" value={activeDevices.length} detail="Dispositivos provisionados" tone="violet" />
+        <MetricCard icon="profile" label="Kioscos activos" value={activeDevices.length} detail={`${devices.length} dispositivos registrados`} tone="violet" />
       </section>
 
       {loading ? (
@@ -355,87 +317,13 @@ function TalentId() {
             </div>
           </section>
 
-          <section className="panel talent-id-admin-card talent-id-device-card">
-            <span className="eyebrow">3 · Recepción</span>
-            <h2>Kiosco Android</h2>
-            <p className="muted">Provisiona el dispositivo. El secreto se muestra una sola vez y debe cargarse directamente en la app.</p>
-
-            <form className="talent-id-admin-form" onSubmit={provisionDevice}>
-              <div className="form-group">
-                <label htmlFor="talent-device-site">Sede del kiosco</label>
-                <select
-                  id="talent-device-site"
-                  value={selectedDeviceSiteId}
-                  onChange={(event) => setDeviceForm({ ...deviceForm, site_id: event.target.value })}
-                  required
-                  disabled={activeSites.length === 0}
-                >
-                  <option value="">Selecciona sede</option>
-                  {activeSites.map((site) => (
-                    <option key={site.id} value={site.id}>{site.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label htmlFor="talent-device-name">Nombre del dispositivo</label>
-                <input
-                  id="talent-device-name"
-                  value={deviceForm.name}
-                  onChange={(event) => setDeviceForm({ ...deviceForm, name: event.target.value })}
-                  placeholder="Recepción"
-                  required
-                />
-              </div>
-              <button
-                className="btn btn-primary"
-                type="submit"
-                disabled={saving === "device" || activeSites.length === 0}
-              >
-                {saving === "device" ? "Provisionando…" : "Generar credenciales del kiosco"}
-              </button>
-            </form>
-
-            {provisionedDevice?.device_secret && (
-              <div className="talent-id-device-secret" role="alert">
-                <strong>Guarda estas credenciales ahora</strong>
-                <span>Se muestran una sola vez. No las envíes por correo ni las guardes en el código.</span>
-                <div>
-                  <label>Device ID</label>
-                  <code>{provisionedDevice.device?.id}</code>
-                </div>
-                <div>
-                  <label>Device secret</label>
-                  <code>{provisionedDevice.device_secret}</code>
-                </div>
-                <button
-                  className="btn btn-secondary"
-                  type="button"
-                  onClick={() => copySecret(provisionedDevice.device_secret)}
-                >
-                  Copiar secreto
-                </button>
-              </div>
-            )}
-
-            <div className="talent-id-admin-list">
-              {devices.length === 0 ? (
-                <EmptyState compact title="No hay kioscos provisionados" description="Crea uno cuando tengas el dispositivo del piloto." />
-              ) : devices.map((device) => (
-                <article key={device.id} className="talent-id-admin-row">
-                  <div>
-                    <strong>{device.name}</strong>
-                    <small>
-                      {activeSites.find((site) => site.id === device.site_id)?.name || "Sede no disponible"}
-                      {device.last_seen_at ? " · Con actividad" : " · Aún sin conexión"}
-                    </small>
-                  </div>
-                  <span className={`status-pill ${device.active ? "" : "status-disabled"}`}>
-                    <i /> {device.active ? "Activo" : "Inactivo"}
-                  </span>
-                </article>
-              ))}
-            </div>
-          </section>
+          <TalentIdDeviceManager
+            sites={sites}
+            devices={devices}
+            onRefresh={loadAll}
+            onError={setError}
+            onFeedback={setFeedback}
+          />
         </div>
       )}
     </div>

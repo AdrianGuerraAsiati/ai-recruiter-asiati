@@ -20,6 +20,7 @@ from app.domains.talent_id.schemas import (
     CreateScheduleRequest,
     CreateSiteRequest,
     ProvisionKioskRequest,
+    UpdateKioskRequest,
 )
 from app.infrastructure.talent_id_rekognition import (
     FaceAssociationError,
@@ -294,6 +295,19 @@ def list_devices(
     return {"items": items, "total": len(items)}
 
 
+@router.get("/devices/{device_id}")
+def get_device(
+    device_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.read")),
+):
+    try:
+        device = service.get_kiosk(db, device_id)
+    except Exception as exc:
+        return _translate(exc)
+    return service.kiosk_payload(device)
+
+
 @router.post("/devices", status_code=201)
 def provision_device(
     body: ProvisionKioskRequest,
@@ -313,6 +327,61 @@ def provision_device(
         "device": service.kiosk_payload(device),
         "device_secret": secret,
         "secret_shown_once": True,
+    }
+
+
+@router.patch("/devices/{device_id}")
+def update_device(
+    device_id: str,
+    body: UpdateKioskRequest,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.manage")),
+):
+    try:
+        device = service.update_kiosk(
+            db,
+            device_id=device_id,
+            site_id=body.site_id,
+            name=body.name,
+            active=body.active,
+        )
+    except Exception as exc:
+        return _translate(exc)
+    return service.kiosk_payload(device)
+
+
+@router.post("/devices/{device_id}/rotate-secret")
+def rotate_device_secret(
+    device_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.manage")),
+):
+    try:
+        device, secret = service.rotate_kiosk_secret(db, device_id=device_id)
+    except Exception as exc:
+        return _translate(exc)
+
+    return {
+        "device": service.kiosk_payload(device),
+        "device_secret": secret,
+        "secret_shown_once": True,
+        "rotated": True,
+    }
+
+
+@router.delete("/devices/{device_id}")
+def delete_device(
+    device_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.manage")),
+):
+    try:
+        device = service.revoke_kiosk(db, device_id=device_id)
+    except Exception as exc:
+        return _translate(exc)
+    return {
+        "device": service.kiosk_payload(device),
+        "revoked": True,
     }
 
 
