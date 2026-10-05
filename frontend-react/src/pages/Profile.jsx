@@ -4,6 +4,7 @@ import React from "react";
 import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
 import BiometricConsentCard from "../components/BiometricConsentCard";
+import MobileAttendanceCard from "../components/MobileAttendanceCard";
 
 function roleName(roles = []) {
   if (roles.includes("SUPER_ADMIN")) return "Dirección";
@@ -98,6 +99,7 @@ function Profile() {
       </section>
 
       <BiometricConsentCard />
+      <MobileAttendanceCard />
     </div>
   );
 }
