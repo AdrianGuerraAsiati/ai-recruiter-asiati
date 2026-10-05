@@ -1,5 +1,5 @@
 import app.config as config
-from app.config import CORS_ORIGINS, get_aws_region, get_database_url
+from app.config import CORS_ORIGINS, api_docs_enabled, get_aws_region, get_database_url
 
 
 def test_aws_region_defaults_to_us_east_2(monkeypatch):
@@ -20,6 +20,16 @@ def test_database_url_reads_existing_environment_name(monkeypatch):
 def test_database_url_defaults_to_empty_string(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     assert get_database_url() == ""
+
+
+def test_api_docs_default_to_enabled_for_local_development(monkeypatch):
+    monkeypatch.delenv("API_DOCS_ENABLED", raising=False)
+    assert api_docs_enabled() is True
+
+
+def test_api_docs_can_be_disabled_for_production(monkeypatch):
+    monkeypatch.setenv("API_DOCS_ENABLED", "false")
+    assert api_docs_enabled() is False
 
 
 def test_cors_origins_preserve_public_contract():
