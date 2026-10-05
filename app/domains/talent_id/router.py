@@ -26,6 +26,7 @@ from app.domains.talent_id.schemas import (
     CreateScheduleRequest,
     CreateSiteRequest,
     ProvisionKioskRequest,
+    RequestBiometricConsentOtp,
     SignBiometricConsentRequest,
     UpdateKioskRequest,
 )
@@ -184,6 +185,7 @@ def get_my_biometric_consent(
 
 @router.post("/consent/otp")
 def request_my_biometric_consent_otp(
+    body: RequestBiometricConsentOtp,
     db: Session = Depends(get_db),
     principal: dict = Depends(get_current_principal),
 ):
@@ -193,6 +195,8 @@ def request_my_biometric_consent_otp(
         return consent.request_otp(
             db,
             employee_id=employee_id,
+            decision=body.decision,
+            expected_document_version=body.document_version,
             otp_secret=settings.otp_secret,
             ttl_seconds=settings.otp_ttl_seconds,
             cooldown_seconds=settings.otp_cooldown_seconds,
