@@ -380,10 +380,13 @@ def list_my_mobile_devices(
     principal: dict = Depends(get_current_principal),
 ):
     employee_id = _principal_employee_id(principal)
-    items = [
-        mobile_qr.mobile_device_payload(device)
-        for device in mobile_qr.list_mobile_devices(db, employee_id)
-    ]
+    try:
+        items = [
+            mobile_qr.mobile_device_payload(device)
+            for device in mobile_qr.list_mobile_devices(db, employee_id)
+        ]
+    except Exception as exc:
+        return _mobile_qr_error(exc)
     return {"items": items, "total": len(items)}
 
 
