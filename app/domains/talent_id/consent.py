@@ -21,7 +21,7 @@ from app.domains.talent_id.models import (
 from app.models import UserProfile
 
 
-BIOMETRIC_CONSENT_VERSION = "1.0"
+BIOMETRIC_CONSENT_VERSION = "1.1"
 BIOMETRIC_CONSENT_TITLE = (
     "Autorización para el tratamiento de datos biométricos - Talent ID"
 )
@@ -29,7 +29,7 @@ BIOMETRIC_CONSENT_TEXT = """Declaro que ASIATI me informó de forma previa, clar
 
 Autorizo, cuando mi decisión sea AUTORIZAR, que ASIATI trate estos datos exclusivamente para enrolar mi identidad en Talent ID, verificar mi identidad mediante reconocimiento facial, registrar entradas y salidas en los sistemas corporativos de asistencia y prevenir suplantaciones o marcaciones por terceros.
 
-Entiendo que la autorización biométrica es voluntaria. Si no autorizo el tratamiento, o si posteriormente revoco una autorización vigente, ASIATI debe mantener disponible un mecanismo alternativo de marcación que no implique el tratamiento de datos biométricos.
+Entiendo que la autorización biométrica es voluntaria. Si no autorizo el tratamiento, o si posteriormente revoco una autorización vigente, ASIATI debe mantener disponible un mecanismo alternativo de marcación que no implique el tratamiento de datos biométricos. En Talent ID, la alternativa prevista es un QR dinámico de un solo uso generado desde un dispositivo móvil previamente vinculado a mi cuenta.
 
 ASIATI aplicará medidas técnicas, administrativas y humanas para proteger esta información. Talent ID no conserva como archivo permanente la fotografía original utilizada para enrolamiento; mantiene los identificadores técnicos necesarios para operar el proveedor biométrico mientras exista una autorización vigente y una finalidad legítima.
 
