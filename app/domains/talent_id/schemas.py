@@ -52,6 +52,8 @@ class SignBiometricConsentRequest(BaseModel):
 class RegisterMobileDeviceRequest(BaseModel):
     label: str = Field(default="Mi celular", min_length=2, max_length=80)
     public_key_jwk: dict
+    link_challenge_id: str = Field(min_length=8, max_length=80)
+    link_otp: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
 
 
 class IssueMobileQrRequest(BaseModel):
