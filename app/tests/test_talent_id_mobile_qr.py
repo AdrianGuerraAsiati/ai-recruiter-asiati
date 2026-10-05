@@ -69,6 +69,32 @@ def _employee(db, suffix="one"):
     return employee
 
 
+
+def _link_device(db, employee, *, label, public_key_jwk):
+    delivered = {}
+
+    def sender(_email, code, _ttl):
+        delivered["code"] = code
+
+    challenge = mobile_qr.request_mobile_link_otp(
+        db,
+        employee_id=employee.id,
+        otp_secret="link-test-secret",
+        ttl_seconds=600,
+        cooldown_seconds=0,
+        max_attempts=5,
+        send_otp=sender,
+    )
+    return mobile_qr.register_mobile_device(
+        db,
+        employee_id=employee.id,
+        label=label,
+        public_key_jwk=public_key_jwk,
+        link_challenge_id=challenge["challenge_id"],
+        link_otp=delivered["code"],
+        link_otp_secret="link-test-secret",
+    )
+
 def _attendance_ready(db, employee, suffix="one"):
     site = service.create_site(
         db,
@@ -101,9 +127,9 @@ def _attendance_ready(db, employee, suffix="one"):
 def test_linked_phone_signs_challenge_and_issues_short_lived_qr(db):
     employee = _employee(db)
     private_key, jwk = _key_pair()
-    device = mobile_qr.register_mobile_device(
+    device = _link_device(
         db,
-        employee_id=employee.id,
+        employee,
         label="Pixel de prueba",
         public_key_jwk=jwk,
     )
@@ -139,9 +165,9 @@ def test_wrong_private_key_cannot_issue_qr(db):
     employee = _employee(db)
     _private_key, jwk = _key_pair()
     attacker_key, _ = _key_pair()
-    device = mobile_qr.register_mobile_device(
+    device = _link_device(
         db,
-        employee_id=employee.id,
+        employee,
         label="Celular",
         public_key_jwk=jwk,
     )
@@ -226,15 +252,15 @@ def test_linking_new_phone_revokes_previous_phone(db):
     _, first_jwk = _key_pair()
     _, second_jwk = _key_pair()
 
-    first = mobile_qr.register_mobile_device(
+    first = _link_device(
         db,
-        employee_id=employee.id,
+        employee,
         label="Celular anterior",
         public_key_jwk=first_jwk,
     )
-    second = mobile_qr.register_mobile_device(
+    second = _link_device(
         db,
-        employee_id=employee.id,
+        employee,
         label="Celular nuevo",
         public_key_jwk=second_jwk,
     )
@@ -250,3 +276,37 @@ def test_linking_new_phone_revokes_previous_phone(db):
             device_id=first.id,
             ttl_seconds=60,
         )
+
+
+
+def test_mobile_link_rejects_wrong_otp(db):
+    employee = _employee(db, suffix="otp")
+    _, jwk = _key_pair()
+    delivered = {}
+
+    def sender(_email, code, _ttl):
+        delivered["code"] = code
+
+    challenge = mobile_qr.request_mobile_link_otp(
+        db,
+        employee_id=employee.id,
+        otp_secret="link-test-secret",
+        ttl_seconds=600,
+        cooldown_seconds=0,
+        max_attempts=5,
+        send_otp=sender,
+    )
+
+    with pytest.raises(mobile_qr.MobileLinkOtpInvalid):
+        mobile_qr.register_mobile_device(
+            db,
+            employee_id=employee.id,
+            label="Celular",
+            public_key_jwk=jwk,
+            link_challenge_id=challenge["challenge_id"],
+            link_otp="000000",
+            link_otp_secret="link-test-secret",
+        )
+
+    assert delivered["code"] != "000000"
+    assert mobile_qr.list_mobile_devices(db, employee.id) == []
