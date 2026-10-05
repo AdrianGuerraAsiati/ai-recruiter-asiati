@@ -66,3 +66,10 @@ class IssueMobileQrRequest(BaseModel):
 class KioskQrAttendanceRequest(BaseModel):
     token: str = Field(min_length=16, max_length=512)
     event_type: Literal["check_in", "check_out"]
+
+
+
+class ManualAttendanceRequest(BaseModel):
+    employee_id: str = Field(min_length=1, max_length=80)
+    event_type: Literal["check_in", "check_out"]
+    reason: str = Field(min_length=5, max_length=500)
