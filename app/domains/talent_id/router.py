@@ -25,6 +25,7 @@ from app.config import (
 )
 from app.deps import get_current_principal, get_db, require_permission
 from app.domains.talent_id import biometrics, consent, mobile_qr, reporting, service
+from app.domains.talent_id.models import TalentBiometricEnrollment
 from app.domains.talent_id.schemas import (
     ConfigureEmployeeAttendanceRequest,
     RegisterMobileDeviceRequest,
@@ -501,6 +502,67 @@ def issue_my_mobile_qr(
         "expires_at": issued["expires_at"],
         "ttl_seconds": issued["ttl_seconds"],
         "device": issued["device"],
+    }
+
+
+@router.get("/readiness")
+def talent_id_readiness(
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.read")),
+):
+    biometric_settings = get_talent_id_biometric_settings()
+    consent_settings = get_talent_id_consent_settings()
+    qr_settings = get_talent_id_qr_settings()
+
+    active_sites = sum(1 for item in service.list_sites(db) if item.active)
+    active_schedules = sum(1 for item in service.list_schedules(db) if item.active)
+    active_kiosks = sum(1 for item in service.list_kiosks(db) if item.active)
+    pending_cleanup = (
+        db.query(TalentBiometricEnrollment)
+        .filter(TalentBiometricEnrollment.provider_cleanup_pending.is_(True))
+        .count()
+    )
+
+    checks = {
+        "biometric_provider": bool(biometric_settings.collection_id),
+        "consent_email_sender": bool(consent_settings.from_email),
+        "consent_otp_secret": bool(consent_settings.otp_secret),
+        "mobile_link_email_sender": bool(qr_settings.from_email),
+        "mobile_link_otp_secret": bool(qr_settings.link_otp_secret),
+        "active_site": active_sites > 0,
+        "active_schedule": active_schedules > 0,
+        "active_kiosk": active_kiosks > 0,
+    }
+    issues = []
+    labels = {
+        "biometric_provider": "Configurar la colección biométrica.",
+        "consent_email_sender": "Configurar el remitente de correo para firma biométrica.",
+        "consent_otp_secret": "Configurar el secreto OTP de consentimiento.",
+        "mobile_link_email_sender": "Configurar el remitente de correo para vincular celulares.",
+        "mobile_link_otp_secret": "Configurar el secreto OTP para vincular celulares.",
+        "active_site": "Crear al menos una sede activa.",
+        "active_schedule": "Crear al menos un horario activo.",
+        "active_kiosk": "Provisionar al menos un kiosco activo.",
+    }
+    for key, passed in checks.items():
+        if not passed:
+            issues.append(labels[key])
+
+    return {
+        "ready_for_pilot": all(checks.values()),
+        "checks": checks,
+        "issues": issues,
+        "counts": {
+            "active_sites": active_sites,
+            "active_schedules": active_schedules,
+            "active_kiosks": active_kiosks,
+            "pending_biometric_cleanup": pending_cleanup,
+        },
+        "warnings": (
+            [f"{pending_cleanup} eliminación(es) biométrica(s) pendientes en el proveedor."]
+            if pending_cleanup
+            else []
+        ),
     }
 
 
