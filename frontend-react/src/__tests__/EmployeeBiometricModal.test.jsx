@@ -10,6 +10,7 @@ vi.mock("../api/client", () => ({
     get: vi.fn(),
     post: vi.fn(),
     put: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
@@ -29,6 +30,7 @@ function mockPilotState({
   eligible = false,
   faceCount = 0,
   consentStatus = "PENDING",
+  mobileLinked = false,
 } = {}) {
   api.get.mockImplementation((url) => {
     if (url === "/talent-id/sites") {
@@ -93,6 +95,23 @@ function mockPilotState({
           signed_at: consentStatus === "PENDING" ? null : "2026-10-05T13:55:00+00:00",
           document_version: "1.0",
           has_signed_document: consentStatus !== "PENDING",
+        },
+      });
+    }
+    if (url === "/talent-id/employees/employee-1/mobile-devices") {
+      return Promise.resolve({
+        data: {
+          items: mobileLinked
+            ? [{
+                id: "mobile-1",
+                employee_id: "employee-1",
+                label: "Mi celular",
+                active: true,
+                created_at: "2026-10-05T13:50:00+00:00",
+                last_used_at: null,
+              }]
+            : [],
+          total: mobileLinked ? 1 : 0,
         },
       });
     }
@@ -215,6 +234,35 @@ describe("EmployeeBiometricModal", () => {
     expect(screen.getByRole("button", { name: "Enrolar rostro" })).toBeDisabled();
     expect(api.post).not.toHaveBeenCalled();
   });
+
+  it("shows and revokes the linked non-biometric phone", async () => {
+    mockPilotState({
+      configured: true,
+      eligible: true,
+      consentStatus: "DENIED",
+      mobileLinked: true,
+    });
+    api.delete.mockResolvedValue({ data: { revoked: true } });
+
+    render(
+      <EmployeeBiometricModal
+        employee={employee}
+        open
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText(/alternativa no biométrica: celular vinculado/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Revocar celular" }));
+
+    await waitFor(() => {
+      expect(api.delete).toHaveBeenCalledWith(
+        "/talent-id/employees/employee-1/mobile-devices/mobile-1",
+      );
+    });
+    expect(await screen.findByText(/celular revocado/i)).toBeInTheDocument();
+  });
+
 
   it("rejects unsupported images before calling the backend", async () => {
     mockPilotState({ configured: true, eligible: true });
