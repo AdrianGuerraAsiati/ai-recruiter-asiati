@@ -408,7 +408,9 @@ private fun KioskScreen(
                                     )
                                 }.onSuccess { photoFile ->
                                     onSubmit(photoFile, eventType)
+                                    capturing = false
                                 }.onFailure {
+                                    capturing = false
                                     captureError = "No fue posible tomar la fotografía. Intenta de nuevo."
                                 }
                             }
