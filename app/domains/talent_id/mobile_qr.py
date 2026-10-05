@@ -112,7 +112,12 @@ def _validate_public_key_jwk(jwk: dict) -> dict:
     y = str(jwk.get("y") or "").strip()
     if not x or not y:
         raise ValueError("La llave pública del dispositivo está incompleta.")
-    if len(_b64url_decode(x)) != 32 or len(_b64url_decode(y)) != 32:
+    try:
+        x_bytes = _b64url_decode(x)
+        y_bytes = _b64url_decode(y)
+    except Exception as exc:
+        raise ValueError("La llave pública del dispositivo no es válida.") from exc
+    if len(x_bytes) != 32 or len(y_bytes) != 32:
         raise ValueError("La llave pública del dispositivo no es P-256 válida.")
     return {
         "kty": "EC",
@@ -151,7 +156,12 @@ def _verify_signature(
     message: bytes,
     signature_b64url: str,
 ) -> None:
-    raw = _b64url_decode(signature_b64url)
+    try:
+        raw = _b64url_decode(signature_b64url)
+    except Exception as exc:
+        raise MobileDeviceSignatureInvalid(
+            "La firma del dispositivo no tiene un formato válido."
+        ) from exc
     if len(raw) != 64:
         raise MobileDeviceSignatureInvalid(
             "La firma del dispositivo no tiene un formato válido."
