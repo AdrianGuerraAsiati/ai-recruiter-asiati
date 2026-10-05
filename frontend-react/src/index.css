@@ -5099,3 +5099,179 @@ select { appearance: none; padding-right: 42px; background-image: linear-gradien
   }
   .training-video-watch-progress span { text-align: left; }
 }
+
+
+/* ============================================================
+   TALENT ID · EMPLOYEE PILOT
+   ============================================================ */
+
+.employee-talent-id-button {
+  border-color: color-mix(in srgb, var(--blue) 30%, var(--border));
+  color: var(--blue);
+}
+
+.employee-biometric-modal {
+  width: min(760px, calc(100vw - 32px)) !important;
+  max-height: min(860px, calc(100vh - 32px));
+  overflow-y: auto;
+}
+
+.talent-id-success {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--success) 35%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--success) 8%, var(--surface));
+  color: var(--ink);
+  font-size: .84rem;
+  line-height: 1.5;
+}
+
+.talent-id-readiness {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.talent-id-readiness > div {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.talent-id-readiness span,
+.talent-id-readiness strong {
+  display: block;
+}
+
+.talent-id-readiness span {
+  margin-bottom: 5px;
+  color: var(--ink-faint);
+  font-size: .72rem;
+}
+
+.talent-id-readiness strong {
+  color: var(--ink);
+  font-size: .88rem;
+}
+
+.talent-id-section {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.talent-id-section + .talent-id-section {
+  margin-top: 14px;
+}
+
+.talent-id-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.talent-id-section-heading h3 {
+  margin: 3px 0 0;
+  font-size: 1rem;
+}
+
+.talent-id-toggle,
+.talent-id-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px 0 16px;
+  cursor: pointer;
+}
+
+.talent-id-toggle input,
+.talent-id-consent input {
+  margin-top: 3px;
+}
+
+.talent-id-toggle span,
+.talent-id-consent span {
+  min-width: 0;
+}
+
+.talent-id-toggle strong,
+.talent-id-toggle small {
+  display: block;
+}
+
+.talent-id-toggle strong {
+  color: var(--ink);
+  font-size: .84rem;
+}
+
+.talent-id-toggle small {
+  margin-top: 3px;
+  color: var(--ink-faint);
+  font-size: .74rem;
+  line-height: 1.45;
+}
+
+.talent-id-consent {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  color: var(--ink-soft);
+  font-size: .8rem;
+  line-height: 1.5;
+}
+
+.talent-id-help,
+.talent-id-privacy-note,
+.talent-id-blocker {
+  color: var(--ink-soft);
+  font-size: .8rem;
+  line-height: 1.55;
+}
+
+.talent-id-help {
+  margin: 0 0 14px;
+}
+
+.talent-id-privacy-note {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--blue);
+  background: var(--surface-soft);
+}
+
+.talent-id-blocker {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface));
+}
+
+.talent-id-enrolled-at {
+  display: block;
+  margin-top: 10px;
+  color: var(--ink-faint);
+  font-size: .72rem;
+}
+
+@media (max-width: 700px) {
+  .talent-id-readiness {
+    grid-template-columns: 1fr;
+  }
+
+  .talent-id-section-heading {
+    flex-direction: column;
+  }
+
+  .employee-biometric-modal {
+    width: calc(100vw - 20px) !important;
+    max-height: calc(100vh - 20px);
+  }
+}
