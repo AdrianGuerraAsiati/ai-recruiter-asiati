@@ -336,6 +336,44 @@ def download_employee_biometric_consent(
 
 
 
+
+@router.get("/employees/{employee_id}/mobile-devices")
+def list_employee_mobile_devices(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.read")),
+):
+    try:
+        items = [
+            mobile_qr.mobile_device_payload(device)
+            for device in mobile_qr.list_mobile_devices(db, employee_id)
+        ]
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+    return {"items": items, "total": len(items)}
+
+
+@router.delete("/employees/{employee_id}/mobile-devices/{device_id}")
+def revoke_employee_mobile_device(
+    employee_id: str,
+    device_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.manage")),
+):
+    try:
+        device = mobile_qr.revoke_mobile_device(
+            db,
+            employee_id=employee_id,
+            device_id=device_id,
+        )
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+    return {
+        "device": mobile_qr.mobile_device_payload(device),
+        "revoked": True,
+    }
+
+
 @router.get("/mobile-devices")
 def list_my_mobile_devices(
     db: Session = Depends(get_db),
