@@ -2,10 +2,12 @@ name: android-ci
 
 on:
   push:
+    branches: [main]
     paths:
       - "android/**"
       - ".github/workflows/android-ci.yml"
   pull_request:
+    branches: [main]
     paths:
       - "android/**"
       - ".github/workflows/android-ci.yml"
