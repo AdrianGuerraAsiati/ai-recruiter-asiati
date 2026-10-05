@@ -24,7 +24,12 @@ const employee = {
 };
 
 
-function mockPilotState({ configured = false, eligible = false, faceCount = 0 } = {}) {
+function mockPilotState({
+  configured = false,
+  eligible = false,
+  faceCount = 0,
+  consentStatus = "PENDING",
+} = {}) {
   api.get.mockImplementation((url) => {
     if (url === "/talent-id/sites") {
       return Promise.resolve({
@@ -80,6 +85,17 @@ function mockPilotState({ configured = false, eligible = false, faceCount = 0 } 
         },
       });
     }
+    if (url === "/talent-id/employees/employee-1/consent") {
+      return Promise.resolve({
+        data: {
+          employee_id: "employee-1",
+          status: consentStatus,
+          signed_at: consentStatus === "PENDING" ? null : "2026-10-05T13:55:00+00:00",
+          document_version: "1.0",
+          has_signed_document: consentStatus !== "PENDING",
+        },
+      });
+    }
     return Promise.reject(new Error(`Unexpected GET ${url}`));
   });
 }
@@ -130,7 +146,12 @@ describe("EmployeeBiometricModal", () => {
   });
 
   it("uploads an authorized image and becomes kiosk-ready with two references", async () => {
-    mockPilotState({ configured: true, eligible: true, faceCount: 1 });
+    mockPilotState({
+      configured: true,
+      eligible: true,
+      faceCount: 1,
+      consentStatus: "AUTHORIZED",
+    });
     api.post.mockResolvedValue({
       data: {
         employee_id: "employee-1",
@@ -155,7 +176,6 @@ describe("EmployeeBiometricModal", () => {
     fireEvent.change(screen.getByLabelText("Fotografía del empleado"), {
       target: { files: [file] },
     });
-    fireEvent.click(screen.getByLabelText(/confirmo que el empleado autorizó/i));
     fireEvent.click(screen.getByRole("button", { name: "Agregar otra fotografía" }));
 
     await waitFor(() => {
@@ -168,6 +188,32 @@ describe("EmployeeBiometricModal", () => {
 
     expect(await screen.findByText("Listo para kiosco")).toBeInTheDocument();
     expect(screen.getByText("Rostro agregado. Ya hay múltiples referencias para iniciar la prueba en kiosco.")).toBeInTheDocument();
+  });
+
+
+  it("blocks enrollment until the employee signs consent", async () => {
+    mockPilotState({ configured: true, eligible: true, consentStatus: "PENDING" });
+
+    render(
+      <EmployeeBiometricModal
+        employee={employee}
+        open
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText(/autorización biométrica: pendiente/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/no es posible enrolar el rostro hasta que exista una autorización biométrica vigente/i),
+    ).toBeInTheDocument();
+
+    const file = new File(["jpeg-bytes"], "ana-perez.jpg", { type: "image/jpeg" });
+    fireEvent.change(screen.getByLabelText("Fotografía del empleado"), {
+      target: { files: [file] },
+    });
+
+    expect(screen.getByRole("button", { name: "Enrolar rostro" })).toBeDisabled();
+    expect(api.post).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported images before calling the backend", async () => {
