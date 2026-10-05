@@ -8,6 +8,7 @@ import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
 import EmployeeCredentialsModal from "../components/EmployeeCredentialsModal";
 import EmployeeBiometricModal from "../components/EmployeeBiometricModal";
+import TalentIdAttendanceFields from "../components/TalentIdAttendanceFields";
 import {
   EmptyState,
   FeedbackMessage,
@@ -58,6 +59,10 @@ function Employees() {
   const [createdCredentials, setCreatedCredentials] = useState(null);
   const [createdEmployeeName, setCreatedEmployeeName] = useState("");
   const [biometricTarget, setBiometricTarget] = useState(null);
+  const [editTalentIdLoading, setEditTalentIdLoading] = useState(false);
+  const [editAttendance, setEditAttendance] = useState(null);
+  const [editSites, setEditSites] = useState([]);
+  const [editSchedules, setEditSchedules] = useState([]);
 
   const loadEmployees = useCallback(async () => {
     setLoading(true);
@@ -141,7 +146,7 @@ function Employees() {
     }
   }
 
-  function openEmployeeEditor(employee) {
+  async function openEmployeeEditor(employee) {
     setEditTarget(employee);
     setEditError("");
     setEditForm({
@@ -151,12 +156,54 @@ function Employees() {
       department: employee.department || "",
       role: employee.roles?.[0] || "EMPLOYEE",
     });
+    setEditAttendance(null);
+    setEditSites([]);
+    setEditSchedules([]);
+
+    if (!canManageTalentId) return;
+
+    setEditTalentIdLoading(true);
+    try {
+      const [sitesResponse, schedulesResponse, attendanceResponse] = await Promise.all([
+        api.get("/talent-id/sites"),
+        api.get("/talent-id/schedules"),
+        api.get(`/talent-id/employees/${employee.id}/attendance`),
+      ]);
+      const sites = sitesResponse.data?.items || [];
+      const schedules = schedulesResponse.data?.items || [];
+      const attendance = attendanceResponse.data || {};
+      const activeSites = sites.filter((item) => item.active !== false);
+      const activeSchedules = schedules.filter((item) => item.active !== false);
+
+      setEditSites(sites);
+      setEditSchedules(schedules);
+      setEditAttendance({
+        configured: Boolean(attendance.configured),
+        site_id: attendance.site_id
+          || (activeSites.length === 1 ? activeSites[0].id : ""),
+        schedule_id: attendance.schedule_id
+          || (activeSchedules.length === 1 ? activeSchedules[0].id : ""),
+        attendance_eligible: Boolean(attendance.attendance_eligible),
+      });
+    } catch (err) {
+      setEditError(getApiErrorMessage(err, {
+        action: "cargar la configuración de asistencia",
+        resource: "Talent ID",
+        fallback: "El perfil abrió, pero no se pudo cargar sede, horario y asistencia.",
+      }));
+    } finally {
+      setEditTalentIdLoading(false);
+    }
   }
 
   function closeEmployeeEditor() {
     setEditTarget(null);
     setEditForm(null);
     setEditError("");
+    setEditTalentIdLoading(false);
+    setEditAttendance(null);
+    setEditSites([]);
+    setEditSchedules([]);
   }
 
   async function saveEmployeeEdits(event) {
@@ -176,6 +223,22 @@ function Employees() {
         job_title: editForm.job_title,
         department: editForm.department,
       });
+
+      if (canManageTalentId && editAttendance) {
+        const attendanceWasConfigured = Boolean(editAttendance.configured);
+        const attendanceNeedsSave = attendanceWasConfigured || editAttendance.attendance_eligible;
+        if (attendanceNeedsSave) {
+          if (!editAttendance.site_id || !editAttendance.schedule_id) {
+            throw new Error("Selecciona sede y horario para configurar la asistencia.");
+          }
+          await api.put(`/talent-id/employees/${editTarget.id}/attendance`, {
+            site_id: editAttendance.site_id,
+            schedule_id: editAttendance.schedule_id,
+            attendance_eligible: Boolean(editAttendance.attendance_eligible),
+          });
+        }
+      }
+
       closeEmployeeEditor();
       await loadEmployees();
     } catch (err) {
@@ -502,6 +565,34 @@ function Employees() {
                   </div>
                 </div>
               </div>
+
+              {canManageTalentId && (
+                <div className="employee-edit-talent-id">
+                  <div className="employee-edit-section-heading">
+                    <div>
+                      <span className="eyebrow">Talent ID</span>
+                      <h3>Asistencia del empleado</h3>
+                    </div>
+                    <small>Se guarda junto con los demás cambios del perfil.</small>
+                  </div>
+
+                  {editTalentIdLoading ? (
+                    <LoadingState label="Cargando asistencia…" compact />
+                  ) : editAttendance ? (
+                    <TalentIdAttendanceFields
+                      attendance={editAttendance}
+                      sites={editSites}
+                      schedules={editSchedules}
+                      onChange={setEditAttendance}
+                      compact
+                    />
+                  ) : (
+                    <div className="talent-id-biometric-blocker">
+                      No fue posible cargar la configuración de asistencia.
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="form-actions">
                 <button className="btn btn-secondary" type="button" onClick={closeEmployeeEditor}>
