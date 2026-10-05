@@ -82,8 +82,16 @@ def _employee(db: Session, employee_id: str) -> UserProfile:
     return employee
 
 
-def _otp_hash(secret: str, challenge_id: str, otp: str) -> str:
-    payload = f"{challenge_id}:{otp}".encode("utf-8")
+def _otp_hash(
+    secret: str,
+    challenge_id: str,
+    decision: str,
+    document_version: str,
+    otp: str,
+) -> str:
+    payload = (
+        f"{challenge_id}:{decision}:{document_version}:{otp}"
+    ).encode("utf-8")
     return hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
 
 
@@ -168,6 +176,8 @@ def request_otp(
     db: Session,
     *,
     employee_id: str,
+    decision: str,
+    expected_document_version: str,
     otp_secret: str,
     ttl_seconds: int,
     cooldown_seconds: int,
@@ -178,6 +188,12 @@ def request_otp(
         raise ConsentOtpUnavailable("La firma electrónica no está configurada.")
 
     employee = _employee(db, employee_id)
+    normalized_decision = decision.strip().upper()
+    if expected_document_version != BIOMETRIC_CONSENT_VERSION:
+        raise ConsentStateError(
+            "La autorización cambió. Actualiza la pantalla antes de continuar."
+        )
+    _validate_transition(current_status(db, employee.id), normalized_decision)
     now = _now()
 
     latest = (
@@ -198,7 +214,15 @@ def request_otp(
     challenge = TalentBiometricConsentOtp(
         id=challenge_id,
         employee_id=employee.id,
-        otp_hash=_otp_hash(otp_secret, challenge_id, otp),
+        decision=normalized_decision,
+        document_version=BIOMETRIC_CONSENT_VERSION,
+        otp_hash=_otp_hash(
+            otp_secret,
+            challenge_id,
+            normalized_decision,
+            BIOMETRIC_CONSENT_VERSION,
+            otp,
+        ),
         expires_at=now + timedelta(seconds=ttl_seconds),
         attempts=0,
         max_attempts=max_attempts,
@@ -216,6 +240,8 @@ def request_otp(
     db.commit()
     return {
         "challenge_id": challenge.id,
+        "decision": challenge.decision,
+        "document_version": challenge.document_version,
         "delivery": "EMAIL",
         "destination": _mask_email(employee.email),
         "expires_in_seconds": ttl_seconds,
@@ -345,7 +371,21 @@ def sign_decision(
     if challenge.attempts >= challenge.max_attempts:
         raise ConsentOtpLocked("El código fue bloqueado por demasiados intentos.")
 
-    expected = _otp_hash(otp_secret, challenge.id, otp.strip())
+    if (
+        challenge.decision != normalized_decision
+        or challenge.document_version != expected_document_version
+    ):
+        raise ConsentStateError(
+            "El código fue emitido para una decisión o versión diferente."
+        )
+
+    expected = _otp_hash(
+        otp_secret,
+        challenge.id,
+        normalized_decision,
+        expected_document_version,
+        otp.strip(),
+    )
     if not hmac.compare_digest(expected, challenge.otp_hash):
         challenge.attempts += 1
         db.commit()
