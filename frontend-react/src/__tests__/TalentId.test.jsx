@@ -60,6 +60,45 @@ function mockLists(devices = []) {
     if (url === "/talent-id/devices") {
       return Promise.resolve({ data: { items: devices } });
     }
+    if (url === "/employees") {
+      return Promise.resolve({
+        data: {
+          items: [
+            {
+              id: "employee-1",
+              first_name: "Ana",
+              last_name: "Torres",
+              email: "ana@asiati.com.co",
+              job_title: "Analista",
+              department: "Operaciones",
+              status: "ACTIVE",
+            },
+          ],
+        },
+      });
+    }
+    if (url === "/talent-id/employees/employee-1/attendance") {
+      return Promise.resolve({
+        data: {
+          employee_id: "employee-1",
+          configured: true,
+          site_id: "site-1",
+          schedule_id: "schedule-1",
+          attendance_eligible: true,
+        },
+      });
+    }
+    if (url === "/talent-id/employees/employee-1/biometrics") {
+      return Promise.resolve({
+        data: {
+          employee_id: "employee-1",
+          enrolled: false,
+          face_count: 0,
+          active: false,
+          enrolled_at: null,
+        },
+      });
+    }
     return Promise.reject(new Error(`Unexpected GET ${url}`));
   });
 }
@@ -85,6 +124,8 @@ describe("Talent ID administration", () => {
     expect(screen.getByText("Sedes activas")).toBeInTheDocument();
     expect(screen.getByText("Horarios activos")).toBeInTheDocument();
     expect(screen.getByText("Kioscos activos")).toBeInTheDocument();
+    expect(screen.getByText("Empleados activos")).toBeInTheDocument();
+    expect(screen.getByText("Fotos para reconocimiento facial")).toBeInTheDocument();
     expect(screen.getByText("Credenciales de kioscos")).toBeInTheDocument();
   });
 
@@ -112,6 +153,68 @@ describe("Talent ID administration", () => {
         },
       );
     });
+  });
+
+  it("selects an employee and uploads multiple recognition photos", async () => {
+    api.post.mockImplementation((url) => {
+      if (url === "/talent-id/employees/employee-1/biometrics/enroll") {
+        return Promise.resolve({
+          data: {
+            employee_id: "employee-1",
+            provider: "aws_rekognition",
+            face_count: 2,
+            active: true,
+            enrolled_at: "2026-10-05T15:00:00Z",
+          },
+        });
+      }
+      return Promise.resolve({ data: {} });
+    });
+
+    api.get.mockImplementation((url) => {
+      if (url === "/talent-id/sites") {
+        return Promise.resolve({ data: { items: [{ id: "site-1", name: "Bogotá Principal", code: "BOG", timezone: "America/Bogota", active: true }] } });
+      }
+      if (url === "/talent-id/schedules") {
+        return Promise.resolve({ data: { items: [{ id: "schedule-1", name: "Administrativo", start_time: "08:30:00", end_time: "18:00:00", tolerance_minutes: 10, active: true }] } });
+      }
+      if (url === "/talent-id/devices") return Promise.resolve({ data: { items: [] } });
+      if (url === "/employees") {
+        return Promise.resolve({ data: { items: [{ id: "employee-1", first_name: "Ana", last_name: "Torres", email: "ana@asiati.com.co", job_title: "Analista", department: "Operaciones", status: "ACTIVE" }] } });
+      }
+      if (url === "/talent-id/employees/employee-1/attendance") {
+        return Promise.resolve({ data: { configured: true, attendance_eligible: true, site_id: "site-1", schedule_id: "schedule-1" } });
+      }
+      if (url === "/talent-id/employees/employee-1/biometrics") {
+        return Promise.resolve({ data: { enrolled: true, face_count: 2, active: true, enrolled_at: "2026-10-05T15:00:00Z" } });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+
+    render(<TalentId />);
+    await screen.findByText("Fotos para reconocimiento facial");
+
+    fireEvent.change(screen.getByLabelText("Empleado"), {
+      target: { value: "employee-1" },
+    });
+
+    expect(await screen.findByText("Ana Torres")).toBeInTheDocument();
+    expect(screen.getByText("Asistencia habilitada")).toBeInTheDocument();
+
+    const photoOne = new File(["face-one"], "frontal.jpg", { type: "image/jpeg" });
+    const photoTwo = new File(["face-two"], "lateral.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText("Fotos del empleado"), {
+      target: { files: [photoOne, photoTwo] },
+    });
+    fireEvent.click(screen.getByText(/Confirmo que el empleado autorizó/));
+    fireEvent.click(screen.getByRole("button", { name: "Agregar fotos" }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledTimes(2);
+    });
+    expect(api.post.mock.calls[0][0]).toBe("/talent-id/employees/employee-1/biometrics/enroll");
+    expect(api.post.mock.calls[0][1]).toBeInstanceOf(FormData);
+    expect(await screen.findByText("2 fotos registradas para reconocimiento facial.")).toBeInTheDocument();
   });
 
   it("provisions a kiosk and has one copy button per credential", async () => {
