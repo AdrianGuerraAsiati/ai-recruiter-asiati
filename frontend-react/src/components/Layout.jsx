@@ -12,6 +12,7 @@ const pageTitles = {
   "/ranking": "Ranking IA",
   "/employees": "Empleados",
   "/access": "Usuarios y accesos",
+  "/talent-id": "Talent ID",
   "/direction/scores": "Calificación de empleados",
   "/training": "Capacitación",
   "/progress": "Mi progreso",
