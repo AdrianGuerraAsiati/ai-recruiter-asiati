@@ -39,7 +39,12 @@ function TalentIdFaceEnrollment({
   const [attendance, setAttendance] = useState(null);
   const [biometric, setBiometric] = useState(null);
   const [files, setFiles] = useState([]);
-  const [consentConfirmed, setConsentConfirmed] = useState(false);
+  const [consent, setConsent] = useState({
+    status: "PENDING",
+    signed_at: null,
+    document_version: null,
+    has_signed_document: false,
+  });
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
@@ -70,8 +75,10 @@ function TalentIdFaceEnrollment({
     Promise.all([
       api.get(`/talent-id/employees/${employeeId}/attendance`),
       api.get(`/talent-id/employees/${employeeId}/biometrics`),
+      api.get(`/talent-id/employees/${employeeId}/consent`)
+        .catch(() => ({ data: { status: "PENDING" } })),
     ])
-      .then(([attendanceResponse, biometricResponse]) => {
+      .then(([attendanceResponse, biometricResponse, consentResponse]) => {
         if (cancelled) return;
         const currentAttendance = attendanceResponse.data || {};
         const activeSites = sites.filter((item) => item.active !== false);
@@ -85,6 +92,12 @@ function TalentIdFaceEnrollment({
           attendance_eligible: Boolean(currentAttendance.attendance_eligible),
         });
         setBiometric(biometricResponse.data || {});
+        setConsent({
+          status: consentResponse.data?.status || "PENDING",
+          signed_at: consentResponse.data?.signed_at || null,
+          document_version: consentResponse.data?.document_version || null,
+          has_signed_document: Boolean(consentResponse.data?.has_signed_document),
+        });
       })
       .catch((err) => {
         if (cancelled) return;
@@ -114,7 +127,6 @@ function TalentIdFaceEnrollment({
     setAttendance(null);
     setBiometric(null);
     setFiles([]);
-    setConsentConfirmed(false);
     setError("");
     setSuccess("");
     setLoadingStatus(Boolean(nextEmployeeId));
@@ -230,6 +242,32 @@ function TalentIdFaceEnrollment({
     setBiometric(data || {});
   }
 
+
+  async function downloadConsentDocument() {
+    if (!employeeId) return;
+    setError("");
+    try {
+      const response = await api.get(
+        `/talent-id/employees/${employeeId}/consent/document`,
+        { responseType: "blob" },
+      );
+      const url = URL.createObjectURL(response.data);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `Talent_ID_${employeeId}_consentimiento.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "descargar la autorización biométrica",
+        resource: "Talent ID",
+        fallback: "No fue posible descargar el documento firmado.",
+      }));
+    }
+  }
+
   async function uploadPhotos(event) {
     event.preventDefault();
 
@@ -241,8 +279,8 @@ function TalentIdFaceEnrollment({
       setError("Selecciona al menos una fotografía del empleado.");
       return;
     }
-    if (!consentConfirmed) {
-      setError("Confirma la autorización del empleado para usar sus datos biométricos.");
+    if (consent.status !== "AUTHORIZED") {
+      setError("El empleado debe firmar la autorización biométrica desde Mi perfil antes de registrar fotos.");
       return;
     }
 
@@ -265,7 +303,6 @@ function TalentIdFaceEnrollment({
       }
 
       setFiles([]);
-      setConsentConfirmed(false);
       setSuccess(
         uploadedCount === 1
           ? "Foto registrada para reconocimiento facial."
@@ -297,6 +334,8 @@ function TalentIdFaceEnrollment({
   }
 
   const attendanceReady = Boolean(attendance?.configured && attendance?.attendance_eligible);
+  const biometricAuthorized = consent.status === "AUTHORIZED";
+  const biometricReady = attendanceReady && biometricAuthorized;
   const faceCount = Number(biometric?.face_count || 0);
 
   return (
@@ -416,8 +455,10 @@ function TalentIdFaceEnrollment({
             <div className="talent-id-attendance-save-row">
               <span>
                 {attendanceReady
-                  ? "La marcación está lista para este empleado."
-                  : "Configura sede, horario y habilita la asistencia para continuar con biometría."}
+                  ? (biometricAuthorized
+                    ? "Asistencia habilitada y autorización biométrica vigente."
+                    : "Asistencia habilitada. Falta la autorización biométrica del empleado para enrolar el rostro.")
+                  : "Configura sede, horario y habilita la asistencia para continuar."}
               </span>
               <button
                 className="btn btn-secondary"
@@ -445,7 +486,7 @@ function TalentIdFaceEnrollment({
                   accept="image/jpeg,image/png"
                   multiple
                   onChange={selectFiles}
-                  disabled={!attendanceReady || uploading}
+                  disabled={!biometricReady || uploading}
                   aria-label="Fotos del empleado"
                 />
               </div>
@@ -464,18 +505,42 @@ function TalentIdFaceEnrollment({
                 </div>
               )}
 
-              <div className="talent-id-biometric-consent">
-                <input
-                  id="talent-id-biometric-consent"
-                  type="checkbox"
-                  checked={consentConfirmed}
-                  onChange={(event) => setConsentConfirmed(event.target.checked)}
-                  disabled={!attendanceReady || uploading}
-                />
-                <label htmlFor="talent-id-biometric-consent">
-                  Confirmo que el empleado autorizó el uso de sus datos biométricos para control de asistencia.
-                </label>
+              <div className="talent-id-biometric-consent talent-id-biometric-consent-status">
+                <div>
+                  <strong>
+                    Autorización biométrica: {
+                      consent.status === "AUTHORIZED"
+                        ? "Autorizada"
+                        : consent.status === "DENIED"
+                          ? "No autorizada"
+                          : consent.status === "REVOKED"
+                            ? "Revocada"
+                            : "Pendiente"
+                    }
+                  </strong>
+                  <span>
+                    La decisión debe firmarla el empleado desde Mi perfil mediante OTP. Talento Humano no puede autorizar en su nombre.
+                    {consent.signed_at
+                      ? ` Última decisión: ${new Date(consent.signed_at).toLocaleString("es-CO")}.`
+                      : ""}
+                  </span>
+                </div>
+                {consent.has_signed_document && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={downloadConsentDocument}
+                  >
+                    Descargar autorización
+                  </button>
+                )}
               </div>
+
+              {!biometricAuthorized && (
+                <div className="talent-id-biometric-blocker">
+                  El enrolamiento facial está bloqueado hasta que el empleado firme una autorización biométrica vigente.
+                </div>
+              )}
 
               <div className="talent-id-biometric-actions">
                 <div>
@@ -485,7 +550,7 @@ function TalentIdFaceEnrollment({
                 <button
                   className="btn btn-primary"
                   type="submit"
-                  disabled={!attendanceReady || uploading || files.length === 0}
+                  disabled={!biometricReady || uploading || files.length === 0}
                 >
                   {uploading ? (uploadProgress || "Procesando…") : "Agregar fotos"}
                 </button>
