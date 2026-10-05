@@ -4,7 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_permission
-from app.domains.odoo_sync import contract_delivery, employee_delivery, integration
+from app.domains.odoo_sync import (
+    contract_delivery,
+    employee_delivery,
+    employee_import,
+    integration,
+)
 from app.integrations.odoo.client import OdooClientError
 
 
@@ -44,6 +49,26 @@ def odoo_readonly_diagnostics(
             models[model] = {"available": False}
 
     return {"connection": status, "health": health, "models": models, "read_only": True}
+
+
+@router.post("/employees/import")
+def import_employees_from_odoo(
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("employees.create")),
+):
+    """Import every Odoo hr.employee record without creating Cognito access."""
+    try:
+        return employee_import.sync_employees_from_odoo(
+            db,
+            actor_sub=principal.get("sub"),
+        )
+    except (integration.OdooDisabled, integration.OdooNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except employee_import.OdooEmployeeImportError:
+        raise HTTPException(
+            status_code=502,
+            detail="No fue posible importar los empleados desde Odoo.",
+        )
 
 
 @router.post("/employees/{employee_id}/sync")

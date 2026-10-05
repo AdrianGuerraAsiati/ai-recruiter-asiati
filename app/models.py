@@ -694,21 +694,24 @@ class IndeedDispositionEvent(Base):
 
 
 class UserProfile(Base):
-    """Internal employee profile linked to one Cognito identity."""
+    """Internal employee profile; Cognito access is optional for Odoo imports."""
 
     __tablename__ = "user_profiles"
     __table_args__ = (
         UniqueConstraint("cognito_sub", name="uq_user_profiles_cognito_sub"),
         UniqueConstraint("email", name="uq_user_profiles_email"),
         UniqueConstraint("login_username", name="uq_user_profiles_login_username"),
+        UniqueConstraint("odoo_employee_id", name="uq_user_profiles_odoo_employee_id"),
         Index("idx_user_profiles_status", "status"),
         Index("idx_user_profiles_login_username", "login_username"),
+        Index("idx_user_profiles_odoo_employee_id", "odoo_employee_id"),
     )
 
     id = Column(Text, primary_key=True, default=lambda: str(uuid.uuid4()))
-    cognito_sub = Column(Text, nullable=False)
-    email = Column(Text, nullable=False)
+    cognito_sub = Column(Text, nullable=True)
+    email = Column(Text, nullable=True)
     login_username = Column(Text, nullable=True)
+    odoo_employee_id = Column(Text, nullable=True)
     first_name = Column(Text, nullable=True)
     last_name = Column(Text, nullable=True)
     job_title = Column(Text, nullable=True)

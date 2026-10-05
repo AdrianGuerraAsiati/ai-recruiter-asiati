@@ -348,6 +348,7 @@ def test_alembic_head_builds_current_postgres_schema():
         }
         assert {
             "login_username",
+            "odoo_employee_id",
             "hire_date",
             "onboarding_status",
             "onboarding_started_at",
@@ -477,6 +478,6 @@ def test_alembic_head_builds_current_postgres_schema():
         assert admin_score_grants == 4
         assert admin_write_grants == {"candidates.manage", "ranking.recalculate"}
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
-        assert revision == "040"
+        assert revision == "041"
     finally:
         engine.dispose()

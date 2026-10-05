@@ -34,7 +34,7 @@ def _employee_name(employee: UserProfile | None) -> str:
         for part in [employee.first_name or "", employee.last_name or ""]
         if part and part.strip()
     )
-    return name or employee.email
+    return name or employee.email or "Empleado"
 
 
 def _minutes_since_midnight(value: datetime) -> int:

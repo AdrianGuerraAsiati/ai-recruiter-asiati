@@ -122,6 +122,9 @@ def employee_payload(db: Session, profile: UserProfile) -> dict:
         "cognito_sub": profile.cognito_sub,
         "email": profile.email,
         "username": profile.login_username,
+        "odoo_employee_id": profile.odoo_employee_id,
+        "source": "ODOO" if profile.odoo_employee_id else "TALENT",
+        "access_provisioned": bool(profile.cognito_sub and profile.email),
         "first_name": profile.first_name,
         "last_name": profile.last_name,
         "job_title": profile.job_title,
@@ -201,7 +204,7 @@ def ensure_existing_cognito_profile(
 
     email = normalize_email(email)
     existing = db.query(UserProfile).filter(UserProfile.email == email).one_or_none()
-    if existing is not None:
+    if existing is not None and existing.cognito_sub:
         return existing
 
     client = cognito_client or get_admin_cognito_client()
@@ -224,7 +227,7 @@ def ensure_existing_cognito_profile(
     if not sub:
         raise EmployeeIdentityError("Cognito did not return a stable subject")
 
-    profile = (
+    profile = existing or (
         db.query(UserProfile)
         .filter(UserProfile.cognito_sub == sub)
         .one_or_none()
@@ -241,7 +244,11 @@ def ensure_existing_cognito_profile(
         )
         db.add(profile)
     else:
+        profile.cognito_sub = sub
         profile.email = email
+        profile.status = "ACTIVE"
+        if profile.onboarding_status == "NOT_REQUIRED":
+            profile.onboarding_status = "PENDING"
 
     db.commit()
     db.refresh(profile)
@@ -420,7 +427,7 @@ def reset_employee_temporary_password(
     cognito_client=None,
 ) -> tuple[UserProfile, str]:
     profile = require_employee(db, employee_id)
-    if not profile.login_username:
+    if not profile.login_username or not profile.cognito_sub or not profile.email:
         raise EmployeeUsernameInvalid()
     temporary_password = generate_temporary_password()
     client = cognito_client or get_admin_cognito_client()
@@ -453,7 +460,7 @@ def update_employee(
     if "last_name" in changes and changes["last_name"]:
         identity_changes.append({"Name": "family_name", "Value": changes["last_name"]})
 
-    if identity_changes:
+    if identity_changes and profile.cognito_sub and profile.email:
         client = cognito_client or get_admin_cognito_client()
         try:
             client.admin_update_user_attributes(
@@ -468,7 +475,11 @@ def update_employee(
     for key, value in changes.items():
         setattr(profile, key, value)
 
-    if profile.status == "ACTIVE" and profile.onboarding_status == "NOT_REQUIRED":
+    if (
+        profile.cognito_sub
+        and profile.status == "ACTIVE"
+        and profile.onboarding_status == "NOT_REQUIRED"
+    ):
         profile.onboarding_status = "PENDING"
 
     db.commit()
@@ -487,21 +498,22 @@ def set_employee_status(
     if status not in {"ACTIVE", "DISABLED"}:
         raise EmployeeStateError()
 
-    client = cognito_client or get_admin_cognito_client()
-    try:
-        if status == "ACTIVE":
-            client.admin_enable_user(
-                UserPoolId=_user_pool_id(),
-                Username=profile.email,
-            )
-        else:
-            client.admin_disable_user(
-                UserPoolId=_user_pool_id(),
-                Username=profile.email,
-            )
-    except ClientError as exc:
-        code = str(exc.response.get("Error", {}).get("Code") or "")
-        raise EmployeeProvisioningError(code or "Cognito error") from exc
+    if profile.cognito_sub and profile.email:
+        client = cognito_client or get_admin_cognito_client()
+        try:
+            if status == "ACTIVE":
+                client.admin_enable_user(
+                    UserPoolId=_user_pool_id(),
+                    Username=profile.email,
+                )
+            else:
+                client.admin_disable_user(
+                    UserPoolId=_user_pool_id(),
+                    Username=profile.email,
+                )
+        except ClientError as exc:
+            code = str(exc.response.get("Error", {}).get("Code") or "")
+            raise EmployeeProvisioningError(code or "Cognito error") from exc
 
     profile.status = status
     db.commit()
