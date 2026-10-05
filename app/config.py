@@ -115,6 +115,17 @@ class TalentIdBiometricSettings:
 
 
 @dataclass(frozen=True)
+class TalentIdConsentSettings:
+    """Electronic-signature settings for Talent ID biometric consent."""
+
+    from_email: str
+    otp_secret: str
+    otp_ttl_seconds: int
+    otp_cooldown_seconds: int
+    otp_max_attempts: int
+
+
+@dataclass(frozen=True)
 class IndeedResumeAgentSettings:
     """Non-secret settings for the machine that downloads Indeed resumes."""
 
@@ -155,6 +166,26 @@ def get_talent_id_biometric_settings() -> TalentIdBiometricSettings:
                     )
                 ),
             ),
+        ),
+    )
+
+
+def get_talent_id_consent_settings() -> TalentIdConsentSettings:
+    """Return settings for OTP-backed electronic consent signatures."""
+    return TalentIdConsentSettings(
+        from_email=os.getenv("TALENT_ID_CONSENT_FROM_EMAIL", "").strip(),
+        otp_secret=os.getenv("TALENT_ID_CONSENT_OTP_SECRET", "").strip(),
+        otp_ttl_seconds=max(
+            120,
+            int(os.getenv("TALENT_ID_CONSENT_OTP_TTL_SECONDS", "600")),
+        ),
+        otp_cooldown_seconds=max(
+            0,
+            int(os.getenv("TALENT_ID_CONSENT_OTP_COOLDOWN_SECONDS", "60")),
+        ),
+        otp_max_attempts=max(
+            1,
+            int(os.getenv("TALENT_ID_CONSENT_OTP_MAX_ATTEMPTS", "5")),
         ),
     )
 
