@@ -166,6 +166,10 @@ def get_employee_attendance(
 ):
     try:
         service.get_employee(db, employee_id)
+    except Exception as exc:
+        return _translate(exc)
+
+    try:
         settings = service.get_employee_attendance_settings(db, employee_id)
     except service.TalentIdNotFound:
         return {
