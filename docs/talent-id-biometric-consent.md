@@ -54,13 +54,17 @@ proveedor no vuelve a habilitar el reconocimiento.
 ## Alternativa no biométrica
 
 La decisión biométrica no controla la elegibilidad laboral ni la posibilidad de registrar
-asistencia. Para `DENIED` y `REVOKED` debe mantenerse un mecanismo alternativo no
-biométrico.
+asistencia. Para `DENIED` y `REVOKED` se mantiene un mecanismo alternativo no biométrico.
 
-La alternativa prevista para la siguiente fase es **QR dinámico + dispositivo móvil
-previamente vinculado**, con marcación manual auditada como contingencia. El consentimiento
-no se amarra a una tecnología específica para permitir evolucionar este mecanismo sin pedir
-una nueva autorización biométrica.
+La alternativa implementada es **QR dinámico + dispositivo móvil previamente vinculado**.
+El navegador del celular genera una llave ECDSA P-256 y conserva la llave privada como
+no exportable en IndexedDB. El servidor conserva únicamente la llave pública. Para emitir
+cada QR, el celular debe firmar un reto efímero. El QR expira en aproximadamente 30 segundos,
+se invalida al rotar y solo puede consumirse una vez en un kiosco autorizado y en la sede
+asignada al empleado.
+
+La marcación manual auditada queda como contingencia administrativa. El consentimiento
+biométrico no se usa como requisito para acceder a esta alternativa.
 
 ## Configuración
 
@@ -72,6 +76,10 @@ TALENT_ID_CONSENT_OTP_SECRET=
 TALENT_ID_CONSENT_OTP_TTL_SECONDS=600
 TALENT_ID_CONSENT_OTP_COOLDOWN_SECONDS=60
 TALENT_ID_CONSENT_OTP_MAX_ATTEMPTS=5
+
+TALENT_ID_QR_CHALLENGE_TTL_SECONDS=60
+TALENT_ID_QR_TOKEN_TTL_SECONDS=30
+TALENT_ID_QR_MAX_SIGNATURE_ATTEMPTS=5
 ```
 
 En producción:
@@ -90,6 +98,15 @@ Empleado autenticado:
 - `POST /api/talent-id/consent/otp`
 - `POST /api/talent-id/consent/sign`
 - `GET /api/talent-id/consent/document`
+
+Marcación QR del empleado:
+
+- `GET /api/talent-id/mobile-devices`
+- `POST /api/talent-id/mobile-devices`
+- `DELETE /api/talent-id/mobile-devices/{device_id}`
+- `POST /api/talent-id/mobile-devices/{device_id}/challenge`
+- `POST /api/talent-id/mobile-qr`
+- `POST /v1/kiosk/qr`
 
 Administración:
 
