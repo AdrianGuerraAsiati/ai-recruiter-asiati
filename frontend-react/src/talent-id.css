@@ -672,6 +672,41 @@
   margin-top: 2px;
 }
 
+.talent-id-biometric-consent-status {
+  display: flex;
+  width: 100%;
+  max-width: none;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.talent-id-biometric-consent-status > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.talent-id-biometric-consent-status strong,
+.talent-id-biometric-consent-status span {
+  display: block;
+}
+
+.talent-id-biometric-consent-status strong {
+  color: var(--ink);
+  font-size: .78rem;
+}
+
+.talent-id-biometric-consent-status span {
+  margin-top: 4px;
+  color: var(--ink-faint);
+  font-size: .72rem;
+  line-height: 1.5;
+}
+
+.talent-id-biometric-consent-status .btn {
+  flex: 0 0 auto;
+}
+
 .talent-id-biometric-actions {
   display: flex;
   align-items: center;
@@ -1034,5 +1069,16 @@
 @media (max-width: 700px) {
   .talent-id-readiness-heading {
     flex-direction: column;
+  }
+}
+
+
+@media (max-width: 700px) {
+  .talent-id-biometric-consent-status {
+    flex-direction: column;
+  }
+
+  .talent-id-biometric-consent-status .btn {
+    width: 100%;
   }
 }
