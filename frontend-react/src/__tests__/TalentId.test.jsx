@@ -318,7 +318,7 @@ describe("Talent ID administration", () => {
     fireEvent.change(screen.getByLabelText("Empleado"), { target: { value: "employee-1" } });
 
     expect(await screen.findByText("Configuración de marcación")).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText("Habilitar marcación de asistencia"));
+    fireEvent.click(screen.getByLabelText(/Habilitar marcación de asistencia/i));
     fireEvent.click(screen.getByRole("button", { name: "Guardar asistencia" }));
 
     await waitFor(() => {
