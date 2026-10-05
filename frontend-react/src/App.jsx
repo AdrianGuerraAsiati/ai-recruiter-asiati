@@ -29,7 +29,7 @@ import NotFound from "./pages/NotFound";
 import "./ui-system.css";
 
 
-function ProtectedRoute({ children, permission }) {
+function ProtectedRoute({ children, permission, permissionsAny = [] }) {
   const { status, hasPermission } = useSession();
 
   if (status === "loading") {
@@ -40,7 +40,15 @@ function ProtectedRoute({ children, permission }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (permission && !hasPermission(permission)) {
+  const hasRequiredPermission = (
+    (!permission || hasPermission(permission))
+    && (
+      permissionsAny.length === 0
+      || permissionsAny.some((candidate) => hasPermission(candidate))
+    )
+  );
+
+  if (!hasRequiredPermission) {
     return <Navigate to="/forbidden" replace />;
   }
 
@@ -48,9 +56,9 @@ function ProtectedRoute({ children, permission }) {
 }
 
 
-function ProtectedPage({ children, permission }) {
+function ProtectedPage({ children, permission, permissionsAny }) {
   return (
-    <ProtectedRoute permission={permission}>
+    <ProtectedRoute permission={permission} permissionsAny={permissionsAny}>
       <Layout>{children}</Layout>
     </ProtectedRoute>
   );
@@ -69,7 +77,20 @@ function AppRoutes() {
       <Route path="/employees" element={<ProtectedPage permission="employees.read"><Employees /></ProtectedPage>} />
       <Route path="/access" element={<ProtectedPage permission="employees.credentials.manage"><AccessManagement /></ProtectedPage>} />
       <Route path="/talent-id" element={<ProtectedPage permission="talent_id.manage"><TalentId /></ProtectedPage>} />
-      <Route path="/attendance" element={<ProtectedPage permission="talent_id.attendance.read_own"><Attendance /></ProtectedPage>} />
+      <Route
+        path="/attendance"
+        element={(
+          <ProtectedPage
+            permissionsAny={[
+              "talent_id.attendance.read_own",
+              "talent_id.manage",
+              "profile.read_own",
+            ]}
+          >
+            <Attendance />
+          </ProtectedPage>
+        )}
+      />
       <Route path="/direction/scores" element={<ProtectedPage permission="employee_scores.read"><EmployeeScores /></ProtectedPage>} />
       <Route path="/jobs" element={<ProtectedPage permission="jobs.read"><Jobs /></ProtectedPage>} />
       <Route path="/applications" element={<ProtectedPage permission="candidates.read"><Applications /></ProtectedPage>} />

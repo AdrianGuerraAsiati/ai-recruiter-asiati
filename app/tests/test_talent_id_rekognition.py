@@ -23,6 +23,7 @@ class FakeRekognitionClient:
         self.conflict_on_create = False
         self.invalid_parameter_on_create = False
         self.users = []
+        self.faces = []
 
     def create_user(self, **kwargs):
         self.created.append(kwargs)
@@ -45,6 +46,9 @@ class FakeRekognitionClient:
 
     def list_users(self, **kwargs):
         return {"Users": list(self.users)}
+
+    def list_faces(self, **kwargs):
+        return {"Faces": list(self.faces)}
 
     def index_faces(self, **kwargs):
         return self.index_response
@@ -137,6 +141,29 @@ def test_enroll_rejects_image_without_usable_face():
         pass
     else:
         raise AssertionError("FaceNotDetectedError was not raised")
+
+
+def test_enroll_accepts_face_that_rekognition_reports_as_already_associated():
+    client = FakeRekognitionClient()
+    client.associate_response = {
+        "AssociatedFaces": [],
+        "UnsuccessfulFaceAssociations": [],
+        "UserStatus": "ACTIVE",
+    }
+    client.faces = [
+        {
+            "FaceId": "face-1",
+            "UserId": "employee-1",
+        }
+    ]
+
+    result = _provider(client).enroll(
+        provider_user_id="employee-1",
+        image_bytes=b"jpeg",
+    )
+
+    assert result.face_ids == ("face-1",)
+    assert client.deleted == []
 
 
 def test_enroll_cleans_indexed_face_when_association_fails():
