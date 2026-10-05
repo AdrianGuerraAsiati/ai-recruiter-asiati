@@ -147,6 +147,8 @@ class TalentBiometricConsentOtp(Base):
         ForeignKey("user_profiles.id", ondelete="CASCADE"),
         nullable=False,
     )
+    decision = Column(Text, nullable=False)
+    document_version = Column(Text, nullable=False)
     otp_hash = Column(Text, nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     used_at = Column(DateTime(timezone=True), nullable=True)
