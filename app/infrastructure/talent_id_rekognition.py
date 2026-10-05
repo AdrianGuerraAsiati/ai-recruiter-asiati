@@ -80,13 +80,19 @@ class RekognitionBiometricProvider:
             if face.get("FaceId")
         )
         if len(associated) != len(face_ids):
-            self._client.delete_faces(
-                CollectionId=self._collection_id,
-                FaceIds=list(face_ids),
-            )
-            raise FaceAssociationError(
-                "El rostro no pudo asociarse al empleado."
-            )
+            if self._faces_belong_to_user(
+                provider_user_id=provider_user_id,
+                face_ids=face_ids,
+            ):
+                associated = face_ids
+            else:
+                self._client.delete_faces(
+                    CollectionId=self._collection_id,
+                    FaceIds=list(face_ids),
+                )
+                raise FaceAssociationError(
+                    "El rostro no pudo asociarse al empleado."
+                )
 
         return EnrollmentResult(
             provider_user_id=provider_user_id,
@@ -135,6 +141,37 @@ class RekognitionBiometricProvider:
             if code == "InvalidParameterException" and self._user_exists(provider_user_id):
                 return
             raise
+
+    def _faces_belong_to_user(
+        self,
+        *,
+        provider_user_id: str,
+        face_ids: tuple[str, ...],
+    ) -> bool:
+        expected = set(face_ids)
+        matched = set()
+        next_token = None
+
+        while True:
+            params = {
+                "CollectionId": self._collection_id,
+                "MaxResults": 100,
+            }
+            if next_token:
+                params["NextToken"] = next_token
+
+            response = self._client.list_faces(**params)
+            for face in response.get("Faces", []):
+                face_id = str(face.get("FaceId") or "")
+                if face_id in expected and str(face.get("UserId") or "") == provider_user_id:
+                    matched.add(face_id)
+
+            if matched == expected:
+                return True
+
+            next_token = response.get("NextToken")
+            if not next_token:
+                return False
 
     def _user_exists(self, provider_user_id: str) -> bool:
         next_token = None
