@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import io
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -13,6 +14,8 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 from sqlalchemy.orm import Session
+import qrcode
+import qrcode.image.svg
 
 from app.domains.talent_id.models import (
     TalentMobileDevice,
@@ -396,6 +399,20 @@ def issue_qr_token(
         "ttl_seconds": token_ttl_seconds,
         "device": mobile_device_payload(device),
     }
+
+
+def render_qr_svg_data_url(payload: str) -> str:
+    """Render a QR as an inline SVG data URL without exposing the token in a URL."""
+    image = qrcode.make(
+        payload,
+        image_factory=qrcode.image.svg.SvgPathImage,
+        box_size=8,
+        border=3,
+    )
+    buffer = io.BytesIO()
+    image.save(buffer)
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return f"data:image/svg+xml;base64,{encoded}"
 
 
 def consume_qr_attendance(
