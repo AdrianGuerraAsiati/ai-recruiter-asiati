@@ -1,32 +1,14 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Candidate import staging bucket, SQS queue and DLQ for AI Recruiter.
+Description: Candidate import staging bucket, SQS queue and DLQ for Talent Intelligence.
+
+Metadata:
+  CostPolicy:
+    Monitoring: No fixed-cost CloudWatch alarm resources are provisioned by this stack.
 
 Parameters:
   RuntimeRoleArn:
     Type: String
     Description: ARN of the existing AiRecruiterBedrockRuntimeRole used by API and worker.
-  AlarmTopicArn:
-    Type: String
-    Default: ""
-    Description: Optional SNS topic ARN that receives candidate-import alarms.
-  EnableOperationalAlarms:
-    Type: String
-    Default: "false"
-    AllowedValues:
-      - "true"
-      - "false"
-    Description: Enable CloudWatch alarms after deployment IAM has been verified.
-
-Conditions:
-  CreateOperationalAlarms:
-    Fn::Equals:
-      - Ref: EnableOperationalAlarms
-      - "true"
-  HasAlarmTopic:
-    Fn::Not:
-      - Fn::Equals:
-          - Ref: AlarmTopicArn
-          - ""
 
 Resources:
   ImportStagingBucket:
@@ -47,7 +29,7 @@ Resources:
               - POST
               - HEAD
             AllowedOrigins:
-              - https://ai.adrianguerra.net
+              - https://talent.asiaticorp.com
               - http://localhost:5173
               - http://localhost:5174
               - http://localhost:5175
@@ -117,84 +99,6 @@ Resources:
             - Arn
         maxReceiveCount: 5
 
-  ImportDlqVisibleMessagesAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Condition: CreateOperationalAlarms
-    Properties:
-      AlarmDescription: Candidate import messages reached the dead-letter queue.
-      Namespace: AWS/SQS
-      MetricName: ApproximateNumberOfMessagesVisible
-      Dimensions:
-        - Name: QueueName
-          Value:
-            Fn::GetAtt:
-              - ImportDlq
-              - QueueName
-      Statistic: Maximum
-      Period: 60
-      EvaluationPeriods: 1
-      DatapointsToAlarm: 1
-      Threshold: 1
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      TreatMissingData: notBreaching
-      AlarmActions:
-        Fn::If:
-          - HasAlarmTopic
-          - - Ref: AlarmTopicArn
-          - Ref: AWS::NoValue
-
-  ImportQueueBacklogAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Condition: CreateOperationalAlarms
-    Properties:
-      AlarmDescription: Candidate import queue backlog is above the operational threshold.
-      Namespace: AWS/SQS
-      MetricName: ApproximateNumberOfMessagesVisible
-      Dimensions:
-        - Name: QueueName
-          Value:
-            Fn::GetAtt:
-              - ImportQueue
-              - QueueName
-      Statistic: Maximum
-      Period: 300
-      EvaluationPeriods: 2
-      DatapointsToAlarm: 2
-      Threshold: 50
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      TreatMissingData: notBreaching
-      AlarmActions:
-        Fn::If:
-          - HasAlarmTopic
-          - - Ref: AlarmTopicArn
-          - Ref: AWS::NoValue
-
-  ImportQueueOldestMessageAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Condition: CreateOperationalAlarms
-    Properties:
-      AlarmDescription: Candidate import queue has work older than fifteen minutes.
-      Namespace: AWS/SQS
-      MetricName: ApproximateAgeOfOldestMessage
-      Dimensions:
-        - Name: QueueName
-          Value:
-            Fn::GetAtt:
-              - ImportQueue
-              - QueueName
-      Statistic: Maximum
-      Period: 300
-      EvaluationPeriods: 2
-      DatapointsToAlarm: 2
-      Threshold: 900
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      TreatMissingData: notBreaching
-      AlarmActions:
-        Fn::If:
-          - HasAlarmTopic
-          - - Ref: AlarmTopicArn
-          - Ref: AWS::NoValue
-
   ImportQueuePolicy:
     Type: AWS::SQS::QueuePolicy
     Properties:
@@ -238,18 +142,3 @@ Outputs:
     Description: Candidate import dead-letter queue URL.
     Value:
       Ref: ImportDlq
-  ImportDlqAlarmName:
-    Condition: CreateOperationalAlarms
-    Description: CloudWatch alarm raised when the candidate import DLQ receives messages.
-    Value:
-      Ref: ImportDlqVisibleMessagesAlarm
-  ImportQueueBacklogAlarmName:
-    Condition: CreateOperationalAlarms
-    Description: CloudWatch alarm for candidate import queue backlog.
-    Value:
-      Ref: ImportQueueBacklogAlarm
-  ImportQueueOldestMessageAlarmName:
-    Condition: CreateOperationalAlarms
-    Description: CloudWatch alarm for candidate import queue age.
-    Value:
-      Ref: ImportQueueOldestMessageAlarm
