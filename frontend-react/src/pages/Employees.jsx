@@ -551,11 +551,13 @@ function Employees() {
         </div>
       )}
 
-      <EmployeeBiometricModal
-        open={Boolean(biometricTarget)}
-        employee={biometricTarget}
-        onClose={() => setBiometricTarget(null)}
-      />
+      {biometricTarget && (
+        <EmployeeBiometricModal
+          open
+          employee={biometricTarget}
+          onClose={() => setBiometricTarget(null)}
+        />
+      )}
 
       <EmployeeCredentialsModal
         open={Boolean(createdCredentials)}
