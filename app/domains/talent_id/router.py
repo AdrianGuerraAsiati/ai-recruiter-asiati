@@ -39,7 +39,9 @@ from app.domains.talent_id.schemas import (
 )
 from app.infrastructure.talent_id_consent_email import (
     ConsentEmailDeliveryError,
+    MobileLinkEmailDeliveryError,
     send_consent_otp,
+    send_mobile_link_otp,
 )
 from app.infrastructure.talent_id_rekognition import (
     FaceAssociationError,
@@ -147,6 +149,18 @@ def _consent_error(exc: Exception):
 
 
 def _mobile_qr_error(exc: Exception):
+    if isinstance(exc, mobile_qr.MobileLinkOtpCooldown):
+        raise HTTPException(status_code=429, detail=str(exc))
+    if isinstance(exc, mobile_qr.MobileLinkOtpUnavailable):
+        raise HTTPException(status_code=503, detail=str(exc))
+    if isinstance(exc, MobileLinkEmailDeliveryError):
+        raise HTTPException(status_code=503, detail=str(exc))
+    if isinstance(exc, mobile_qr.MobileLinkOtpExpired):
+        raise HTTPException(status_code=410, detail=str(exc))
+    if isinstance(exc, mobile_qr.MobileLinkOtpLocked):
+        raise HTTPException(status_code=429, detail=str(exc))
+    if isinstance(exc, mobile_qr.MobileLinkOtpInvalid):
+        raise HTTPException(status_code=422, detail=str(exc))
     if isinstance(exc, mobile_qr.MobileDeviceNotFound):
         raise HTTPException(status_code=404, detail=str(exc))
     if isinstance(
@@ -335,6 +349,28 @@ def list_my_mobile_devices(
     return {"items": items, "total": len(items)}
 
 
+
+@router.post("/mobile-devices/link-otp")
+def request_my_mobile_device_link_otp(
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    settings = get_talent_id_qr_settings()
+    try:
+        return mobile_qr.request_mobile_link_otp(
+            db,
+            employee_id=employee_id,
+            otp_secret=settings.link_otp_secret,
+            ttl_seconds=settings.link_otp_ttl_seconds,
+            cooldown_seconds=settings.link_otp_cooldown_seconds,
+            max_attempts=settings.link_otp_max_attempts,
+            send_otp=send_mobile_link_otp,
+        )
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+
+
 @router.post("/mobile-devices", status_code=201)
 def link_my_mobile_device(
     body: RegisterMobileDeviceRequest,
@@ -343,11 +379,15 @@ def link_my_mobile_device(
 ):
     employee_id = _principal_employee_id(principal)
     try:
+        settings = get_talent_id_qr_settings()
         device = mobile_qr.register_mobile_device(
             db,
             employee_id=employee_id,
             label=body.label,
             public_key_jwk=body.public_key_jwk,
+            link_challenge_id=body.link_challenge_id,
+            link_otp=body.link_otp,
+            link_otp_secret=settings.link_otp_secret,
         )
     except Exception as exc:
         return _mobile_qr_error(exc)
