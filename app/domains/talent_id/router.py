@@ -144,11 +144,14 @@ def _disable_biometrics_after_opt_out(db: Session, employee_id: str) -> None:
     if enrollment is None or not enrollment.active:
         return
 
+    provider_user_id = enrollment.provider_user_id
+    biometrics.revoke_employee_enrollment(
+        db,
+        employee_id=employee_id,
+    )
+
     settings = get_talent_id_biometric_settings()
     if not settings.collection_id:
-        enrollment.active = False
-        enrollment.face_count = 0
-        db.commit()
         return
 
     try:
@@ -157,14 +160,10 @@ def _disable_biometrics_after_opt_out(db: Session, employee_id: str) -> None:
             collection_id=settings.collection_id,
             association_threshold=settings.association_threshold,
         )
-        biometrics.revoke_employee_enrollment(
-            db,
-            provider=provider,
-            employee_id=employee_id,
-        )
+        provider.delete_user(provider_user_id=provider_user_id)
     except Exception:
         # Consent revocation must remain effective even if provider cleanup
-        # temporarily fails. Local recognition is already disabled by consent.
+        # temporarily fails. Local recognition has already been disabled.
         logger.exception(
             "Provider cleanup failed after biometric consent opt-out for %s",
             employee_id,
