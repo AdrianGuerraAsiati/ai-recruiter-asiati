@@ -12,8 +12,14 @@ const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png"]);
 
 function employeeName(employee) {
   return [employee?.first_name, employee?.last_name].filter(Boolean).join(" ")
-    || employee?.email
-    || "Empleado";
+    || "Sin nombre";
+}
+
+function employeeOptionLabel(employee) {
+  const name = employeeName(employee);
+  const identity = employee?.email || employee?.username || "";
+  const role = employee?.job_title || "";
+  return [name, identity, role].filter(Boolean).join(" · ");
 }
 
 function employeeInitials(employee) {
@@ -22,7 +28,7 @@ function employeeInitials(employee) {
   return `${first}${last}`.toUpperCase() || employee?.email?.[0]?.toUpperCase() || "?";
 }
 
-function TalentIdFaceEnrollment({ employees = [] }) {
+function TalentIdFaceEnrollment({ employees = [], onEmployeeUpdated }) {
   const [employeeId, setEmployeeId] = useState("");
   const [attendance, setAttendance] = useState(null);
   const [biometric, setBiometric] = useState(null);
@@ -33,12 +39,14 @@ function TalentIdFaceEnrollment({ employees = [] }) {
   const [uploadProgress, setUploadProgress] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [nameForm, setNameForm] = useState({ first_name: "", last_name: "" });
 
   const activeEmployees = useMemo(
     () => employees
       .filter((employee) => employee.status !== "DISABLED")
       .slice()
-      .sort((a, b) => employeeName(a).localeCompare(employeeName(b), "es", { sensitivity: "base" })),
+      .sort((a, b) => employeeOptionLabel(a).localeCompare(employeeOptionLabel(b), "es", { sensitivity: "base" })),
     [employees],
   );
 
@@ -80,7 +88,12 @@ function TalentIdFaceEnrollment({ employees = [] }) {
 
   function changeEmployee(event) {
     const nextEmployeeId = event.target.value;
+    const nextEmployee = activeEmployees.find((employee) => employee.id === nextEmployeeId);
     setEmployeeId(nextEmployeeId);
+    setNameForm({
+      first_name: nextEmployee?.first_name || "",
+      last_name: nextEmployee?.last_name || "",
+    });
     setAttendance(null);
     setBiometric(null);
     setFiles([]);
@@ -88,6 +101,38 @@ function TalentIdFaceEnrollment({ employees = [] }) {
     setError("");
     setSuccess("");
     setLoadingStatus(Boolean(nextEmployeeId));
+  }
+
+  async function saveEmployeeName(event) {
+    event.preventDefault();
+    if (!employeeId) return;
+
+    const firstName = nameForm.first_name.trim();
+    const lastName = nameForm.last_name.trim();
+    if (!firstName || !lastName) {
+      setError("Ingresa nombre y apellido para identificar al empleado.");
+      return;
+    }
+
+    setSavingName(true);
+    setError("");
+    setSuccess("");
+    try {
+      await api.put(`/employees/${employeeId}`, {
+        first_name: firstName,
+        last_name: lastName,
+      });
+      await onEmployeeUpdated?.();
+      setSuccess("Nombre del empleado actualizado.");
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "actualizar el nombre del empleado",
+        resource: "empleados",
+        fallback: "No se pudo guardar el nombre del empleado.",
+      }));
+    } finally {
+      setSavingName(false);
+    }
   }
 
   function selectFiles(event) {
@@ -215,8 +260,7 @@ function TalentIdFaceEnrollment({ employees = [] }) {
             <option value="">Selecciona un empleado</option>
             {activeEmployees.map((employee) => (
               <option key={employee.id} value={employee.id}>
-                {employeeName(employee)}
-                {employee.job_title ? ` · ${employee.job_title}` : ""}
+                {employeeOptionLabel(employee)}
               </option>
             ))}
           </select>
@@ -235,6 +279,41 @@ function TalentIdFaceEnrollment({ employees = [] }) {
           <LoadingState label="Consultando biometría…" compact />
         ) : (
           <div className="talent-id-biometric-workspace">
+            {(!selectedEmployee.first_name?.trim() || !selectedEmployee.last_name?.trim()) && (
+              <form className="talent-id-name-completion" onSubmit={saveEmployeeName}>
+                <div>
+                  <span className="eyebrow">Identificación</span>
+                  <h3>Completar nombre del empleado</h3>
+                  <p>Este perfil fue creado sin nombre. Agrégalo aquí para que Talent ID deje de mostrar solo el correo.</p>
+                </div>
+                <div className="talent-id-name-grid">
+                  <div className="form-group">
+                    <label htmlFor="talent-id-employee-first-name">Nombre</label>
+                    <input
+                      id="talent-id-employee-first-name"
+                      value={nameForm.first_name}
+                      onChange={(event) => setNameForm({ ...nameForm, first_name: event.target.value })}
+                      placeholder="Ej. Natalí"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="talent-id-employee-last-name">Apellido</label>
+                    <input
+                      id="talent-id-employee-last-name"
+                      value={nameForm.last_name}
+                      onChange={(event) => setNameForm({ ...nameForm, last_name: event.target.value })}
+                      placeholder="Ej. Garzón"
+                      required
+                    />
+                  </div>
+                </div>
+                <button className="btn btn-secondary" type="submit" disabled={savingName}>
+                  {savingName ? "Guardando…" : "Guardar nombre"}
+                </button>
+              </form>
+            )}
+
             <div className="talent-id-selected-employee">
               <span className="talent-id-employee-avatar" aria-hidden="true">
                 {employeeInitials(selectedEmployee)}
