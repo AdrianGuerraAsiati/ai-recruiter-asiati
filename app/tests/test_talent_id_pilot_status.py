@@ -168,12 +168,18 @@ def test_biometric_status_tracks_enrollment_without_raw_image_storage(db):
     assert enrolled["enrolled"] is True
     assert enrolled["face_count"] == 1
     assert enrolled["active"] is True
+    assert enrolled["provider_cleanup_pending"] is False
+    assert enrolled["provider_cleanup_last_error"] is None
+    assert enrolled["provider_cleanup_attempted_at"] is None
     assert set(enrolled) == {
         "employee_id",
         "enrolled",
         "provider",
         "face_count",
         "active",
+        "provider_cleanup_pending",
+        "provider_cleanup_last_error",
+        "provider_cleanup_attempted_at",
         "enrolled_at",
     }
 
