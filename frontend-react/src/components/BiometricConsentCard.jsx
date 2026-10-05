@@ -74,7 +74,10 @@ function BiometricConsentCard() {
     setSuccess("");
     setOtp("");
     try {
-      const { data } = await api.post("/talent-id/consent/otp");
+      const { data } = await api.post("/talent-id/consent/otp", {
+        decision,
+        document_version: state?.document?.version || state?.document_version,
+      });
       setOtpInfo(data);
       setPendingDecision(decision);
       setSuccess(`Enviamos un código de 6 dígitos a ${data.destination}.`);
