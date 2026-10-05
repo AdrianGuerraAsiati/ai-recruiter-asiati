@@ -49,6 +49,8 @@ PERMISSION_DEFINITIONS = {
     "profile.read_own": "Consultar el perfil propio.",
     "talent_id.read": "Consultar sedes, horarios, dispositivos y asistencia.",
     "talent_id.manage": "Administrar Talent ID, asistencia y dispositivos.",
+    "talent_id.attendance.read_own": "Consultar la asistencia propia.",
+    "talent_id.attendance.read_all": "Consultar la asistencia de todos los empleados.",
     "employee_scores.read": "Consultar calificaciones privadas de empleados.",
     "employee_scores.create": "Agregar movimientos de puntuación.",
     "employee_scores.correct": "Corregir o anular movimientos de puntuación.",
@@ -63,6 +65,7 @@ _EMPLOYEE_PERMISSIONS = {
     "training.quiz.take",
     "training.progress.read_own",
     "profile.read_own",
+    "talent_id.attendance.read_own",
 }
 
 ROLE_PERMISSION_MATRIX = {

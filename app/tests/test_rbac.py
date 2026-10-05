@@ -53,6 +53,8 @@ def test_new_authenticated_user_gets_employee_role_only(db):
     assert principal["email"] == "employee@asiati.com.co"
     assert principal["roles"] == [EMPLOYEE]
     assert "training.consume" in principal["permissions"]
+    assert "talent_id.attendance.read_own" in principal["permissions"]
+    assert "talent_id.attendance.read_all" not in principal["permissions"]
     assert "employees.create" not in principal["permissions"]
     assert "integrations.manage" not in principal["permissions"]
     assert "employee_scores.read" not in principal["permissions"]

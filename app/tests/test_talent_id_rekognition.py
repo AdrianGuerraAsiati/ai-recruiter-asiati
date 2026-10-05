@@ -21,6 +21,8 @@ class FakeRekognitionClient:
             "AssociatedFaces": [{"FaceId": "face-1"}],
         }
         self.conflict_on_create = False
+        self.invalid_parameter_on_create = False
+        self.users = []
 
     def create_user(self, **kwargs):
         self.created.append(kwargs)
@@ -29,7 +31,20 @@ class FakeRekognitionClient:
                 {"Error": {"Code": "ConflictException", "Message": "exists"}},
                 "CreateUser",
             )
+        if self.invalid_parameter_on_create:
+            raise ClientError(
+                {
+                    "Error": {
+                        "Code": "InvalidParameterException",
+                        "Message": "Request has invalid parameters",
+                    }
+                },
+                "CreateUser",
+            )
         return {}
+
+    def list_users(self, **kwargs):
+        return {"Users": list(self.users)}
 
     def index_faces(self, **kwargs):
         return self.index_response
@@ -76,6 +91,37 @@ def test_enroll_accepts_existing_rekognition_user():
     )
 
     assert result.face_ids == ("face-1",)
+
+
+
+
+def test_enroll_accepts_existing_user_when_rekognition_returns_invalid_parameter():
+    client = FakeRekognitionClient()
+    client.invalid_parameter_on_create = True
+    client.users = [{"UserId": "employee-1", "UserStatus": "ACTIVE"}]
+
+    result = _provider(client).enroll(
+        provider_user_id="employee-1",
+        image_bytes=b"jpeg",
+    )
+
+    assert result.face_ids == ("face-1",)
+
+
+def test_enroll_does_not_hide_invalid_parameter_for_unknown_user():
+    client = FakeRekognitionClient()
+    client.invalid_parameter_on_create = True
+    client.users = []
+
+    try:
+        _provider(client).enroll(
+            provider_user_id="employee-1",
+            image_bytes=b"jpeg",
+        )
+    except ClientError as exc:
+        assert exc.response["Error"]["Code"] == "InvalidParameterException"
+    else:
+        raise AssertionError("ClientError was not raised")
 
 
 def test_enroll_rejects_image_without_usable_face():

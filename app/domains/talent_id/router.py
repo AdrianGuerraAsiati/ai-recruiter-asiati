@@ -1,5 +1,7 @@
 """HTTP routes for Talent ID administration and kiosk devices."""
 
+from datetime import date
+
 from botocore.exceptions import ClientError
 from fastapi import (
     APIRouter,
@@ -8,13 +10,14 @@ from fastapi import (
     Form,
     Header,
     HTTPException,
+    Query,
     UploadFile,
 )
 from sqlalchemy.orm import Session
 
 from app.config import get_talent_id_biometric_settings
-from app.deps import get_db, require_permission
-from app.domains.talent_id import biometrics, service
+from app.deps import get_current_principal, get_db, require_permission
+from app.domains.talent_id import biometrics, reporting, service
 from app.domains.talent_id.schemas import (
     ConfigureEmployeeAttendanceRequest,
     CreateScheduleRequest,
@@ -157,6 +160,43 @@ def create_schedule(
     except Exception as exc:
         return _translate(exc)
     return service.schedule_payload(schedule)
+
+
+@router.get("/attendance/report")
+def attendance_report(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    employee_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    permissions = set(principal.get("permissions") or [])
+    profile_id = str(principal.get("profile", {}).get("id") or "")
+
+    if "talent_id.attendance.read_all" in permissions:
+        scoped_employee_id = employee_id
+    elif "talent_id.attendance.read_own" in permissions:
+        if employee_id and employee_id != profile_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Solo puedes consultar tu propia asistencia.",
+            )
+        scoped_employee_id = profile_id
+    else:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes permisos para consultar asistencia.",
+        )
+
+    try:
+        return reporting.build_attendance_report(
+            db,
+            start_date=start_date,
+            end_date=end_date,
+            employee_id=scoped_employee_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/employees/{employee_id}/attendance")

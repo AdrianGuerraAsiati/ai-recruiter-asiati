@@ -250,6 +250,7 @@ function TalentIdFaceEnrollment({
     setError("");
     setSuccess("");
 
+    let uploadedCount = 0;
     try {
       for (let index = 0; index < files.length; index += 1) {
         setUploadProgress(`Procesando foto ${index + 1} de ${files.length}…`);
@@ -259,10 +260,10 @@ function TalentIdFaceEnrollment({
           `/talent-id/employees/${employeeId}/biometrics/enroll`,
           formData,
         );
+        uploadedCount += 1;
         setBiometric(data || {});
       }
 
-      const uploadedCount = files.length;
       setFiles([]);
       setConsentConfirmed(false);
       setSuccess(
@@ -272,11 +273,18 @@ function TalentIdFaceEnrollment({
       );
       await refreshBiometricStatus();
     } catch (err) {
-      setError(getApiErrorMessage(err, {
+      const providerMessage = getApiErrorMessage(err, {
         action: "registrar las fotos para reconocimiento facial",
         resource: "Talent ID",
         fallback: "No se pudieron registrar todas las fotos. Usa imágenes claras, frontales y con una sola persona.",
-      }));
+      });
+      const remainingFiles = files.slice(uploadedCount);
+      setFiles(remainingFiles);
+      setError(
+        uploadedCount > 0
+          ? `Se registraron ${uploadedCount} de ${files.length} fotos. ${providerMessage} Las fotos pendientes quedaron seleccionadas para reintentar.`
+          : providerMessage,
+      );
       try {
         await refreshBiometricStatus();
       } catch {
