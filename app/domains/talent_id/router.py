@@ -182,29 +182,27 @@ def _mobile_qr_error(exc: Exception):
 
 def _disable_biometrics_after_opt_out(db: Session, employee_id: str) -> None:
     enrollment = biometrics.get_employee_enrollment(db, employee_id)
-    if enrollment is None or not enrollment.active:
+    if enrollment is None:
         return
-
-    provider_user_id = enrollment.provider_user_id
-    biometrics.revoke_employee_enrollment(
-        db,
-        employee_id=employee_id,
-    )
 
     settings = get_talent_id_biometric_settings()
-    if not settings.collection_id:
-        return
-
-    try:
+    provider = None
+    if settings.collection_id:
         provider = RekognitionBiometricProvider(
             client=get_rekognition_client(),
             collection_id=settings.collection_id,
             association_threshold=settings.association_threshold,
         )
-        provider.delete_user(provider_user_id=provider_user_id)
+
+    try:
+        biometrics.revoke_employee_enrollment(
+            db,
+            employee_id=employee_id,
+            provider=provider,
+        )
     except Exception:
-        # Consent revocation must remain effective even if provider cleanup
-        # temporarily fails. Local recognition has already been disabled.
+        # Consent revocation remains effective locally even if provider cleanup
+        # fails. The enrollment is flagged so an admin can retry deletion.
         logger.exception(
             "Provider cleanup failed after biometric consent opt-out for %s",
             employee_id,
@@ -713,6 +711,9 @@ def get_employee_biometrics(
             "provider": None,
             "face_count": 0,
             "active": False,
+            "provider_cleanup_pending": False,
+            "provider_cleanup_last_error": None,
+            "provider_cleanup_attempted_at": None,
             "enrolled_at": None,
         }
 
@@ -722,7 +723,53 @@ def get_employee_biometrics(
         "provider": enrollment.provider,
         "face_count": int(enrollment.face_count or 0),
         "active": bool(enrollment.active),
+        "provider_cleanup_pending": bool(enrollment.provider_cleanup_pending),
+        "provider_cleanup_last_error": enrollment.provider_cleanup_last_error,
+        "provider_cleanup_attempted_at": (
+            enrollment.provider_cleanup_attempted_at.isoformat()
+            if enrollment.provider_cleanup_attempted_at
+            else None
+        ),
         "enrolled_at": enrollment.enrolled_at.isoformat(),
+    }
+
+
+@router.post("/employees/{employee_id}/biometrics/purge-provider")
+def retry_employee_biometric_provider_cleanup(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.manage")),
+    provider: RekognitionBiometricProvider = Depends(get_biometric_provider),
+):
+    try:
+        enrollment = biometrics.retry_provider_cleanup(
+            db,
+            employee_id=employee_id,
+            provider=provider,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ClientError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="No fue posible eliminar todavía los datos biométricos del proveedor.",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="La limpieza biométrica sigue pendiente. Intenta nuevamente.",
+        ) from exc
+
+    return {
+        "employee_id": enrollment.employee_id,
+        "provider_cleanup_pending": bool(enrollment.provider_cleanup_pending),
+        "provider_cleanup_last_error": enrollment.provider_cleanup_last_error,
+        "provider_cleanup_attempted_at": (
+            enrollment.provider_cleanup_attempted_at.isoformat()
+            if enrollment.provider_cleanup_attempted_at
+            else None
+        ),
+        "purged": not bool(enrollment.provider_cleanup_pending),
     }
 
 
