@@ -48,24 +48,9 @@ function TalentIdFaceEnrollment({ employees = [] }) {
   );
 
   useEffect(() => {
-    if (!employeeId) {
-      setAttendance(null);
-      setBiometric(null);
-      setFiles([]);
-      setConsentConfirmed(false);
-      setError("");
-      setSuccess("");
-      return undefined;
-    }
+    if (!employeeId) return undefined;
 
     let cancelled = false;
-    setLoadingStatus(true);
-    setAttendance(null);
-    setBiometric(null);
-    setFiles([]);
-    setConsentConfirmed(false);
-    setError("");
-    setSuccess("");
 
     Promise.all([
       api.get(`/talent-id/employees/${employeeId}/attendance`),
@@ -92,6 +77,18 @@ function TalentIdFaceEnrollment({ employees = [] }) {
       cancelled = true;
     };
   }, [employeeId]);
+
+  function changeEmployee(event) {
+    const nextEmployeeId = event.target.value;
+    setEmployeeId(nextEmployeeId);
+    setAttendance(null);
+    setBiometric(null);
+    setFiles([]);
+    setConsentConfirmed(false);
+    setError("");
+    setSuccess("");
+    setLoadingStatus(Boolean(nextEmployeeId));
+  }
 
   function selectFiles(event) {
     const selectedFiles = Array.from(event.target.files || []);
@@ -212,7 +209,7 @@ function TalentIdFaceEnrollment({ employees = [] }) {
           <select
             id="talent-id-biometric-employee"
             value={employeeId}
-            onChange={(event) => setEmployeeId(event.target.value)}
+            onChange={changeEmployee}
             disabled={activeEmployees.length === 0}
           >
             <option value="">Selecciona un empleado</option>
