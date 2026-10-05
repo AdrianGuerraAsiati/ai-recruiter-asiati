@@ -781,3 +781,186 @@
     width: 100%;
   }
 }
+
+
+/* Talent ID attendance editor */
+
+.talent-id-attendance-editor {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--blue) 18%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--blue) 3%, var(--surface));
+}
+
+.talent-id-attendance-editor.is-compact {
+  padding: 14px;
+  background: var(--surface-soft);
+}
+
+.talent-id-attendance-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.talent-id-attendance-heading h3 {
+  margin: 2px 0 5px;
+  color: var(--ink);
+  font-size: .95rem;
+}
+
+.talent-id-attendance-heading p {
+  color: var(--ink-faint);
+  font-size: .74rem;
+  line-height: 1.45;
+}
+
+.talent-id-attendance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.talent-id-attendance-grid .form-group {
+  margin: 0;
+}
+
+.talent-id-attendance-toggle {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 13px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.talent-id-attendance-toggle input,
+.talent-id-biometric-consent input {
+  width: 18px !important;
+  min-width: 18px !important;
+  max-width: 18px !important;
+  height: 18px;
+  margin: 1px 0 0;
+  padding: 0 !important;
+  accent-color: var(--blue);
+}
+
+.talent-id-attendance-toggle label {
+  cursor: pointer;
+}
+
+.talent-id-attendance-toggle strong,
+.talent-id-attendance-toggle span {
+  display: block;
+}
+
+.talent-id-attendance-toggle strong {
+  color: var(--ink);
+  font-size: .78rem;
+}
+
+.talent-id-attendance-toggle span {
+  margin-top: 3px;
+  color: var(--ink-faint);
+  font-size: .7rem;
+  line-height: 1.45;
+}
+
+.talent-id-attendance-save-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 2px 2px;
+}
+
+.talent-id-attendance-save-row > span {
+  color: var(--ink-faint);
+  font-size: .72rem;
+  line-height: 1.45;
+}
+
+.talent-id-biometric-consent {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  align-items: flex-start;
+  width: 100%;
+  max-width: 760px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.talent-id-biometric-consent label {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: .76rem;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.talent-id-photo-form {
+  padding-top: 2px;
+}
+
+.employee-edit-talent-id {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.employee-edit-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.employee-edit-section-heading h3 {
+  margin-top: 2px;
+  color: var(--ink);
+  font-size: .98rem;
+}
+
+.employee-edit-section-heading small {
+  max-width: 260px;
+  color: var(--ink-faint);
+  font-size: .7rem;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.employee-modal:has(.employee-edit-talent-id) {
+  width: min(840px, calc(100vw - 32px)) !important;
+}
+
+@media (max-width: 700px) {
+  .talent-id-attendance-heading,
+  .talent-id-attendance-save-row,
+  .employee-edit-section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .talent-id-attendance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .talent-id-attendance-save-row .btn {
+    width: 100%;
+  }
+
+  .employee-edit-section-heading small {
+    max-width: none;
+    text-align: left;
+  }
+}
