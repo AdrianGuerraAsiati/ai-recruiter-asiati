@@ -189,6 +189,10 @@ def request_otp(
         raise ConsentOtpUnavailable("La firma electrónica no está configurada.")
 
     employee = _employee(db, employee_id)
+    if not str(employee.email or "").strip() or "@" not in str(employee.email):
+        raise ConsentOtpUnavailable(
+            "Tu perfil no tiene un correo válido para recibir el código de firma. Comunícate con Talento Humano."
+        )
     normalized_decision = decision.strip().upper()
     if expected_document_version != BIOMETRIC_CONSENT_VERSION:
         raise ConsentStateError(
