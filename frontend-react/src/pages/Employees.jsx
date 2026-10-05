@@ -212,6 +212,21 @@ function Employees() {
 
     setSaving(true);
     setEditError("");
+
+    const attendanceNeedsSave = Boolean(
+      canManageTalentId
+      && editAttendance
+      && (editAttendance.configured || editAttendance.attendance_eligible),
+    );
+    if (
+      attendanceNeedsSave
+      && (!editAttendance.site_id || !editAttendance.schedule_id)
+    ) {
+      setSaving(false);
+      setEditError("Selecciona sede y horario antes de guardar la asistencia.");
+      return;
+    }
+
     try {
       const currentRole = editTarget.roles?.[0] || "EMPLOYEE";
       if (editForm.role !== currentRole) {
@@ -224,19 +239,12 @@ function Employees() {
         department: editForm.department,
       });
 
-      if (canManageTalentId && editAttendance) {
-        const attendanceWasConfigured = Boolean(editAttendance.configured);
-        const attendanceNeedsSave = attendanceWasConfigured || editAttendance.attendance_eligible;
-        if (attendanceNeedsSave) {
-          if (!editAttendance.site_id || !editAttendance.schedule_id) {
-            throw new Error("Selecciona sede y horario para configurar la asistencia.");
-          }
-          await api.put(`/talent-id/employees/${editTarget.id}/attendance`, {
-            site_id: editAttendance.site_id,
-            schedule_id: editAttendance.schedule_id,
-            attendance_eligible: Boolean(editAttendance.attendance_eligible),
-          });
-        }
+      if (attendanceNeedsSave) {
+        await api.put(`/talent-id/employees/${editTarget.id}/attendance`, {
+          site_id: editAttendance.site_id,
+          schedule_id: editAttendance.schedule_id,
+          attendance_eligible: Boolean(editAttendance.attendance_eligible),
+        });
       }
 
       closeEmployeeEditor();
