@@ -11,6 +11,7 @@ API_SCRIPT = ROOT / "scripts" / "deploy-api.sh"
 FRONTEND_SCRIPT = ROOT / "scripts" / "deploy-frontend.sh"
 BACKUP_SCRIPT = ROOT / "scripts" / "backup-postgres.sh"
 WORKER_SCRIPT = ROOT / "scripts" / "deploy-worker.sh"
+NGINX_CONFIG = ROOT / "frontend-react" / "nginx.conf"
 
 
 def _read(path: Path) -> str:
@@ -264,3 +265,14 @@ def test_deploy_backfills_odoo_vacancies_without_blocking_release():
     assert "python -m app.scripts.sync_odoo_jobs" in section
     assert "ODOO_JOB_BACKFILL_DEFERRED" in section
     assert section.index("BACKEND_IMAGE_OK") < section.index("python -m app.scripts.sync_odoo_jobs")
+
+
+def test_frontend_nginx_proxies_talent_id_kiosk_api():
+    nginx = _read(NGINX_CONFIG)
+
+    assert "location /v1/kiosk/" in nginx
+    section = nginx[
+        nginx.index("location /v1/kiosk/"):
+        nginx.index("location /health")
+    ]
+    assert "proxy_pass http://ai-recruiter-api:80;" in section
