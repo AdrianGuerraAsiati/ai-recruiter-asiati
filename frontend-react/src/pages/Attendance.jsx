@@ -387,6 +387,15 @@ function Attendance() {
               detail="Calculado solo con jornadas completas"
               tone="neutral"
             />
+            {canReadAll && (
+              <MetricCard
+                icon="check"
+                label="Contingencias"
+                value={summary.manual_events || 0}
+                detail="Marcaciones manuales auditadas"
+                tone="neutral"
+              />
+            )}
           </section>
 
           <section className="panel attendance-history">
