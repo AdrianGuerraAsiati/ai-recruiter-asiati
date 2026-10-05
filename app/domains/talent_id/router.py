@@ -173,9 +173,15 @@ def attendance_report(
     permissions = set(principal.get("permissions") or [])
     profile_id = str(principal.get("profile", {}).get("id") or "")
 
-    if "talent_id.attendance.read_all" in permissions:
+    if (
+        "talent_id.attendance.read_all" in permissions
+        or "talent_id.manage" in permissions
+    ):
         scoped_employee_id = employee_id
-    elif "talent_id.attendance.read_own" in permissions:
+    elif (
+        "talent_id.attendance.read_own" in permissions
+        or "profile.read_own" in permissions
+    ):
         if employee_id and employee_id != profile_id:
             raise HTTPException(
                 status_code=403,
