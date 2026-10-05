@@ -97,6 +97,7 @@ def test_report_groups_daily_entry_exit_and_lateness(db):
     assert report["summary"]["check_outs"] == 1
     assert report["summary"]["late_arrivals"] == 1
     assert report["summary"]["on_time_rate"] == 0.0
+    assert report["summary"]["manual_events"] == 0
     assert report["rows"][0]["employee_name"] == "Ana Torres"
     assert report["rows"][0]["date"] == "2026-10-05"
     assert report["rows"][0]["late_minutes"] == 7
@@ -176,3 +177,4 @@ def test_report_surfaces_manual_attendance_reason(db):
     assert row["check_in_method"] == "MANUAL"
     assert row["check_in_manual_reason"] == "Falla temporal del kiosco"
     assert row["has_manual_adjustment"] is True
+    assert report["summary"]["manual_events"] == 1
