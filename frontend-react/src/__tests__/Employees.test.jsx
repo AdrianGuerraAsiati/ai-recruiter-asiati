@@ -39,6 +39,7 @@ describe("Employees administration", () => {
       hasPermission: (permission) => [
         "training.results.read",
         "employees.roles.manage",
+        "talent_id.manage",
       ].includes(permission),
     });
     api.get.mockResolvedValue({
@@ -276,4 +277,68 @@ describe("Employees administration", () => {
       "Administrador",
     ]);
   });
+
+  it("opens Talent ID pilot controls for an active employee", async () => {
+    api.get.mockImplementation((url) => {
+      if (url === "/employees") {
+        return Promise.resolve({
+          data: {
+            items: [
+              {
+                id: "employee-1",
+                email: "employee@asiati.com.co",
+                first_name: "Ana",
+                last_name: "Pérez",
+                job_title: "Comercial",
+                department: "Ventas",
+                status: "ACTIVE",
+                roles: ["EMPLOYEE"],
+                onboarding_status: "NOT_REQUIRED",
+              },
+            ],
+          },
+        });
+      }
+      if (url === "/talent-id/sites") {
+        return Promise.resolve({ data: { items: [] } });
+      }
+      if (url === "/talent-id/schedules") {
+        return Promise.resolve({ data: { items: [] } });
+      }
+      if (url.endsWith("/attendance")) {
+        return Promise.resolve({
+          data: {
+            configured: false,
+            site_id: null,
+            schedule_id: null,
+            attendance_eligible: false,
+          },
+        });
+      }
+      if (url.endsWith("/biometrics")) {
+        return Promise.resolve({
+          data: {
+            enrolled: false,
+            face_count: 0,
+            active: false,
+            enrolled_at: null,
+          },
+        });
+      }
+      return Promise.resolve({ data: {} });
+    });
+
+    renderPage();
+
+    await screen.findByText("Ana Pérez");
+    fireEvent.click(screen.getByRole("button", { name: "Talent ID" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Biometría y asistencia" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/debe existir al menos una sede y un horario activos/i),
+    ).toBeInTheDocument();
+  });
+
 });
