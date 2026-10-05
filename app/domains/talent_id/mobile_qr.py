@@ -37,6 +37,7 @@ from app.domains.talent_id.service import (
 
 
 QR_URI_PREFIX = "talentid://attendance?token="
+QR_RECORD_RETENTION_DAYS = 2
 
 
 class MobileLinkOtpCooldown(Exception):
@@ -468,6 +469,18 @@ def create_signing_challenge(
         device_id=device_id,
     )
     now = _now()
+
+    # QR proof rows are operational, not attendance history. Keep them bounded
+    # so a phone left on the QR screen cannot grow these tables indefinitely.
+    cutoff = now - timedelta(days=QR_RECORD_RETENTION_DAYS)
+    db.query(TalentMobileQrChallenge).filter(
+        TalentMobileQrChallenge.mobile_device_id == device_id,
+        TalentMobileQrChallenge.created_at < cutoff,
+    ).delete(synchronize_session=False)
+    db.query(TalentMobileQrToken).filter(
+        TalentMobileQrToken.mobile_device_id == device_id,
+        TalentMobileQrToken.created_at < cutoff,
+    ).delete(synchronize_session=False)
 
     # Only one usable proof challenge per linked phone.
     db.query(TalentMobileQrChallenge).filter(
