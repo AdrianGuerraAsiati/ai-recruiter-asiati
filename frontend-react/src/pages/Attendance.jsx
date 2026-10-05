@@ -69,7 +69,10 @@ function statusLabel(status) {
 
 function Attendance() {
   const { principal, hasPermission } = useSession();
-  const canReadAll = hasPermission("talent_id.attendance.read_all");
+  const canReadAll = (
+    hasPermission("talent_id.attendance.read_all")
+    || hasPermission("talent_id.manage")
+  );
   const [range, setRange] = useState(() => defaultRange());
   const [employeeId, setEmployeeId] = useState("");
   const [employees, setEmployees] = useState([]);
