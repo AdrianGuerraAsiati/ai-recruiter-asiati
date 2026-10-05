@@ -554,6 +554,26 @@
   line-height: 1.5;
 }
 
+.talent-id-biometric-blocker > strong,
+.talent-id-biometric-blocker > span,
+.talent-id-biometric-blocker > small {
+  display: block;
+}
+
+.talent-id-biometric-blocker > strong {
+  margin-bottom: 3px;
+  color: var(--ink);
+}
+
+.talent-id-biometric-blocker > small {
+  margin-top: 5px;
+  color: var(--ink-faint);
+}
+
+.talent-id-biometric-blocker > .btn {
+  margin-top: 10px;
+}
+
 .talent-id-photo-form {
   display: grid;
   gap: 14px;
