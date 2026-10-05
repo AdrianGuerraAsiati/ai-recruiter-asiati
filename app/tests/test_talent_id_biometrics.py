@@ -35,6 +35,7 @@ class FakeProvider:
     def __init__(self):
         self.enroll_calls = 0
         self.recognize_calls = 0
+        self.deleted_user_ids = []
         self.match = None
 
     def enroll(self, *, provider_user_id: str, image_bytes: bytes):
@@ -47,6 +48,9 @@ class FakeProvider:
         assert image_bytes
         assert threshold > 0
         return self.match
+
+    def delete_user(self, *, provider_user_id: str):
+        self.deleted_user_ids.append(provider_user_id)
 
 
 @pytest.fixture()
