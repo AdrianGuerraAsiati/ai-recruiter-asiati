@@ -44,7 +44,11 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
     face_count: 0,
     active: false,
     enrolled_at: null,
+    provider_cleanup_pending: false,
+    provider_cleanup_last_error: null,
+    provider_cleanup_attempted_at: null,
   });
+  const [purgingBiometric, setPurgingBiometric] = useState(false);
   const [image, setImage] = useState(null);
   const [consent, setConsent] = useState({
     status: "PENDING",
@@ -107,6 +111,9 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
           face_count: Number(biometricResponse.data?.face_count || 0),
           active: Boolean(biometricResponse.data?.active),
           enrolled_at: biometricResponse.data?.enrolled_at || null,
+          provider_cleanup_pending: Boolean(biometricResponse.data?.provider_cleanup_pending),
+          provider_cleanup_last_error: biometricResponse.data?.provider_cleanup_last_error || null,
+          provider_cleanup_attempted_at: biometricResponse.data?.provider_cleanup_attempted_at || null,
         });
         setConsent({
           status: consentResponse.data?.status || "PENDING",
@@ -198,6 +205,33 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
     }
   }
 
+
+  async function retryBiometricPurge() {
+    setPurgingBiometric(true);
+    setError("");
+    setSuccess("");
+    try {
+      const { data } = await api.post(
+        `/talent-id/employees/${employee.id}/biometrics/purge-provider`,
+      );
+      setBiometric((current) => ({
+        ...current,
+        provider_cleanup_pending: Boolean(data?.provider_cleanup_pending),
+        provider_cleanup_last_error: data?.provider_cleanup_last_error || null,
+        provider_cleanup_attempted_at: data?.provider_cleanup_attempted_at || null,
+      }));
+      setSuccess("La eliminación de los datos biométricos en el proveedor fue confirmada.");
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "eliminar los datos biométricos del proveedor",
+        resource: "Talent ID",
+        fallback: "La eliminación sigue pendiente. Intenta nuevamente más tarde.",
+      }));
+    } finally {
+      setPurgingBiometric(false);
+    }
+  }
+
   async function revokeMobileDevice(deviceId) {
     setRevokingMobile(deviceId);
     setError("");
@@ -278,6 +312,9 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
         face_count: Number(data?.face_count || 0),
         active: Boolean(data?.active),
         enrolled_at: data?.enrolled_at || new Date().toISOString(),
+        provider_cleanup_pending: false,
+        provider_cleanup_last_error: null,
+        provider_cleanup_attempted_at: null,
       });
       setImage(null);
       setSuccess(
@@ -523,6 +560,26 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
               <div className="talent-id-privacy-note">
                 Talent procesa esta imagen para el enrolamiento y no la guarda como archivo original. El estado biométrico conserva identificadores del proveedor y cantidad de rostros.
               </div>
+
+              {biometric.provider_cleanup_pending && (
+                <div className="talent-id-biometric-blocker">
+                  <strong>Eliminación del proveedor pendiente</strong>
+                  <span>
+                    El reconocimiento ya está deshabilitado en Talent, pero aún falta confirmar la eliminación de los datos biométricos en el proveedor.
+                  </span>
+                  {biometric.provider_cleanup_last_error && (
+                    <small>{biometric.provider_cleanup_last_error}</small>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={purgingBiometric}
+                    onClick={retryBiometricPurge}
+                  >
+                    {purgingBiometric ? "Reintentando…" : "Reintentar eliminación"}
+                  </button>
+                </div>
+              )}
 
               <button
                 className="btn btn-primary"
