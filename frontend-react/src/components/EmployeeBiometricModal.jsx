@@ -172,6 +172,32 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
   }
 
 
+
+  async function downloadConsentDocument() {
+    setError("");
+    setSuccess("");
+    try {
+      const response = await api.get(
+        `/talent-id/employees/${employee.id}/consent/document`,
+        { responseType: "blob" },
+      );
+      const url = URL.createObjectURL(response.data);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `Talent_ID_${employee.id}_consentimiento.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "descargar la autorización biométrica",
+        resource: "Talent ID",
+        fallback: "No se pudo descargar el documento firmado del empleado.",
+      }));
+    }
+  }
+
   async function revokeMobileDevice(deviceId) {
     setRevokingMobile(deviceId);
     setError("");
@@ -438,8 +464,20 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
                   </strong>
                   <small>
                     La decisión solo puede firmarla el empleado desde Mi perfil mediante OTP. Un administrador no puede autorizarla en su nombre.
+                    {consent.signed_at
+                      ? ` Última decisión: ${new Date(consent.signed_at).toLocaleString("es-CO")}.`
+                      : ""}
                   </small>
                 </span>
+                {consent.has_signed_document && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={downloadConsentDocument}
+                  >
+                    Descargar autorización
+                  </button>
+                )}
               </div>
 
               {consent.status !== "AUTHORIZED" && (
@@ -460,6 +498,14 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
                   <small>
                     El empleado vincula su propio celular desde Mi perfil con OTP. El QR dinámico funciona aunque no autorice reconocimiento facial.
                   </small>
+                  {mobileDevices.filter((item) => item.active).map((device) => (
+                    <small key={device.id}>
+                      {device.label || "Celular vinculado"}
+                      {device.last_used_at
+                        ? ` · último uso ${new Date(device.last_used_at).toLocaleString("es-CO")}`
+                        : " · aún sin marcaciones"}
+                    </small>
+                  ))}
                 </span>
                 {mobileDevices.filter((item) => item.active).map((device) => (
                   <button
