@@ -52,6 +52,7 @@ function TalentIdFaceEnrollment({
   const [success, setSuccess] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [savingAttendance, setSavingAttendance] = useState(false);
+  const [purgingBiometric, setPurgingBiometric] = useState(false);
   const [nameForm, setNameForm] = useState({ first_name: "", last_name: "" });
 
   const activeEmployees = useMemo(
@@ -267,6 +268,34 @@ function TalentIdFaceEnrollment({
         resource: "Talent ID",
         fallback: "No fue posible descargar el documento firmado.",
       }));
+    }
+  }
+
+
+  async function retryBiometricPurge() {
+    if (!employeeId) return;
+    setPurgingBiometric(true);
+    setError("");
+    setSuccess("");
+    try {
+      const { data } = await api.post(
+        `/talent-id/employees/${employeeId}/biometrics/purge-provider`,
+      );
+      setBiometric((current) => ({
+        ...(current || {}),
+        provider_cleanup_pending: Boolean(data?.provider_cleanup_pending),
+        provider_cleanup_last_error: data?.provider_cleanup_last_error || null,
+        provider_cleanup_attempted_at: data?.provider_cleanup_attempted_at || null,
+      }));
+      setSuccess("La eliminación de los datos biométricos en el proveedor fue confirmada.");
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "reintentar la eliminación biométrica",
+        resource: "Talent ID",
+        fallback: "La eliminación en el proveedor sigue pendiente.",
+      }));
+    } finally {
+      setPurgingBiometric(false);
     }
   }
 
@@ -541,6 +570,26 @@ function TalentIdFaceEnrollment({
               {!biometricAuthorized && (
                 <div className="talent-id-biometric-blocker">
                   El enrolamiento facial está bloqueado hasta que el empleado firme una autorización biométrica vigente.
+                </div>
+              )}
+
+              {biometric?.provider_cleanup_pending && (
+                <div className="talent-id-biometric-blocker">
+                  <strong>Eliminación biométrica pendiente en el proveedor</strong>
+                  <span>
+                    Talent ya bloqueó el reconocimiento. Reintenta la eliminación externa para cerrar la revocación técnica.
+                  </span>
+                  {biometric.provider_cleanup_last_error && (
+                    <small>{biometric.provider_cleanup_last_error}</small>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={purgingBiometric}
+                    onClick={retryBiometricPurge}
+                  >
+                    {purgingBiometric ? "Reintentando…" : "Reintentar eliminación"}
+                  </button>
                 </div>
               )}
 
