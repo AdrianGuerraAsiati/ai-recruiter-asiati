@@ -127,6 +127,19 @@ class RekognitionBiometricProvider:
             similarity=float(similarity),
         )
 
+
+    def delete_user(self, *, provider_user_id: str) -> None:
+        try:
+            self._client.delete_user(
+                CollectionId=self._collection_id,
+                UserId=provider_user_id,
+                ClientRequestToken=uuid4().hex,
+            )
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") == "ResourceNotFoundException":
+                return
+            raise
+
     def _ensure_user(self, provider_user_id: str) -> None:
         try:
             self._client.create_user(
