@@ -235,6 +235,22 @@ def ensure_user_profile(
         .one_or_none()
     )
     if profile is None:
+        profile = (
+            db.query(UserProfile)
+            .filter(
+                UserProfile.email == email,
+                UserProfile.cognito_sub.is_(None),
+            )
+            .one_or_none()
+        )
+        if profile is not None:
+            profile.cognito_sub = sub
+            profile.status = "ACTIVE"
+            if profile.onboarding_status == "NOT_REQUIRED":
+                profile.onboarding_status = "PENDING"
+            changed = True
+
+    if profile is None:
         profile = UserProfile(
             cognito_sub=sub,
             email=email,

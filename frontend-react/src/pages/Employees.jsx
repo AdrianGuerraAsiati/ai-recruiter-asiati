@@ -40,6 +40,7 @@ function Employees() {
   const { principal, hasPermission } = useSession();
   const canReadTrainingResults = hasPermission("training.results.read");
   const canManageTalentId = hasPermission("talent_id.manage");
+  const canImportOdoo = hasPermission("employees.create");
   const [employees, setEmployees] = useState([]);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -63,6 +64,8 @@ function Employees() {
   const [editAttendance, setEditAttendance] = useState(null);
   const [editSites, setEditSites] = useState([]);
   const [editSchedules, setEditSchedules] = useState([]);
+  const [odooSyncing, setOdooSyncing] = useState(false);
+  const [odooSyncResult, setOdooSyncResult] = useState(null);
 
   const loadEmployees = useCallback(async () => {
     setLoading(true);
@@ -91,7 +94,10 @@ function Employees() {
   }, [loadEmployees]);
 
   const stats = useMemo(() => {
-    const active = employees.filter((employee) => employee.status === "ACTIVE").length;
+    const active = employees.filter(
+      (employee) => employee.access_provisioned && employee.status === "ACTIVE"
+    ).length;
+    const odooImported = employees.filter((employee) => employee.source === "ODOO").length;
     const admins = employees.filter((employee) =>
       employee.roles?.some((role) => role === "ADMIN")
     ).length;
@@ -101,8 +107,27 @@ function Employees() {
     const onboardingCompleted = employees.filter(
       (employee) => employee.onboarding_status === "COMPLETED"
     ).length;
-    return { active, admins, onboardingActive, onboardingCompleted };
+    return { active, odooImported, admins, onboardingActive, onboardingCompleted };
   }, [employees]);
+
+  async function syncEmployeesFromOdoo() {
+    setOdooSyncing(true);
+    setError("");
+    setOdooSyncResult(null);
+    try {
+      const { data } = await api.post("/odoo/employees/import");
+      setOdooSyncResult(data || null);
+      await loadEmployees();
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "sincronizar el directorio de Odoo",
+        resource: "empleados",
+        fallback: "No se pudieron traer los empleados desde Odoo. Revisa la conexión y vuelve a intentarlo.",
+      }));
+    } finally {
+      setOdooSyncing(false);
+    }
+  }
 
   async function createEmployee(event) {
     event.preventDefault();
@@ -297,18 +322,37 @@ function Employees() {
         title="Empleados"
         description="Administra accesos, perfiles, roles y seguimiento de onboarding del equipo ASIATI."
         actions={!formOpen ? (
-          <button className="btn btn-primary" type="button" onClick={() => setFormOpen(true)}>
-            Crear empleado
-          </button>
+          <div className="ui-actions">
+            {canImportOdoo && (
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={syncEmployeesFromOdoo}
+                disabled={odooSyncing}
+              >
+                {odooSyncing ? "Sincronizando…" : "Sincronizar desde Odoo"}
+              </button>
+            )}
+            <button className="btn btn-primary" type="button" onClick={() => setFormOpen(true)}>
+              Crear empleado
+            </button>
+          </div>
         ) : null}
         className="split-header"
       />
 
       {error && <FeedbackMessage title="El directorio no está actualizado">{error}</FeedbackMessage>}
+      {odooSyncResult && (
+        <FeedbackMessage title="Directorio de Odoo sincronizado">
+          {odooSyncResult.total} registros revisados · {odooSyncResult.created} creados · {odooSyncResult.updated} actualizados
+          {odooSyncResult.without_work_email ? ` · ${odooSyncResult.without_work_email} sin correo laboral` : ""}
+        </FeedbackMessage>
+      )}
 
       <section className="metrics-grid employees-metrics" aria-label="Resumen de empleados">
         <MetricCard icon="employee" label="Empleados visibles" value={employees.length} detail="Perfiles encontrados" tone="blue" />
-        <MetricCard icon="check" label="Activos" value={stats.active} detail="Con acceso habilitado" tone="cyan" />
+        <MetricCard icon="check" label="Accesos activos" value={stats.active} detail="Cognito habilitado" tone="cyan" />
+        <MetricCard icon="employee" label="Desde Odoo" value={stats.odooImported} detail="Perfiles vinculados" tone="blue" />
         <MetricCard icon="users" label="Administrativos" value={stats.admins} detail="ADMIN" tone="violet" />
         <MetricCard icon="progress" label="Onboarding activos" value={stats.onboardingActive} detail="Pendientes o en progreso" />
         <MetricCard icon="training" label="Onboarding completados" value={stats.onboardingCompleted} detail="Ruta finalizada" />
@@ -387,7 +431,10 @@ function Employees() {
                           </span>
                           <div>
                             <strong>{[employee.first_name, employee.last_name].filter(Boolean).join(" ") || "Sin nombre"}</strong>
-                            <small>{employee.email}</small>
+                            <small>
+                              {employee.email || "Sin correo laboral"}
+                              {employee.source === "ODOO" ? " · Odoo" : ""}
+                            </small>
                           </div>
                         </div>
                       </td>
@@ -428,8 +475,10 @@ function Employees() {
                         {employee.hire_date && <small>Ingreso: {employee.hire_date}</small>}
                       </td>
                       <td>
-                        <span className={`status-pill ${employee.status === "ACTIVE" ? "" : "status-disabled"}`}>
-                          <i /> {employee.status === "ACTIVE" ? "Activo" : "Deshabilitado"}
+                        <span className={`status-pill ${employee.access_provisioned && employee.status === "ACTIVE" ? "" : "status-disabled"}`}>
+                          <i /> {employee.access_provisioned
+                            ? (employee.status === "ACTIVE" ? "Acceso activo" : "Acceso deshabilitado")
+                            : "Sin acceso"}
                         </span>
                       </td>
                       <td>
@@ -462,13 +511,15 @@ function Employees() {
                                 Talent ID
                               </button>
                             )}
-                            <button
-                              className="btn btn-ghost employee-status-button"
-                              type="button"
-                              onClick={() => toggleStatus(employee)}
-                            >
-                              {employee.status === "ACTIVE" ? "Deshabilitar" : "Activar"}
-                            </button>
+                            {employee.access_provisioned && (
+                              <button
+                                className="btn btn-ghost employee-status-button"
+                                type="button"
+                                onClick={() => toggleStatus(employee)}
+                              >
+                                {employee.status === "ACTIVE" ? "Deshabilitar" : "Activar"}
+                              </button>
+                            )}
                           </div>
                         )}
                       </td>

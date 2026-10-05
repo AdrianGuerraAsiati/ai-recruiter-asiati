@@ -953,7 +953,7 @@ def ensure_employee_asiati_onboarding(
     """Ensure one active employee receives the system-managed ASIATI onboarding."""
 
     employee = require_employee(db, employee_id)
-    if employee.status != "ACTIVE":
+    if employee.status != "ACTIVE" or not employee.cognito_sub:
         return None
     if employee.onboarding_status == "NOT_REQUIRED":
         employee.onboarding_status = "PENDING"
@@ -988,7 +988,14 @@ def ensure_asiati_onboarding_for_active_employees(
     if not _is_system_managed_course(course) or course.status != "PUBLISHED":
         raise TrainingStateError("The automatic onboarding course is not available.")
 
-    employees = db.query(UserProfile).filter(UserProfile.status == "ACTIVE").all()
+    employees = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.status == "ACTIVE",
+            UserProfile.cognito_sub.isnot(None),
+        )
+        .all()
+    )
     if not employees:
         return 0
 

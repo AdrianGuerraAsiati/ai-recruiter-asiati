@@ -344,3 +344,31 @@ def test_reset_employee_password_returns_temporary_password_without_storing_it(d
     assert cognito.passwords[0]["Username"] == "password@asiati.com.co"
     assert cognito.passwords[0]["Permanent"] is False
     assert cognito.passwords[0]["Password"] == temporary_password
+
+
+
+def test_existing_imported_employee_is_linked_to_cognito_profile(db):
+    imported = UserProfile(
+        cognito_sub=None,
+        email="imported-link@asiati.com.co",
+        odoo_employee_id="99",
+        first_name="Importado",
+        last_name=None,
+        onboarding_status="NOT_REQUIRED",
+        status="ACTIVE",
+    )
+    db.add(imported)
+    db.commit()
+    cognito = FakeCognitoClient()
+
+    profile = service.ensure_existing_cognito_profile(
+        db,
+        email="imported-link@asiati.com.co",
+        created_by_sub="admin-sub",
+        cognito_client=cognito,
+    )
+
+    assert profile.id == imported.id
+    assert profile.cognito_sub == "sub-imported-link@asiati.com.co"
+    assert profile.onboarding_status == "PENDING"
+    assert db.query(UserProfile).count() == 1
