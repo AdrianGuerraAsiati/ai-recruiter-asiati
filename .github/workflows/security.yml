@@ -19,6 +19,11 @@ on:
     - cron: "23 7 * * 1"
   workflow_dispatch:
 
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   security-events: write
