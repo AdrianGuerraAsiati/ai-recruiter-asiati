@@ -97,6 +97,7 @@ jobs:
           bash -n scripts/backup-postgres.sh
           bash -n scripts/restore-postgres.sh
           bash -n scripts/run-frontend-e2e.sh
+          bash -n scripts/manage-lightsail-ssh-firewall.sh
 
       - name: Run backend pytest in parallel (SQLite)
         env:
