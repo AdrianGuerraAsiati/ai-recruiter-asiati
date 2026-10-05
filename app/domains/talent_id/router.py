@@ -18,11 +18,18 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
-from app.config import get_talent_id_biometric_settings, get_talent_id_consent_settings
+from app.config import (
+    get_talent_id_biometric_settings,
+    get_talent_id_consent_settings,
+    get_talent_id_qr_settings,
+)
 from app.deps import get_current_principal, get_db, require_permission
-from app.domains.talent_id import biometrics, consent, reporting, service
+from app.domains.talent_id import biometrics, consent, mobile_qr, reporting, service
 from app.domains.talent_id.schemas import (
     ConfigureEmployeeAttendanceRequest,
+    RegisterMobileDeviceRequest,
+    KioskQrAttendanceRequest,
+    IssueMobileQrRequest,
     CreateScheduleRequest,
     CreateSiteRequest,
     ProvisionKioskRequest,
@@ -137,6 +144,25 @@ def _consent_error(exc: Exception):
     if isinstance(exc, (consent.ConsentOtpInvalid, consent.ConsentStateError, ValueError)):
         raise HTTPException(status_code=422, detail=str(exc))
     raise exc
+
+
+def _mobile_qr_error(exc: Exception):
+    if isinstance(exc, mobile_qr.MobileDeviceNotFound):
+        raise HTTPException(status_code=404, detail=str(exc))
+    if isinstance(
+        exc,
+        (
+            mobile_qr.MobileDeviceSignatureInvalid,
+            mobile_qr.MobileQrChallengeInvalid,
+            mobile_qr.MobileQrTokenInvalid,
+        ),
+    ):
+        raise HTTPException(status_code=422, detail=str(exc))
+    if isinstance(exc, mobile_qr.MobileQrTokenExpired):
+        raise HTTPException(status_code=410, detail=str(exc))
+    if isinstance(exc, mobile_qr.MobileQrTokenUsed):
+        raise HTTPException(status_code=409, detail=str(exc))
+    return _translate(exc)
 
 
 def _disable_biometrics_after_opt_out(db: Session, employee_id: str) -> None:
@@ -293,6 +319,109 @@ def download_employee_biometric_consent(
             )
         },
     )
+
+
+
+@router.get("/mobile-devices")
+def list_my_mobile_devices(
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    items = [
+        mobile_qr.mobile_device_payload(device)
+        for device in mobile_qr.list_mobile_devices(db, employee_id)
+    ]
+    return {"items": items, "total": len(items)}
+
+
+@router.post("/mobile-devices", status_code=201)
+def link_my_mobile_device(
+    body: RegisterMobileDeviceRequest,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    try:
+        device = mobile_qr.register_mobile_device(
+            db,
+            employee_id=employee_id,
+            label=body.label,
+            public_key_jwk=body.public_key_jwk,
+        )
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+    return mobile_qr.mobile_device_payload(device)
+
+
+@router.delete("/mobile-devices/{device_id}")
+def revoke_my_mobile_device(
+    device_id: str,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    try:
+        device = mobile_qr.revoke_mobile_device(
+            db,
+            employee_id=employee_id,
+            device_id=device_id,
+        )
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+    return {
+        "device": mobile_qr.mobile_device_payload(device),
+        "revoked": True,
+    }
+
+
+@router.post("/mobile-devices/{device_id}/challenge")
+def create_my_mobile_qr_challenge(
+    device_id: str,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    settings = get_talent_id_qr_settings()
+    try:
+        return mobile_qr.create_signing_challenge(
+            db,
+            employee_id=employee_id,
+            device_id=device_id,
+            ttl_seconds=settings.challenge_ttl_seconds,
+        )
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+
+
+@router.post("/mobile-qr")
+def issue_my_mobile_qr(
+    body: IssueMobileQrRequest,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    settings = get_talent_id_qr_settings()
+    try:
+        issued = mobile_qr.issue_qr_token(
+            db,
+            employee_id=employee_id,
+            device_id=body.device_id,
+            challenge_id=body.challenge_id,
+            nonce=body.nonce,
+            signature_b64url=body.signature,
+            token_ttl_seconds=settings.token_ttl_seconds,
+            max_signature_attempts=settings.max_signature_attempts,
+        )
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+
+    return {
+        "qr_image": mobile_qr.render_qr_svg_data_url(issued["qr_payload"]),
+        "expires_at": issued["expires_at"],
+        "ttl_seconds": issued["ttl_seconds"],
+        "device": issued["device"],
+    }
 
 
 @router.get("/sites")
@@ -652,6 +781,45 @@ def kiosk_context(
         "device": service.kiosk_payload(device),
         "site_name": site.name,
         "site_timezone": site.timezone,
+    }
+
+
+
+@kiosk_router.post("/qr")
+def consume_mobile_qr_attendance(
+    body: KioskQrAttendanceRequest,
+    x_device_id: str = Header(alias="X-Device-Id"),
+    x_device_secret: str = Header(alias="X-Device-Secret"),
+    db: Session = Depends(get_db),
+):
+    try:
+        kiosk = service.authenticate_kiosk(
+            db,
+            device_id=x_device_id,
+            secret=x_device_secret,
+        )
+    except service.InvalidKioskCredentials as exc:
+        raise HTTPException(
+            status_code=401,
+            detail="Credenciales de dispositivo inválidas.",
+        ) from exc
+
+    try:
+        employee, event, created = mobile_qr.consume_qr_attendance(
+            db,
+            raw_token=body.token,
+            kiosk_device=kiosk,
+            event_type=body.event_type,
+        )
+    except Exception as exc:
+        return _mobile_qr_error(exc)
+
+    return {
+        "employee_id": employee.id,
+        "display_name": service.employee_display_name(employee),
+        "verification_method": "qr",
+        "similarity": None,
+        "attendance": _attendance_response(event, created=created),
     }
 
 
