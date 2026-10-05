@@ -191,7 +191,9 @@ function TalentIdFaceEnrollment({
       });
       setSuccess(
         data?.attendance_eligible
-          ? "Asistencia habilitada. Ya puedes registrar las fotos del empleado."
+          ? (consent.status === "AUTHORIZED"
+            ? "Asistencia habilitada. Ya puedes registrar las fotos del empleado."
+            : "Asistencia habilitada. El enrolamiento seguirá bloqueado hasta que el empleado autorice la biometría.")
           : "Asistencia guardada como deshabilitada.",
       );
     } catch (err) {
