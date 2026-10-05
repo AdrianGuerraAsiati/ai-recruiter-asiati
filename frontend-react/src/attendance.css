@@ -1,0 +1,132 @@
+.attendance-page {
+  display: grid;
+  gap: 18px;
+}
+
+.attendance-filters {
+  padding: 18px;
+}
+
+.attendance-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 220px)) minmax(260px, 1fr);
+  gap: 14px;
+  align-items: end;
+}
+
+.attendance-filter-grid .form-group {
+  margin: 0;
+}
+
+.attendance-filters > small {
+  display: block;
+  margin-top: 10px;
+  color: var(--ink-faint);
+  font-size: .72rem;
+}
+
+.attendance-history {
+  overflow: hidden;
+  padding: 0;
+}
+
+.attendance-history-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px 22px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.attendance-history-heading h2 {
+  margin: 2px 0 5px;
+}
+
+.attendance-history-heading p {
+  color: var(--ink-faint);
+  font-size: .75rem;
+}
+
+.attendance-count {
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--ink-soft);
+  font-size: .72rem;
+  font-weight: 800;
+}
+
+.attendance-table-wrap {
+  border: 0;
+  border-radius: 0;
+}
+
+.attendance-table {
+  min-width: 920px;
+}
+
+.attendance-table td strong,
+.attendance-table td small {
+  display: block;
+}
+
+.attendance-table td small {
+  margin-top: 4px;
+  color: var(--ink-faint);
+  font-size: .68rem;
+}
+
+.attendance-table .attendance-late {
+  color: var(--warning);
+  font-weight: 800;
+}
+
+.attendance-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--success-bg);
+  color: var(--success);
+  font-size: .68rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.attendance-status-late {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.attendance-status-incomplete {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+@media (max-width: 900px) {
+  .attendance-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .attendance-employee-filter {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 620px) {
+  .attendance-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-employee-filter {
+    grid-column: auto;
+  }
+
+  .attendance-history-heading {
+    flex-direction: column;
+  }
+}
