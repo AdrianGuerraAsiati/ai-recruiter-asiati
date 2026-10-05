@@ -194,6 +194,36 @@ class TalentBiometricConsentEvent(Base):
     signed_at = Column(DateTime(timezone=True), nullable=False, default=_now)
 
 
+class TalentMobileDeviceLinkOtp(Base):
+    """OTP challenge used to authorize linking or replacing a mobile device."""
+
+    __tablename__ = "talent_mobile_device_link_otps"
+    __table_args__ = (
+        CheckConstraint(
+            "attempts >= 0 AND max_attempts > 0",
+            name="ck_talent_mobile_device_link_otp_attempts",
+        ),
+        Index(
+            "idx_talent_mobile_device_link_otps_employee_created",
+            "employee_id",
+            "created_at",
+        ),
+    )
+
+    id = Column(Text, primary_key=True, default=_uuid)
+    employee_id = Column(
+        Text,
+        ForeignKey("user_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    otp_hash = Column(Text, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used_at = Column(DateTime(timezone=True), nullable=True)
+    attempts = Column(Integer, nullable=False, default=0)
+    max_attempts = Column(Integer, nullable=False, default=5)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+
+
 class TalentMobileDevice(Base):
     """Employee-owned mobile credential backed by a non-exportable browser key."""
 
