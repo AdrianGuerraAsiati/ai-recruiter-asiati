@@ -47,6 +47,7 @@ CORE_TABLES = {
     "talent_biometric_consent_events",
     "talent_mobile_qr_tokens",
     "talent_mobile_qr_challenges",
+    "talent_mobile_device_link_otps",
     "talent_mobile_devices",
     "talent_attendance_events",
 }
@@ -113,6 +114,7 @@ def test_alembic_head_builds_current_postgres_schema():
             "talent_biometric_consent_events",
             "talent_mobile_qr_tokens",
             "talent_mobile_qr_challenges",
+            "talent_mobile_device_link_otps",
             "talent_mobile_devices",
             "talent_attendance_events",
         }.issubset(tables)
