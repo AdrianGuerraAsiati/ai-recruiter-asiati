@@ -18,6 +18,7 @@ const navItems = [
   { to: "/employees", label: "Empleados", icon: "employee", section: "Equipo", permission: "employees.read" },
   { to: "/access", label: "Usuarios y accesos", icon: "profile", section: "Equipo", permission: "employees.credentials.manage" },
   { to: "/talent-id", label: "Talent ID", icon: "employee", section: "Equipo", permission: "talent_id.manage" },
+  { to: "/attendance", label: "Asistencia", icon: "calendar", section: "Equipo", permission: "talent_id.attendance.read_own" },
   { to: "/direction/scores", label: "Calificación", icon: "star", section: "Equipo", permission: "employee_scores.read" },
   { to: "/training", label: "Capacitación", icon: "training", section: "Desarrollo", permission: "training.read" },
   {
