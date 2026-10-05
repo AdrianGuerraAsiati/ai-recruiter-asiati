@@ -54,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.asiati.talentid.camera.CameraPreview
 import com.asiati.talentid.camera.captureKioskPhoto
 import com.asiati.talentid.camera.rememberKioskCameraController
+import com.asiati.talentid.camera.rememberQrScannerController
 import com.asiati.talentid.core.network.AttendanceEventType
 import com.asiati.talentid.core.network.AttendanceResult
 import com.asiati.talentid.core.network.KioskContext
@@ -101,6 +102,7 @@ fun TalentIdApp(viewModel: KioskViewModel) {
                     context = kioskContext,
                     state = state,
                     onSubmit = viewModel::submitAttendance,
+                    onSubmitQr = viewModel::submitQrAttendance,
                     onRetryPending = viewModel::retryPending,
                     onDismissResult = viewModel::dismissResult,
                 )
@@ -273,11 +275,17 @@ private fun ConnectionScreen(
     }
 }
 
+private enum class KioskIdentityMode {
+    FACE,
+    QR,
+}
+
 @Composable
 private fun KioskScreen(
     context: KioskContext,
     state: KioskUiState,
     onSubmit: (java.io.File, AttendanceEventType) -> Unit,
+    onSubmitQr: (String, AttendanceEventType) -> Unit,
     onRetryPending: () -> Unit,
     onDismissResult: () -> Unit,
 ) {
@@ -295,6 +303,9 @@ private fun KioskScreen(
     }
     var captureError by remember { mutableStateOf<String?>(null) }
     var capturing by remember { mutableStateOf(false) }
+    var identityMode by remember { mutableStateOf(KioskIdentityMode.FACE) }
+    var qrEventType by remember { mutableStateOf<AttendanceEventType?>(null) }
+    var qrScanLocked by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -330,6 +341,17 @@ private fun KioskScreen(
         ) {
             KioskHeader(context)
 
+            IdentityMethodSelector(
+                selected = identityMode,
+                enabled = !state.submitting && !capturing,
+                onSelect = { mode ->
+                    identityMode = mode
+                    captureError = null
+                    qrEventType = null
+                    qrScanLocked = false
+                },
+            )
+
             if (!cameraGranted) {
                 PermissionPanel(
                     modifier = Modifier
@@ -339,11 +361,29 @@ private fun KioskScreen(
                         permissionLauncher.launch(Manifest.permission.CAMERA)
                     },
                 )
-            } else {
+            } else if (identityMode == KioskIdentityMode.FACE) {
                 val controller = rememberKioskCameraController(
                     context = androidContext,
                     lifecycleOwner = lifecycleOwner,
                 )
+                val submitFaceEvent: (AttendanceEventType) -> Unit = { eventType ->
+                    captureError = null
+                    capturing = true
+                    scope.launch {
+                        runCatching {
+                            captureKioskPhoto(
+                                context = androidContext,
+                                controller = controller,
+                            )
+                        }.onSuccess { photoFile ->
+                            onSubmit(photoFile, eventType)
+                            capturing = false
+                        }.onFailure {
+                            capturing = false
+                            captureError = "No fue posible tomar la fotografía. Intenta de nuevo."
+                        }
+                    }
+                }
 
                 if (wideLayout) {
                     Row(
@@ -362,24 +402,7 @@ private fun KioskScreen(
                             state = state.copy(submitting = state.submitting || capturing),
                             captureError = captureError,
                             onRetryPending = onRetryPending,
-                            onEvent = { eventType ->
-                                captureError = null
-                                capturing = true
-                                scope.launch {
-                                    runCatching {
-                                        captureKioskPhoto(
-                                            context = androidContext,
-                                            controller = controller,
-                                        )
-                                    }.onSuccess { photoFile ->
-                                        onSubmit(photoFile, eventType)
-                                        capturing = false
-                                    }.onFailure {
-                                        capturing = false
-                                        captureError = "No fue posible tomar la fotografía. Intenta de nuevo."
-                                    }
-                                }
-                            },
+                            onEvent = submitFaceEvent,
                         )
                     }
                 } else {
@@ -396,23 +419,69 @@ private fun KioskScreen(
                         captureError = captureError,
                         onRetryPending = onRetryPending,
                         horizontalActions = true,
+                        onEvent = submitFaceEvent,
+                    )
+                }
+            } else {
+                val qrController = rememberQrScannerController(
+                    context = androidContext,
+                    lifecycleOwner = lifecycleOwner,
+                    onQrCode = { token ->
+                        val eventType = qrEventType
+                        if (
+                            eventType != null
+                            && !qrScanLocked
+                            && !state.submitting
+                        ) {
+                            qrScanLocked = true
+                            qrEventType = null
+                            onSubmitQr(token, eventType)
+                        }
+                    },
+                )
+
+                if (wideLayout) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(22.dp),
+                    ) {
+                        QrCameraStage(
+                            modifier = Modifier.weight(1.55f),
+                            controller = qrController,
+                            scannerActive = qrEventType != null,
+                            submitting = state.submitting,
+                        )
+                        QrActionPanel(
+                            modifier = Modifier.weight(0.85f),
+                            state = state,
+                            selectedEvent = qrEventType,
+                            onRetryPending = onRetryPending,
+                            onEvent = { eventType ->
+                                qrScanLocked = false
+                                qrEventType = eventType
+                            },
+                        )
+                    }
+                } else {
+                    QrCameraStage(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        controller = qrController,
+                        scannerActive = qrEventType != null,
+                        submitting = state.submitting,
+                    )
+                    QrActionPanel(
+                        modifier = Modifier.fillMaxWidth(),
+                        state = state,
+                        selectedEvent = qrEventType,
+                        onRetryPending = onRetryPending,
+                        horizontalActions = true,
                         onEvent = { eventType ->
-                            captureError = null
-                            capturing = true
-                            scope.launch {
-                                runCatching {
-                                    captureKioskPhoto(
-                                        context = androidContext,
-                                        controller = controller,
-                                    )
-                                }.onSuccess { photoFile ->
-                                    onSubmit(photoFile, eventType)
-                                    capturing = false
-                                }.onFailure {
-                                    capturing = false
-                                    captureError = "No fue posible tomar la fotografía. Intenta de nuevo."
-                                }
-                            }
+                            qrScanLocked = false
+                            qrEventType = eventType
                         },
                     )
                 }
@@ -426,6 +495,265 @@ private fun KioskScreen(
                 result = result,
                 onDismiss = onDismissResult,
             )
+        }
+    }
+}
+
+@Composable
+private fun IdentityMethodSelector(
+    selected: KioskIdentityMode,
+    enabled: Boolean,
+    onSelect: (KioskIdentityMode) -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = Color.White,
+        shadowElevation = 2.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (selected == KioskIdentityMode.FACE) {
+                Button(
+                    modifier = Modifier.weight(1f),
+                    enabled = enabled,
+                    onClick = { onSelect(KioskIdentityMode.FACE) },
+                ) {
+                    Text("Reconocimiento facial")
+                }
+            } else {
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    enabled = enabled,
+                    onClick = { onSelect(KioskIdentityMode.FACE) },
+                ) {
+                    Text("Reconocimiento facial")
+                }
+            }
+
+            if (selected == KioskIdentityMode.QR) {
+                Button(
+                    modifier = Modifier.weight(1f),
+                    enabled = enabled,
+                    onClick = { onSelect(KioskIdentityMode.QR) },
+                ) {
+                    Text("QR móvil")
+                }
+            } else {
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    enabled = enabled,
+                    onClick = { onSelect(KioskIdentityMode.QR) },
+                ) {
+                    Text("QR móvil")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QrCameraStage(
+    modifier: Modifier,
+    controller: androidx.camera.view.LifecycleCameraController,
+    scannerActive: Boolean,
+    submitting: Boolean,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(30.dp),
+        color = TalentNavy,
+        shadowElevation = 4.dp,
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            CameraPreview(
+                controller = controller,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(30.dp)),
+            )
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 18.dp)
+                    .background(
+                        color = TalentNavy.copy(alpha = 0.82f),
+                        shape = RoundedCornerShape(18.dp),
+                    )
+                    .padding(horizontal = 16.dp, vertical = 9.dp),
+            ) {
+                Text(
+                    text = if (scannerActive) {
+                        "Acerca el QR dinámico de tu celular"
+                    } else {
+                        "Selecciona Entrada o Salida para activar el lector"
+                    },
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                )
+            }
+
+            Canvas(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(230.dp),
+            ) {
+                drawRect(
+                    color = if (scannerActive) TalentCyan else Color.White.copy(alpha = 0.72f),
+                    style = Stroke(width = 4.dp.toPx()),
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(18.dp)
+                    .background(
+                        color = TalentNavy.copy(alpha = 0.82f),
+                        shape = RoundedCornerShape(16.dp),
+                    )
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    text = "QR de un solo uso · celular vinculado · expiración corta",
+                    color = Color.White.copy(alpha = 0.92f),
+                    style = MaterialTheme.typography.labelMedium,
+                    textAlign = TextAlign.Center,
+                )
+            }
+
+            if (submitting) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(TalentNavy.copy(alpha = 0.78f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(48.dp),
+                            color = TalentCyan,
+                            trackColor = Color.White.copy(alpha = 0.18f),
+                        )
+                        Text(
+                            text = "Validando QR…",
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QrActionPanel(
+    modifier: Modifier,
+    state: KioskUiState,
+    selectedEvent: AttendanceEventType?,
+    onRetryPending: () -> Unit,
+    onEvent: (AttendanceEventType) -> Unit,
+    horizontalActions: Boolean = false,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(26.dp),
+        color = Color.White,
+        shadowElevation = 3.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "Marcación con QR móvil",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = TalentInk,
+                )
+                Text(
+                    text = if (selectedEvent == null) {
+                        "Primero indica si registrarás entrada o salida."
+                    } else {
+                        "Lector activo. Muestra el QR dinámico de Talent en tu celular."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TalentInkSoft,
+                )
+            }
+
+            state.error?.let { ErrorBanner(it) }
+
+            if (state.retryAvailable) {
+                RetryBanner(
+                    enabled = !state.submitting,
+                    onRetry = onRetryPending,
+                )
+            }
+
+            if (horizontalActions) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    AttendanceAction(
+                        modifier = Modifier.weight(1f),
+                        title = "Entrada",
+                        subtitle = "Activar lector QR",
+                        primary = selectedEvent != AttendanceEventType.CHECK_OUT,
+                        enabled = !state.submitting,
+                        onClick = { onEvent(AttendanceEventType.CHECK_IN) },
+                    )
+                    AttendanceAction(
+                        modifier = Modifier.weight(1f),
+                        title = "Salida",
+                        subtitle = "Activar lector QR",
+                        primary = selectedEvent == AttendanceEventType.CHECK_OUT,
+                        enabled = !state.submitting,
+                        onClick = { onEvent(AttendanceEventType.CHECK_OUT) },
+                    )
+                }
+            } else {
+                AttendanceAction(
+                    modifier = Modifier.fillMaxWidth(),
+                    title = "Registrar entrada",
+                    subtitle = "Luego muestra tu QR al lector",
+                    primary = selectedEvent != AttendanceEventType.CHECK_OUT,
+                    enabled = !state.submitting,
+                    onClick = { onEvent(AttendanceEventType.CHECK_IN) },
+                )
+                AttendanceAction(
+                    modifier = Modifier.fillMaxWidth(),
+                    title = "Registrar salida",
+                    subtitle = "Luego muestra tu QR al lector",
+                    primary = selectedEvent == AttendanceEventType.CHECK_OUT,
+                    enabled = !state.submitting,
+                    onClick = { onEvent(AttendanceEventType.CHECK_OUT) },
+                )
+            }
+
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = TalentSurfaceSoft,
+            ) {
+                Text(
+                    modifier = Modifier.padding(14.dp),
+                    text = "El QR no contiene tu contraseña. Talent valida un token efímero emitido solo después de comprobar la llave privada de tu celular vinculado.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TalentInkSoft,
+                )
+            }
         }
     }
 }
@@ -971,8 +1299,12 @@ private fun SuccessOverlay(
                 )
 
                 Text(
-                    text = "Identidad verificada · " +
-                        String.format("%.1f", result.similarity) + "%",
+                    text = if (result.verificationMethod == "qr") {
+                        "Dispositivo móvil vinculado · QR de un solo uso"
+                    } else {
+                        "Identidad verificada · " +
+                            String.format("%.1f", result.similarity ?: 0.0) + "%"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = TalentInkSoft,
                 )
@@ -1092,7 +1424,7 @@ private fun BrandLockup(
 private fun FooterNote() {
     Text(
         modifier = Modifier.fillMaxWidth(),
-        text = "Talent ID · ASIATI  •  Reconocimiento facial para control de asistencia",
+        text = "Talent ID · ASIATI  •  Biometría o QR móvil vinculado para asistencia",
         style = MaterialTheme.typography.labelSmall,
         color = TalentInkSoft,
         textAlign = TextAlign.Center,
