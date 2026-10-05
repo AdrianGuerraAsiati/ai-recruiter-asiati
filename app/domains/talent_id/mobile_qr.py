@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import io
 import secrets
 import uuid
@@ -18,6 +19,7 @@ import qrcode
 import qrcode.image.svg
 
 from app.domains.talent_id.models import (
+    TalentMobileDeviceLinkOtp,
     TalentMobileDevice,
     TalentMobileQrChallenge,
     TalentMobileQrToken,
@@ -35,6 +37,26 @@ from app.domains.talent_id.service import (
 
 
 QR_URI_PREFIX = "talentid://attendance?token="
+
+
+class MobileLinkOtpCooldown(Exception):
+    pass
+
+
+class MobileLinkOtpInvalid(Exception):
+    pass
+
+
+class MobileLinkOtpExpired(Exception):
+    pass
+
+
+class MobileLinkOtpLocked(Exception):
+    pass
+
+
+class MobileLinkOtpUnavailable(Exception):
+    pass
 
 
 class MobileDeviceNotFound(Exception):
@@ -149,6 +171,152 @@ def _verify_signature(
         ) from exc
 
 
+
+def _link_otp_hash(secret: str, challenge_id: str, employee_id: str, otp: str) -> str:
+    payload = f"{challenge_id}:{employee_id}:{otp}".encode("utf-8")
+    return hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+
+
+def _mask_email(email: str) -> str:
+    local, sep, domain = str(email or "").partition("@")
+    if not sep:
+        return "***"
+    if len(local) <= 2:
+        masked = (local[:1] or "*") + "*"
+    else:
+        masked = local[:2] + ("*" * max(2, len(local) - 2))
+    return f"{masked}@{domain}"
+
+
+def request_mobile_link_otp(
+    db: Session,
+    *,
+    employee_id: str,
+    otp_secret: str,
+    ttl_seconds: int,
+    cooldown_seconds: int,
+    max_attempts: int,
+    send_otp,
+) -> dict:
+    if not otp_secret.strip():
+        raise MobileLinkOtpUnavailable(
+            "La verificación para vincular celulares no está configurada."
+        )
+
+    employee = get_employee(db, employee_id)
+    now = _now()
+    latest = (
+        db.query(TalentMobileDeviceLinkOtp)
+        .filter(TalentMobileDeviceLinkOtp.employee_id == employee.id)
+        .order_by(TalentMobileDeviceLinkOtp.created_at.desc())
+        .first()
+    )
+    if (
+        latest is not None
+        and latest.used_at is None
+        and (now - _aware(latest.created_at)).total_seconds() < cooldown_seconds
+    ):
+        raise MobileLinkOtpCooldown(
+            "Espera antes de solicitar un nuevo código para vincular el celular."
+        )
+
+    db.query(TalentMobileDeviceLinkOtp).filter(
+        TalentMobileDeviceLinkOtp.employee_id == employee.id,
+        TalentMobileDeviceLinkOtp.used_at.is_(None),
+    ).update({"used_at": now}, synchronize_session=False)
+
+    challenge_id = str(uuid.uuid4())
+    otp = f"{secrets.randbelow(1_000_000):06d}"
+    challenge = TalentMobileDeviceLinkOtp(
+        id=challenge_id,
+        employee_id=employee.id,
+        otp_hash=_link_otp_hash(
+            otp_secret,
+            challenge_id,
+            employee.id,
+            otp,
+        ),
+        expires_at=now + timedelta(seconds=ttl_seconds),
+        attempts=0,
+        max_attempts=max_attempts,
+        created_at=now,
+    )
+    db.add(challenge)
+    db.flush()
+
+    try:
+        send_otp(employee.email, otp, ttl_seconds)
+    except Exception:
+        db.rollback()
+        raise
+
+    db.commit()
+    return {
+        "challenge_id": challenge.id,
+        "delivery": "EMAIL",
+        "destination": _mask_email(employee.email),
+        "expires_in_seconds": ttl_seconds,
+    }
+
+
+def _consume_mobile_link_otp(
+    db: Session,
+    *,
+    employee_id: str,
+    challenge_id: str,
+    otp: str,
+    otp_secret: str,
+) -> TalentMobileDeviceLinkOtp:
+    if not otp_secret.strip():
+        raise MobileLinkOtpUnavailable(
+            "La verificación para vincular celulares no está configurada."
+        )
+
+    challenge = (
+        db.query(TalentMobileDeviceLinkOtp)
+        .filter(
+            TalentMobileDeviceLinkOtp.id == challenge_id,
+            TalentMobileDeviceLinkOtp.employee_id == employee_id,
+        )
+        .one_or_none()
+    )
+    if challenge is None or challenge.used_at is not None:
+        raise MobileLinkOtpInvalid(
+            "Solicita un nuevo código para vincular este celular."
+        )
+
+    now = _now()
+    if now > _aware(challenge.expires_at):
+        challenge.used_at = now
+        db.commit()
+        raise MobileLinkOtpExpired("El código expiró. Solicita uno nuevo.")
+    if challenge.attempts >= challenge.max_attempts:
+        challenge.used_at = now
+        db.commit()
+        raise MobileLinkOtpLocked(
+            "El código fue bloqueado por demasiados intentos."
+        )
+
+    expected = _link_otp_hash(
+        otp_secret,
+        challenge.id,
+        employee_id,
+        otp.strip(),
+    )
+    if not hmac.compare_digest(expected, challenge.otp_hash):
+        challenge.attempts += 1
+        if challenge.attempts >= challenge.max_attempts:
+            challenge.used_at = now
+        db.commit()
+        if challenge.attempts >= challenge.max_attempts:
+            raise MobileLinkOtpLocked(
+                "El código fue bloqueado por demasiados intentos."
+            )
+        raise MobileLinkOtpInvalid("El código de verificación no es válido.")
+
+    challenge.used_at = now
+    return challenge
+
 def list_mobile_devices(db: Session, employee_id: str) -> list[TalentMobileDevice]:
     get_employee(db, employee_id)
     return (
@@ -181,8 +349,18 @@ def register_mobile_device(
     employee_id: str,
     label: str,
     public_key_jwk: dict,
+    link_challenge_id: str,
+    link_otp: str,
+    link_otp_secret: str,
 ) -> TalentMobileDevice:
     get_employee(db, employee_id)
+    link_challenge = _consume_mobile_link_otp(
+        db,
+        employee_id=employee_id,
+        challenge_id=link_challenge_id,
+        otp=link_otp,
+        otp_secret=link_otp_secret,
+    )
     normalized_label = label.strip() or "Mi celular"
     if len(normalized_label) > 80:
         raise ValueError("El nombre del dispositivo es demasiado largo.")
@@ -204,6 +382,7 @@ def register_mobile_device(
         active=True,
     )
     db.add(device)
+    link_challenge.used_at = _now()
     db.commit()
     db.refresh(device)
     return device
