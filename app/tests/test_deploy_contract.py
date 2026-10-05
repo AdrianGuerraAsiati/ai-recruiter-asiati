@@ -209,14 +209,14 @@ def test_database_backup_supports_optional_encrypted_offhost_copy():
 
 
 
-def test_deploy_wires_optional_alarm_topic_and_offhost_backup_configuration():
+def test_deploy_keeps_candidate_import_zero_fixed_cost_and_offhost_backup_optional():
     workflow = _read(WORKFLOW)
 
-    assert "CANDIDATE_IMPORT_ALARM_TOPIC_ARN" in workflow
-    assert "ENABLE_CANDIDATE_IMPORT_ALARMS" in workflow
+    assert "CANDIDATE_IMPORT_ALARM_TOPIC_ARN" not in workflow
+    assert "ENABLE_CANDIDATE_IMPORT_ALARMS" not in workflow
+    assert "EnableOperationalAlarms" not in workflow
+    assert "AlarmTopicArn" not in workflow
     assert "DATABASE_BACKUP_S3_URI" in workflow
-    assert 'CANDIDATE_IMPORT_PARAMETERS+=(EnableOperationalAlarms=true)' in workflow
-    assert 'AlarmTopicArn="$CANDIDATE_IMPORT_ALARM_TOPIC_ARN"' in workflow
     assert 'BACKUP_S3_URI="$DATABASE_BACKUP_S3_URI"' in workflow
     assert "BACKUP_AWS_PROFILE=ai-recruiter-bedrock" in workflow
     assert "BACKUP_AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config" in workflow

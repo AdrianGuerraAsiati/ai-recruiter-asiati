@@ -112,7 +112,7 @@ jobs:
             test -n "$VALUE" && test "$VALUE" != "null"
             echo "$KEY=$VALUE" >> "$GITHUB_ENV"
           done
-          for OPTIONAL_KEY in CANDIDATE_IMPORT_ALARM_TOPIC_ARN ENABLE_CANDIDATE_IMPORT_ALARMS DATABASE_BACKUP_S3_URI ODOO_ENABLED ODOO_BASE_URL ODOO_DATABASE ODOO_USERNAME ODOO_SECRET_ID ODOO_REQUEST_TIMEOUT_SECONDS; do
+          for OPTIONAL_KEY in DATABASE_BACKUP_S3_URI ODOO_ENABLED ODOO_BASE_URL ODOO_DATABASE ODOO_USERNAME ODOO_SECRET_ID ODOO_REQUEST_TIMEOUT_SECONDS; do
             VALUE=$(echo "$RUNTIME_JSON" | jq -r --arg key "$OPTIONAL_KEY" '.[$key] // empty')
             echo "$OPTIONAL_KEY=$VALUE" >> "$GITHUB_ENV"
           done
@@ -142,17 +142,10 @@ jobs:
         run: |
           set -euo pipefail
           RuntimeRoleArn="arn:aws:iam::$AWS_ACCOUNT_ID:role/AiRecruiterBedrockRuntimeRole"
-          CANDIDATE_IMPORT_PARAMETERS=(RuntimeRoleArn="$RuntimeRoleArn")
-          if [[ "${ENABLE_CANDIDATE_IMPORT_ALARMS:-false}" == "true" ]]; then
-            CANDIDATE_IMPORT_PARAMETERS+=(EnableOperationalAlarms=true)
-            if [[ -n "$CANDIDATE_IMPORT_ALARM_TOPIC_ARN" ]]; then
-              CANDIDATE_IMPORT_PARAMETERS+=(AlarmTopicArn="$CANDIDATE_IMPORT_ALARM_TOPIC_ARN")
-            fi
-          fi
           if ! aws cloudformation deploy \
             --stack-name ai-recruiter-candidate-import \
             --template-file infra/candidate-import.yml \
-            --parameter-overrides "${CANDIDATE_IMPORT_PARAMETERS[@]}" \
+            --parameter-overrides RuntimeRoleArn="$RuntimeRoleArn" \
             --no-fail-on-empty-changeset; then
             aws cloudformation describe-stack-events \
               --stack-name ai-recruiter-candidate-import \
@@ -183,6 +176,14 @@ jobs:
           test -n "$TRAINING_CONTENT_BUCKET"
           test "$TRAINING_CONTENT_BUCKET" != "null"
           echo "TRAINING_CONTENT_BUCKET=$TRAINING_CONTENT_BUCKET" >> "$GITHUB_ENV"
+
+      - name: Restrict SSH to current runner
+        run: |
+          set -euo pipefail
+          RUNNER_PUBLIC_IP=$(curl -fsS https://checkip.amazonaws.com | tr -d '[:space:]')
+          chmod +x scripts/manage-lightsail-ssh-firewall.sh
+          INSTANCE_NAME="$INSTANCE_NAME" AWS_REGION="$AWS_REGION" \
+            scripts/manage-lightsail-ssh-firewall.sh open "$RUNNER_PUBLIC_IP"
 
       - name: Acquire certified Lightsail SSH credentials
         run: |
@@ -364,6 +365,14 @@ jobs:
           docker tag "$ECR_REGISTRY/$ECR_FRONTEND_REPO:${{ github.sha }}" "$ECR_REGISTRY/$ECR_FRONTEND_REPO:latest"
           docker push "$ECR_REGISTRY/$ECR_FRONTEND_REPO:latest"
           echo DEPLOYMENT_OK
+
+      - name: Close temporary SSH firewall access
+        if: always()
+        run: |
+          set -euo pipefail
+          chmod +x scripts/manage-lightsail-ssh-firewall.sh
+          INSTANCE_NAME="$INSTANCE_NAME" AWS_REGION="$AWS_REGION" \
+            scripts/manage-lightsail-ssh-firewall.sh close
 
       - name: Cleanup temporary SSH credentials
         if: always()
