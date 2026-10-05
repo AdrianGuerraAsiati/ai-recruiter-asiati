@@ -2,6 +2,7 @@
 
 from app.domains.evaluations.scoring import (
     calculate_weighted_match_score,
+    cap_score_for_mandatory_gaps,
     mandatory_gaps,
     normalize_requirement_profiles,
 )
@@ -76,6 +77,30 @@ def test_legacy_string_requirements_keep_equal_weighting():
         ]
     ) == 50
 
+
+
+
+def test_missing_mandatory_requirement_caps_high_raw_score():
+    requirements = [
+        {
+            "requirement": "Licencia obligatoria",
+            "mandatory": True,
+            "weight": 5.0,
+            "status": "MISSING",
+        }
+    ] + [
+        {
+            "requirement": f"Requisito complementario {index}",
+            "mandatory": False,
+            "weight": 1.0,
+            "status": "MATCH",
+        }
+        for index in range(30)
+    ]
+
+    raw_score = calculate_weighted_match_score(requirements)
+    assert raw_score > 80
+    assert cap_score_for_mandatory_gaps(raw_score, requirements) == 59
 
 def test_mandatory_gap_is_reported_separately():
     requirements = [
