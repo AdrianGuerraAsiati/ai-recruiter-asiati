@@ -144,3 +144,61 @@ def test_attendance_is_idempotent_and_bound_to_employee_site(db):
     assert first_created is True
     assert second_created is False
     assert db.query(talent_models.TalentAttendanceEvent).count() == 1
+
+
+def test_kiosk_credentials_can_be_updated_rotated_and_revoked(db):
+    bogota = service.create_site(
+        db,
+        name="Bogotá Principal",
+        code="BOG-CRUD",
+        timezone_name="America/Bogota",
+    )
+    medellin = service.create_site(
+        db,
+        name="Medellín",
+        code="MDE-CRUD",
+        timezone_name="America/Bogota",
+    )
+    device, first_secret = service.provision_kiosk(
+        db,
+        site_id=bogota.id,
+        name="Recepción",
+    )
+
+    updated = service.update_kiosk(
+        db,
+        device_id=device.id,
+        site_id=medellin.id,
+        name="Recepción Norte",
+        active=True,
+    )
+    assert updated.site_id == medellin.id
+    assert updated.name == "Recepción Norte"
+
+    rotated, second_secret = service.rotate_kiosk_secret(
+        db,
+        device_id=device.id,
+    )
+    assert second_secret != first_secret
+    assert service.authenticate_kiosk(
+        db,
+        device_id=rotated.id,
+        secret=second_secret,
+    ).id == device.id
+
+    with pytest.raises(service.InvalidKioskCredentials):
+        service.authenticate_kiosk(
+            db,
+            device_id=device.id,
+            secret=first_secret,
+        )
+
+    revoked = service.revoke_kiosk(db, device_id=device.id)
+    assert revoked.active is False
+
+    with pytest.raises(service.InvalidKioskCredentials):
+        service.authenticate_kiosk(
+            db,
+            device_id=device.id,
+            secret=second_secret,
+        )
