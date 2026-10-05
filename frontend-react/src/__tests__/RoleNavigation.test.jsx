@@ -121,6 +121,7 @@ describe("role navigation", () => {
       "profile.read_own",
       "employee_scores.read",
       "integrations.manage",
+      "talent_id.manage",
     ]);
 
     for (const label of [
@@ -139,6 +140,7 @@ describe("role navigation", () => {
 
     expect(screen.queryByText("Mi progreso")).not.toBeInTheDocument();
     expect(screen.getByText("Calificación")).toBeInTheDocument();
+    expect(screen.getByText("Talent ID")).toBeInTheDocument();
     expect(screen.getByText("Integraciones")).toBeInTheDocument();
   });
 });

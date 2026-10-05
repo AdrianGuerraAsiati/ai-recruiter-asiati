@@ -7,6 +7,7 @@ import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
 import EmployeeCredentialsModal from "../components/EmployeeCredentialsModal";
+import EmployeeBiometricModal from "../components/EmployeeBiometricModal";
 import {
   EmptyState,
   FeedbackMessage,
@@ -37,6 +38,7 @@ function emptyEmployeeForm() {
 function Employees() {
   const { principal, hasPermission } = useSession();
   const canReadTrainingResults = hasPermission("training.results.read");
+  const canManageTalentId = hasPermission("talent_id.manage");
   const [employees, setEmployees] = useState([]);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -55,6 +57,7 @@ function Employees() {
   const [onboardingDetailError, setOnboardingDetailError] = useState("");
   const [createdCredentials, setCreatedCredentials] = useState(null);
   const [createdEmployeeName, setCreatedEmployeeName] = useState("");
+  const [biometricTarget, setBiometricTarget] = useState(null);
 
   const loadEmployees = useCallback(async () => {
     setLoading(true);
@@ -355,6 +358,17 @@ function Employees() {
                         </span>
                       </td>
                       <td>
+                        {!canManageTarget && canManageTalentId && employee.status === "ACTIVE" && (
+                          <div className="ui-actions">
+                            <button
+                              className="btn btn-ghost employee-talent-id-button"
+                              type="button"
+                              onClick={() => setBiometricTarget(employee)}
+                            >
+                              Talent ID
+                            </button>
+                          </div>
+                        )}
                         {canManageTarget && (
                           <div className="ui-actions">
                             <button
@@ -364,6 +378,15 @@ function Employees() {
                             >
                               Editar
                             </button>
+                            {canManageTalentId && employee.status === "ACTIVE" && (
+                              <button
+                                className="btn btn-ghost employee-talent-id-button"
+                                type="button"
+                                onClick={() => setBiometricTarget(employee)}
+                              >
+                                Talent ID
+                              </button>
+                            )}
                             <button
                               className="btn btn-ghost employee-status-button"
                               type="button"
@@ -526,6 +549,14 @@ function Employees() {
             ) : null}
           </section>
         </div>
+      )}
+
+      {biometricTarget && (
+        <EmployeeBiometricModal
+          open
+          employee={biometricTarget}
+          onClose={() => setBiometricTarget(null)}
+        />
       )}
 
       <EmployeeCredentialsModal
