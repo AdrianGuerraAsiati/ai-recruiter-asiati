@@ -733,3 +733,51 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Employee identity completion inside Talent ID */
+
+.talent-id-name-completion {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--warning) 28%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--warning) 6%, var(--surface));
+}
+
+.talent-id-name-completion h3 {
+  margin-top: -4px;
+  font-size: .98rem;
+}
+
+.talent-id-name-completion p {
+  margin-top: 5px;
+  color: var(--ink-soft);
+  font-size: .76rem;
+  line-height: 1.5;
+}
+
+.talent-id-name-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.talent-id-name-grid .form-group {
+  margin: 0;
+}
+
+.talent-id-name-completion > .btn {
+  width: max-content;
+}
+
+@media (max-width: 700px) {
+  .talent-id-name-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .talent-id-name-completion > .btn {
+    width: 100%;
+  }
+}

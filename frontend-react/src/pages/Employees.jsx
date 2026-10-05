@@ -145,6 +145,8 @@ function Employees() {
     setEditTarget(employee);
     setEditError("");
     setEditForm({
+      first_name: employee.first_name || "",
+      last_name: employee.last_name || "",
       job_title: employee.job_title || "",
       department: employee.department || "",
       role: employee.roles?.[0] || "EMPLOYEE",
@@ -169,6 +171,8 @@ function Employees() {
         await api.put(`/employees/${editTarget.id}/role`, { role: editForm.role });
       }
       await api.put(`/employees/${editTarget.id}`, {
+        first_name: editForm.first_name,
+        last_name: editForm.last_name,
         job_title: editForm.job_title,
         department: editForm.department,
       });
@@ -438,6 +442,27 @@ function Employees() {
             )}
 
             <form className="employee-form" onSubmit={saveEmployeeEdits}>
+              <div className="employee-form-grid">
+                <div className="form-group">
+                  <label htmlFor="employee-edit-first-name">Nombre</label>
+                  <input
+                    id="employee-edit-first-name"
+                    value={editForm.first_name}
+                    onChange={(event) => setEditForm({ ...editForm, first_name: event.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="employee-edit-last-name">Apellido</label>
+                  <input
+                    id="employee-edit-last-name"
+                    value={editForm.last_name}
+                    onChange={(event) => setEditForm({ ...editForm, last_name: event.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
               <div className="employee-form-grid">
                 <div className="form-group">
                   <label htmlFor="employee-edit-job-title">Cargo</label>

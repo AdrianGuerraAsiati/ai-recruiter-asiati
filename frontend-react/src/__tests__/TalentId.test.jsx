@@ -10,6 +10,7 @@ vi.mock("../api/client", () => ({
     get: vi.fn(),
     post: vi.fn(),
     patch: vi.fn(),
+    put: vi.fn(),
     delete: vi.fn(),
   },
 }));
@@ -215,6 +216,72 @@ describe("Talent ID administration", () => {
     expect(api.post.mock.calls[0][0]).toBe("/talent-id/employees/employee-1/biometrics/enroll");
     expect(api.post.mock.calls[0][1]).toBeInstanceOf(FormData);
     expect(await screen.findByText("2 fotos registradas para reconocimiento facial.")).toBeInTheDocument();
+  });
+
+  it("lets an admin complete a missing employee name from Talent ID", async () => {
+    api.get.mockImplementation((url) => {
+      if (url === "/talent-id/sites") {
+        return Promise.resolve({ data: { items: [{ id: "site-1", name: "Bogotá Principal", active: true }] } });
+      }
+      if (url === "/talent-id/schedules") {
+        return Promise.resolve({ data: { items: [{ id: "schedule-1", name: "Administrativo", start_time: "08:30:00", end_time: "18:00:00", active: true }] } });
+      }
+      if (url === "/talent-id/devices") return Promise.resolve({ data: { items: [] } });
+      if (url === "/employees") {
+        return Promise.resolve({
+          data: {
+            items: [{
+              id: "employee-missing-name",
+              email: "talentohumano@asiati.com.co",
+              first_name: null,
+              last_name: null,
+              job_title: "Talento Humano",
+              status: "ACTIVE",
+            }],
+          },
+        });
+      }
+      if (url === "/talent-id/employees/employee-missing-name/attendance") {
+        return Promise.resolve({ data: { configured: true, attendance_eligible: true, site_id: "site-1", schedule_id: "schedule-1" } });
+      }
+      if (url === "/talent-id/employees/employee-missing-name/biometrics") {
+        return Promise.resolve({ data: { enrolled: false, face_count: 0, active: false } });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+    api.put.mockResolvedValue({
+      data: {
+        id: "employee-missing-name",
+        first_name: "Talento",
+        last_name: "Humano",
+      },
+    });
+
+    render(<TalentId />);
+
+    await screen.findByText("Fotos para reconocimiento facial");
+    const employeeSelect = screen.getByLabelText("Empleado");
+    expect(Array.from(employeeSelect.options).map((option) => option.textContent)).toContain(
+      "Sin nombre · talentohumano@asiati.com.co · Talento Humano",
+    );
+
+    fireEvent.change(employeeSelect, { target: { value: "employee-missing-name" } });
+    expect(await screen.findByText("Completar nombre del empleado")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Nombre", { selector: "#talent-id-employee-first-name" }), {
+      target: { value: "Talento" },
+    });
+    fireEvent.change(screen.getByLabelText("Apellido", { selector: "#talent-id-employee-last-name" }), {
+      target: { value: "Humano" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar nombre" }));
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith(
+        "/employees/employee-missing-name",
+        { first_name: "Talento", last_name: "Humano" },
+      );
+    });
   });
 
   it("provisions a kiosk and has one copy button per credential", async () => {
