@@ -57,11 +57,15 @@ La decisión biométrica no controla la elegibilidad laboral ni la posibilidad d
 asistencia. Para `DENIED` y `REVOKED` se mantiene un mecanismo alternativo no biométrico.
 
 La alternativa implementada es **QR dinámico + dispositivo móvil previamente vinculado**.
-El navegador del celular genera una llave ECDSA P-256 y conserva la llave privada como
-no exportable en IndexedDB. El servidor conserva únicamente la llave pública. Para emitir
-cada QR, el celular debe firmar un reto efímero. El QR expira en aproximadamente 30 segundos,
-se invalida al rotar y solo puede consumirse una vez en un kiosco autorizado y en la sede
-asignada al empleado.
+Para vincular o reemplazar el celular, Talent envía primero un OTP al correo registrado del
+empleado. Esto evita que compartir únicamente el usuario y la contraseña sea suficiente para
+apropiarse del mecanismo de asistencia.
+
+Después de verificar el OTP, el navegador del celular genera una llave ECDSA P-256 y conserva
+la llave privada como no exportable en IndexedDB. El servidor conserva únicamente la llave
+pública. Para emitir cada QR, el celular debe firmar un reto efímero. El QR expira en
+aproximadamente 30 segundos, se invalida al rotar y solo puede consumirse una vez en un kiosco
+autorizado y en la sede asignada al empleado.
 
 La marcación manual auditada queda como contingencia administrativa. El consentimiento
 biométrico no se usa como requisito para acceder a esta alternativa.
@@ -80,6 +84,12 @@ TALENT_ID_CONSENT_OTP_MAX_ATTEMPTS=5
 TALENT_ID_QR_CHALLENGE_TTL_SECONDS=60
 TALENT_ID_QR_TOKEN_TTL_SECONDS=30
 TALENT_ID_QR_MAX_SIGNATURE_ATTEMPTS=5
+
+TALENT_ID_FROM_EMAIL=
+TALENT_ID_MOBILE_LINK_OTP_SECRET=
+TALENT_ID_MOBILE_LINK_OTP_TTL_SECONDS=600
+TALENT_ID_MOBILE_LINK_OTP_COOLDOWN_SECONDS=60
+TALENT_ID_MOBILE_LINK_OTP_MAX_ATTEMPTS=5
 ```
 
 En producción:
@@ -102,6 +112,7 @@ Empleado autenticado:
 Marcación QR del empleado:
 
 - `GET /api/talent-id/mobile-devices`
+- `POST /api/talent-id/mobile-devices/link-otp`
 - `POST /api/talent-id/mobile-devices`
 - `DELETE /api/talent-id/mobile-devices/{device_id}`
 - `POST /api/talent-id/mobile-devices/{device_id}/challenge`
