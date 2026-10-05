@@ -583,6 +583,7 @@ def create_manual_attendance(
             event_type=body.event_type,
             reason=body.reason,
             created_by_sub=actor_sub,
+            occurred_at=body.occurred_at,
         )
     except Exception as exc:
         return _translate(exc)
