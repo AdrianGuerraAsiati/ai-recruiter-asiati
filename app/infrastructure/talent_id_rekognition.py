@@ -129,6 +129,26 @@ class RekognitionBiometricProvider:
 
 
     def delete_user(self, *, provider_user_id: str) -> None:
+        face_ids = []
+        next_token = None
+        while True:
+            params = {
+                "CollectionId": self._collection_id,
+                "MaxResults": 100,
+            }
+            if next_token:
+                params["NextToken"] = next_token
+            response = self._client.list_faces(**params)
+            face_ids.extend(
+                str(face.get("FaceId"))
+                for face in response.get("Faces", [])
+                if face.get("FaceId")
+                and str(face.get("UserId") or "") == provider_user_id
+            )
+            next_token = response.get("NextToken")
+            if not next_token:
+                break
+
         try:
             self._client.delete_user(
                 CollectionId=self._collection_id,
@@ -136,9 +156,14 @@ class RekognitionBiometricProvider:
                 ClientRequestToken=uuid4().hex,
             )
         except ClientError as exc:
-            if exc.response.get("Error", {}).get("Code") == "ResourceNotFoundException":
-                return
-            raise
+            if exc.response.get("Error", {}).get("Code") != "ResourceNotFoundException":
+                raise
+
+        if face_ids:
+            self._client.delete_faces(
+                CollectionId=self._collection_id,
+                FaceIds=face_ids,
+            )
 
     def _ensure_user(self, provider_user_id: str) -> None:
         try:
