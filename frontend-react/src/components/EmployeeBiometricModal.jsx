@@ -46,7 +46,12 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
     enrolled_at: null,
   });
   const [image, setImage] = useState(null);
-  const [consentConfirmed, setConsentConfirmed] = useState(false);
+  const [consent, setConsent] = useState({
+    status: "PENDING",
+    signed_at: null,
+    document_version: null,
+    has_signed_document: false,
+  });
 
   const activeSites = useMemo(
     () => sites.filter((item) => item.active !== false),
@@ -67,8 +72,9 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
       api.get("/talent-id/schedules"),
       api.get(`/talent-id/employees/${employee.id}/attendance`),
       api.get(`/talent-id/employees/${employee.id}/biometrics`),
+      api.get(`/talent-id/employees/${employee.id}/consent`),
     ])
-      .then(([sitesResponse, schedulesResponse, attendanceResponse, biometricResponse]) => {
+      .then(([sitesResponse, schedulesResponse, attendanceResponse, biometricResponse, consentResponse]) => {
         if (cancelled) return;
 
         const nextSites = sitesResponse.data?.items || [];
@@ -98,6 +104,12 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
           face_count: Number(biometricResponse.data?.face_count || 0),
           active: Boolean(biometricResponse.data?.active),
           enrolled_at: biometricResponse.data?.enrolled_at || null,
+        });
+        setConsent({
+          status: consentResponse.data?.status || "PENDING",
+          signed_at: consentResponse.data?.signed_at || null,
+          document_version: consentResponse.data?.document_version || null,
+          has_signed_document: Boolean(consentResponse.data?.has_signed_document),
         });
       })
       .catch((err) => {
@@ -190,8 +202,8 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
       setError("Selecciona o captura una fotografía del empleado.");
       return;
     }
-    if (!consentConfirmed) {
-      setError("Confirma la autorización del empleado antes de enviar biometría.");
+    if (consent.status !== "AUTHORIZED") {
+      setError("El empleado debe firmar la autorización biométrica desde su perfil antes del enrolamiento.");
       return;
     }
 
@@ -214,7 +226,6 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
         enrolled_at: data?.enrolled_at || new Date().toISOString(),
       });
       setImage(null);
-      setConsentConfirmed(false);
       setSuccess(
         Number(data?.face_count || 0) >= 2
           ? "Rostro agregado. Ya hay múltiples referencias para iniciar la prueba en kiosco."
@@ -234,6 +245,7 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
   const readyForKiosk =
     attendance.configured
     && attendance.attendance_eligible
+    && consent.status === "AUTHORIZED"
     && biometric.active
     && biometric.face_count >= 2;
 
@@ -376,16 +388,30 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
                 <small>{image ? `${image.name} · ${Math.max(1, Math.round(image.size / 1024))} KB` : "JPEG o PNG · máximo 5 MB"}</small>
               </div>
 
-              <label className="talent-id-consent">
-                <input
-                  type="checkbox"
-                  checked={consentConfirmed}
-                  onChange={(event) => setConsentConfirmed(event.target.checked)}
-                />
+              <div className="talent-id-consent">
                 <span>
-                  Confirmo que el empleado autorizó el enrolamiento facial para control de asistencia en este piloto.
+                  <strong>
+                    Autorización biométrica: {
+                      consent.status === "AUTHORIZED"
+                        ? "Autorizada"
+                        : consent.status === "DENIED"
+                          ? "No autorizada"
+                          : consent.status === "REVOKED"
+                            ? "Revocada"
+                            : "Pendiente"
+                    }
+                  </strong>
+                  <small>
+                    La decisión solo puede firmarla el empleado desde Mi perfil mediante OTP. Un administrador no puede autorizarla en su nombre.
+                  </small>
                 </span>
-              </label>
+              </div>
+
+              {consent.status !== "AUTHORIZED" && (
+                <div className="talent-id-biometric-blocker">
+                  No es posible enrolar el rostro hasta que exista una autorización biométrica vigente.
+                </div>
+              )}
 
               <div className="talent-id-privacy-note">
                 Talent procesa esta imagen para el enrolamiento y no la guarda como archivo original. El estado biométrico conserva identificadores del proveedor y cantidad de rostros.
@@ -399,7 +425,7 @@ function EmployeeBiometricModal({ employee, open, onClose }) {
                   || !attendance.configured
                   || !attendance.attendance_eligible
                   || !image
-                  || !consentConfirmed
+                  || consent.status !== "AUTHORIZED"
                 }
               >
                 {uploading ? "Enrolando…" : biometric.enrolled ? "Agregar otra fotografía" : "Enrolar rostro"}
