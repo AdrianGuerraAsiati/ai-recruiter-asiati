@@ -284,6 +284,56 @@ describe("Talent ID administration", () => {
     });
   });
 
+  it("configures pending attendance inline before biometric upload", async () => {
+    api.get.mockImplementation((url) => {
+      if (url === "/talent-id/sites") {
+        return Promise.resolve({ data: { items: [{ id: "site-1", name: "Bogotá Principal", code: "BOG", active: true }] } });
+      }
+      if (url === "/talent-id/schedules") {
+        return Promise.resolve({ data: { items: [{ id: "schedule-1", name: "Administrativo", start_time: "08:30:00", end_time: "18:00:00", active: true }] } });
+      }
+      if (url === "/talent-id/devices") return Promise.resolve({ data: { items: [] } });
+      if (url === "/employees") {
+        return Promise.resolve({ data: { items: [{ id: "employee-1", first_name: "Ana", last_name: "Torres", email: "ana@asiati.com.co", status: "ACTIVE" }] } });
+      }
+      if (url === "/talent-id/employees/employee-1/attendance") {
+        return Promise.resolve({ data: { configured: false, site_id: null, schedule_id: null, attendance_eligible: false } });
+      }
+      if (url === "/talent-id/employees/employee-1/biometrics") {
+        return Promise.resolve({ data: { enrolled: false, face_count: 0, active: false } });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+    api.put.mockResolvedValue({
+      data: {
+        employee_id: "employee-1",
+        site_id: "site-1",
+        schedule_id: "schedule-1",
+        attendance_eligible: true,
+      },
+    });
+
+    render(<TalentId />);
+    await screen.findByText("Fotos para reconocimiento facial");
+    fireEvent.change(screen.getByLabelText("Empleado"), { target: { value: "employee-1" } });
+
+    expect(await screen.findByText("Configuración de marcación")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Habilitar marcación de asistencia"));
+    fireEvent.click(screen.getByRole("button", { name: "Guardar asistencia" }));
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith(
+        "/talent-id/employees/employee-1/attendance",
+        {
+          site_id: "site-1",
+          schedule_id: "schedule-1",
+          attendance_eligible: true,
+        },
+      );
+    });
+    expect(await screen.findByText("Asistencia habilitada")).toBeInTheDocument();
+  });
+
   it("provisions a kiosk and has one copy button per credential", async () => {
     api.post.mockImplementation((url) => {
       if (url === "/talent-id/devices") {
