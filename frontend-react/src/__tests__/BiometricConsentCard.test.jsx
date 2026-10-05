@@ -75,6 +75,15 @@ describe("BiometricConsentCard", () => {
     expect(await screen.findByText("Pendiente")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Autorizar biometría" }));
 
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        "/talent-id/consent/otp",
+        {
+          decision: "AUTHORIZED",
+          document_version: "1.0",
+        },
+      );
+    });
     expect(await screen.findByText(/enviamos un código de 6 dígitos/i)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Código de 6 dígitos"), {
       target: { value: "123456" },
@@ -113,7 +122,13 @@ describe("BiometricConsentCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "No autorizar" }));
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith("/talent-id/consent/otp");
+      expect(api.post).toHaveBeenCalledWith(
+        "/talent-id/consent/otp",
+        {
+          decision: "DENIED",
+          document_version: "1.0",
+        },
+      );
     });
     expect(await screen.findByRole("heading", { name: "No autorizar biometría" })).toBeInTheDocument();
   });
