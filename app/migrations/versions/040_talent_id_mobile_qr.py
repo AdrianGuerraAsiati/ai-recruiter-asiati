@@ -17,6 +17,29 @@ depends_on = None
 
 def upgrade() -> None:
     op.create_table(
+        "talent_mobile_device_link_otps",
+        sa.Column("id", sa.Text(), nullable=False),
+        sa.Column("employee_id", sa.Text(), nullable=False),
+        sa.Column("otp_hash", sa.Text(), nullable=False),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("attempts", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("max_attempts", sa.Integer(), nullable=False, server_default="5"),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.CheckConstraint(
+            "attempts >= 0 AND max_attempts > 0",
+            name="ck_talent_mobile_device_link_otp_attempts",
+        ),
+        sa.ForeignKeyConstraint(["employee_id"], ["user_profiles.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "idx_talent_mobile_device_link_otps_employee_created",
+        "talent_mobile_device_link_otps",
+        ["employee_id", "created_at"],
+    )
+
+    op.create_table(
         "talent_mobile_devices",
         sa.Column("id", sa.Text(), nullable=False),
         sa.Column("employee_id", sa.Text(), nullable=False),
@@ -92,3 +115,8 @@ def downgrade() -> None:
         table_name="talent_mobile_devices",
     )
     op.drop_table("talent_mobile_devices")
+    op.drop_index(
+        "idx_talent_mobile_device_link_otps_employee_created",
+        table_name="talent_mobile_device_link_otps",
+    )
+    op.drop_table("talent_mobile_device_link_otps")
