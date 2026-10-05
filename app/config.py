@@ -129,6 +129,11 @@ class TalentIdConsentSettings:
 class TalentIdQrSettings:
     """Linked-mobile QR attendance settings."""
 
+    from_email: str
+    link_otp_secret: str
+    link_otp_ttl_seconds: int
+    link_otp_cooldown_seconds: int
+    link_otp_max_attempts: int
     challenge_ttl_seconds: int
     token_ttl_seconds: int
     max_signature_attempts: int
@@ -202,6 +207,26 @@ def get_talent_id_consent_settings() -> TalentIdConsentSettings:
 def get_talent_id_qr_settings() -> TalentIdQrSettings:
     """Return short-lived linked-mobile QR attendance settings."""
     return TalentIdQrSettings(
+        from_email=(
+            os.getenv("TALENT_ID_FROM_EMAIL", "").strip()
+            or os.getenv("TALENT_ID_CONSENT_FROM_EMAIL", "").strip()
+        ),
+        link_otp_secret=(
+            os.getenv("TALENT_ID_MOBILE_LINK_OTP_SECRET", "").strip()
+            or os.getenv("TALENT_ID_CONSENT_OTP_SECRET", "").strip()
+        ),
+        link_otp_ttl_seconds=max(
+            120,
+            int(os.getenv("TALENT_ID_MOBILE_LINK_OTP_TTL_SECONDS", "600")),
+        ),
+        link_otp_cooldown_seconds=max(
+            0,
+            int(os.getenv("TALENT_ID_MOBILE_LINK_OTP_COOLDOWN_SECONDS", "60")),
+        ),
+        link_otp_max_attempts=max(
+            1,
+            int(os.getenv("TALENT_ID_MOBILE_LINK_OTP_MAX_ATTEMPTS", "5")),
+        ),
         challenge_ttl_seconds=max(
             15,
             int(os.getenv("TALENT_ID_QR_CHALLENGE_TTL_SECONDS", "60")),
