@@ -122,6 +122,9 @@ class TalentBiometricEnrollment(Base):
     provider_user_id = Column(Text, nullable=False, unique=True)
     face_count = Column(Integer, nullable=False, default=0)
     active = Column(Boolean, nullable=False, default=True)
+    provider_cleanup_pending = Column(Boolean, nullable=False, default=False)
+    provider_cleanup_last_error = Column(Text, nullable=True)
+    provider_cleanup_attempted_at = Column(DateTime(timezone=True), nullable=True)
     enrolled_at = Column(DateTime(timezone=True), nullable=False, default=_now)
 
 
