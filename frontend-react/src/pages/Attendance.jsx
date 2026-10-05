@@ -79,6 +79,13 @@ function Attendance() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualSuccess, setManualSuccess] = useState("");
+  const [manual, setManual] = useState({
+    employee_id: "",
+    event_type: "check_in",
+    reason: "",
+  });
 
   useEffect(() => {
     if (!canReadAll) return undefined;
@@ -132,6 +139,44 @@ function Attendance() {
     }, 0);
     return () => window.clearTimeout(timeoutId);
   }, [loadReport]);
+
+
+  async function submitManualAttendance(event) {
+    event.preventDefault();
+    if (!manual.employee_id) {
+      setError("Selecciona el empleado para registrar la contingencia.");
+      return;
+    }
+    if (manual.reason.trim().length < 5) {
+      setError("Indica un motivo de al menos 5 caracteres.");
+      return;
+    }
+
+    setManualSaving(true);
+    setError("");
+    setManualSuccess("");
+    try {
+      await api.post("/talent-id/attendance/manual", {
+        employee_id: manual.employee_id,
+        event_type: manual.event_type,
+        reason: manual.reason.trim(),
+      });
+      const employee = employees.find((item) => item.id === manual.employee_id);
+      setManualSuccess(
+        `Marcación manual registrada para ${employee ? employeeLabel(employee) : "el empleado"}. La operación quedó auditada.`,
+      );
+      setManual((current) => ({ ...current, reason: "" }));
+      await loadReport();
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "registrar la marcación manual",
+        resource: "Talent ID",
+        fallback: "No fue posible registrar la contingencia de asistencia.",
+      }));
+    } finally {
+      setManualSaving(false);
+    }
+  }
 
   const summary = report?.summary || {};
   const rows = report?.rows || [];
@@ -212,6 +257,69 @@ function Attendance() {
           Puedes consultar hasta 93 días por vez. Las horas se muestran en tu zona horaria local.
         </small>
       </section>
+
+      {canReadAll && (
+        <section className="panel attendance-manual" aria-label="Marcación manual de contingencia">
+          <div className="attendance-manual-heading">
+            <div>
+              <span className="eyebrow">Contingencia auditada</span>
+              <h2>Registrar marcación manual</h2>
+              <p>
+                Úsala solo cuando el empleado no pueda marcar por biometría o QR. El motivo y el administrador quedan registrados.
+              </p>
+            </div>
+          </div>
+
+          {manualSuccess && <div className="talent-id-success" role="status">{manualSuccess}</div>}
+
+          <form className="attendance-manual-form" onSubmit={submitManualAttendance}>
+            <div className="form-group">
+              <label htmlFor="manual-attendance-employee">Empleado</label>
+              <select
+                id="manual-attendance-employee"
+                value={manual.employee_id}
+                onChange={(event) => setManual({ ...manual, employee_id: event.target.value })}
+                required
+              >
+                <option value="">Selecciona empleado</option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employeeLabel(employee)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="manual-attendance-event">Tipo</label>
+              <select
+                id="manual-attendance-event"
+                value={manual.event_type}
+                onChange={(event) => setManual({ ...manual, event_type: event.target.value })}
+              >
+                <option value="check_in">Entrada</option>
+                <option value="check_out">Salida</option>
+              </select>
+            </div>
+
+            <div className="form-group attendance-manual-reason">
+              <label htmlFor="manual-attendance-reason">Motivo</label>
+              <input
+                id="manual-attendance-reason"
+                value={manual.reason}
+                onChange={(event) => setManual({ ...manual, reason: event.target.value })}
+                maxLength={500}
+                placeholder="Ej. Falla temporal del kiosco en recepción"
+                required
+              />
+            </div>
+
+            <button className="btn btn-secondary" type="submit" disabled={manualSaving}>
+              {manualSaving ? "Registrando…" : "Registrar contingencia"}
+            </button>
+          </form>
+        </section>
+      )}
 
       {error && (
         <FeedbackMessage title="No se pudo cargar la asistencia">{error}</FeedbackMessage>
@@ -302,9 +410,15 @@ function Attendance() {
                         <td>{row.site_name}</td>
                         <td>
                           <strong>{timeLabel(row.check_in)}</strong>
+                          {row.check_in_method && <small>{row.check_in_method === "MANUAL" ? "Manual" : row.check_in_method === "QR" ? "QR móvil" : "Facial"}</small>}
+                          {row.check_in_manual_reason && <small className="attendance-manual-note">{row.check_in_manual_reason}</small>}
                           {row.late_minutes > 0 && <small className="attendance-late">+{row.late_minutes} min</small>}
                         </td>
-                        <td><strong>{timeLabel(row.check_out)}</strong></td>
+                        <td>
+                          <strong>{timeLabel(row.check_out)}</strong>
+                          {row.check_out_method && <small>{row.check_out_method === "MANUAL" ? "Manual" : row.check_out_method === "QR" ? "QR móvil" : "Facial"}</small>}
+                          {row.check_out_manual_reason && <small className="attendance-manual-note">{row.check_out_manual_reason}</small>}
+                        </td>
                         <td>{durationLabel(row.worked_minutes)}</td>
                         <td>
                           <span className={`attendance-status attendance-status-${String(row.status || "OK").toLowerCase()}`}>
