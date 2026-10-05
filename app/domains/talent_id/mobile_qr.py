@@ -288,6 +288,7 @@ def _consume_mobile_link_otp(
             TalentMobileDeviceLinkOtp.id == challenge_id,
             TalentMobileDeviceLinkOtp.employee_id == employee_id,
         )
+        .with_for_update()
         .one_or_none()
     )
     if challenge is None or challenge.used_at is not None:
@@ -517,6 +518,7 @@ def issue_qr_token(
             TalentMobileQrChallenge.employee_id == employee_id,
             TalentMobileQrChallenge.mobile_device_id == device_id,
         )
+        .with_for_update()
         .one_or_none()
     )
     if challenge is None or challenge.used_at is not None:
@@ -621,6 +623,7 @@ def consume_qr_attendance(
     token = (
         db.query(TalentMobileQrToken)
         .filter(TalentMobileQrToken.token_hash == token_hash)
+        .with_for_update()
         .one_or_none()
     )
     if token is None:
