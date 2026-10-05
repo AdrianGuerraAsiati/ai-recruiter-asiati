@@ -205,9 +205,12 @@ def test_duplicate_odoo_work_emails_do_not_collapse_people(db):
     )
 
     result = employee_import.sync_employees_from_odoo(db, client=client)
+    second = employee_import.sync_employees_from_odoo(db, client=client)
 
     assert result["created"] == 2
     assert result["duplicate_email_rows"] == 2
+    assert second["created"] == 0
+    assert second["updated"] == 2
     profiles = db.query(UserProfile).order_by(UserProfile.odoo_employee_id).all()
     assert [profile.odoo_employee_id for profile in profiles] == ["40", "41"]
     assert [profile.email for profile in profiles] == [None, None]
