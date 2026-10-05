@@ -15,6 +15,8 @@ import {
 import { FeedbackMessage, LoadingState } from "./ui/StatePanel";
 import "../mobile-attendance.css";
 
+const QR_SESSION_MS = 2 * 60 * 1000;
+
 function defaultDeviceLabel() {
   const platform = String(navigator.userAgentData?.platform || navigator.platform || "").trim();
   return platform ? `Mi celular · ${platform}` : "Mi celular";
@@ -36,6 +38,7 @@ function MobileAttendanceCard() {
   const [devices, setDevices] = useState([]);
   const [localCredential, setLocalCredential] = useState(null);
   const [qr, setQr] = useState(null);
+  const [qrSessionUntil, setQrSessionUntil] = useState(0);
   const [nowMs, setNowMs] = useState(Date.now());
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
@@ -165,8 +168,16 @@ function MobileAttendanceCard() {
     }
   }
 
-  async function generateQr({ silent = false } = {}) {
+  async function generateQr({ silent = false, sessionUntil = null } = {}) {
     if (!activeDevice || !localCredential?.privateKey) return;
+
+    const effectiveSessionUntil = sessionUntil || qrSessionUntil || (Date.now() + QR_SESSION_MS);
+    if (silent && Date.now() >= effectiveSessionUntil) {
+      setQr(null);
+      setQrSessionUntil(0);
+      setFeedback("La sesión de QR terminó. Genera un nuevo código cuando estés frente al kiosco.");
+      return;
+    }
 
     setGenerating(true);
     if (!silent) {
@@ -190,13 +201,14 @@ function MobileAttendanceCard() {
       });
       setQr(data);
       setNowMs(Date.now());
+      setQrSessionUntil(effectiveSessionUntil);
 
       if (refreshTimerRef.current) {
         window.clearTimeout(refreshTimerRef.current);
       }
       const refreshInMs = Math.max(8000, (Number(data.ttl_seconds || 30) - 8) * 1000);
       refreshTimerRef.current = window.setTimeout(() => {
-        void generateQr({ silent: true });
+        void generateQr({ silent: true, sessionUntil: effectiveSessionUntil });
       }, refreshInMs);
     } catch (err) {
       setQr(null);
@@ -221,6 +233,7 @@ function MobileAttendanceCard() {
         window.clearTimeout(refreshTimerRef.current);
       }
       setQr(null);
+      setQrSessionUntil(0);
       setLocalCredential(null);
       setDevices((current) => current.map((item) => (
         item.id === activeDevice.id ? { ...item, active: false } : item
@@ -353,7 +366,7 @@ function MobileAttendanceCard() {
                 type="button"
                 className="btn btn-primary"
                 disabled={generating}
-                onClick={() => generateQr()}
+                onClick={() => generateQr({ sessionUntil: Date.now() + QR_SESSION_MS })}
               >
                 {generating ? "Generando…" : "Mostrar QR para marcar"}
               </button>
@@ -375,7 +388,7 @@ function MobileAttendanceCard() {
                   type="button"
                   className="btn btn-secondary"
                   disabled={generating}
-                  onClick={() => generateQr()}
+                  onClick={() => generateQr({ sessionUntil: qrSessionUntil || (Date.now() + QR_SESSION_MS) })}
                 >
                   {generating ? "Renovando…" : "Renovar ahora"}
                 </button>
