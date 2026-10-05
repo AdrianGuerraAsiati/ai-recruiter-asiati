@@ -322,7 +322,7 @@ def employee_display_name(employee: UserProfile) -> str:
         for value in [employee.first_name or "", employee.last_name or ""]
         if value and value.strip()
     )
-    return full_name or employee.email
+    return full_name or employee.email or "Empleado"
 
 
 def record_attendance(
