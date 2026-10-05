@@ -46,3 +46,21 @@ class SignBiometricConsentRequest(BaseModel):
     decision: Literal["AUTHORIZED", "DENIED", "REVOKED"]
     otp: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
     document_version: str = Field(min_length=1, max_length=32)
+
+
+
+class RegisterMobileDeviceRequest(BaseModel):
+    label: str = Field(default="Mi celular", min_length=2, max_length=80)
+    public_key_jwk: dict
+
+
+class IssueMobileQrRequest(BaseModel):
+    device_id: str = Field(min_length=8, max_length=80)
+    challenge_id: str = Field(min_length=8, max_length=80)
+    nonce: str = Field(min_length=16, max_length=256)
+    signature: str = Field(min_length=32, max_length=256)
+
+
+class KioskQrAttendanceRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=512)
+    event_type: Literal["check_in", "check_out"]
