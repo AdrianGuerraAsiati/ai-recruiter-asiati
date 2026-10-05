@@ -312,6 +312,9 @@ jobs:
             if ! sudo docker exec ai-recruiter-api python -m app.scripts.sync_odoo_jobs; then
               echo ODOO_JOB_BACKFILL_DEFERRED
             fi
+            if ! sudo docker exec ai-recruiter-api python -m app.scripts.sync_odoo_employees; then
+              echo ODOO_EMPLOYEE_BACKFILL_DEFERRED
+            fi
             DATABASE_URL="\$DATABASE_URL_VALUE" AWS_ACCOUNT_ID="$AWS_ACCOUNT_ID" ECR_TAG="${{ github.sha }}" IMPORT_STAGING_BUCKET="$IMPORT_STAGING_BUCKET" IMPORT_QUEUE_URL="$IMPORT_QUEUE_URL" IMPORT_EVALUATION_CONCURRENCY="1" S3_BUCKET="$S3_BUCKET" KNOWLEDGE_BASE_ID="$KNOWLEDGE_BASE_ID" DATA_SOURCE_ID="$DATA_SOURCE_ID" COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID" COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" ODOO_ENABLED="$ODOO_ENABLED" ODOO_BASE_URL="$ODOO_BASE_URL" ODOO_DATABASE="$ODOO_DATABASE" ODOO_USERNAME="$ODOO_USERNAME" ODOO_SECRET_ID="$ODOO_SECRET_ID" ODOO_REQUEST_TIMEOUT_SECONDS="$ODOO_REQUEST_TIMEOUT_SECONDS" sudo -H -E /tmp/ai-recruiter-deploy-worker.sh
             WORKER_STATUS=\$(sudo docker inspect ai-recruiter-worker --format '{{.State.Status}}')
             test "\$WORKER_STATUS" = running
