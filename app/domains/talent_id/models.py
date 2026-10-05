@@ -364,3 +364,5 @@ class TalentAttendanceEvent(Base):
     occurred_at = Column(DateTime(timezone=True), nullable=False, default=_now)
     idempotency_key = Column(Text, nullable=False)
     recognition_confidence = Column(Float, nullable=True)
+    manual_reason = Column(Text, nullable=True)
+    created_by_sub = Column(Text, nullable=True)
