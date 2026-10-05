@@ -97,7 +97,7 @@ describe("Attendance dashboard", () => {
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "Asistencia del equipo" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Empleado")).toBeInTheDocument();
+    expect(screen.getByLabelText("Empleado", { selector: "#attendance-employee" })).toBeInTheDocument();
     expect(await screen.findByText("Ana Torres")).toBeInTheDocument();
     expect(screen.getByText("Llegada tarde")).toBeInTheDocument();
     expect(screen.getByText("+7 min")).toBeInTheDocument();
