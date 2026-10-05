@@ -214,6 +214,10 @@ def request_mobile_link_otp(
         )
 
     employee = get_employee(db, employee_id)
+    if not str(employee.email or "").strip() or "@" not in str(employee.email):
+        raise MobileLinkOtpUnavailable(
+            "Tu perfil no tiene un correo válido para verificar este celular. Comunícate con Talento Humano."
+        )
     now = _now()
     latest = (
         db.query(TalentMobileDeviceLinkOtp)
