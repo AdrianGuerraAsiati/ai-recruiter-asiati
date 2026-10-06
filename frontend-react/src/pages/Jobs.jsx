@@ -500,7 +500,7 @@ function Jobs() {
       setSuccessMessage(
         nextStatus === "ACTIVE"
           ? "Vacante activada. La sincronización con Odoo quedó solicitada."
-          : "Vacante desactivada. Si ya existía en Odoo, quedará retirada de publicación.",
+          : "Vacante desactivada. Si existía en Odoo, se eliminará de Odoo.",
       );
       setTimeout(() => setSuccessMessage(""), 5000);
     } catch (requestError) {

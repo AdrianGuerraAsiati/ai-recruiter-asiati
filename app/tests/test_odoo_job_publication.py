@@ -25,6 +25,7 @@ class FakeOdooClient:
         self.include_location_fields = include_location_fields
         self.created = []
         self.written = []
+        self.deleted = []
         self.searches = []
 
     def fields_get(self, model, **_kwargs):
@@ -77,6 +78,11 @@ class FakeOdooClient:
     def write(self, model, ids, values):
         assert model == "hr.job"
         self.written.append((list(ids), dict(values)))
+        return True
+
+    def unlink(self, model, ids):
+        assert model == "hr.job"
+        self.deleted.append(list(ids))
         return True
 
 
@@ -159,7 +165,7 @@ def test_active_talent_vacancy_creates_published_odoo_job(db):
     }]
 
 
-def test_paused_talent_vacancy_unpublishes_existing_odoo_job(db):
+def test_paused_talent_vacancy_deletes_existing_odoo_job(db):
     delivery = _publication_module()
     Sync = _sync_model()
     job = _job(db, status="PAUSED")
@@ -188,19 +194,13 @@ def test_paused_talent_vacancy_unpublishes_existing_odoo_job(db):
     )
     result = delivery.sync_job_now(db, job_id=job.id, client=client)
 
-    assert result["action"] == "UPDATED"
-    assert result["odoo_record_id"] == "77"
+    assert result["action"] == "DELETED"
+    assert result["odoo_record_id"] is None
     assert client.created == []
-    assert client.written == [(
-        [77],
-        {
-            "name": "Backend Developer",
-            "description": "<p>Python y AWS</p>",
-            "active": False,
-            "no_of_recruitment": 1,
-            "is_published": False,
-        },
-    )]
+    assert client.written == []
+    assert client.deleted == [[77]]
+    db.refresh(sync)
+    assert sync.odoo_record_id is None
 
 
 def test_publication_requires_an_odoo_website_publish_field(db):
@@ -401,6 +401,8 @@ def test_sync_all_backfills_existing_talent_vacancies(db):
 
     assert result == {
         "total": 2,
+        "active_total": 1,
+        "paused_total": 1,
         "attempted": 2,
         "synced": 1,
         "failed": 0,
@@ -484,3 +486,71 @@ def test_paused_never_published_vacancy_is_not_created_in_odoo(db):
     assert client.created == []
     assert client.written == []
     assert client.searches == []
+
+
+def test_paused_vacancy_clears_stale_odoo_reference_when_record_is_already_absent(db):
+    delivery = _publication_module()
+    Sync = _sync_model()
+    job = _job(db, status="PAUSED", title="Vacante ya eliminada")
+    sync = Sync(
+        job_id=job.id,
+        idempotency_key=f"job:{job.id}",
+        payload={
+            "schema_version": 1,
+            "operation": "UPSERT_JOB",
+            "job": {
+                "external_id": job.id,
+                "title": job.title,
+                "description": job.description,
+                "status": "PAUSED",
+            },
+        },
+        status="PENDING",
+        odoo_record_id="91",
+    )
+    db.add(sync)
+    db.commit()
+
+    client = FakeOdooClient(existing=None)
+    result = delivery.sync_job_now(db, job_id=job.id, client=client)
+
+    assert result["action"] == "ALREADY_ABSENT"
+    assert result["odoo_record_id"] is None
+    assert client.deleted == []
+    db.refresh(sync)
+    assert sync.odoo_record_id is None
+
+
+def test_sync_all_reconciles_active_job_even_when_local_sync_marker_is_synced(db):
+    delivery = _publication_module()
+    Sync = _sync_model()
+    job = _job(db, status="ACTIVE", title="Data & Automation Developer")
+    sync = Sync(
+        job_id=job.id,
+        idempotency_key=f"job:{job.id}",
+        payload={
+            "schema_version": 1,
+            "operation": "UPSERT_JOB",
+            "job": {
+                "external_id": job.id,
+                "title": job.title,
+                "description": job.description,
+                "status": "ACTIVE",
+            },
+        },
+        status="SYNCED",
+        odoo_record_id=None,
+    )
+    db.add(sync)
+    db.commit()
+
+    client = FakeOdooClient(publication_field="website_published")
+    result = delivery.sync_all_jobs_now(db, client=client)
+
+    assert result["active_total"] == 1
+    assert result["attempted"] == 1
+    assert result["synced"] == 1
+    assert result["failed"] == 0
+    assert len(client.created) == 1
+    db.refresh(sync)
+    assert sync.odoo_record_id == "501"
