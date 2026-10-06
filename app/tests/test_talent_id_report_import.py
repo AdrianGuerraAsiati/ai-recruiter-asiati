@@ -12,6 +12,7 @@ from app.domains.talent_id import attendance_import, reporting, service
 from app.domains.talent_id.models import (
     TalentAttendanceEvent,
     TalentEmployeeAttendanceSetting,
+    TalentSite,
 )
 from app.models import UserProfile
 
