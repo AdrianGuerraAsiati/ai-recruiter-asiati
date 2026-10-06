@@ -22,7 +22,7 @@ function TalentIdAttendanceFields({
         <div>
           <span className="eyebrow">Asistencia</span>
           <h3>Configuración de marcación</h3>
-          <p>Define si el empleado puede marcar y desde qué sede y jornada.</p>
+          <p>Define la sede y jornada usadas para interpretar sus marcaciones importadas.</p>
         </div>
         <span className={`status-pill ${attendance?.attendance_eligible ? "" : "status-disabled"}`}>
           <i /> {attendance?.attendance_eligible ? "Habilitada" : "Deshabilitada"}
@@ -89,8 +89,8 @@ function TalentIdAttendanceFields({
               disabled={disabled}
             />
             <label htmlFor="talent-id-attendance-enabled">
-              <strong>Habilitar marcación de asistencia</strong>
-              <span>Al activarlo, este empleado podrá ser reconocido y registrar entrada/salida en los kioscos de su sede.</span>
+              <strong>Incluir empleado en reportes de asistencia</strong>
+              <span>Al activarlo, Talent podrá asociar las filas del reporte biométrico con este empleado, sede y horario.</span>
             </label>
           </div>
         </>
