@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
+import { titleCase } from "../utils/text";
 import { COUNTRY_OPTIONS, countryName } from "../data/countries";
 import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
@@ -1086,7 +1087,7 @@ function Jobs() {
             <div className="modal-header">
               <div>
                 <span className="eyebrow">Vacante</span>
-                <h2 id="job-details-title">{viewJob.title}</h2>
+                <h2 id="job-details-title">{titleCase(viewJob.title)}</h2>
                 <span className={`status-pill job-detail-status ${viewJob.status === "PAUSED" ? "is-paused" : ""}`}>
                   <i /> {viewJob.status === "PAUSED" ? "Pausada" : "Activa"}
                 </span>
@@ -1097,7 +1098,7 @@ function Jobs() {
             <div className="job-detail-section">
               <h3>Información de la vacante</h3>
               <div className="job-detail-info-grid">
-                <div><span className="muted">Título</span><strong>{viewJob.title}</strong></div>
+                <div><span className="muted">Título</span><strong>{titleCase(viewJob.title)}</strong></div>
                 <div><span className="muted">Fecha de creación</span><strong>{formatDate(viewJob.created_at)}</strong></div>
                 <div><span className="muted">Candidatos</span><strong>{viewJob.candidate_count || 0}</strong></div>
                 <div><span className="muted">Ubicación</span><strong>{[viewJob.city, countryName(viewJob.country_code)].filter(Boolean).join(", ") || "Sin definir"}</strong></div>
@@ -1255,7 +1256,7 @@ function Jobs() {
 
       <JobHireModal
         candidate={hireTarget}
-        jobTitle={viewJob?.title || "Vacante"}
+        jobTitle={titleCase(viewJob?.title) || "Vacante"}
         form={hireForm}
         hiring={hiring}
         error={hireError}
