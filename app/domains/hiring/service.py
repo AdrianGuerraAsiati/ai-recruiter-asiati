@@ -79,6 +79,8 @@ def hire_candidate(
     last_name: str | None = None,
     job_title: str | None = None,
     department: str | None = None,
+    country_code: str | None = None,
+    company_name: str | None = None,
     hire_date: date | None = None,
     contract: dict | None = None,
     cognito_client=None,
@@ -110,6 +112,8 @@ def hire_candidate(
     )
     resolved_job_title = str(job_title or job.title or "").strip() or None
     resolved_department = str(department or "").strip() or None
+    resolved_country_code = str(country_code or getattr(job, "country_code", None) or "").strip().upper() or None
+    resolved_company_name = str(company_name or getattr(job, "company_name", None) or "").strip() or None
     resolved_hire_date = hire_date or date.today()
 
     employee = (
@@ -130,6 +134,8 @@ def hire_candidate(
                 last_name=resolved_last,
                 job_title=resolved_job_title,
                 department=resolved_department,
+                country_code=resolved_country_code,
+                company_name=resolved_company_name,
                 hire_date=resolved_hire_date,
                 role_code=EMPLOYEE,
                 created_by_sub=created_by_sub,
@@ -171,6 +177,8 @@ def hire_candidate(
         "last_name": resolved_last,
         "job_title": resolved_job_title,
         "department": resolved_department,
+        "country_code": resolved_country_code,
+        "company_name": resolved_company_name,
         "hire_date": resolved_hire_date,
     }.items():
         if value is not None and not getattr(employee, field):
