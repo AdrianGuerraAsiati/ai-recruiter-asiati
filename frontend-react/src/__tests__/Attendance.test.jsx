@@ -175,7 +175,13 @@ describe("Attendance dashboard", () => {
 
     renderPage();
 
-    const fileInput = await screen.findByLabelText("Reporte .xls");
+    const siteSelect = await screen.findByLabelText("Sede del reporte");
+    await waitFor(() => {
+      expect(screen.getByRole("option", { name: /Bogotá Principal/i })).toBeInTheDocument();
+    });
+    fireEvent.change(siteSelect, { target: { value: "site-1" } });
+
+    const fileInput = screen.getByLabelText("Reporte .xls");
     const file = new File(["fake-binary"], "REPORTE.xls", {
       type: "application/vnd.ms-excel",
     });
