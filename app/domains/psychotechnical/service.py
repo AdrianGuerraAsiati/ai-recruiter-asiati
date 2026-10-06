@@ -177,16 +177,17 @@ def _assignment_by_token(db: Session, token: str) -> PsychotechnicalAssignment:
 
 def public_assignment(db: Session, token: str) -> dict:
     assignment = _assignment_by_token(db, token)
-    payload = _assignment_payload(assignment)
-    payload.update(
-        {
-            "test_description": catalog.TEST_DESCRIPTION,
-            "duration_minutes": catalog.DURATION_MINUTES,
-            "question_count": len(catalog.QUESTIONS),
-            "dimensions": list(catalog.DIMENSION_LABELS.values()),
-        }
-    )
-    return payload
+    return {
+        "status": _status_for(assignment),
+        "candidate_name": assignment.candidate.name if assignment.candidate else None,
+        "job_title": assignment.job.title if assignment.job else None,
+        "test_name": catalog.TEST_NAME,
+        "test_description": catalog.TEST_DESCRIPTION,
+        "duration_minutes": catalog.DURATION_MINUTES,
+        "question_count": len(catalog.QUESTIONS),
+        "dimensions": list(catalog.DIMENSION_LABELS.values()),
+        "expires_at": assignment.expires_at.isoformat(),
+    }
 
 
 def start_assignment(db: Session, token: str) -> dict:
