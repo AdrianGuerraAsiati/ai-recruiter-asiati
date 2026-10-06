@@ -89,7 +89,26 @@ dist\ASIATI Resume Agent\
 
 Se usa PyInstaller `--onedir` y se empaquetan Browser Use, `cdp-use` y sus dependencias. El runtime abre el **Google Chrome instalado** mediante el mismo patrón Browser Use usado por el bot de Computrabajo; no usa Browser Use Agent ni consume tokens de IA. **No** es necesario instalar un Chromium separado en el PC de producción.
 
-En GitHub, los pull requests ejecutan un único workflow de validación (`CI — Tests & Build`). El artefacto Windows se genera una sola vez después de cambios validados que llegan a `main`, o manualmente mediante `workflow_dispatch`.
+En GitHub, los pull requests ejecutan un único workflow de validación (`CI — Tests & Build`). El build Windows se genera después de cambios validados que llegan a `main`, o manualmente mediante `workflow_dispatch`.
+
+### Firma digital de Windows
+
+Los ejecutables de distribución deben quedar firmados con Authenticode antes de publicarse. El workflow usa:
+
+- `WINDOWS_CODE_SIGNING_PFX_BASE64`: certificado de firma de código en formato PFX, codificado en Base64.
+- `WINDOWS_CODE_SIGNING_PFX_PASSWORD`: contraseña del PFX.
+
+La llave privada nunca debe almacenarse en el repositorio. El workflow escribe el PFX únicamente en el directorio temporal del runner, firma con SHA-256, solicita timestamp RFC 3161 y elimina el archivo temporal inmediatamente.
+
+Si las credenciales de firma no están configuradas, CI puede compilar y ejecutar el self-test, pero **no publica un artefacto Windows distribuible**. Un `workflow_dispatch` manual falla si no puede producir una firma válida.
+
+El artefacto permitido para distribución se llama:
+
+```text
+ASIATI-Resume-Agent-Windows-SIGNED
+```
+
+Antes de entregarlo a un usuario, `SIGNING-STATUS.txt` debe mostrar `Status=Valid` y Windows debe mostrar un editor verificable en **Propiedades > Firmas digitales**.
 
 ## Eliminar la credencial local
 
