@@ -284,6 +284,7 @@ def build_employee_upsert_payload(
         "job": {
             "title": job.title,
             "country_code": job.country_code,
+            "company_name": getattr(job, "company_name", None),
             "city": job.city,
             "employment_type": job.employment_type,
         },
@@ -397,6 +398,8 @@ def build_contract_upsert_payload(
             "email": employee.email,
             "job_title": employee.job_title,
             "department": employee.department,
+            "country_code": getattr(employee, "country_code", None),
+            "company_name": getattr(employee, "company_name", None),
         },
         "contract": {
             "name": name or "Contrato laboral",
