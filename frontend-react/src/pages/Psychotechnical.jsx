@@ -1,5 +1,6 @@
 // eslint-disable-next-line no-unused-vars
 import React, { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
@@ -38,6 +39,8 @@ function statusClass(status) {
 }
 
 export default function Psychotechnical() {
+  const [searchParams] = useSearchParams();
+  const candidateIdFilter = searchParams.get("candidate_id") || "";
   const [items, setItems] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +69,7 @@ export default function Psychotechnical() {
         params: {
           ...(status ? { status } : {}),
           ...(query.trim() ? { q: query.trim() } : {}),
+          ...(candidateIdFilter ? { candidate_id: candidateIdFilter } : {}),
         },
       });
       setItems(data?.items || []);
@@ -82,14 +86,14 @@ export default function Psychotechnical() {
 
   useEffect(() => {
     void loadAssignments();
-  }, [status]);
+  }, [status, candidateIdFilter]);
 
   useEffect(() => {
     const id = window.setTimeout(() => {
       void loadAssignments();
     }, query.trim() ? 250 : 0);
     return () => window.clearTimeout(id);
-  }, [query]);
+  }, [query, candidateIdFilter]);
 
   useEffect(() => {
     api.get("/jobs")
@@ -225,6 +229,12 @@ export default function Psychotechnical() {
           <small>Resultados disponibles</small>
         </article>
       </section>
+
+      {candidateIdFilter && (
+        <div className="psychotechnical-filter-note">
+          Mostrando únicamente las pruebas del candidato seleccionado desde su perfil.
+        </div>
+      )}
 
       <section className="panel psychotechnical-directory">
         <div className="psychotechnical-toolbar">
