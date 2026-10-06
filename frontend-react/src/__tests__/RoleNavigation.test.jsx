@@ -140,7 +140,8 @@ describe("role navigation", () => {
 
     expect(screen.queryByText("Mi progreso")).not.toBeInTheDocument();
     expect(screen.getByText("Calificación")).toBeInTheDocument();
-    expect(screen.getByText("Talent ID")).toBeInTheDocument();
+    expect(screen.getByText("Asistencia")).toBeInTheDocument();
+    expect(screen.queryByText("Talent ID")).not.toBeInTheDocument();
     expect(screen.getByText("Integraciones")).toBeInTheDocument();
   });
 });
