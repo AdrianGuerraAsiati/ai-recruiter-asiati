@@ -42,6 +42,7 @@ function reportData() {
       incomplete_days: 0,
       on_time_rate: 0,
       average_worked_minutes: 480,
+      report_events: 2,
     },
     rows: [
       {
@@ -56,6 +57,8 @@ function reportData() {
         late_minutes: 7,
         worked_minutes: 480,
         status: "LATE",
+        check_in_method: "REPORT",
+        check_out_method: "REPORT",
       },
     ],
   };
@@ -103,7 +106,7 @@ describe("Attendance dashboard", () => {
     expect(screen.getByText("+7 min")).toBeInTheDocument();
   });
 
-  it("lets admins record an audited manual attendance contingency", async () => {
+  it("lets admins upload the biometric clock XLS report", async () => {
     useSession.mockReturnValue({
       principal: { profile: { id: "admin-1", first_name: "Admin" } },
       hasPermission: (permission) => (
@@ -127,45 +130,71 @@ describe("Attendance dashboard", () => {
           },
         });
       }
+      if (url === "/talent-id/sites") {
+        return Promise.resolve({
+          data: {
+            items: [
+              {
+                id: "site-1",
+                name: "Bogotá Principal",
+                code: "BOG",
+                active: true,
+              },
+            ],
+          },
+        });
+      }
       if (url === "/talent-id/attendance/report") {
         return Promise.resolve({ data: reportData() });
       }
       return Promise.reject(new Error(`Unexpected GET ${url}`));
     });
-    api.post.mockResolvedValue({
+    api.post.mockResolvedValueOnce({
       data: {
-        id: "manual-event-1",
-        employee_id: "employee-1",
-        event_type: "CHECK_IN",
-        method: "MANUAL",
-        created: true,
+        filename: "REPORTE.xls",
+        site_name: "Bogotá Principal",
+        rows_total: 2188,
+        source_users: 46,
+        matched_employees: 45,
+        imported_events: 2100,
+        duplicate_events: 50,
+        unsupported_rows: 18,
+        unsupported_codes: { 2: 18 },
+        unmatched_rows: 20,
+        ambiguous_rows: 0,
+        attendance_not_enabled_rows: 0,
+        site_mismatch_rows: 0,
+        unmatched_people: [],
+        date_range: {
+          from: "2025-12-20T06:57:45",
+          to: "2026-01-16T14:31:02",
+        },
       },
     });
 
     renderPage();
 
-    const employeeSelect = await screen.findByLabelText("Empleado", {
-      selector: "#manual-attendance-employee",
+    const fileInput = await screen.findByLabelText("Reporte .xls");
+    const file = new File(["fake-binary"], "REPORTE.xls", {
+      type: "application/vnd.ms-excel",
     });
-    fireEvent.change(employeeSelect, { target: { value: "employee-1" } });
-    fireEvent.change(screen.getByLabelText("Motivo"), {
-      target: { value: "Falla temporal del kiosco" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Registrar contingencia" }));
+    fireEvent.change(fileInput, { target: { files: [file] } });
+    fireEvent.click(screen.getByRole("button", { name: "Cargar reporte" }));
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith(
-        "/talent-id/attendance/manual",
-        expect.objectContaining({
-          employee_id: "employee-1",
-          event_type: "check_in",
-          reason: "Falla temporal del kiosco",
-          occurred_at: expect.any(String),
-        }),
-      );
+      expect(api.post).toHaveBeenCalledTimes(1);
     });
-    expect(await screen.findByText(/marcación manual registrada/i)).toBeInTheDocument();
+
+    const [url, body] = api.post.mock.calls[0];
+    expect(url).toBe("/talent-id/attendance/import-report");
+    expect(body).toBeInstanceOf(FormData);
+    expect(body.get("site_id")).toBe("site-1");
+    expect(body.get("report").name).toBe("REPORTE.xls");
+
+    expect(await screen.findByText("2188")).toBeInTheDocument();
+    expect(screen.getByText(/2 \(18\)/)).toBeInTheDocument();
   });
+
 
   it("shows only the own attendance view to employees", async () => {
     useSession.mockReturnValue({
