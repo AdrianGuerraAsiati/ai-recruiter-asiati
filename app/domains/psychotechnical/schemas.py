@@ -22,4 +22,4 @@ class PsychotechnicalAnswer(BaseModel):
 
 
 class SubmitPsychotechnicalRequest(BaseModel):
-    answers: list[PsychotechnicalAnswer] = Field(min_length=1, max_length=40)
+    answers: list[PsychotechnicalAnswer] = Field(min_length=1, max_length=80)
