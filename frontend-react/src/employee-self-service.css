@@ -1,0 +1,212 @@
+.employee-self-stack {
+  display: grid;
+  gap: 22px;
+  margin-top: 22px;
+}
+
+.employee-self-card,
+.employee-documents-card {
+  display: grid;
+  gap: 22px;
+}
+
+.employee-self-heading,
+.employee-documents-modal-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.employee-self-heading h2 {
+  margin-bottom: 6px;
+}
+
+.employee-self-heading p {
+  max-width: 760px;
+  color: var(--ink-soft);
+  font-size: .84rem;
+  line-height: 1.55;
+}
+
+.employee-self-grid,
+.employee-document-request-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
+.employee-self-grid .form-group,
+.employee-document-request-grid .form-group {
+  margin: 0;
+}
+
+.employee-self-work-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+
+.employee-self-work-summary span,
+.employee-self-work-summary strong {
+  display: block;
+}
+
+.employee-self-work-summary span {
+  margin-bottom: 3px;
+  color: var(--ink-faint);
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.employee-self-work-summary strong {
+  font-size: .82rem;
+}
+
+.employee-documents-count {
+  flex: 0 0 auto;
+  padding: 8px 11px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--ink-soft);
+  font-size: .72rem;
+  font-weight: 700;
+}
+
+.employee-document-list,
+.employee-document-admin-list {
+  display: grid;
+  gap: 10px;
+}
+
+.employee-document-item,
+.employee-document-admin-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 18px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.employee-document-title,
+.employee-document-actions,
+.employee-document-admin-item > .ui-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.employee-document-copy small,
+.employee-document-admin-item small,
+.employee-document-selected,
+.employee-document-help {
+  color: var(--ink-faint);
+  font-size: .72rem;
+}
+
+.employee-document-file-button {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.employee-document-file-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.employee-document-selected {
+  grid-column: 1 / -1;
+}
+
+.employee-documents-empty {
+  padding: 18px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 14px;
+  background: var(--surface-soft);
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.employee-document-request-form {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--surface-soft);
+}
+
+.employee-document-request-grid {
+  align-items: end;
+}
+
+.employee-document-required {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  margin: 0;
+}
+
+.employee-document-required input {
+  width: 18px;
+  min-height: 18px;
+}
+
+.employee-documents-modal {
+  width: min(820px, calc(100vw - 32px));
+}
+
+.employee-documents-modal-heading {
+  align-items: center;
+}
+
+.employee-documents-modal-heading > span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--ink-soft);
+  font-size: .72rem;
+  font-weight: 800;
+}
+
+@media (max-width: 720px) {
+  .employee-self-grid,
+  .employee-document-request-grid,
+  .employee-self-work-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-self-heading,
+  .employee-document-item,
+  .employee-document-admin-item {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .employee-document-actions,
+  .employee-document-actions .btn,
+  .employee-document-file-button,
+  .employee-document-admin-item .ui-actions,
+  .employee-document-admin-item .ui-actions .btn {
+    width: 100%;
+  }
+}
