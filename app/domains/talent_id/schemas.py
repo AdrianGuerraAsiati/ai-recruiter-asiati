@@ -37,6 +37,11 @@ class UpdateKioskRequest(BaseModel):
 
 
 
+class RecordBiometricConsentRequest(BaseModel):
+    document_version: str = Field(min_length=1, max_length=32)
+    confirmed: bool
+
+
 class RequestBiometricConsentOtp(BaseModel):
     decision: Literal["AUTHORIZED", "DENIED", "REVOKED"]
     document_version: str = Field(min_length=1, max_length=32)
