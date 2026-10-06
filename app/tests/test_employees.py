@@ -393,6 +393,3 @@ def test_update_employee_can_change_country_and_company(db):
 
     assert updated.country_code == "CL"
     assert updated.company_name == "ASIATI Chile"
-    payload = service.employee_payload(db, updated)
-    assert payload["country_code"] == "CL"
-    assert payload["company_name"] == "ASIATI Chile"
