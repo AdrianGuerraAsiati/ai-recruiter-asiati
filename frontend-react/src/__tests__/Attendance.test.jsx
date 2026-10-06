@@ -186,7 +186,9 @@ describe("Attendance dashboard", () => {
       type: "application/vnd.ms-excel",
     });
     fireEvent.change(fileInput, { target: { files: [file] } });
-    fireEvent.click(screen.getByRole("button", { name: "Cargar reporte" }));
+    expect(siteSelect).toHaveValue("site-1");
+    expect(fileInput.files?.[0]?.name).toBe("REPORTE.xls");
+    fireEvent.submit(fileInput.closest("form"));
 
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledTimes(1);
