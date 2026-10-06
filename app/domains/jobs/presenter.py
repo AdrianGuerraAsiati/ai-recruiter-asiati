@@ -25,6 +25,7 @@ def job_payload(job, *, candidate_count: int | None = None) -> dict:
 
     optional_fields = {
         "country_code": getattr(job, "country_code", None),
+        "company_name": getattr(job, "company_name", None),
         "city": getattr(job, "city", None),
         "employment_type": getattr(job, "employment_type", None),
         "response_time_business_days": getattr(job, "response_time_business_days", None),
