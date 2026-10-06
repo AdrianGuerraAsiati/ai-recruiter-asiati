@@ -111,8 +111,7 @@ describe("Psychotechnical recruiter workspace", () => {
       );
     });
 
-    expect(await screen.findByLabelText("Enlace de la prueba")).toHaveValue(
-      expect.stringContaining("/psychotechnical/take/secret-test-token"),
-    );
+    const linkInput = await screen.findByLabelText("Enlace de la prueba");
+    expect(linkInput.value).toContain("/psychotechnical/take/secret-test-token");
   });
 });
