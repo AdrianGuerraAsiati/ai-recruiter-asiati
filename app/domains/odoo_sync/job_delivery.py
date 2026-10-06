@@ -249,7 +249,43 @@ def sync_job_now(
         title = str(job_payload.get("title") or "").strip()
         status = str(job_payload.get("status") or "ACTIVE").strip().upper()
 
-        if status != "ACTIVE" and not str(sync.odoo_record_id or "").strip():
+        stored_odoo_id = str(sync.odoo_record_id or "").strip()
+        if status != "ACTIVE":
+            if not stored_odoo_id:
+                sync.status = "SYNCED"
+                sync.last_error = None
+                sync.synced_at = _utcnow()
+                db.commit()
+                db.refresh(sync)
+                return {
+                    "job_id": sync.job_id,
+                    "status": sync.status,
+                    "attempt_count": sync.attempt_count,
+                    "odoo_record_id": None,
+                    "action": "SKIPPED",
+                    "publication_field": None,
+                    "published": False,
+                    "fields_written": [],
+                    "synced_at": sync.synced_at.isoformat() if sync.synced_at else None,
+                }
+
+            transport = client or integration.build_odoo_client()
+            record_id = int(stored_odoo_id)
+            existing = transport.search_read(
+                "hr.job",
+                [["id", "=", record_id]],
+                fields=["id"],
+                limit=1,
+            )
+            action = "ALREADY_ABSENT"
+            if existing:
+                if not transport.unlink("hr.job", [record_id]):
+                    raise OdooJobDeliveryError(
+                        "Odoo did not confirm vacancy deletion."
+                    )
+                action = "DELETED"
+
+            sync.odoo_record_id = None
             sync.status = "SYNCED"
             sync.last_error = None
             sync.synced_at = _utcnow()
@@ -260,7 +296,7 @@ def sync_job_now(
                 "status": sync.status,
                 "attempt_count": sync.attempt_count,
                 "odoo_record_id": None,
-                "action": "SKIPPED",
+                "action": action,
                 "publication_field": None,
                 "published": False,
                 "fields_written": [],
