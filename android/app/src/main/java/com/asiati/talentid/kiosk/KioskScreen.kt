@@ -40,6 +40,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
@@ -52,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.asiati.talentid.camera.CameraPreview
+import com.asiati.talentid.camera.FaceObservation
 import com.asiati.talentid.camera.captureKioskPhoto
 import com.asiati.talentid.camera.rememberKioskCameraController
 import com.asiati.talentid.camera.rememberQrScannerController
@@ -306,6 +309,8 @@ private fun KioskScreen(
     var identityMode by remember { mutableStateOf(KioskIdentityMode.FACE) }
     var qrEventType by remember { mutableStateOf<AttendanceEventType?>(null) }
     var qrScanLocked by remember { mutableStateOf(false) }
+    var faceObservation by remember { mutableStateOf(FaceObservation()) }
+    var faceReadyStable by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -323,6 +328,17 @@ private fun KioskScreen(
         if (state.lastResult != null) {
             delay(4500)
             onDismissResult()
+        }
+    }
+
+    LaunchedEffect(faceObservation.ready) {
+        if (faceObservation.ready) {
+            delay(300)
+            if (faceObservation.ready) {
+                faceReadyStable = true
+            }
+        } else {
+            faceReadyStable = false
         }
     }
 
@@ -349,6 +365,8 @@ private fun KioskScreen(
                     captureError = null
                     qrEventType = null
                     qrScanLocked = false
+                    faceObservation = FaceObservation()
+                    faceReadyStable = false
                 },
             )
 
@@ -365,6 +383,7 @@ private fun KioskScreen(
                 val controller = rememberKioskCameraController(
                     context = androidContext,
                     lifecycleOwner = lifecycleOwner,
+                    onFaceObservation = { faceObservation = it },
                 )
                 val submitFaceEvent: (AttendanceEventType) -> Unit = { eventType ->
                     captureError = null
@@ -396,11 +415,15 @@ private fun KioskScreen(
                             modifier = Modifier.weight(1.55f),
                             controller = controller,
                             submitting = state.submitting || capturing,
+                            faceObservation = faceObservation,
+                            faceReadyStable = faceReadyStable,
                         )
                         ActionPanel(
                             modifier = Modifier.weight(0.85f),
                             state = state.copy(submitting = state.submitting || capturing),
                             captureError = captureError,
+                            faceObservation = faceObservation,
+                            faceReady = faceReadyStable,
                             onRetryPending = onRetryPending,
                             onEvent = submitFaceEvent,
                         )
@@ -412,11 +435,15 @@ private fun KioskScreen(
                             .weight(1f),
                         controller = controller,
                         submitting = state.submitting || capturing,
+                        faceObservation = faceObservation,
+                        faceReadyStable = faceReadyStable,
                     )
                     ActionPanel(
                         modifier = Modifier.fillMaxWidth(),
                         state = state.copy(submitting = state.submitting || capturing),
                         captureError = captureError,
+                        faceObservation = faceObservation,
+                        faceReady = faceReadyStable,
                         onRetryPending = onRetryPending,
                         horizontalActions = true,
                         onEvent = submitFaceEvent,
@@ -866,6 +893,8 @@ private fun CameraStage(
     modifier: Modifier,
     controller: androidx.camera.view.LifecycleCameraController,
     submitting: Boolean,
+    faceObservation: FaceObservation,
+    faceReadyStable: Boolean,
 ) {
     Surface(
         modifier = modifier,
@@ -892,17 +921,24 @@ private fun CameraStage(
                     .padding(horizontal = 16.dp, vertical = 9.dp),
             ) {
                 Text(
-                    text = "Mira a la cámara y centra tu rostro",
+                    text = when {
+                        faceObservation.faceCount > 1 -> "Solo una persona frente a la cámara"
+                        faceReadyStable -> "Rostro listo para marcar"
+                        faceObservation.faceCount == 1 && !faceObservation.largeEnough -> "Rostro detectado · acércate un poco"
+                        faceObservation.faceCount == 1 && !faceObservation.centered -> "Rostro detectado · céntrate en la cámara"
+                        faceObservation.faceCount == 1 -> "Rostro detectado · mantén la posición"
+                        else -> "Mira a la cámara para detectar tu rostro"
+                    },
                     color = Color.White,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
 
-            FaceGuide(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .size(width = 205.dp, height = 270.dp),
+            FaceTrackingGuide(
+                observation = faceObservation,
+                ready = faceReadyStable,
+                modifier = Modifier.fillMaxSize(),
             )
 
             Box(
@@ -916,7 +952,12 @@ private fun CameraStage(
                     .padding(horizontal = 14.dp, vertical = 8.dp),
             ) {
                 Text(
-                    text = "Una persona · rostro visible · buena iluminación",
+                    text = when {
+                        faceObservation.faceCount > 1 -> "Debe verse un solo rostro"
+                        faceReadyStable -> "✓ Rostro detectado y bien posicionado"
+                        faceObservation.faceCount == 1 -> "Ajusta tu posición hasta que el óvalo cambie a verde"
+                        else -> "Una persona · rostro visible · buena iluminación"
+                    },
                     color = Color.White.copy(alpha = 0.92f),
                     style = MaterialTheme.typography.labelMedium,
                     textAlign = TextAlign.Center,
@@ -958,14 +999,76 @@ private fun CameraStage(
 }
 
 @Composable
-private fun FaceGuide(modifier: Modifier = Modifier) {
+private fun FaceTrackingGuide(
+    observation: FaceObservation,
+    ready: Boolean,
+    modifier: Modifier = Modifier,
+) {
     Canvas(modifier = modifier) {
+        val bounds = observation.bounds
+        if (bounds == null) {
+            val guideWidth = size.width * 0.34f
+            val guideHeight = size.height * 0.56f
+            val topLeft = Offset(
+                x = (size.width - guideWidth) / 2f,
+                y = (size.height - guideHeight) / 2f,
+            )
+            drawOval(
+                color = Color.White.copy(alpha = 0.34f),
+                topLeft = topLeft,
+                size = Size(guideWidth, guideHeight),
+                style = Stroke(width = 2.dp.toPx()),
+            )
+            return@Canvas
+        }
+
+        val scale = maxOf(
+            size.width / bounds.imageWidth.toFloat(),
+            size.height / bounds.imageHeight.toFloat(),
+        )
+        val renderedWidth = bounds.imageWidth * scale
+        val renderedHeight = bounds.imageHeight * scale
+        val offsetX = (size.width - renderedWidth) / 2f
+        val offsetY = (size.height - renderedHeight) / 2f
+
+        val rawLeft = offsetX + bounds.left * scale
+        val rawTop = offsetY + bounds.top * scale
+        val rawRight = offsetX + bounds.right * scale
+        val rawBottom = offsetY + bounds.bottom * scale
+        val faceWidth = rawRight - rawLeft
+        val faceHeight = rawBottom - rawTop
+        val horizontalPadding = faceWidth * 0.18f
+        val verticalPadding = faceHeight * 0.12f
+
+        val left = (rawLeft - horizontalPadding).coerceAtLeast(0f)
+        val top = (rawTop - verticalPadding).coerceAtLeast(0f)
+        val right = (rawRight + horizontalPadding).coerceAtMost(size.width)
+        val bottom = (rawBottom + verticalPadding).coerceAtMost(size.height)
+
+        val color = when {
+            observation.faceCount > 1 -> TalentWarning
+            ready -> TalentSuccess
+            else -> TalentCyan
+        }
+
         drawOval(
-            color = Color.White.copy(alpha = 0.94f),
-            style = Stroke(width = 3.dp.toPx()),
+            color = color.copy(alpha = 0.12f),
+            topLeft = Offset(left, top),
+            size = Size(right - left, bottom - top),
         )
         drawOval(
-            color = TalentCyan.copy(alpha = 0.55f),
+            color = color,
+            topLeft = Offset(left, top),
+            size = Size(right - left, bottom - top),
+            style = Stroke(width = 4.dp.toPx()),
+        )
+        drawOval(
+            color = Color.White.copy(alpha = 0.72f),
+            topLeft = Offset(left + 4.dp.toPx(), top + 4.dp.toPx()),
+            size = Size(
+                (right - left - 8.dp.toPx()).coerceAtLeast(1f),
+                (bottom - top - 8.dp.toPx()).coerceAtLeast(1f),
+            ),
             style = Stroke(width = 1.dp.toPx()),
         )
     }
@@ -976,6 +1079,8 @@ private fun ActionPanel(
     modifier: Modifier,
     state: KioskUiState,
     captureError: String?,
+    faceObservation: FaceObservation,
+    faceReady: Boolean,
     onRetryPending: () -> Unit,
     onEvent: (AttendanceEventType) -> Unit,
     horizontalActions: Boolean = false,
@@ -998,7 +1103,12 @@ private fun ActionPanel(
                     color = TalentInk,
                 )
                 Text(
-                    text = "Selecciona una opción. La foto se toma automáticamente.",
+                    text = when {
+                        faceObservation.faceCount > 1 -> "Debe haber una sola persona frente a la cámara."
+                        faceReady -> "Tu rostro está listo. Selecciona Entrada o Salida."
+                        faceObservation.faceCount == 1 -> "Ajusta tu posición hasta que el óvalo se vea verde."
+                        else -> "Mira a la cámara. Activaremos la marcación cuando detectemos tu rostro."
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = TalentInkSoft,
                 )
@@ -1009,7 +1119,7 @@ private fun ActionPanel(
 
             if (state.retryAvailable) {
                 RetryBanner(
-                    enabled = !state.submitting,
+                    enabled = faceReady && !state.submitting,
                     onRetry = onRetryPending,
                 )
             }
@@ -1024,7 +1134,7 @@ private fun ActionPanel(
                         title = "Entrada",
                         subtitle = "Inicio de jornada",
                         primary = true,
-                        enabled = !state.submitting,
+                        enabled = faceReady && !state.submitting,
                         onClick = { onEvent(AttendanceEventType.CHECK_IN) },
                     )
                     AttendanceAction(
@@ -1032,7 +1142,7 @@ private fun ActionPanel(
                         title = "Salida",
                         subtitle = "Fin de jornada",
                         primary = false,
-                        enabled = !state.submitting,
+                        enabled = faceReady && !state.submitting,
                         onClick = { onEvent(AttendanceEventType.CHECK_OUT) },
                     )
                 }
@@ -1042,7 +1152,7 @@ private fun ActionPanel(
                     title = "Registrar entrada",
                     subtitle = "Marca el inicio de tu jornada",
                     primary = true,
-                    enabled = !state.submitting,
+                    enabled = faceReady && !state.submitting,
                     onClick = { onEvent(AttendanceEventType.CHECK_IN) },
                 )
                 AttendanceAction(
@@ -1050,7 +1160,7 @@ private fun ActionPanel(
                     title = "Registrar salida",
                     subtitle = "Marca el cierre de tu jornada",
                     primary = false,
-                    enabled = !state.submitting,
+                    enabled = faceReady && !state.submitting,
                     onClick = { onEvent(AttendanceEventType.CHECK_OUT) },
                 )
             }
@@ -1061,8 +1171,8 @@ private fun ActionPanel(
             ) {
                 Text(
                     modifier = Modifier.padding(14.dp),
-                    text = "No necesitas tocar la pantalla después de elegir. " +
-                        "Talent ID captura una imagen temporal, verifica tu identidad y registra la marcación.",
+                    text = "La detección del óvalo ocurre localmente en la tablet y no identifica quién eres. " +
+                        "Cuando el rostro esté listo, Talent ID toma una imagen temporal para verificar tu identidad y registrar la marcación.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TalentInkSoft,
                 )

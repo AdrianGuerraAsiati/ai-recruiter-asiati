@@ -15,8 +15,8 @@ android {
         applicationId = "com.asiati.talentid"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
 
         buildConfigField("String", "TALENT_ID_API_BASE_URL", "\"$apiBaseUrl\"")
     }
@@ -54,6 +54,7 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.5.3")
     implementation("androidx.camera:camera-view:1.5.3")
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    implementation("com.google.mlkit:face-detection:16.1.7")
 
     implementation(platform("com.squareup.okhttp3:okhttp-bom:5.5.0"))
     implementation("com.squareup.okhttp3:okhttp")
