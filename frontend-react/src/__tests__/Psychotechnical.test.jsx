@@ -106,7 +106,12 @@ describe("Psychotechnical recruiter workspace", () => {
     renderPage();
 
     expect(await screen.findByText("Ana Pérez")).toBeInTheDocument();
-    expect(screen.getByText("Sentido común organizacional")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Sentido común organizacional",
+        level: 2,
+      }),
+    ).toBeInTheDocument();
     expect(screen.getByText("GTH-F-016")).toBeInTheDocument();
     expect(screen.getByText("90%")).toBeInTheDocument();
     expect(screen.getByText(/se conserva separado del Ranking IA/i)).toBeInTheDocument();
