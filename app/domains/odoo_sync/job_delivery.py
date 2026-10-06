@@ -236,7 +236,6 @@ def sync_job_now(
     """Synchronize one Talent vacancy with Odoo immediately and idempotently."""
 
     sync = require_job_sync(db, job_id)
-    transport = client or integration.build_odoo_client()
 
     sync.attempt_count = int(sync.attempt_count or 0) + 1
     sync.status = "PENDING"
@@ -268,6 +267,7 @@ def sync_job_now(
                 "synced_at": sync.synced_at.isoformat() if sync.synced_at else None,
             }
 
+        transport = client or integration.build_odoo_client()
         values, publication_field = build_hr_job_values(transport, payload)
         existing_id = _find_existing_job_id(
             transport,
@@ -342,12 +342,24 @@ def sync_all_jobs_now(db: Session, *, client=None) -> dict:
             "skipped": skipped,
         }
 
-    transport = client or integration.build_odoo_client()
+    transport = client
     synced = 0
     failed = 0
     for job_id in pending_job_ids:
+        sync = require_job_sync(db, job_id)
+        job_payload = dict((sync.payload or {}).get("job") or {})
+        status = str(job_payload.get("status") or "ACTIVE").strip().upper()
+        requires_transport = status == "ACTIVE" or bool(
+            str(sync.odoo_record_id or "").strip()
+        )
+        if requires_transport and transport is None:
+            transport = integration.build_odoo_client()
         try:
-            sync_job_now(db, job_id=job_id, client=transport)
+            sync_job_now(
+                db,
+                job_id=job_id,
+                client=transport if requires_transport else None,
+            )
             synced += 1
         except OdooJobDeliveryError:
             failed += 1
