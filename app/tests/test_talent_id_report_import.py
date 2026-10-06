@@ -490,3 +490,37 @@ def test_import_report_rejects_missing_site_and_invalid_timezone(monkeypatch):
     finally:
         db.close()
         engine.dispose()
+
+
+
+def test_biometric_parser_rejects_empty_oversized_and_invalid_files():
+    for raw, expected in (
+        (b"", "vacío"),
+        (b"x" * (attendance_import.MAX_REPORT_BYTES + 1), "10 MB"),
+        (b"not-an-xls", "formato .xls"),
+    ):
+        try:
+            attendance_import.parse_biometric_xls(raw)
+        except attendance_import.AttendanceReportError as exc:
+            assert expected in str(exc)
+        else:
+            raise AssertionError("Expected AttendanceReportError")
+
+
+def test_low_level_biff_guards_and_chain_cycle():
+    assert attendance_import._follow_chain(
+        0,
+        [1, 0],
+        max_items=10,
+    ) == [0, 1]
+
+    for parser, payload, expected in (
+        (attendance_import._parse_label, b"short", "texto incompleta"),
+        (attendance_import._parse_number, b"short", "numérica incompleta"),
+    ):
+        try:
+            parser(payload)
+        except attendance_import.AttendanceReportError as exc:
+            assert expected in str(exc)
+        else:
+            raise AssertionError("Expected AttendanceReportError")
