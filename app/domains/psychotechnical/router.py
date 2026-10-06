@@ -9,6 +9,7 @@ from app.deps import get_db, require_permission
 from app.domains.psychotechnical import service
 from app.domains.psychotechnical.schemas import (
     CreatePsychotechnicalAssignmentRequest,
+    RegeneratePsychotechnicalLinkRequest,
     SubmitPsychotechnicalRequest,
 )
 
@@ -68,6 +69,28 @@ def create_assignment(
             candidate_id=assignment.candidate_id,
         )[0],
         "token": token,
+    }
+
+
+@router.post("/assignments/{assignment_id}/link")
+def regenerate_assignment_link(
+    assignment_id: str,
+    body: RegeneratePsychotechnicalLinkRequest,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("psychotechnical.manage")),
+):
+    try:
+        assignment, token = service.regenerate_link(
+            db,
+            assignment_id,
+            expires_days=body.expires_days,
+        )
+    except Exception as exc:
+        raise _translate(exc) from exc
+    return {
+        "assignment_id": assignment.id,
+        "token": token,
+        "expires_at": assignment.expires_at.isoformat(),
     }
 
 
