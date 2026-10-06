@@ -2,6 +2,8 @@
 
 import re
 
+import fitz
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -235,3 +237,32 @@ def test_authenticated_checkbox_requires_explicit_confirmation(db):
         )
 
     assert db.query(talent_models.TalentBiometricConsentEvent).count() == 0
+
+
+def test_consent_pdf_uses_email_when_login_username_is_missing(db):
+    employee = UserProfile(
+        cognito_sub="sub-email-login",
+        email="persona@asiati.com.co",
+        login_username=None,
+        first_name="Persona",
+        last_name="Prueba",
+        status="ACTIVE",
+    )
+    db.add(employee)
+    db.commit()
+    db.refresh(employee)
+
+    event = consent.record_authenticated_decision(
+        db,
+        employee_id=employee.id,
+        decision="AUTHORIZED",
+        expected_document_version=consent.BIOMETRIC_CONSENT_VERSION,
+        confirmed=True,
+        evidence={"auth_sub": employee.cognito_sub, "source": "talent_web"},
+    )
+
+    document = fitz.open(stream=event.signed_pdf, filetype="pdf")
+    pdf_text = "\n".join(page.get_text() for page in document)
+
+    assert "Usuario Talent: persona@asiati.com.co" in pdf_text
+    assert "Usuario Talent: No registrado" not in pdf_text
