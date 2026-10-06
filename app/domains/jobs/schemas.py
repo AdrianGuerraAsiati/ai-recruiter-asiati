@@ -104,6 +104,10 @@ class UpdateJobRequest(BaseModel):
     evaluation_profile: EvaluationProfile | None = None
 
 
+class SetJobStatusRequest(BaseModel):
+    status: Literal["ACTIVE", "PAUSED"]
+
+
 class JobResponse(BaseModel):
     job_id: str
     id: str
