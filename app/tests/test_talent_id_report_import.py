@@ -207,7 +207,7 @@ def test_import_report_prefers_biometric_id_for_historical_employee(monkeypatch)
             email="historical@asiati.com.co",
             first_name="Nombre Actual",
             last_name="Distinto",
-            status="DISABLED",
+            status="ACTIVE",
         )
         db.add(employee)
         db.commit()
@@ -234,6 +234,7 @@ def test_import_report_prefers_biometric_id_for_historical_employee(monkeypatch)
             attendance_eligible=True,
         )
         setting.biometric_user_id = "9001"
+        employee.status = "DISABLED"
         db.commit()
 
         monkeypatch.setattr(
