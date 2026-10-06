@@ -713,6 +713,38 @@ table tbody tr:hover {
   margin-top: 18px;
 }
 
+.candidate-directory-toolbar-controls {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.candidate-search-control,
+.candidate-sort-control {
+  display: grid;
+  gap: 6px;
+}
+
+.candidate-search-control span,
+.candidate-sort-control span {
+  color: var(--ink-faint);
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.candidate-search-control input {
+  width: min(320px, 42vw);
+  min-height: 42px;
+}
+
+.candidate-user-modal {
+  max-width: 680px;
+}
+
 .candidate-pagination {
   display: flex;
   align-items: center;
@@ -815,6 +847,11 @@ body.nav-mobile-open {
 
   .candidate-directory-header .candidate-actions,
   .candidate-directory-header .candidate-actions .btn,
+  .candidate-directory-toolbar-controls,
+  .candidate-search-control,
+  .candidate-search-control input,
+  .candidate-sort-control,
+  .candidate-sort-control select,
   .candidate-directory-controls .btn,
   .candidate-directory-controls select,
   .candidate-pagination-controls .btn {
