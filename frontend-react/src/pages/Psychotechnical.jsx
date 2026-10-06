@@ -177,6 +177,26 @@ export default function Psychotechnical() {
     }
   }
 
+  async function regenerateLink(assignment) {
+    setError("");
+    try {
+      const { data } = await api.post(
+        `/psychotechnical/assignments/${assignment.id}/link`,
+        { expires_days: 7 },
+      );
+      setCreatedLink(`${window.location.origin}/psychotechnical/take/${data.token}`);
+      setCopyNotice("");
+      setAssignOpen(true);
+      await loadAssignments();
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, {
+        action: "generar un nuevo enlace",
+        resource: "prueba psicotécnica",
+        fallback: "No fue posible generar un nuevo enlace.",
+      }));
+    }
+  }
+
   async function cancelAssignment(assignment) {
     if (!window.confirm(`¿Cancelar la prueba de ${assignment.candidate_name || "este candidato"}?`)) return;
     try {
@@ -314,6 +334,13 @@ export default function Psychotechnical() {
 
                 {["PENDING", "IN_PROGRESS"].includes(item.status) && (
                   <div className="psychotechnical-assignment-actions">
+                    <button
+                      className="btn btn-secondary"
+                      type="button"
+                      onClick={() => regenerateLink(item)}
+                    >
+                      Nuevo enlace
+                    </button>
                     <button
                       className="btn btn-secondary"
                       type="button"
