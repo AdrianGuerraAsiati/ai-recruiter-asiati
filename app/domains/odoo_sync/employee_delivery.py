@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.domains.odoo_sync import integration
 from app.integrations.odoo.client import OdooClientError
-from app.models import OdooEmployeeSync
+from app.models import OdooEmployeeSync, UserProfile
 
 
 class OdooEmployeeSyncNotFound(LookupError):
@@ -26,6 +26,69 @@ class OdooEmployeeDeliveryError(RuntimeError):
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _direct_employee_payload(employee: UserProfile) -> dict:
+    name = " ".join(
+        part for part in (employee.first_name, employee.last_name) if part
+    ).strip()
+    return {
+        "schema_version": 1,
+        "operation": "UPSERT_EMPLOYEE",
+        "source": {
+            "employee_id": employee.id,
+            "origin": "TALENT_EMPLOYEE_CREATE",
+        },
+        "employee": {
+            "name": name,
+            "email": employee.email,
+            "job_title": employee.job_title,
+            "department": employee.department,
+            "hire_date": (
+                employee.hire_date.isoformat()
+                if employee.hire_date
+                else None
+            ),
+        },
+        "candidate": {},
+        "job": {
+            "title": employee.job_title,
+        },
+    }
+
+
+def ensure_direct_employee_sync(
+    db: Session,
+    *,
+    employee: UserProfile,
+) -> OdooEmployeeSync:
+    """Create/update the durable Odoo outbox for an employee created in Talent."""
+    payload = _direct_employee_payload(employee)
+    sync = (
+        db.query(OdooEmployeeSync)
+        .filter(OdooEmployeeSync.employee_id == employee.id)
+        .one_or_none()
+    )
+    if sync is None:
+        sync = OdooEmployeeSync(
+            employee_id=employee.id,
+            source_job_candidate_id=None,
+            idempotency_key=f"employee:{employee.id}",
+            payload=payload,
+            status="PENDING",
+        )
+        db.add(sync)
+    else:
+        changed = sync.payload != payload
+        sync.payload = payload
+        if changed and sync.status != "PENDING":
+            sync.status = "PENDING"
+            sync.attempt_count = 0
+            sync.last_error = None
+            sync.synced_at = None
+    db.commit()
+    db.refresh(sync)
+    return sync
 
 
 def require_employee_sync(db: Session, employee_id: str) -> OdooEmployeeSync:
@@ -219,6 +282,15 @@ def sync_employee_now(
         sync.status = "SYNCED"
         sync.last_error = None
         sync.synced_at = _utcnow()
+
+        profile = (
+            db.query(UserProfile)
+            .filter(UserProfile.id == sync.employee_id)
+            .one_or_none()
+        )
+        if profile is not None:
+            profile.odoo_employee_id = str(odoo_id)
+
         db.commit()
         db.refresh(sync)
         return {
