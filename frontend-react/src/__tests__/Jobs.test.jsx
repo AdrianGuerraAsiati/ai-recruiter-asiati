@@ -138,6 +138,36 @@ describe("Jobs page", () => {
     expect(screen.getAllByText("Eliminar").length).toBeGreaterThanOrEqual(1);
   });
 
+
+
+  it("activates and deactivates vacancies from each card", async () => {
+    api.put.mockResolvedValueOnce({
+      data: {
+        ...JOBS[0],
+        status: "PAUSED",
+      },
+    });
+
+    renderJobs();
+    await screen.findByText("Backend Developer");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Desactivar Backend Developer" }),
+    );
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith(
+        "/jobs/job-1/status",
+        { status: "PAUSED" },
+      );
+    });
+
+    expect(
+      await screen.findByRole("button", { name: "Activar Backend Developer" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Vacante desactivada/i)).toBeInTheDocument();
+  });
+
   it("click Ver opens dialog with full job info", async () => {
     renderJobs();
     await screen.findByText("Backend Developer");
