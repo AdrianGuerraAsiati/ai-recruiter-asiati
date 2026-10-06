@@ -24,7 +24,7 @@ from app.config import (
     get_talent_id_qr_settings,
 )
 from app.deps import get_current_principal, get_db, require_permission
-from app.domains.talent_id import biometrics, consent, mobile_qr, reporting, service
+from app.domains.talent_id import attendance_import, biometrics, consent, mobile_qr, reporting, service
 from app.domains.talent_id.models import TalentBiometricEnrollment
 from app.domains.talent_id.schemas import (
     ConfigureEmployeeAttendanceRequest,
@@ -722,6 +722,44 @@ def create_manual_attendance(
         **service.attendance_event_payload(event),
         "created": created,
     }
+
+
+@router.post("/attendance/import-report")
+async def import_attendance_report(
+    report: UploadFile = File(...),
+    site_id: str = Form(...),
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("talent_id.manage")),
+):
+    actor_sub = str(principal.get("sub") or "").strip()
+    if not actor_sub:
+        raise HTTPException(
+            status_code=403,
+            detail="No fue posible identificar al administrador.",
+        )
+
+    filename = str(report.filename or "reporte.xls").strip()
+    if not filename.lower().endswith(".xls"):
+        raise HTTPException(
+            status_code=415,
+            detail="Carga el reporte original .xls exportado por el reloj biométrico.",
+        )
+
+    raw = await report.read(attendance_import.MAX_REPORT_BYTES + 1)
+    try:
+        return attendance_import.import_biometric_report(
+            db,
+            raw=raw,
+            site_id=site_id,
+            created_by_sub=actor_sub,
+            filename=filename,
+        )
+    except attendance_import.AttendanceReportError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.get("/attendance/report")
