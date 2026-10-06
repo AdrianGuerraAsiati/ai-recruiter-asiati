@@ -6,6 +6,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import CandidateDetail from "../pages/CandidateDetail";
 
+vi.mock("../context/SessionContext", () => ({
+  useSession: () => ({
+    hasPermission: (permission) => permission === "employees.create",
+  }),
+}));
+
 vi.mock("../api/client", () => ({
   default: { get: vi.fn(), post: vi.fn() },
 }));
