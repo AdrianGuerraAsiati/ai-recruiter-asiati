@@ -496,7 +496,19 @@ def test_alembic_head_builds_current_postgres_schema():
             "created_by_sub",
         }.issubset(attendance_columns)
 
+        employee_columns = {
+            column["name"]
+            for column in inspector.get_columns("user_profiles")
+        }
+        assert {"country_code", "company_name"}.issubset(employee_columns)
+
+        job_columns = {
+            column["name"]
+            for column in inspector.get_columns("jobs")
+        }
+        assert "company_name" in job_columns
+
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
-        assert revision == "044"
+        assert revision == "045"
     finally:
         engine.dispose()
