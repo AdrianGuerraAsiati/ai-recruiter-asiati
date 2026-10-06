@@ -34,7 +34,7 @@ def test_agent_workflow_builds_windows_onedir_and_uploads_artifact():
     artifact_action = re.search(r"actions/upload-artifact@v([0-9]+)", text)
     assert artifact_action is not None
     assert int(artifact_action.group(1)) >= 4
-    assert "ASIATI-Resume-Agent-Windows" in text
+    assert "ASIATI-Resume-Agent-Windows-SIGNED" in text
     assert "--self-test" in text
     assert "Execute packaged binary self-test" in text
 
@@ -51,3 +51,14 @@ def test_primary_ci_skips_agent_jobs_when_agent_paths_are_unchanged():
 def test_primary_ci_revalidates_agent_when_root_python_dependencies_change():
     text = CI_WORKFLOW.read_text(encoding="utf-8")
     assert "requirements[.]txt$" in text
+
+
+def test_agent_workflow_requires_authenticode_before_publishing_distribution_artifact():
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "Sign Windows executable" in text
+    assert "Verify Authenticode signature" in text
+    assert "tools\\indeed_resume_agent\\sign.ps1" in text
+    assert "WINDOWS_CODE_SIGNING_PFX_BASE64" in text
+    assert "WINDOWS_CODE_SIGNING_PFX_PASSWORD" in text
+    assert "steps.signing.outputs.signed == 'true'" in text
+    assert "No distributable artifact will be published" in text
