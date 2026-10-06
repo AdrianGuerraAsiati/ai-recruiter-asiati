@@ -49,6 +49,15 @@
   color: var(--ink-faint);
 }
 
+.psychotechnical-filter-note {
+  padding: 11px 14px;
+  border: 1px solid color-mix(in srgb, var(--blue) 16%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--blue) 5%, var(--surface));
+  color: var(--ink-soft);
+  font-size: .78rem;
+}
+
 .psychotechnical-directory {
   padding: 0;
   overflow: hidden;
