@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
+import { COUNTRY_OPTIONS, countryName } from "../data/countries";
 import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
 import Icon from "../components/ui/Icon";
@@ -68,6 +69,7 @@ function Jobs() {
   const [detailDescriptionTab, setDetailDescriptionTab] = useState("indeed");
   const [descriptionSourceBusy, setDescriptionSourceBusy] = useState(false);
   const [countryCode, setCountryCode] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [city, setCity] = useState("");
   const [employmentType, setEmploymentType] = useState("");
   const [publicSlug, setPublicSlug] = useState("");
@@ -604,7 +606,8 @@ function Jobs() {
       indeed_description: indeedDescription,
       ai_description: aiDescription,
       active_description_source: activeDescriptionSource,
-      country_code: countryCode,
+      country_code: countryCode || null,
+      company_name: companyName || null,
       city,
       employment_type: employmentType,
       response_time_business_days: responseTimeBusinessDays,
@@ -662,6 +665,7 @@ function Jobs() {
     setActiveDescriptionSource(source);
     setDescriptionTab(source);
     setCountryCode(job.country_code || "");
+    setCompanyName(job.company_name || "");
     setCity(job.city || "");
     setEmploymentType(job.employment_type || "");
     setResponseTimeBusinessDays(job.response_time_business_days ?? 2);
@@ -685,6 +689,7 @@ function Jobs() {
     setDescriptionTab("indeed");
     setDetailDescriptionTab("indeed");
     setCountryCode("");
+    setCompanyName("");
     setCity("");
     setEmploymentType("");
     setResponseTimeBusinessDays(2);
@@ -876,12 +881,48 @@ function Jobs() {
             )}
 
             <div className="job-publication-grid">
-              <div className="form-group"><label htmlFor="job-country">País (ISO)</label><input id="job-country" maxLength={2} placeholder="CO" value={countryCode} onChange={(e) => setCountryCode(e.target.value.toUpperCase())} /></div>
-              <div className="form-group"><label htmlFor="job-city">Ciudad</label><input id="job-city" placeholder="Bogotá" value={city} onChange={(e) => setCity(e.target.value)} /></div>
+              <div className="form-group">
+                <label htmlFor="job-country">País</label>
+                <select
+                  id="job-country"
+                  value={countryCode}
+                  onChange={(e) => {
+                    setCountryCode(e.target.value);
+                    setCity("");
+                  }}
+                >
+                  <option value="">Sin definir</option>
+                  {COUNTRY_OPTIONS.map((country) => (
+                    <option key={country.code} value={country.code}>
+                      {country.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label htmlFor="job-city">Oficina / ciudad</label>
+                <input
+                  id="job-city"
+                  placeholder={countryCode === "CO" ? "Bogotá" : "Ej. Santiago"}
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  disabled={!countryCode}
+                />
+                <small>{countryCode ? `Se usará para el filtro de oficinas en ${countryName(countryCode)}.` : "Selecciona primero el país."}</small>
+              </div>
+              <div className="form-group">
+                <label htmlFor="job-company">Empresa</label>
+                <input
+                  id="job-company"
+                  placeholder="ASIATI"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                />
+              </div>
               <div className="form-group"><label htmlFor="job-employment">Tipo de empleo</label><select id="job-employment" value={employmentType} onChange={(e) => setEmploymentType(e.target.value)}><option value="">Sin definir</option><option value="FULL_TIME">Tiempo completo</option><option value="PART_TIME">Medio tiempo</option><option value="CONTRACT">Contrato</option><option value="TEMPORARY">Temporal</option><option value="INTERNSHIP">Prácticas</option></select></div>
               <div className="form-group"><label htmlFor="job-slug">URL pública</label><input id="job-slug" placeholder="country-manager-chile" value={publicSlug} onChange={(e) => setPublicSlug(e.target.value)} /></div>
             </div>
-            <p className="muted job-publication-hint">Estos datos permiten publicar la misma vacante en asiaticorp.com/jobs e Indeed sin duplicarla.</p>
+            <p className="muted job-publication-hint">País y oficina alimentan directamente los filtros públicos de asiaticorp.com/jobs. La empresa se sincroniza con la compañía de Odoo cuando existe una coincidencia exacta.</p>
 
             <section className="job-description-editor" aria-label="Proceso de selección">
               <div className="job-description-source-header">
@@ -982,7 +1023,8 @@ function Jobs() {
                 <div><span className="muted">Título</span><strong>{viewJob.title}</strong></div>
                 <div><span className="muted">Fecha de creación</span><strong>{formatDate(viewJob.created_at)}</strong></div>
                 <div><span className="muted">Candidatos</span><strong>{viewJob.candidate_count || 0}</strong></div>
-                <div><span className="muted">Ubicación</span><strong>{[viewJob.city, viewJob.country_code].filter(Boolean).join(", ") || "Sin definir"}</strong></div>
+                <div><span className="muted">Ubicación</span><strong>{[viewJob.city, countryName(viewJob.country_code)].filter(Boolean).join(", ") || "Sin definir"}</strong></div>
+                <div><span className="muted">Empresa</span><strong>{viewJob.company_name || "Sin definir"}</strong></div>
               </div>
             </div>
 
