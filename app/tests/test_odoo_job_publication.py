@@ -609,3 +609,23 @@ def test_public_description_preserves_existing_html():
     assert delivery._public_website_description("<p>Experiencia contable</p>") == (
         "<p>Experiencia contable</p>"
     )
+
+
+
+def test_empty_talent_description_clears_odoo_demo_copy():
+    delivery = _publication_module()
+    client = FakeOdooClient(publication_field="website_published")
+
+    values, _ = delivery.build_hr_job_values(
+        client,
+        {
+            "job": {
+                "title": "Analista Contable",
+                "description": None,
+                "status": "ACTIVE",
+            },
+        },
+    )
+
+    assert values["website_description"] is False
+    assert values["job_details"] is False

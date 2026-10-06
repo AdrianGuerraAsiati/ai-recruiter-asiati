@@ -281,7 +281,7 @@ def build_hr_job_values(client, payload: dict) -> tuple[dict, str]:
     desired = {
         "name": _display_job_title(title),
         "description": job.get("description"),
-        "website_description": public_description,
+        "website_description": public_description if public_description is not None else False,
         # Odoo's default job_details contain generic English sample copy.
         # Talent is the source of truth, so suppress that placeholder instead
         # of publishing misleading process details.
