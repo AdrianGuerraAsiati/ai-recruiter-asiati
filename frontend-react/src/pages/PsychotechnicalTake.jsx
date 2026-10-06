@@ -6,7 +6,6 @@ import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import "./Psychotechnical.css";
 
-const COMMON_SENSE = "COMMON_SENSE_GTH_F016";
 const TEMPERAMENT = "TEMPERAMENT_GTH_F017";
 const VALANTI = "VALANTI_ASIATI";
 const ATTENTION = "ATTENTION_DETAIL_V00";
