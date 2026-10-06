@@ -313,8 +313,8 @@ describe("Employees administration", () => {
           last_name: "Pérez Gómez",
           job_title: "Líder comercial",
           department: "Ventas",
-          country_code: "",
-          company_name: "",
+          country_code: null,
+          company_name: null,
         },
       );
       expect(api.put).toHaveBeenCalledWith(
