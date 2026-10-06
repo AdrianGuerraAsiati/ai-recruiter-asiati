@@ -227,6 +227,7 @@ def list_candidates(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=20, le=20),
     sort: Literal["created_desc", "name_asc", "name_desc"] = Query("created_desc"),
+    q: str = Query("", max_length=120),
     db: Session = Depends(get_db),
     _user: dict = Depends(require_permission("candidates.read")),
 ):
@@ -236,6 +237,7 @@ def list_candidates(
         page=page,
         page_size=page_size,
         sort=sort,
+        q=q,
     )
     pages = (total + page_size - 1) // page_size if total else 0
     return {
