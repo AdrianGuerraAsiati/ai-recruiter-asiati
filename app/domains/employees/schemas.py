@@ -17,7 +17,7 @@ class CreateEmployeeRequest(BaseModel):
     last_name: str = Field(min_length=1, max_length=100)
     job_title: str | None = Field(default=None, max_length=160)
     department: str | None = Field(default=None, max_length=160)
-    country_code: str | None = Field(default=None, min_length=2, max_length=2)
+    country_code: str | None = Field(default=None, max_length=2)
     company_name: str | None = Field(default=None, max_length=160)
     hire_date: date | None = None
     role: RoleCode = "EMPLOYEE"
@@ -58,6 +58,18 @@ class CreateEmployeeRequest(BaseModel):
         return normalized or None
 
 
+    @field_validator("country_code")
+    @classmethod
+    def normalize_country_code(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        if not normalized:
+            return None
+        if len(normalized) != 2 or not normalized.isalpha():
+            raise ValueError("invalid country code")
+        return normalized
+
 class UpdateEmployeeRequest(BaseModel):
     first_name: str | None = Field(default=None, max_length=100)
     last_name: str | None = Field(default=None, max_length=100)
@@ -84,6 +96,8 @@ class UpdateEmployeeRequest(BaseModel):
         if value is None:
             return None
         normalized = value.strip().upper()
+        if not normalized:
+            return None
         if len(normalized) != 2 or not normalized.isalpha():
             raise ValueError("invalid country code")
         return normalized
