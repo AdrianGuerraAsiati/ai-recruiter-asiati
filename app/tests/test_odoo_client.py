@@ -51,6 +51,8 @@ class FakeModels:
             return 42
         if method == "write":
             return True
+        if method == "unlink":
+            return True
         return {"ok": True}
 
 
@@ -207,9 +209,10 @@ def test_convenience_methods_keep_business_mapping_outside_transport():
     ]
     assert client.create("hr.applicant", {"name": "Ana"}) == 42
     assert client.write("hr.applicant", [42], {"name": "Ana Pérez"}) is True
+    assert client.unlink("hr.applicant", [42]) is True
 
     methods = [call[4] for call in factory.models.calls]
-    assert methods == ["fields_get", "search_read", "create", "write"]
+    assert methods == ["fields_get", "search_read", "create", "write", "unlink"]
 
 
 def test_healthcheck_returns_non_secret_metadata():
