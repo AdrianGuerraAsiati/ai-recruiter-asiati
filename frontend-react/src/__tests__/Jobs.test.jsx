@@ -54,7 +54,7 @@ describe("Jobs page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useSession.mockReturnValue({
-      hasPermission: (permission) => permission === "employees.create",
+      hasPermission: (permission) => ["employees.create", "jobs.manage"].includes(permission),
     });
     api.get.mockImplementation((url) => {
       if (url === "/jobs/page") return Promise.resolve({ data: jobsPage() });
@@ -92,6 +92,46 @@ describe("Jobs page", () => {
     });
   });
 
+
+
+  it("opens vacancy creation as a popup instead of an inline section", async () => {
+    renderJobs();
+    await screen.findByText("Backend Developer");
+
+    fireEvent.click(screen.getByRole("button", { name: /Nueva vacante/i }));
+
+    const dialog = screen.getByRole("dialog", { name: "Nueva vacante" });
+    expect(dialog).toBeInTheDocument();
+    expect(dialog).toHaveClass("job-form-modal");
+    expect(screen.getByRole("button", { name: "Cerrar formulario de vacante" })).toBeInTheDocument();
+  });
+
+  it("reconciles vacancies with Odoo from the page header", async () => {
+    api.post.mockResolvedValueOnce({
+      data: {
+        total: 18,
+        active_total: 18,
+        paused_total: 0,
+        attempted: 18,
+        synced: 18,
+        failed: 0,
+        skipped: 0,
+      },
+    });
+
+    renderJobs();
+    await screen.findByText("Backend Developer");
+
+    fireEvent.click(screen.getByRole("button", { name: "Actualizar en Odoo" }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith("/odoo/jobs/sync");
+    });
+    expect(
+      await screen.findByText(/18 activas revisadas · 18 sincronizadas/i),
+    ).toBeInTheDocument();
+  });
+
   it("creates a vacancy with the editable selection process", async () => {
     renderJobs();
     await screen.findByText("Backend Developer");
@@ -102,6 +142,15 @@ describe("Jobs page", () => {
     });
     fireEvent.change(screen.getByLabelText("Descripción y requisitos"), {
       target: { value: "Python y pipelines" },
+    });
+    fireEvent.change(screen.getByLabelText("País"), {
+      target: { value: "CO" },
+    });
+    fireEvent.change(screen.getByLabelText("Oficina / ciudad"), {
+      target: { value: "Bogotá" },
+    });
+    fireEvent.change(screen.getByLabelText("Empresa"), {
+      target: { value: "ASIATI Colombia" },
     });
 
     expect(screen.getByLabelText("Tiempo para responder (días hábiles)")).toHaveValue(2);
@@ -119,6 +168,9 @@ describe("Jobs page", () => {
         "/jobs",
         expect.objectContaining({
           title: "Data Engineer",
+          country_code: "CO",
+          city: "Bogotá",
+          company_name: "ASIATI Colombia",
           response_time_business_days: 3,
           phone_call_count: 1,
           onsite_interview_count: 1,
