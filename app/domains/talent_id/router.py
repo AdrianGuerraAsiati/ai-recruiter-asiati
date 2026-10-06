@@ -1219,6 +1219,15 @@ async def recognize_and_record_attendance(
             image_bytes=image_bytes,
             match_threshold=settings.match_threshold,
         )
+    except biometrics.BiometricConsentRequired as exc:
+        raise HTTPException(
+            status_code=412,
+            detail=(
+                "Tu rostro fue identificado, pero no tienes una autorización biométrica vigente. "
+                "Ingresa a Talent > Mi perfil > Reconocimiento facial, marca la casilla de autorización "
+                "y selecciona 'Aceptar y continuar'. Mientras tanto puedes registrar asistencia con QR móvil."
+            ),
+        ) from exc
     except ClientError as exc:
         raise HTTPException(
             status_code=502,
