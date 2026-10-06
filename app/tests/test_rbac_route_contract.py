@@ -49,6 +49,7 @@ WRITE_ROUTE_PERMISSIONS = {
     },
     "app/domains/psychotechnical/router.py": {
         "create_assignment": "psychotechnical.manage",
+        "regenerate_assignment_link": "psychotechnical.manage",
         "cancel_assignment": "psychotechnical.manage",
     },
 }
