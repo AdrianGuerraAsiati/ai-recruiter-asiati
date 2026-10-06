@@ -11,6 +11,11 @@ from app.integrations.odoo.client import OdooClientError
 VIEW_KEY = "asiati_talent.jobs_modern"
 BASE_VIEW_KEY = "website_hr_recruitment.index"
 VIEW_NAME = "ASIATI Talent · Jobs modern layout"
+FILTER_VIEW_KEYS = (
+    "website_hr_recruitment.job_filter_by_countries",
+    "website_hr_recruitment.job_filter_by_offices",
+)
+
 
 STYLE_ARCH = r"""
 <data>
@@ -99,7 +104,7 @@ STYLE_ARCH = r"""
 
             .o_website_hr_recruitment_jobs_list #jobs_grid .card-body {
                 display: flex;
-                min-height: 250px;
+                min-height: 185px;
                 flex-direction: column;
                 padding: 1.35rem 1.4rem 1.2rem 1.55rem !important;
             }
@@ -126,16 +131,7 @@ STYLE_ARCH = r"""
             }
 
             .o_website_hr_recruitment_jobs_list .o_job_card_description {
-                display: -webkit-box;
-                min-height: 4.25rem;
-                margin-top: .2rem;
-                margin-bottom: 1rem !important;
-                overflow: hidden;
-                color: var(--asiati-muted) !important;
-                font-size: .86rem;
-                line-height: 1.55;
-                -webkit-box-orient: vertical;
-                -webkit-line-clamp: 3;
+                display: none !important;
             }
 
             .o_website_hr_recruitment_jobs_list .o_job_infos {
@@ -247,9 +243,29 @@ def _base_view(client) -> dict:
     return dict(rows[0])
 
 
+def _enable_filter_views(client) -> list[int]:
+    enabled: list[int] = []
+    for key in FILTER_VIEW_KEYS:
+        rows = client.search_read(
+            "ir.ui.view",
+            [["key", "=", key]],
+            fields=["id", "key", "active"],
+            limit=2,
+        )
+        if len(rows) != 1:
+            raise RuntimeError(f"Expected exactly one Odoo filter view for {key}.")
+        view_id = int(rows[0]["id"])
+        if not bool(rows[0].get("active")):
+            if not client.write("ir.ui.view", [view_id], {"active": True}):
+                raise RuntimeError(f"Odoo did not activate filter view {key}.")
+        enabled.append(view_id)
+    return enabled
+
+
 def apply_jobs_style(client=None) -> dict:
     transport = client or integration.build_odoo_client()
     base_view = _base_view(transport)
+    enabled_filter_views = _enable_filter_views(transport)
     existing = transport.search_read(
         "ir.ui.view",
         [["key", "=", VIEW_KEY]],
@@ -285,6 +301,7 @@ def apply_jobs_style(client=None) -> dict:
         "view_id": view_id,
         "view_key": VIEW_KEY,
         "base_view_id": int(base_view["id"]),
+        "enabled_filter_views": enabled_filter_views,
     }
 
 
