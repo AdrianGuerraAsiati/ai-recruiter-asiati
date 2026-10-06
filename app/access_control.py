@@ -47,6 +47,11 @@ PERMISSION_DEFINITIONS = {
     "training.quiz.take": "Presentar evaluaciones de capacitación.",
     "training.progress.read_own": "Consultar el progreso de capacitación propio.",
     "profile.read_own": "Consultar el perfil propio.",
+    "profile.update_own": "Editar datos personales propios.",
+    "employee_documents.read_own": "Consultar documentos solicitados propios.",
+    "employee_documents.upload_own": "Subir documentos solicitados propios.",
+    "employee_documents.read_all": "Consultar documentos de empleados.",
+    "employee_documents.manage": "Solicitar documentos a empleados.",
     "talent_id.read": "Consultar sedes, horarios, dispositivos y asistencia.",
     "talent_id.manage": "Administrar Talent ID, asistencia y dispositivos.",
     "talent_id.attendance.read_own": "Consultar la asistencia propia.",
@@ -65,6 +70,9 @@ _EMPLOYEE_PERMISSIONS = {
     "training.quiz.take",
     "training.progress.read_own",
     "profile.read_own",
+    "profile.update_own",
+    "employee_documents.read_own",
+    "employee_documents.upload_own",
     "talent_id.attendance.read_own",
 }
 
