@@ -32,11 +32,13 @@ describe("Public psychotechnical flow", () => {
       data: {
         status: "PENDING",
         candidate_name: "Ana Pérez",
-        test_name: "Razonamiento y atención",
-        test_description: "Prueba laboral objetiva.",
-        duration_minutes: 20,
+        test_key: "COMMON_SENSE_GTH_F016",
+        test_name: "Sentido común organizacional",
+        test_code: "GTH-F-016",
+        source_version: "00",
+        test_description: "Situaciones laborales para observar criterio organizacional.",
+        duration_minutes: 12,
         question_count: 2,
-        dimensions: ["Razonamiento lógico"],
       },
     });
     api.post.mockImplementation((url) => {
@@ -46,25 +48,25 @@ describe("Public psychotechnical flow", () => {
             assignment: {
               status: "IN_PROGRESS",
               candidate_name: "Ana Pérez",
-              test_name: "Razonamiento y atención",
+              test_key: "COMMON_SENSE_GTH_F016",
+              test_name: "Sentido común organizacional",
+              test_code: "GTH-F-016",
             },
             questions: [
               {
-                id: "L1",
-                dimension: "LOGICAL",
-                prompt: "2, 4, 8, __",
+                id: "SC01",
+                prompt: "¿Qué haces ante una visita sin identificación?",
                 options: [
-                  { id: "A", label: "10" },
-                  { id: "B", label: "16" },
+                  { id: "A", label: "Permitir ingreso" },
+                  { id: "C", label: "Verificar con el área correspondiente" },
                 ],
               },
               {
-                id: "L2",
-                dimension: "LOGICAL",
-                prompt: "A, C, F, __",
+                id: "SC02",
+                prompt: "¿Qué haces con información confidencial recibida por error?",
                 options: [
-                  { id: "A", label: "I" },
-                  { id: "B", label: "J" },
+                  { id: "A", label: "Compartirla" },
+                  { id: "C", label: "Informar al remitente" },
                 ],
               },
             ],
@@ -78,26 +80,26 @@ describe("Public psychotechnical flow", () => {
     });
   });
 
-  it("explains the non-clinical scope before starting", async () => {
+  it("explains the complementary and non-clinical scope before starting", async () => {
     renderPage();
 
-    expect(await screen.findByText("Razonamiento y atención")).toBeInTheDocument();
-    expect(screen.getByText(/No evalúa salud mental/i)).toBeInTheDocument();
-    expect(screen.getByText(/no determina por sí solo/i)).toBeInTheDocument();
+    expect(await screen.findByText("Sentido común organizacional")).toBeInTheDocument();
+    expect(screen.getByText(/no realiza diagnósticos clínicos/i)).toBeInTheDocument();
+    expect(screen.getByText(/no determina por sí solo una contratación/i)).toBeInTheDocument();
   });
 
-  it("collects every answer before allowing submission", async () => {
+  it("collects every common-sense answer before allowing submission", async () => {
     renderPage();
-    await screen.findByText("Razonamiento y atención");
+    await screen.findByText("Sentido común organizacional");
 
     fireEvent.click(screen.getByRole("button", { name: "Comenzar prueba" }));
 
-    expect(await screen.findByText("2, 4, 8, __")).toBeInTheDocument();
+    expect(await screen.findByText(/visita sin identificación/i)).toBeInTheDocument();
     const submit = screen.getByRole("button", { name: "Enviar prueba" });
     expect(submit).toBeDisabled();
 
-    fireEvent.click(screen.getByLabelText("16"));
-    fireEvent.click(screen.getByLabelText("J"));
+    fireEvent.click(screen.getByLabelText("Verificar con el área correspondiente"));
+    fireEvent.click(screen.getByLabelText("Informar al remitente"));
 
     expect(submit).toBeEnabled();
     fireEvent.click(submit);
@@ -107,8 +109,8 @@ describe("Public psychotechnical flow", () => {
         "/public/psychotechnical/token-123/submit",
         {
           answers: [
-            { question_id: "L1", option_id: "B" },
-            { question_id: "L2", option_id: "B" },
+            { question_id: "SC01", option_id: "C" },
+            { question_id: "SC02", option_id: "C" },
           ],
         },
       );
