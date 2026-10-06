@@ -53,6 +53,9 @@ function TalentIdFaceEnrollment({
   const [savingName, setSavingName] = useState(false);
   const [savingAttendance, setSavingAttendance] = useState(false);
   const [purgingBiometric, setPurgingBiometric] = useState(false);
+  const [diagnosticFile, setDiagnosticFile] = useState(null);
+  const [diagnostic, setDiagnostic] = useState(null);
+  const [diagnosing, setDiagnosing] = useState(false);
   const [nameForm, setNameForm] = useState({ first_name: "", last_name: "" });
 
   const activeEmployees = useMemo(
@@ -128,6 +131,8 @@ function TalentIdFaceEnrollment({
     setAttendance(null);
     setBiometric(null);
     setFiles([]);
+    setDiagnosticFile(null);
+    setDiagnostic(null);
     setError("");
     setSuccess("");
     setLoadingStatus(Boolean(nextEmployeeId));
@@ -243,6 +248,55 @@ function TalentIdFaceEnrollment({
     if (!employeeId) return;
     const { data } = await api.get(`/talent-id/employees/${employeeId}/biometrics`);
     setBiometric(data || {});
+  }
+
+  function selectDiagnosticFile(event) {
+    const file = event.target.files?.[0] || null;
+    setDiagnostic(null);
+    setError("");
+
+    if (!file) {
+      setDiagnosticFile(null);
+      return;
+    }
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+      event.target.value = "";
+      setDiagnosticFile(null);
+      setError("La foto de diagnóstico debe ser JPEG o PNG.");
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      event.target.value = "";
+      setDiagnosticFile(null);
+      setError("La foto de diagnóstico supera el límite de 5 MB.");
+      return;
+    }
+    setDiagnosticFile(file);
+  }
+
+  async function runBiometricDiagnostic() {
+    if (!employeeId || !diagnosticFile) return;
+
+    setDiagnosing(true);
+    setDiagnostic(null);
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.append("image", diagnosticFile);
+      const { data } = await api.post(
+        `/talent-id/employees/${employeeId}/biometrics/diagnose`,
+        formData,
+      );
+      setDiagnostic(data || null);
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "probar la similitud facial",
+        resource: "Talent ID",
+        fallback: "No fue posible ejecutar el diagnóstico biométrico.",
+      }));
+    } finally {
+      setDiagnosing(false);
+    }
   }
 
 
@@ -505,7 +559,7 @@ function TalentIdFaceEnrollment({
               <div className={`talent-id-photo-dropzone ${attendanceReady ? "" : "is-disabled"}`}>
                 <div>
                   <strong>Agregar fotografías</strong>
-                  <span>JPEG o PNG · máximo 5 MB por imagen · hasta 5 fotos por carga.</span>
+                  <span>JPEG o PNG · máximo 5 MB por imagen · hasta 5 fotos por carga. Incluye referencias con cambios de barba, cabello o gafas cuando aplique.</span>
                 </div>
                 <label className="btn btn-secondary" htmlFor="talent-id-employee-photos">
                   Seleccionar fotos
@@ -605,6 +659,78 @@ function TalentIdFaceEnrollment({
                 >
                   {uploading ? (uploadProgress || "Procesando…") : "Agregar fotos"}
                 </button>
+              </div>
+
+              <div className="talent-id-biometric-diagnostic">
+                <div className="talent-id-biometric-diagnostic-heading">
+                  <div>
+                    <span className="eyebrow">Diagnóstico admin</span>
+                    <strong>Probar similitud con una foto actual</strong>
+                    <small>
+                      Usa una selfie reciente sin agregarla al enrolamiento. Talent compara contra las referencias existentes y muestra el score real.
+                    </small>
+                  </div>
+                  <span className="talent-id-device-count">Solo admins</span>
+                </div>
+
+                <div className="talent-id-biometric-diagnostic-controls">
+                  <label className="btn btn-secondary" htmlFor="talent-id-biometric-diagnostic-photo">
+                    Elegir selfie
+                  </label>
+                  <input
+                    id="talent-id-biometric-diagnostic-photo"
+                    className="talent-id-photo-input"
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    onChange={selectDiagnosticFile}
+                    disabled={!biometricReady || diagnosing || faceCount === 0}
+                  />
+                  <span>
+                    {diagnosticFile ? diagnosticFile.name : "Selecciona una foto tomada en condiciones parecidas al kiosco."}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={runBiometricDiagnostic}
+                    disabled={!biometricReady || !diagnosticFile || diagnosing || faceCount === 0}
+                  >
+                    {diagnosing ? "Analizando…" : "Probar reconocimiento"}
+                  </button>
+                </div>
+
+                {diagnostic && (
+                  <div className={`talent-id-biometric-diagnostic-result ${diagnostic.passes_threshold ? "is-pass" : "is-fail"}`}>
+                    <div>
+                      <span>Similitud detectada</span>
+                      <strong>
+                        {diagnostic.similarity == null
+                          ? "Menor al rango diagnóstico"
+                          : `${Number(diagnostic.similarity).toFixed(2)}%`}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Umbral requerido</span>
+                      <strong>{Number(diagnostic.required_similarity || 0).toFixed(2)}%</strong>
+                    </div>
+                    <div>
+                      <span>Resultado</span>
+                      <strong>
+                        {diagnostic.passes_threshold
+                          ? "Reconocería correctamente"
+                          : diagnostic.matches_selected_employee
+                            ? "Coincide, pero no alcanza el umbral"
+                            : diagnostic.similarity == null
+                              ? "Sin coincidencia suficiente"
+                              : "La mejor coincidencia es otro enrolamiento"}
+                      </strong>
+                    </div>
+                    {!diagnostic.passes_threshold && (
+                      <small>
+                        Si esta apariencia es legítima y actual, agrega 2–3 fotos nuevas del empleado sin borrar las referencias anteriores.
+                      </small>
+                    )}
+                  </div>
+                )}
               </div>
             </form>
           </div>
