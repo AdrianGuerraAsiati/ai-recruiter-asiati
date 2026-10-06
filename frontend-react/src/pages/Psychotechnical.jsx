@@ -45,6 +45,7 @@ function resultEntries(item) {
 
 function ResultSummary({ item }) {
   const entries = resultEntries(item);
+  const isValanti = item.test_key === "VALANTI_ASIATI";
   const profile = item.dimension_scores?.PROFILE;
   const scoredEntries = entries.filter(([, value]) => Number.isFinite(Number(value.score)));
 
@@ -67,8 +68,14 @@ function ResultSummary({ item }) {
         {scoredEntries.map(([key, dimension]) => (
           <div key={key}>
             <span>{dimension.label || key}</span>
-            <strong>{Number(dimension.score).toFixed(Number(dimension.score) % 1 ? 1 : 0)}%</strong>
+            <strong>
+              {Number(dimension.score).toFixed(Number(dimension.score) % 1 ? 1 : 0)}
+              {isValanti ? "" : "%"}
+            </strong>
             {dimension.band && <small>{dimension.band}</small>}
+            {isValanti && Number.isFinite(Number(dimension.reference)) && (
+              <small>Referencia ASIATI: {dimension.reference} · Δ {dimension.difference}</small>
+            )}
             {Number.isFinite(Number(dimension.count)) && (
               <small>{dimension.count} de {dimension.total}</small>
             )}
