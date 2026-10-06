@@ -22,6 +22,8 @@ class FaceObservationTest {
                 bounds = bounds,
                 centered = true,
                 largeEnough = true,
+                tooLarge = false,
+                fullyVisible = true,
             ).ready,
         )
     }
@@ -34,6 +36,8 @@ class FaceObservationTest {
                 bounds = bounds,
                 centered = true,
                 largeEnough = true,
+                tooLarge = false,
+                fullyVisible = true,
             ).ready,
         )
         assertFalse(
@@ -42,6 +46,8 @@ class FaceObservationTest {
                 bounds = bounds,
                 centered = false,
                 largeEnough = true,
+                tooLarge = false,
+                fullyVisible = true,
             ).ready,
         )
         assertFalse(
@@ -50,6 +56,28 @@ class FaceObservationTest {
                 bounds = bounds,
                 centered = true,
                 largeEnough = false,
+                tooLarge = false,
+                fullyVisible = true,
+            ).ready,
+        )
+        assertFalse(
+            FaceObservation(
+                faceCount = 1,
+                bounds = bounds,
+                centered = true,
+                largeEnough = true,
+                tooLarge = true,
+                fullyVisible = true,
+            ).ready,
+        )
+        assertFalse(
+            FaceObservation(
+                faceCount = 1,
+                bounds = bounds,
+                centered = true,
+                largeEnough = true,
+                tooLarge = false,
+                fullyVisible = false,
             ).ready,
         )
     }
