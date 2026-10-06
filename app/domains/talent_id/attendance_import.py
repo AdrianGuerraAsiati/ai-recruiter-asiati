@@ -4,7 +4,8 @@ The current device export is a BIFF8 .xls workbook with these columns:
 ID de usuario, Nombre, Fecha/Hora, Dispositivo Nro., Registro, Departamento.
 
 Attendance ingestion deliberately does not depend on facial recognition, QR or kiosk
-credentials. Report rows are matched to active Talent employees by normalized full name.
+credentials. Report rows are matched by the clock user ID first, with normalized full
+name as a controlled fallback for first-time linking.
 """
 
 from __future__ import annotations
@@ -356,11 +357,9 @@ def import_biometric_report(
             "La sede tiene una zona horaria inválida."
         ) from exc
 
-    employees = (
-        db.query(UserProfile)
-        .filter(UserProfile.status == "ACTIVE")
-        .all()
-    )
+    # Historical reports may legitimately contain employees who are now disabled.
+    # Attendance eligibility/site assignment, not current HR status, governs import.
+    employees = db.query(UserProfile).all()
     employees_by_name: dict[str, list[UserProfile]] = defaultdict(list)
     for employee in employees:
         normalized = _normalize_text(_employee_name(employee))
@@ -371,6 +370,15 @@ def import_biometric_report(
         item.employee_id: item
         for item in db.query(TalentEmployeeAttendanceSetting).all()
     }
+    employees_by_id = {employee.id: employee for employee in employees}
+    employees_by_biometric_id: dict[str, list[UserProfile]] = defaultdict(list)
+    for setting in settings.values():
+        biometric_user_id = str(
+            getattr(setting, "biometric_user_id", None) or ""
+        ).strip()
+        employee = employees_by_id.get(setting.employee_id)
+        if biometric_user_id and employee is not None:
+            employees_by_biometric_id[biometric_user_id].append(employee)
 
     candidate_keys = [_event_key(row) for row in rows if row.record_code in EVENT_CODE_MAP]
     existing_keys = {
@@ -402,7 +410,17 @@ def import_biometric_report(
             unsupported_codes[row.record_code or "(vacío)"] += 1
             continue
 
-        matches = employees_by_name.get(_normalize_text(row.employee_name), [])
+        matched_by_biometric_id = False
+        matches = (
+            employees_by_biometric_id.get(row.device_user_id, [])
+            if row.device_user_id
+            else []
+        )
+        if matches:
+            matched_by_biometric_id = True
+        else:
+            matches = employees_by_name.get(_normalize_text(row.employee_name), [])
+
         if not matches:
             unmatched_rows += 1
             seen_unmatched.setdefault(
@@ -423,13 +441,36 @@ def import_biometric_report(
                     "device_user_id": row.device_user_id,
                     "name": row.employee_name,
                     "department": row.department,
-                    "reason": "AMBIGUOUS_NAME",
+                    "reason": (
+                        "AMBIGUOUS_BIOMETRIC_ID"
+                        if matched_by_biometric_id
+                        else "AMBIGUOUS_NAME"
+                    ),
                 },
             )
             continue
 
         employee = matches[0]
         setting = settings.get(employee.id)
+        if (
+            setting is not None
+            and not matched_by_biometric_id
+            and row.device_user_id
+            and setting.biometric_user_id
+            and setting.biometric_user_id != row.device_user_id
+        ):
+            unmatched_rows += 1
+            seen_unmatched.setdefault(
+                (row.device_user_id, row.employee_name),
+                {
+                    "device_user_id": row.device_user_id,
+                    "name": row.employee_name,
+                    "department": row.department,
+                    "reason": "BIOMETRIC_ID_MISMATCH",
+                },
+            )
+            continue
+
         if setting is None or not setting.attendance_eligible:
             ineligible_rows += 1
             seen_unmatched.setdefault(
@@ -454,6 +495,14 @@ def import_biometric_report(
                 },
             )
             continue
+
+        if (
+            row.device_user_id
+            and not setting.biometric_user_id
+            and not employees_by_biometric_id.get(row.device_user_id)
+        ):
+            setting.biometric_user_id = row.device_user_id
+            employees_by_biometric_id[row.device_user_id].append(employee)
 
         key = _event_key(row)
         if key in existing_keys:
