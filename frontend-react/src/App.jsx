@@ -17,7 +17,6 @@ import CandidateDetail from "./pages/CandidateDetail";
 import Integrations from "./pages/Integrations";
 import Employees from "./pages/Employees";
 import AccessManagement from "./pages/AccessManagement";
-import TalentId from "./pages/TalentId";
 import Attendance from "./pages/Attendance";
 import Training from "./pages/Training";
 import EmployeeScores from "./pages/EmployeeScores";
@@ -76,7 +75,6 @@ function AppRoutes() {
       <Route path="/profile" element={<ProtectedPage permission="profile.read_own"><Profile /></ProtectedPage>} />
       <Route path="/employees" element={<ProtectedPage permission="employees.read"><Employees /></ProtectedPage>} />
       <Route path="/access" element={<ProtectedPage permission="employees.credentials.manage"><AccessManagement /></ProtectedPage>} />
-      <Route path="/talent-id" element={<ProtectedPage permission="talent_id.manage"><TalentId /></ProtectedPage>} />
       <Route
         path="/attendance"
         element={(
