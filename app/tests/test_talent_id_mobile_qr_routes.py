@@ -1,6 +1,9 @@
 """HTTP coverage for linked-mobile non-biometric Talent ID attendance."""
 
 import base64
+
+import pytest
+from fastapi import HTTPException
 from datetime import time
 
 from cryptography.hazmat.primitives import hashes
@@ -167,20 +170,19 @@ def test_employee_links_phone_with_otp_and_kiosk_consumes_qr(monkeypatch):
             max_signature_attempts=settings.max_signature_attempts,
         )
 
-        marked = router.consume_mobile_qr_attendance(
-            body=KioskQrAttendanceRequest(
-                token=raw["token"],
-                event_type="check_in",
-            ),
-            x_device_id=kiosk.id,
-            x_device_secret=kiosk_secret,
-            db=db,
-        )
+        with pytest.raises(HTTPException) as exc:
+            router.consume_mobile_qr_attendance(
+                body=KioskQrAttendanceRequest(
+                    token=raw["token"],
+                    event_type="check_in",
+                ),
+                x_device_id=kiosk.id,
+                x_device_secret=kiosk_secret,
+                db=db,
+            )
 
-        assert marked["employee_id"] == employee.id
-        assert marked["verification_method"] == "qr"
-        assert marked["attendance"]["method"] == "qr"
-        assert marked["attendance"]["created"] is True
+        assert exc.value.status_code == 410
+        assert "qr" in str(exc.value.detail).lower()
     finally:
         db.close()
         engine.dispose()
