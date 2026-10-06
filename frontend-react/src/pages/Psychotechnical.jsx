@@ -1,5 +1,5 @@
 // eslint-disable-next-line no-unused-vars
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import api from "../api/client";
@@ -61,7 +61,7 @@ export default function Psychotechnical() {
   const [createdLink, setCreatedLink] = useState("");
   const [copyNotice, setCopyNotice] = useState("");
 
-  async function loadAssignments() {
+  const loadAssignments = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -82,18 +82,14 @@ export default function Psychotechnical() {
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    void loadAssignments();
-  }, [status, candidateIdFilter]);
+  }, [candidateIdFilter, query, status]);
 
   useEffect(() => {
     const id = window.setTimeout(() => {
       void loadAssignments();
     }, query.trim() ? 250 : 0);
     return () => window.clearTimeout(id);
-  }, [query, candidateIdFilter]);
+  }, [loadAssignments, query]);
 
   useEffect(() => {
     api.get("/jobs")
@@ -104,10 +100,7 @@ export default function Psychotechnical() {
   useEffect(() => {
     if (!assignOpen) return undefined;
     const normalized = candidateQuery.trim();
-    if (normalized.length < 2) {
-      setCandidateOptions([]);
-      return undefined;
-    }
+    if (normalized.length < 2) return undefined;
 
     const id = window.setTimeout(async () => {
       setCandidateLoading(true);
@@ -399,6 +392,7 @@ export default function Psychotechnical() {
                     value={candidateQuery}
                     onChange={(event) => {
                       setCandidateQuery(event.target.value);
+                      setCandidateOptions([]);
                       setForm((current) => ({ ...current, candidate_id: "" }));
                     }}
                   />
