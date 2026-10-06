@@ -335,7 +335,7 @@ def _render_signed_pdf(
         f"Versión {BIOMETRIC_CONSENT_VERSION}",
         "",
         f"Empleado: {_display_name(employee)}",
-        f"Usuario Talent: {employee.login_username or 'No registrado'}",
+        f"Usuario Talent: {employee.login_username or employee.email or employee.cognito_sub or 'No registrado'}",
         f"Correo verificado: {employee.email}",
         f"ID interno: {employee.id}",
         "",
