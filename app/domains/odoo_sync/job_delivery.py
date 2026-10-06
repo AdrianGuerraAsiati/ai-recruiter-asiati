@@ -159,7 +159,7 @@ def build_hr_job_values(client, payload: dict) -> tuple[dict, str]:
     desired = {
         "name": title,
         "description": job.get("description"),
-        "active": True,
+        "active": published,
         "no_of_recruitment": 1,
         publication_field: published,
     }
@@ -248,6 +248,26 @@ def sync_job_now(
         payload = dict(sync.payload or {})
         job_payload = dict(payload.get("job") or {})
         title = str(job_payload.get("title") or "").strip()
+        status = str(job_payload.get("status") or "ACTIVE").strip().upper()
+
+        if status != "ACTIVE" and not str(sync.odoo_record_id or "").strip():
+            sync.status = "SYNCED"
+            sync.last_error = None
+            sync.synced_at = _utcnow()
+            db.commit()
+            db.refresh(sync)
+            return {
+                "job_id": sync.job_id,
+                "status": sync.status,
+                "attempt_count": sync.attempt_count,
+                "odoo_record_id": None,
+                "action": "SKIPPED",
+                "publication_field": None,
+                "published": False,
+                "fields_written": [],
+                "synced_at": sync.synced_at.isoformat() if sync.synced_at else None,
+            }
+
         values, publication_field = build_hr_job_values(transport, payload)
         existing_id = _find_existing_job_id(
             transport,
