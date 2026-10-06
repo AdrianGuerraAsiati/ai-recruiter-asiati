@@ -745,11 +745,6 @@ function Jobs() {
     setError("");
   }
 
-  function toggleForm() {
-    if (showForm) cancelForm();
-    else { setEditingJob(null); resetJobFields(); setError(""); setShowForm(true); }
-  }
-
   const description = descriptionTab === "ai" ? aiDescription : indeedDescription;
   const activeDescription = activeDescriptionSource === "ai" ? aiDescription : indeedDescription;
 
