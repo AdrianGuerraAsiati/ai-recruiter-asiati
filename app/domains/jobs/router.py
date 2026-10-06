@@ -22,6 +22,7 @@ router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 def _publication_fields(body) -> dict:
     return {
         "country_code": body.country_code,
+        "company_name": body.company_name,
         "city": body.city,
         "employment_type": body.employment_type,
         "response_time_business_days": body.response_time_business_days,
