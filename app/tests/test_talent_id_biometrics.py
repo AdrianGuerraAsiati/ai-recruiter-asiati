@@ -252,3 +252,61 @@ def test_provider_cleanup_failure_is_persisted_for_retry(db):
     assert recovered.provider_cleanup_pending is False
     assert recovered.provider_cleanup_last_error is None
     assert recovery.deleted_user_ids == [employee.id]
+
+
+def test_admin_diagnostic_reports_similarity_without_recording_attendance(db):
+    employee = _employee(db, suffix="diagnostic-pass")
+    provider = FakeProvider()
+    enrollment = biometrics.enroll_employee(
+        db,
+        provider=provider,
+        employee_id=employee.id,
+        image_bytes=b"jpeg-enroll",
+    )
+    provider.match = _Match(
+        provider_user_id=enrollment.provider_user_id,
+        similarity=96.2,
+    )
+
+    diagnostic = biometrics.diagnose_employee(
+        db,
+        provider=provider,
+        employee_id=employee.id,
+        image_bytes=b"jpeg-current",
+        match_threshold=95.0,
+    )
+
+    assert diagnostic.selected_employee_id == employee.id
+    assert diagnostic.matched_employee_id == employee.id
+    assert diagnostic.matched_display_name == "Ana Prueba"
+    assert diagnostic.similarity == 96.2
+    assert diagnostic.required_similarity == 95.0
+    assert diagnostic.matches_selected_employee is True
+    assert diagnostic.passes_threshold is True
+
+
+def test_admin_diagnostic_exposes_near_match_below_production_threshold(db):
+    employee = _employee(db, suffix="diagnostic-low")
+    provider = FakeProvider()
+    enrollment = biometrics.enroll_employee(
+        db,
+        provider=provider,
+        employee_id=employee.id,
+        image_bytes=b"jpeg-enroll",
+    )
+    provider.match = _Match(
+        provider_user_id=enrollment.provider_user_id,
+        similarity=91.4,
+    )
+
+    diagnostic = biometrics.diagnose_employee(
+        db,
+        provider=provider,
+        employee_id=employee.id,
+        image_bytes=b"jpeg-current",
+        match_threshold=95.0,
+    )
+
+    assert diagnostic.similarity == 91.4
+    assert diagnostic.matches_selected_employee is True
+    assert diagnostic.passes_threshold is False

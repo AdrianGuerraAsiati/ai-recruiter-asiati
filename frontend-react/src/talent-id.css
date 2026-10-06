@@ -752,6 +752,90 @@
   line-height: 1.45;
 }
 
+.talent-id-biometric-diagnostic {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--blue) 20%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--blue) 3%, var(--surface));
+}
+
+.talent-id-biometric-diagnostic-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.talent-id-biometric-diagnostic-heading > div {
+  display: grid;
+  gap: 4px;
+}
+
+.talent-id-biometric-diagnostic-heading strong {
+  color: var(--ink);
+  font-size: .84rem;
+}
+
+.talent-id-biometric-diagnostic-heading small {
+  color: var(--ink-faint);
+  font-size: .72rem;
+  line-height: 1.45;
+}
+
+.talent-id-biometric-diagnostic-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.talent-id-biometric-diagnostic-controls > span {
+  min-width: 180px;
+  flex: 1;
+  color: var(--ink-faint);
+  font-size: .72rem;
+}
+
+.talent-id-biometric-diagnostic-result {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 13px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 22%, var(--border));
+  background: color-mix(in srgb, var(--danger) 5%, var(--surface));
+}
+
+.talent-id-biometric-diagnostic-result.is-pass {
+  border-color: color-mix(in srgb, var(--success) 28%, var(--border));
+  background: color-mix(in srgb, var(--success) 6%, var(--surface));
+}
+
+.talent-id-biometric-diagnostic-result > div {
+  display: grid;
+  gap: 3px;
+}
+
+.talent-id-biometric-diagnostic-result span {
+  color: var(--ink-faint);
+  font-size: .68rem;
+}
+
+.talent-id-biometric-diagnostic-result strong {
+  color: var(--ink);
+  font-size: .8rem;
+}
+
+.talent-id-biometric-diagnostic-result > small {
+  grid-column: 1 / -1;
+  color: var(--ink-soft);
+  font-size: .7rem;
+  line-height: 1.45;
+}
+
 @media (max-width: 900px) {
   .talent-id-biometric-card {
     grid-column: auto;
@@ -785,6 +869,20 @@
   }
 
   .talent-id-photo-selection {
+    grid-template-columns: 1fr;
+  }
+
+  .talent-id-biometric-diagnostic-heading,
+  .talent-id-biometric-diagnostic-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .talent-id-biometric-diagnostic-controls .btn {
+    width: 100%;
+  }
+
+  .talent-id-biometric-diagnostic-result {
     grid-template-columns: 1fr;
   }
 }
