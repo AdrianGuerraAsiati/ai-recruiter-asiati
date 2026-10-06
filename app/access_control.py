@@ -32,6 +32,8 @@ PERMISSION_DEFINITIONS = {
     "candidates.restrict": "Vetar o rehabilitar candidatos.",
     "ranking.read": "Consultar rankings de candidatos.",
     "ranking.recalculate": "Recalcular rankings de candidatos.",
+    "psychotechnical.read": "Consultar pruebas psicotécnicas laborales y sus resultados.",
+    "psychotechnical.manage": "Asignar y administrar pruebas psicotécnicas laborales.",
     "integrations.manage": "Administrar integraciones del sistema.",
     "employees.read": "Consultar empleados.",
     "employees.create": "Crear empleados.",
