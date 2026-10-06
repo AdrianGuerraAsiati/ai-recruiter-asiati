@@ -46,15 +46,14 @@ function Candidates() {
   const loadData = useCallback(async (targetPage = page) => {
     setLoadError("");
     try {
+      const candidateUrl = [
+        `/candidates?page=${targetPage}&page_size=${PAGE_SIZE}`,
+        candidateSort === "created_desc" ? "" : `&sort=${candidateSort}`,
+        query.trim() ? `&q=${encodeURIComponent(query.trim())}` : "",
+      ].join("");
+
       const [candidatesResponse, jobsResponse] = await Promise.all([
-        api.get("/candidates", {
-          params: {
-            page: targetPage,
-            page_size: PAGE_SIZE,
-            ...(candidateSort === "created_desc" ? {} : { sort: candidateSort }),
-            ...(query.trim() ? { q: query.trim() } : {}),
-          },
-        }),
+        api.get(candidateUrl),
         api.get("/jobs"),
       ]);
 
