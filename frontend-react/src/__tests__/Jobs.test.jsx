@@ -480,7 +480,8 @@ describe("Jobs page", () => {
     expect(await screen.findByText("Sin descripción.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /editar y enriquecer/i }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Líder de Marketing y Crecimiento" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Actualizar vacante" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /enriquecer con ia/i })).toBeInTheDocument();
     expect(screen.getByLabelText("Título de la vacante")).toHaveValue("Líder de Marketing y Crecimiento");
   });
