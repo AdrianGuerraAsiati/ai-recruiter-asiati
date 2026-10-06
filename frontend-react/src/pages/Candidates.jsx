@@ -10,6 +10,7 @@ import PageHeader from "../components/ui/PageHeader";
 import Icon from "../components/ui/Icon";
 import { EmptyState, FeedbackMessage, ProgressBar } from "../components/ui/StatePanel";
 import CandidateImportModal from "../features/candidate-import/CandidateImportModal.jsx";
+import CandidateCreateUserModal from "../components/CandidateCreateUserModal.jsx";
 
 const PAGE_SIZE = 20;
 
@@ -17,6 +18,7 @@ function Candidates() {
   const { hasPermission } = useSession();
   const { notify } = useNotice();
   const canRestrictCandidates = hasPermission("candidates.restrict");
+  const canCreateUsers = hasPermission("employees.create");
   const [candidates, setCandidates] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState({});
@@ -32,6 +34,8 @@ function Candidates() {
   const [restrictionMode, setRestrictionMode] = useState("ban");
   const [restrictionReason, setRestrictionReason] = useState("");
   const [restrictionSaving, setRestrictionSaving] = useState(false);
+  const [query, setQuery] = useState("");
+  const [userTarget, setUserTarget] = useState(null);
 
   const requestedJobId = searchParams.get("job_id") || "";
   const requestedSort = searchParams.get("sort") || "created_desc";
@@ -43,9 +47,14 @@ function Candidates() {
     setLoadError("");
     try {
       const [candidatesResponse, jobsResponse] = await Promise.all([
-        api.get(
-          `/candidates?page=${targetPage}&page_size=${PAGE_SIZE}${candidateSort === "created_desc" ? "" : `&sort=${candidateSort}`}`,
-        ),
+        api.get("/candidates", {
+          params: {
+            page: targetPage,
+            page_size: PAGE_SIZE,
+            ...(candidateSort === "created_desc" ? {} : { sort: candidateSort }),
+            ...(query.trim() ? { q: query.trim() } : {}),
+          },
+        }),
         api.get("/jobs"),
       ]);
 
@@ -68,13 +77,14 @@ function Candidates() {
         fallback: "No se pudo completar el directorio porque candidatos o vacantes no respondieron. Recarga la página antes de asignar perfiles.",
       }));
     }
-  }, [candidateSort, page]);
+  }, [candidateSort, page, query]);
 
   useEffect(() => {
-    // The initial request synchronizes this view with the API.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadData(page);
-  }, [loadData, page]);
+    const timeoutId = window.setTimeout(() => {
+      void loadData(page);
+    }, query.trim() ? 250 : 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [loadData, page, query]);
 
   useEffect(() => {
     if (!requestedJobId) return;
@@ -333,19 +343,34 @@ function Candidates() {
               : "perfiles disponibles"}
           </p>
         </div>
-        <label className="candidate-sort-control">
-          <span>Ordenar por</span>
-          <select
-            className="select"
-            aria-label="Ordenar candidatos"
-            value={candidateSort}
-            onChange={(event) => changeCandidateSort(event.target.value)}
-          >
-            <option value="created_desc">Más recientes</option>
-            <option value="name_asc">Nombre A–Z</option>
-            <option value="name_desc">Nombre Z–A</option>
-          </select>
-        </label>
+        <div className="candidate-directory-toolbar-controls">
+          <label className="candidate-search-control">
+            <span>Buscar</span>
+            <input
+              type="search"
+              value={query}
+              placeholder="Nombre o correo…"
+              aria-label="Buscar candidatos"
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(1);
+              }}
+            />
+          </label>
+          <label className="candidate-sort-control">
+            <span>Ordenar por</span>
+            <select
+              className="select"
+              aria-label="Ordenar candidatos"
+              value={candidateSort}
+              onChange={(event) => changeCandidateSort(event.target.value)}
+            >
+              <option value="created_desc">Más recientes</option>
+              <option value="name_asc">Nombre A–Z</option>
+              <option value="name_desc">Nombre Z–A</option>
+            </select>
+          </label>
+        </div>
       </div>
 
       {candidates.length === 0 ? (
@@ -378,6 +403,17 @@ function Candidates() {
                   <Icon name="applications" size={16} />
                   Ver CV
                 </button>
+                {canCreateUsers && (
+                  <button
+                    className="btn btn-primary"
+                    type="button"
+                    onClick={() => setUserTarget(candidate)}
+                    disabled={candidate.is_banned}
+                    title={candidate.is_banned ? "Quita el veto antes de crear el usuario." : undefined}
+                  >
+                    Crear usuario
+                  </button>
+                )}
                 {canRestrictCandidates && (
                   <button
                     className={`btn ${candidate.is_banned ? "btn-secondary" : "btn-danger"}`}
@@ -461,6 +497,13 @@ function Candidates() {
           </div>
         </div>
       )}
+
+      <CandidateCreateUserModal
+        open={Boolean(userTarget)}
+        candidateId={userTarget?.candidate_id}
+        candidate={userTarget}
+        onClose={() => setUserTarget(null)}
+      />
 
       {showCreateModal && (
         <CandidateImportModal
