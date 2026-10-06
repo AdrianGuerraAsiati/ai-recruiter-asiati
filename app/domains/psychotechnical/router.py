@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_permission
-from app.domains.psychotechnical import service
+from app.domains.psychotechnical import catalog, service
 from app.domains.psychotechnical.schemas import (
     CreatePsychotechnicalAssignmentRequest,
     RegeneratePsychotechnicalLinkRequest,
@@ -16,6 +16,13 @@ from app.domains.psychotechnical.schemas import (
 
 router = APIRouter(prefix="/api/psychotechnical", tags=["Psychotechnical"])
 public_router = APIRouter(prefix="/api/public/psychotechnical", tags=["Psychotechnical public"])
+
+
+@router.get("/catalog")
+def get_catalog(
+    _principal: dict = Depends(require_permission("psychotechnical.read")),
+):
+    return {"items": catalog.catalog_payload()}
 
 
 def _translate(exc: Exception) -> HTTPException:
@@ -33,6 +40,7 @@ def get_assignments(
     status: str | None = Query(default=None),
     q: str = Query(default="", max_length=120),
     candidate_id: str | None = Query(default=None),
+    test_key: str | None = Query(default=None, max_length=80),
     db: Session = Depends(get_db),
     _principal: dict = Depends(require_permission("psychotechnical.read")),
 ):
@@ -42,6 +50,7 @@ def get_assignments(
             status=status,
             q=q,
             candidate_id=candidate_id,
+            test_key=test_key,
         )
     }
 
@@ -57,6 +66,7 @@ def create_assignment(
             db,
             candidate_id=body.candidate_id,
             job_id=body.job_id,
+            test_key=body.test_key,
             expires_days=body.expires_days,
             created_by_sub=principal["sub"],
         )
