@@ -191,6 +191,8 @@ def create_employee(
             last_name=body.last_name,
             job_title=body.job_title,
             department=body.department,
+            country_code=body.country_code,
+            company_name=body.company_name,
             hire_date=body.hire_date,
             role_code=body.role,
             created_by_sub=principal.get("sub"),

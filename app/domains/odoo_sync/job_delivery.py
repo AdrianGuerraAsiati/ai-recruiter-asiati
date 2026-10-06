@@ -95,6 +95,30 @@ def _exact_address_id(
     return int(exact[0]["id"])
 
 
+def _company_id(client, company_name: str | None) -> int | None:
+    normalized = str(company_name or "").strip()
+    if not normalized:
+        return None
+    try:
+        rows = client.search_read(
+            "res.company",
+            [["name", "=ilike", normalized]],
+            fields=["id", "name"],
+            limit=10,
+        )
+    except OdooClientError:
+        return None
+
+    exact = [
+        row
+        for row in rows
+        if str(row.get("name") or "").strip().casefold() == normalized.casefold()
+    ]
+    if len(exact) != 1:
+        return None
+    return int(exact[0]["id"])
+
+
 def _employment_type_id(client, value: str | None) -> int | None:
     normalized = str(value or "").strip().upper()
     if not normalized:
@@ -138,6 +162,73 @@ def _employment_type_id(client, value: str | None) -> int | None:
     return None
 
 
+_TITLE_ACRONYMS = {
+    "API", "APIS", "ASIATI", "AWS", "BI", "BPO", "CEO", "CFO", "COO", "CRM",
+    "CTO", "ERP", "HR", "IA", "IT", "KAM", "LATAM", "QA", "SAP", "SQL", "TI",
+    "UI", "UX",
+}
+_TITLE_LOWER_WORDS = {
+    "a", "al", "con", "de", "del", "e", "el", "en", "la", "las", "los",
+    "o", "para", "por", "sin", "u", "y",
+}
+
+
+def _display_job_title(value: str | None) -> str:
+    """Return a human-friendly title without mutating Talent's stored title."""
+
+    source = str(value or "").strip()
+    if not source:
+        return ""
+
+    rendered: list[str] = []
+    word_index = 0
+    for token in source.split():
+        separators = ("–", "—")
+        if token in separators:
+            rendered.append(token)
+            continue
+
+        pieces: list[str] = []
+        current = ""
+        for char in token:
+            if char in "/-":
+                if current:
+                    pieces.append(current)
+                    current = ""
+                pieces.append(char)
+            else:
+                current += char
+        if current:
+            pieces.append(current)
+
+        output: list[str] = []
+        for piece in pieces:
+            if piece in {"/", "-"}:
+                output.append(piece)
+                continue
+
+            suffix = ""
+            base = piece
+            if len(piece) > 3 and piece[-3:].lower() in {"(a)", "(o)"}:
+                base, suffix = piece[:-3], piece[-3:].lower()
+
+            upper = base.upper()
+            lower = base.lower()
+            if upper in _TITLE_ACRONYMS:
+                normalized = upper
+            elif word_index > 0 and lower in _TITLE_LOWER_WORDS:
+                normalized = lower
+            else:
+                normalized = lower[:1].upper() + lower[1:]
+
+            output.append(normalized + suffix)
+            word_index += 1
+
+        rendered.append("".join(output))
+
+    return " ".join(rendered)
+
+
 def build_hr_job_values(client, payload: dict) -> tuple[dict, str]:
     """Map the stable Talent vacancy contract onto writable Odoo hr.job fields."""
 
@@ -157,7 +248,7 @@ def build_hr_job_values(client, payload: dict) -> tuple[dict, str]:
     publication_field = _publication_field(writable)
 
     desired = {
-        "name": title,
+        "name": _display_job_title(title),
         "description": job.get("description"),
         "active": published,
         "no_of_recruitment": 1,
@@ -168,6 +259,11 @@ def build_hr_job_values(client, payload: dict) -> tuple[dict, str]:
         for field, value in desired.items()
         if field in writable and value is not None
     }
+
+    if "company_id" in writable:
+        company_id = _company_id(client, job.get("company_name"))
+        if company_id is not None:
+            values["company_id"] = company_id
 
     if "address_id" in writable and str(job.get("city") or "").strip():
         address_id = _exact_address_id(

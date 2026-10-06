@@ -23,6 +23,7 @@ class FakeOdooClient:
             "job_title": {"type": "char"},
             "job_id": {"type": "many2one", "relation": "hr.job"},
             "department_id": {"type": "many2one", "relation": "hr.department"},
+            "company_id": {"type": "many2one", "relation": "res.company"},
             "active": {"type": "boolean"},
         }
 
@@ -65,6 +66,7 @@ def test_imports_all_odoo_employees_without_creating_access(db):
                 "work_email": "ana@asiati.com.co",
                 "job_title": "Desarrolladora",
                 "department_id": [2, "Tecnología"],
+                "company_id": [8, "ASIATI Colombia"],
                 "active": True,
             },
             {
@@ -110,6 +112,7 @@ def test_imports_all_odoo_employees_without_creating_access(db):
     assert profiles[0].cognito_sub is None
     assert profiles[0].first_name == "Ana Pérez"
     assert profiles[0].department == "Tecnología"
+    assert profiles[0].company_name == "ASIATI Colombia"
     assert profiles[0].onboarding_status == "NOT_REQUIRED"
     assert profiles[1].email is None
     assert profiles[1].job_title == "Mensajero"

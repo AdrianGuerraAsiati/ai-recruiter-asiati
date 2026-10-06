@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
 
 import Icon from "../../components/ui/Icon";
+import { countryName } from "../../data/countries";
+import { titleCase } from "../../utils/text";
 
 function JobCard({ job, onView, onEdit, onDelete, onToggleStatus, statusBusy = false }) {
   const candidateCount = job.candidate_count || 0;
-  const location = [job.city, job.country_code].filter(Boolean).join(" · ");
+  const location = [job.company_name, job.city, countryName(job.country_code)].filter(Boolean).join(" · ");
   const paused = job.status === "PAUSED";
 
   return (
@@ -18,7 +20,7 @@ function JobCard({ job, onView, onEdit, onDelete, onToggleStatus, statusBusy = f
         </span>
       </div>
 
-      <h3>{job.title}</h3>
+      <h3>{titleCase(job.title)}</h3>
       <p>{job.description}</p>
 
       <p className="job-description-source-meta">

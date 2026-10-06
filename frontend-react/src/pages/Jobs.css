@@ -1,3 +1,78 @@
+
+/* =====================================================
+   JOBS — Vacancy editor modal
+   ===================================================== */
+.job-form-overlay {
+  padding: 24px;
+}
+
+.job-form-modal {
+  display: flex;
+  width: min(1120px, calc(100vw - 32px));
+  max-width: 1120px;
+  max-height: calc(100vh - 48px);
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.job-form-modal-header {
+  flex: 0 0 auto;
+}
+
+.job-form-modal-header p {
+  margin: 5px 0 0;
+  color: var(--ink-faint);
+  font-size: 0.8rem;
+}
+
+.job-form-modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 22px 22px;
+  overscroll-behavior: contain;
+}
+
+.job-form-modal .job-form {
+  padding-top: 10px;
+}
+
+.job-form-modal-actions {
+  position: sticky;
+  z-index: 3;
+  bottom: -22px;
+  margin: 20px -22px -22px;
+  padding: 15px 22px 18px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+@media (max-width: 720px) {
+  .job-form-overlay {
+    padding: 8px;
+  }
+
+  .job-form-modal {
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+    border-radius: 16px;
+  }
+
+  .job-form-modal-body {
+    padding-inline: 14px;
+  }
+
+  .job-form-modal-actions {
+    bottom: -22px;
+    margin-inline: -14px;
+    padding-inline: 14px;
+  }
+
+  .job-publication-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* =====================================================
    JOBS — Card actions
    ===================================================== */

@@ -61,6 +61,7 @@ def _fields_to_read(fields: dict[str, dict[str, Any]]) -> list[str]:
         "job_title",
         "job_id",
         "department_id",
+        "company_id",
         "active",
         "first_contract_date",
     )
@@ -96,6 +97,10 @@ def _department(row: dict) -> str | None:
     return _many2one_name(row.get("department_id"))
 
 
+def _company(row: dict) -> str | None:
+    return _many2one_name(row.get("company_id"))
+
+
 def _find_by_email(db: Session, email: str | None) -> UserProfile | None:
     if not email:
         return None
@@ -129,10 +134,13 @@ def _apply_odoo_values(
 
     title = _job_title(row)
     department = _department(row)
+    company = _company(row)
     if title is not None:
         profile.job_title = title
     if department is not None:
         profile.department = department
+    if company is not None:
+        profile.company_name = company
 
 
 def sync_employees_from_odoo(
@@ -200,6 +208,7 @@ def sync_employees_from_odoo(
                     last_name=None,
                     job_title=_job_title(row),
                     department=_department(row),
+                    company_name=_company(row),
                     hire_date=_hire_date(row),
                     onboarding_status="NOT_REQUIRED",
                     status=_employee_status(row),

@@ -52,6 +52,8 @@ describe("Employees administration", () => {
             last_name: "Pérez",
             job_title: "Comercial",
             department: "Ventas",
+            country_code: "CO",
+            company_name: "ASIATI Colombia",
             hire_date: "2026-09-24",
             onboarding_status: "IN_PROGRESS",
             onboarding_required: true,
@@ -311,6 +313,8 @@ describe("Employees administration", () => {
           last_name: "Pérez Gómez",
           job_title: "Líder comercial",
           department: "Ventas",
+          country_code: null,
+          company_name: null,
         },
       );
       expect(api.put).toHaveBeenCalledWith(
@@ -402,6 +406,33 @@ describe("Employees administration", () => {
     expect(
       screen.getByText(/debe existir al menos una sede y un horario activos/i),
     ).toBeInTheDocument();
+  });
+
+
+  it("shows and edits employee country and company", async () => {
+    renderPage();
+    await screen.findByText("Ana Pérez");
+
+    expect(screen.getByText(/Ventas · ASIATI Colombia · Colombia/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    fireEvent.change(screen.getByLabelText("País"), {
+      target: { value: "CL" },
+    });
+    fireEvent.change(screen.getByLabelText("Empresa"), {
+      target: { value: "ASIATI Chile" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith(
+        "/employees/employee-1",
+        expect.objectContaining({
+          country_code: "CL",
+          company_name: "ASIATI Chile",
+        }),
+      );
+    });
   });
 
 });

@@ -20,7 +20,6 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.db import Base
-
 class Candidate(Base):
     __tablename__ = "candidates"
 
@@ -104,6 +103,7 @@ class Job(Base):
     status = Column(Text, nullable=False, default="ACTIVE")
     owner_sub = Column(Text, nullable=True)
     country_code = Column(Text, nullable=True)
+    company_name = Column(Text, nullable=True)
     city = Column(Text, nullable=True)
     employment_type = Column(Text, nullable=True)
     response_time_business_days = Column(Integer, nullable=False, default=2)
@@ -716,6 +716,8 @@ class UserProfile(Base):
     last_name = Column(Text, nullable=True)
     job_title = Column(Text, nullable=True)
     department = Column(Text, nullable=True)
+    country_code = Column(Text, nullable=True)
+    company_name = Column(Text, nullable=True)
     hire_date = Column(Date, nullable=True)
     onboarding_status = Column(Text, nullable=False, default="PENDING")
     onboarding_started_at = Column(DateTime(timezone=True), nullable=True)
@@ -878,7 +880,6 @@ class EmployeeScoreEvent(Base):
         back_populates="score_events",
         foreign_keys=[employee_id],
     )
-
 # Odoo sync ORM models live with their domain and remain re-exported here.
 from app.domains.odoo_sync.models import (  # noqa: E402,F401
     OdooApplicantSync, OdooContractSync, OdooEmployeeSync, OdooJobSync,

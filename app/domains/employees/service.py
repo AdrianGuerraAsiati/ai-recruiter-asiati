@@ -129,6 +129,8 @@ def employee_payload(db: Session, profile: UserProfile) -> dict:
         "last_name": profile.last_name,
         "job_title": profile.job_title,
         "department": profile.department,
+        "country_code": getattr(profile, "country_code", None),
+        "company_name": getattr(profile, "company_name", None),
         "hire_date": profile.hire_date.isoformat() if profile.hire_date else None,
         "onboarding_status": profile.onboarding_status,
         "onboarding_required": profile.onboarding_status != "NOT_REQUIRED",
@@ -174,6 +176,8 @@ def list_employees(
                 UserProfile.last_name.ilike(pattern),
                 UserProfile.job_title.ilike(pattern),
                 UserProfile.department.ilike(pattern),
+                UserProfile.country_code.ilike(pattern),
+                UserProfile.company_name.ilike(pattern),
             )
         )
     if status:
@@ -264,6 +268,8 @@ def provision_employee(
     last_name: str,
     job_title: str | None,
     department: str | None,
+    country_code: str | None = None,
+    company_name: str | None = None,
     hire_date: date | None = None,
     role_code: str = EMPLOYEE,
     created_by_sub: str | None = None,
@@ -316,6 +322,8 @@ def provision_employee(
             last_name=last_name,
             job_title=job_title,
             department=department,
+            country_code=country_code,
+            company_name=company_name,
             hire_date=hire_date,
             onboarding_status="PENDING",
             status="ACTIVE",
@@ -362,6 +370,8 @@ def create_employee(
     last_name: str,
     job_title: str | None,
     department: str | None,
+    country_code: str | None = None,
+    company_name: str | None = None,
     hire_date: date | None = None,
     role_code: str = EMPLOYEE,
     created_by_sub: str | None = None,
@@ -375,6 +385,8 @@ def create_employee(
         last_name=last_name,
         job_title=job_title,
         department=department,
+        country_code=country_code,
+        company_name=company_name,
         hire_date=hire_date,
         role_code=role_code,
         created_by_sub=created_by_sub,
@@ -451,7 +463,15 @@ def update_employee(
     cognito_client=None,
 ) -> UserProfile:
     profile = require_employee(db, employee_id)
-    allowed = {"first_name", "last_name", "job_title", "department", "hire_date"}
+    allowed = {
+        "first_name",
+        "last_name",
+        "job_title",
+        "department",
+        "country_code",
+        "company_name",
+        "hire_date",
+    }
     changes = {key: value for key, value in changes.items() if key in allowed}
 
     identity_changes = []

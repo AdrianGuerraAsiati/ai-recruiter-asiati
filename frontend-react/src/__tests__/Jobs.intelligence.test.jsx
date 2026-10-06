@@ -126,8 +126,8 @@ describe("Jobs AI enrichment", () => {
     fireEvent.change(screen.getByLabelText("Descripción y requisitos"), {
       target: { value: "Necesitamos apoyo con AWS." },
     });
-    fireEvent.change(screen.getByLabelText("País (ISO)"), { target: { value: "CO" } });
-    fireEvent.change(screen.getByLabelText("Ciudad"), { target: { value: "Bogotá" } });
+    fireEvent.change(screen.getByLabelText("País"), { target: { value: "CO" } });
+    fireEvent.change(screen.getByLabelText("Oficina / ciudad"), { target: { value: "Bogotá" } });
 
     fireEvent.click(screen.getByRole("button", { name: /enriquecer con ia/i }));
 

@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
+import { titleCase } from "../utils/text";
+import { COUNTRY_OPTIONS, countryName } from "../data/countries";
 import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
 import Icon from "../components/ui/Icon";
@@ -68,6 +70,7 @@ function Jobs() {
   const [detailDescriptionTab, setDetailDescriptionTab] = useState("indeed");
   const [descriptionSourceBusy, setDescriptionSourceBusy] = useState(false);
   const [countryCode, setCountryCode] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [city, setCity] = useState("");
   const [employmentType, setEmploymentType] = useState("");
   const [publicSlug, setPublicSlug] = useState("");
@@ -96,6 +99,8 @@ function Jobs() {
     last_name: "",
     job_title: "",
     department: "",
+    country_code: "",
+    company_name: "",
     hire_date: todayInputValue(),
     contract_type: "Indefinido",
     contract_start_date: todayInputValue(),
@@ -115,6 +120,7 @@ function Jobs() {
   const [deletingJob, setDeletingJob] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [statusBusyId, setStatusBusyId] = useState("");
+  const [odooSyncing, setOdooSyncing] = useState(false);
 
   const [successMessage, setSuccessMessage] = useState("");
   const detailsRequestRef = useRef(0);
@@ -190,14 +196,14 @@ function Jobs() {
   }, []);
 
   useEffect(() => {
-    const modalOpen = !!(viewJob || deleteJobTarget || hireTarget);
+    const modalOpen = !!(showForm || viewJob || deleteJobTarget || hireTarget);
     if (modalOpen) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
     }
     return () => { document.body.style.overflow = ""; };
-  }, [viewJob, deleteJobTarget, hireTarget]);
+  }, [showForm, viewJob, deleteJobTarget, hireTarget]);
 
   const closeJobDetails = useCallback(() => {
     detailsRequestRef.current += 1;
@@ -219,11 +225,13 @@ function Jobs() {
         setDeleteError("");
       } else if (viewJob) {
         closeJobDetails();
+      } else if (showForm && !saving) {
+        cancelForm();
       }
     }
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [closeJobDetails, deleteJobTarget, deletingJob, hireTarget, hiring, viewJob]);
+  }, [closeJobDetails, deleteJobTarget, deletingJob, hireTarget, hiring, saving, showForm, viewJob]);
 
   async function refreshIndeedJobStatus(job = viewJob, requestId = null) {
     if (!job || !indeedIntegration?.enabled || !indeedIntegration?.configured) return;
@@ -357,6 +365,8 @@ function Jobs() {
       last_name: names.last_name,
       job_title: viewJob?.title || "",
       department: "",
+      country_code: viewJob?.country_code || "",
+      company_name: viewJob?.company_name || "",
       hire_date: todayInputValue(),
       contract_type: "Indefinido",
       contract_start_date: todayInputValue(),
@@ -401,6 +411,8 @@ function Jobs() {
           last_name: hireForm.last_name || null,
           job_title: hireForm.job_title || null,
           department: hireForm.department || null,
+          country_code: hireForm.country_code || null,
+          company_name: hireForm.company_name || null,
           hire_date: hireForm.hire_date || null,
           contract: {
             contract_type: hireForm.contract_type.trim(),
@@ -514,6 +526,34 @@ function Jobs() {
     }
   }
 
+  async function syncJobsToOdoo() {
+    if (odooSyncing) return;
+    setOdooSyncing(true);
+    setError("");
+    try {
+      const { data } = await api.post("/odoo/jobs/sync");
+      const active = Number(data?.active_total || 0);
+      const synced = Number(data?.synced || 0);
+      const failed = Number(data?.failed || 0);
+      const skipped = Number(data?.skipped || 0);
+      setSuccessMessage(
+        failed > 0
+          ? `Odoo actualizado parcialmente: ${synced} sincronizadas · ${failed} con error · ${active} activas revisadas.`
+          : `Odoo actualizado: ${active} activas revisadas · ${synced} sincronizadas · ${skipped} sin cambios.`,
+      );
+      await loadJobs();
+      setTimeout(() => setSuccessMessage(""), 7000);
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, {
+        action: "actualizar las vacantes en Odoo",
+        resource: "Odoo",
+        fallback: "No fue posible reconciliar las vacantes con Odoo. Las vacantes de Talent no fueron modificadas.",
+      }));
+    } finally {
+      setOdooSyncing(false);
+    }
+  }
+
   async function confirmDeleteJob(deleteCandidates) {
     if (!deleteJobTarget || deletingJob) return;
     try {
@@ -604,7 +644,8 @@ function Jobs() {
       indeed_description: indeedDescription,
       ai_description: aiDescription,
       active_description_source: activeDescriptionSource,
-      country_code: countryCode,
+      country_code: countryCode || null,
+      company_name: companyName || null,
       city,
       employment_type: employmentType,
       response_time_business_days: responseTimeBusinessDays,
@@ -662,6 +703,7 @@ function Jobs() {
     setActiveDescriptionSource(source);
     setDescriptionTab(source);
     setCountryCode(job.country_code || "");
+    setCompanyName(job.company_name || "");
     setCity(job.city || "");
     setEmploymentType(job.employment_type || "");
     setResponseTimeBusinessDays(job.response_time_business_days ?? 2);
@@ -674,7 +716,6 @@ function Jobs() {
     setEnrichmentError("");
     setError("");
     setShowForm(true);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function resetJobFields() {
@@ -685,6 +726,7 @@ function Jobs() {
     setDescriptionTab("indeed");
     setDetailDescriptionTab("indeed");
     setCountryCode("");
+    setCompanyName("");
     setCity("");
     setEmploymentType("");
     setResponseTimeBusinessDays(2);
@@ -702,11 +744,6 @@ function Jobs() {
     setEditingJob(null);
     setShowForm(false);
     setError("");
-  }
-
-  function toggleForm() {
-    if (showForm) cancelForm();
-    else { setEditingJob(null); resetJobFields(); setError(""); setShowForm(true); }
   }
 
   const description = descriptionTab === "ai" ? aiDescription : indeedDescription;
@@ -772,10 +809,25 @@ function Jobs() {
         title="Vacantes"
         description="Define, publica y administra los perfiles que tu equipo necesita incorporar."
         actions={(
-          <button className="btn btn-primary" type="button" onClick={toggleForm}>
-            <Icon name={showForm ? "error" : "plus"} size={17} />
-            {showForm ? "Cerrar formulario" : "Nueva vacante"}
-          </button>
+          <div className="ui-actions">
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={syncJobsToOdoo}
+              disabled={odooSyncing}
+            >
+              {odooSyncing ? "Actualizando Odoo…" : "Actualizar en Odoo"}
+            </button>
+            <button className="btn btn-primary" type="button" onClick={() => {
+              setEditingJob(null);
+              resetJobFields();
+              setError("");
+              setShowForm(true);
+            }}>
+              <Icon name="plus" size={17} />
+              Nueva vacante
+            </button>
+          </div>
         )}
         className="split-header"
       />
@@ -784,9 +836,38 @@ function Jobs() {
       {successMessage && <FeedbackMessage tone="success">{successMessage}</FeedbackMessage>}
 
       {showForm && (
-        <section className="panel job-form-panel">
-          <div className="panel-heading"><div><span className="eyebrow">{editingJob ? "Edición" : "Nueva posición"}</span><h2>{editingJob ? "Actualizar vacante" : "Define la vacante"}</h2></div><span className="step-badge">Perfil completo</span></div>
-          <form onSubmit={saveJob} className="job-form">
+        <div
+          className="modal-overlay job-form-overlay"
+          role="presentation"
+          onMouseDown={() => {
+            if (!saving) cancelForm();
+          }}
+        >
+          <section
+            className="modal job-form-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="job-form-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header job-form-modal-header">
+              <div>
+                <span className="eyebrow">{editingJob ? "Edición de posición" : "Gestión de posiciones"}</span>
+                <h2 id="job-form-title">{editingJob ? "Actualizar vacante" : "Nueva vacante"}</h2>
+                <p>{editingJob ? "Ajusta el perfil, publicación y proceso de selección." : "Define el perfil, país, oficina y datos de publicación."}</p>
+              </div>
+              <button
+                className="btn-close"
+                type="button"
+                aria-label="Cerrar formulario de vacante"
+                onClick={cancelForm}
+                disabled={saving}
+              >
+                ×
+              </button>
+            </div>
+            <div className="job-form-modal-body">
+              <form onSubmit={saveJob} className="job-form">
             <div className="form-group"><label htmlFor="job-title">Título de la vacante</label><input id="job-title" maxLength={75} placeholder="Ej. Cloud Engineer" value={title} onChange={(e) => setTitle(e.target.value)} required /></div>
             <section className="job-description-editor" aria-label="Versiones de la descripción">
               <div className="job-description-source-header">
@@ -876,12 +957,48 @@ function Jobs() {
             )}
 
             <div className="job-publication-grid">
-              <div className="form-group"><label htmlFor="job-country">País (ISO)</label><input id="job-country" maxLength={2} placeholder="CO" value={countryCode} onChange={(e) => setCountryCode(e.target.value.toUpperCase())} /></div>
-              <div className="form-group"><label htmlFor="job-city">Ciudad</label><input id="job-city" placeholder="Bogotá" value={city} onChange={(e) => setCity(e.target.value)} /></div>
+              <div className="form-group">
+                <label htmlFor="job-country">País</label>
+                <select
+                  id="job-country"
+                  value={countryCode}
+                  onChange={(e) => {
+                    setCountryCode(e.target.value);
+                    setCity("");
+                  }}
+                >
+                  <option value="">Sin definir</option>
+                  {COUNTRY_OPTIONS.map((country) => (
+                    <option key={country.code} value={country.code}>
+                      {country.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label htmlFor="job-city">Oficina / ciudad</label>
+                <input
+                  id="job-city"
+                  placeholder={countryCode === "CO" ? "Bogotá" : "Ej. Santiago"}
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  disabled={!countryCode}
+                />
+                <small>{countryCode ? `Se usará para el filtro de oficinas en ${countryName(countryCode)}.` : "Selecciona primero el país."}</small>
+              </div>
+              <div className="form-group">
+                <label htmlFor="job-company">Empresa</label>
+                <input
+                  id="job-company"
+                  placeholder="ASIATI"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                />
+              </div>
               <div className="form-group"><label htmlFor="job-employment">Tipo de empleo</label><select id="job-employment" value={employmentType} onChange={(e) => setEmploymentType(e.target.value)}><option value="">Sin definir</option><option value="FULL_TIME">Tiempo completo</option><option value="PART_TIME">Medio tiempo</option><option value="CONTRACT">Contrato</option><option value="TEMPORARY">Temporal</option><option value="INTERNSHIP">Prácticas</option></select></div>
               <div className="form-group"><label htmlFor="job-slug">URL pública</label><input id="job-slug" placeholder="country-manager-chile" value={publicSlug} onChange={(e) => setPublicSlug(e.target.value)} /></div>
             </div>
-            <p className="muted job-publication-hint">Estos datos permiten publicar la misma vacante en asiaticorp.com/jobs e Indeed sin duplicarla.</p>
+            <p className="muted job-publication-hint">País y oficina alimentan directamente los filtros públicos de asiaticorp.com/jobs. La empresa se sincroniza con la compañía de Odoo cuando existe una coincidencia exacta.</p>
 
             <section className="job-description-editor" aria-label="Proceso de selección">
               <div className="job-description-source-header">
@@ -905,9 +1022,11 @@ function Jobs() {
               </div>
             )}
 
-            <div className="form-actions"><button type="button" className="btn btn-ghost" onClick={cancelForm}>Cancelar</button><button type="submit" className="btn btn-primary" disabled={saving}>{saving ? "Guardando…" : editingJob ? "Guardar cambios" : "Crear vacante"}<span aria-hidden="true">→</span></button></div>
-          </form>
-        </section>
+            <div className="form-actions job-form-modal-actions"><button type="button" className="btn btn-ghost" onClick={cancelForm} disabled={saving}>Cancelar</button><button type="submit" className="btn btn-primary" disabled={saving}>{saving ? "Guardando…" : editingJob ? "Guardar cambios" : "Crear vacante"}<span aria-hidden="true">→</span></button></div>
+              </form>
+            </div>
+          </section>
+        </div>
       )}
 
       <section className="jobs-section">
@@ -937,7 +1056,7 @@ function Jobs() {
             description={query ? "Prueba otro título o limpia la búsqueda." : "Crea una posición para comenzar a comparar candidatos."}
             action={query
               ? <button className="btn btn-secondary" type="button" onClick={clearJobSearch}>Limpiar búsqueda</button>
-              : <button className="btn btn-secondary" type="button" onClick={() => setShowForm(true)}>Crear primera vacante</button>}
+              : <button className="btn btn-secondary" type="button" onClick={() => { setEditingJob(null); resetJobFields(); setShowForm(true); }}>Crear primera vacante</button>}
           />
         ) : (
           <div className="jobs-grid">
@@ -968,7 +1087,7 @@ function Jobs() {
             <div className="modal-header">
               <div>
                 <span className="eyebrow">Vacante</span>
-                <h2 id="job-details-title">{viewJob.title}</h2>
+                <h2 id="job-details-title">{titleCase(viewJob.title)}</h2>
                 <span className={`status-pill job-detail-status ${viewJob.status === "PAUSED" ? "is-paused" : ""}`}>
                   <i /> {viewJob.status === "PAUSED" ? "Pausada" : "Activa"}
                 </span>
@@ -979,10 +1098,11 @@ function Jobs() {
             <div className="job-detail-section">
               <h3>Información de la vacante</h3>
               <div className="job-detail-info-grid">
-                <div><span className="muted">Título</span><strong>{viewJob.title}</strong></div>
+                <div><span className="muted">Título</span><strong>{titleCase(viewJob.title)}</strong></div>
                 <div><span className="muted">Fecha de creación</span><strong>{formatDate(viewJob.created_at)}</strong></div>
                 <div><span className="muted">Candidatos</span><strong>{viewJob.candidate_count || 0}</strong></div>
-                <div><span className="muted">Ubicación</span><strong>{[viewJob.city, viewJob.country_code].filter(Boolean).join(", ") || "Sin definir"}</strong></div>
+                <div><span className="muted">Ubicación</span><strong>{[viewJob.city, countryName(viewJob.country_code)].filter(Boolean).join(", ") || "Sin definir"}</strong></div>
+                <div><span className="muted">Empresa</span><strong>{viewJob.company_name || "Sin definir"}</strong></div>
               </div>
             </div>
 
@@ -1136,7 +1256,7 @@ function Jobs() {
 
       <JobHireModal
         candidate={hireTarget}
-        jobTitle={viewJob?.title || "Vacante"}
+        jobTitle={titleCase(viewJob?.title) || "Vacante"}
         form={hireForm}
         hiring={hiring}
         error={hireError}

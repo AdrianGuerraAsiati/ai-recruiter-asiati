@@ -554,3 +554,23 @@ def test_sync_all_reconciles_active_job_even_when_local_sync_marker_is_synced(db
     assert len(client.created) == 1
     db.refresh(sync)
     assert sync.odoo_record_id == "501"
+
+
+def test_odoo_publication_normalizes_all_caps_title_for_display():
+    delivery = _publication_module()
+    client = FakeOdooClient(publication_field="website_published")
+
+    values, publication_field = delivery.build_hr_job_values(
+        client,
+        {
+            "job": {
+                "title": "KAM - KEY ACCOUNT MANAGER CHILE",
+                "description": "Gestión de cuentas estratégicas.",
+                "status": "ACTIVE",
+            },
+        },
+    )
+
+    assert publication_field == "website_published"
+    assert values["name"] == "KAM - Key Account Manager Chile"
+    assert values["description"] == "Gestión de cuentas estratégicas."

@@ -86,6 +86,7 @@ def build_hr_employee_values(client, payload: dict) -> tuple[dict, dict]:
     email = str(employee.get("email") or candidate.get("email") or "").strip()
     job_title = str(employee.get("job_title") or job.get("title") or "").strip()
     department = str(employee.get("department") or "").strip()
+    company_name = str(employee.get("company_name") or job.get("company_name") or "").strip()
     private_phone = str(candidate.get("phone") or "").strip()
 
     if not name:
@@ -118,9 +119,18 @@ def build_hr_employee_values(client, payload: dict) -> tuple[dict, dict]:
     resolved = {
         "department_id": None,
         "job_id": None,
+        "company_id": None,
         "department_matched": False,
         "job_matched": False,
+        "company_matched": False,
     }
+
+    if company_name and "company_id" in writable:
+        company_id = _exact_named_id(client, "res.company", company_name)
+        if company_id is not None:
+            values["company_id"] = company_id
+            resolved["company_id"] = company_id
+            resolved["company_matched"] = True
 
     if department and "department_id" in writable:
         department_id = _exact_named_id(client, "hr.department", department)

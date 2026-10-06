@@ -9,6 +9,7 @@ from app.domains.odoo_sync import (
     employee_delivery,
     employee_import,
     integration,
+    job_delivery,
 )
 from app.integrations.odoo.client import OdooClientError
 
@@ -49,6 +50,23 @@ def odoo_readonly_diagnostics(
             models[model] = {"available": False}
 
     return {"connection": status, "health": health, "models": models, "read_only": True}
+
+
+@router.post("/jobs/sync")
+def sync_jobs_to_odoo(
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("jobs.manage")),
+):
+    """Reconcile all Talent vacancies with Odoo using ACTIVE/PAUSED semantics."""
+    try:
+        return job_delivery.sync_all_jobs_now(db)
+    except (integration.OdooDisabled, integration.OdooNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except (job_delivery.OdooJobDeliveryError, OdooClientError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"No fue posible actualizar las vacantes en Odoo: {exc}",
+        )
 
 
 @router.post("/employees/import")

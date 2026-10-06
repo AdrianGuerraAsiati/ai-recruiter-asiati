@@ -98,8 +98,8 @@ describe("Jobs Indeed integration", () => {
     fireEvent.change(screen.getByLabelText("Descripción y requisitos"), {
       target: { value: "Lead strategic accounts in Colombia with strong commercial ownership." },
     });
-    fireEvent.change(screen.getByLabelText("País (ISO)"), { target: { value: "co" } });
-    fireEvent.change(screen.getByLabelText("Ciudad"), { target: { value: "Bogotá" } });
+    fireEvent.change(screen.getByLabelText("País"), { target: { value: "CO" } });
+    fireEvent.change(screen.getByLabelText("Oficina / ciudad"), { target: { value: "Bogotá" } });
     fireEvent.change(screen.getByLabelText("Tipo de empleo"), { target: { value: "FULL_TIME" } });
     fireEvent.change(screen.getByLabelText("URL pública"), { target: { value: "kam-colombia" } });
     fireEvent.click(screen.getByRole("button", { name: /crear vacante/i }));
@@ -112,6 +112,7 @@ describe("Jobs Indeed integration", () => {
         ai_description: "",
         active_description_source: "indeed",
         country_code: "CO",
+        company_name: null,
         city: "Bogotá",
         employment_type: "FULL_TIME",
         response_time_business_days: 2,

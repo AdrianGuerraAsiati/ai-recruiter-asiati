@@ -22,6 +22,12 @@ class FakeOdooClient:
             }]
         if key == style_odoo_jobs_page.VIEW_KEY:
             return [dict(self.existing_custom)] if self.existing_custom else []
+        if key in style_odoo_jobs_page.FILTER_VIEW_KEYS:
+            return [{
+                "id": 700 + style_odoo_jobs_page.FILTER_VIEW_KEYS.index(key),
+                "key": key,
+                "active": False,
+            }]
         raise AssertionError(domain)
 
     def create(self, model, values):
@@ -49,7 +55,8 @@ def test_jobs_style_creates_inherited_qweb_view():
     assert values["mode"] == "extension"
     assert values["key"] == style_odoo_jobs_page.VIEW_KEY
     assert ".o_website_hr_recruitment_jobs_list" in values["arch_db"]
-    assert "-webkit-line-clamp: 3" in values["arch_db"]
+    assert ".o_job_card_description" in values["arch_db"]
+    assert "display: none !important" in values["arch_db"]
     assert "#jobs_grid_right" in values["arch_db"]
 
 
@@ -67,5 +74,7 @@ def test_jobs_style_updates_existing_view_instead_of_duplicating():
     assert result["action"] == "UPDATED"
     assert result["view_id"] == 902
     assert client.created == []
-    assert client.written[0][0] == [902]
-    assert client.written[0][1]["inherit_id"] == 120
+    assert result["enabled_filter_views"] == [700, 701]
+    assert any(ids == [902] and values["inherit_id"] == 120 for ids, values in client.written)
+    assert any(ids == [700] and values == {"active": True} for ids, values in client.written)
+    assert any(ids == [701] and values == {"active": True} for ids, values in client.written)

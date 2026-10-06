@@ -57,6 +57,7 @@ class JobEnrichmentRequest(BaseModel):
     title: str = Field(min_length=1, max_length=MAX_JOB_TITLE_CHARS)
     description: str | None = Field(default=None, max_length=MAX_JOB_DESCRIPTION_CHARS)
     country_code: str | None = None
+    company_name: str | None = Field(default=None, max_length=160)
     city: str | None = None
     employment_type: str | None = None
     evaluation_profile: EvaluationProfile | None = None
@@ -73,6 +74,7 @@ class CreateJobRequest(BaseModel):
     ai_description: str | None = Field(default=None, max_length=MAX_JOB_DESCRIPTION_CHARS)
     active_description_source: Literal["indeed", "ai"] = "indeed"
     country_code: str | None = None
+    company_name: str | None = Field(default=None, max_length=160)
     city: str | None = None
     employment_type: str | None = None
     response_time_business_days: int = Field(default=2, ge=0, le=30)
@@ -92,6 +94,7 @@ class UpdateJobRequest(BaseModel):
     ai_description: str | None = Field(default=None, max_length=MAX_JOB_DESCRIPTION_CHARS)
     active_description_source: Literal["indeed", "ai"] | None = None
     country_code: str | None = None
+    company_name: str | None = Field(default=None, max_length=160)
     city: str | None = None
     employment_type: str | None = None
     response_time_business_days: int | None = Field(default=None, ge=0, le=30)
@@ -118,6 +121,7 @@ class JobResponse(BaseModel):
     active_description_source: Literal["indeed", "ai"] = "indeed"
     status: Literal["ACTIVE", "PAUSED"] = "ACTIVE"
     country_code: str | None = None
+    company_name: str | None = Field(default=None, max_length=160)
     city: str | None = None
     employment_type: str | None = None
     response_time_business_days: int = 2
