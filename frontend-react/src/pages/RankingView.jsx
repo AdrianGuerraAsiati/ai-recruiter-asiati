@@ -6,10 +6,14 @@ import { Link } from "react-router-dom";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import PageHeader from "../components/ui/PageHeader";
+import CandidateCreateUserModal from "../components/CandidateCreateUserModal.jsx";
+import { useSession } from "../context/SessionContext";
 import { LoadingState } from "../components/ui/StatePanel";
 import "./Ranking.css";
 
 function Ranking() {
+  const { hasPermission } = useSession();
+  const canCreateUsers = hasPermission("employees.create");
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState("");
   const [ranking, setRanking] = useState([]);
@@ -21,6 +25,7 @@ function Ranking() {
   const [requirementsLoading, setRequirementsLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [requirementsError, setRequirementsError] = useState("");
+  const [userTarget, setUserTarget] = useState(null);
 
   const [minScore, setMinScore] = useState(0);
   const [maxScore, setMaxScore] = useState(100);
@@ -1090,6 +1095,18 @@ async function recalculateRanking() {
                     Ver análisis
                   </button>
 
+                  {canCreateUsers && (
+                    <button
+                      className="btn btn-primary"
+                      type="button"
+                      onClick={() => setUserTarget(candidate)}
+                      disabled={candidate.is_banned}
+                      title={candidate.is_banned ? "Quita el veto antes de crear el usuario." : undefined}
+                    >
+                      Crear usuario
+                    </button>
+                  )}
+
                   <Link
                     className="btn btn-ghost ranking-profile-btn"
                     to={`/candidates/${candidate.candidate_id}?job_id=${selectedJob}`}
@@ -1103,6 +1120,14 @@ async function recalculateRanking() {
           })}
         </div>
       )}
+
+      <CandidateCreateUserModal
+        open={Boolean(userTarget)}
+        candidateId={userTarget?.candidate_id}
+        candidate={userTarget}
+        jobTitle={selectedJobData?.title || ""}
+        onClose={() => setUserTarget(null)}
+      />
 
       {/* 10. PAGINATION */}
       {rankingInfo.total > 0 && (
