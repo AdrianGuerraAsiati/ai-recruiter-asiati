@@ -278,6 +278,39 @@ def submit_assignment(db: Session, token: str, answers: list[dict]) -> dict:
     }
 
 
+def regenerate_link(
+    db: Session,
+    assignment_id: str,
+    *,
+    expires_days: int,
+) -> tuple[PsychotechnicalAssignment, str]:
+    assignment = (
+        db.query(PsychotechnicalAssignment)
+        .filter(PsychotechnicalAssignment.id == assignment_id)
+        .one_or_none()
+    )
+    if assignment is None:
+        raise PsychotechnicalNotFound("assignment")
+    if assignment.status in {"COMPLETED", "CANCELED"}:
+        raise PsychotechnicalConflict(
+            "Solo se puede generar un nuevo enlace para pruebas pendientes o en curso."
+        )
+
+    token = _public_token()
+    assignment.token_hash = _token_hash(token)
+    assignment.status = "PENDING"
+    assignment.expires_at = _utcnow() + timedelta(days=expires_days)
+    assignment.started_at = None
+    assignment.completed_at = None
+    assignment.duration_seconds = None
+    assignment.answers = None
+    assignment.score_total = None
+    assignment.dimension_scores = None
+    db.commit()
+    db.refresh(assignment)
+    return assignment, token
+
+
 def cancel_assignment(db: Session, assignment_id: str) -> dict:
     assignment = (
         db.query(PsychotechnicalAssignment)
