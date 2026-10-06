@@ -54,6 +54,7 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.5.3")
     implementation("androidx.camera:camera-view:1.5.3")
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    implementation("com.google.mlkit:face-detection:16.1.7")
 
     implementation(platform("com.squareup.okhttp3:okhttp-bom:5.5.0"))
     implementation("com.squareup.okhttp3:okhttp")
