@@ -135,41 +135,26 @@ def _setup(db):
     return employee, device, secret, provider
 
 
-def test_same_kiosk_idempotency_key_does_not_repeat_recognition(db, monkeypatch):
+def test_kiosk_facial_recognition_route_is_suspended(db, monkeypatch):
     monkeypatch.setenv("TALENT_ID_REKOGNITION_MATCH_THRESHOLD", "98")
-    employee, device, secret, provider = _setup(db)
+    _employee, device, secret, provider = _setup(db)
 
-    first = asyncio.run(
-        recognize_and_record_attendance(
-            image=_jpeg(),
-            event_type="check_in",
-            x_device_id=device.id,
-            x_device_secret=secret,
-            idempotency_key="retry-key-001",
-            db=db,
-            provider=provider,
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            recognize_and_record_attendance(
+                image=_jpeg(),
+                event_type="check_in",
+                x_device_id=device.id,
+                x_device_secret=secret,
+                idempotency_key="retry-key-001",
+                db=db,
+                provider=provider,
+            )
         )
-    )
-    provider.match = None
-    second = asyncio.run(
-        recognize_and_record_attendance(
-            image=_jpeg(b"different-image"),
-            event_type="check_in",
-            x_device_id=device.id,
-            x_device_secret=secret,
-            idempotency_key="retry-key-001",
-            db=db,
-            provider=provider,
-        )
-    )
 
-    assert first["employee_id"] == employee.id
-    assert first["attendance"]["created"] is True
-    assert second["employee_id"] == employee.id
-    assert second["attendance"]["created"] is False
-    assert second["attendance"]["id"] == first["attendance"]["id"]
-    assert second["attendance"]["event_type"] == "check_in"
-    assert provider.recognize_calls == 1
+    assert exc.value.status_code == 410
+    assert "suspendido" in str(exc.value.detail).lower()
+    assert provider.recognize_calls == 0
 
 
 def test_image_reader_rejects_non_image_content_type():
