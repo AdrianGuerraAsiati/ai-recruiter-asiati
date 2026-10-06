@@ -1,6 +1,6 @@
 // eslint-disable-next-line no-unused-vars
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -113,7 +113,8 @@ describe("Psychotechnical recruiter workspace", () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("GTH-F-016")).toBeInTheDocument();
-    expect(screen.getByText("90%")).toBeInTheDocument();
+    const scoreLabel = screen.getByText("Resultado");
+    expect(within(scoreLabel.parentElement).getByText("90%")).toBeInTheDocument();
     expect(screen.getByText(/se conserva separado del Ranking IA/i)).toBeInTheDocument();
   });
 
