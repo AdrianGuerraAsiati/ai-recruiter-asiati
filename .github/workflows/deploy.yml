@@ -347,7 +347,7 @@ jobs:
                 --bucket "$IMPORT_STAGING_BUCKET" \
                 --key "\$BIOMETRIC_SYNC_KEY" \
                 --profile ai-recruiter-bedrock >/dev/null
-              rm -f /tmp/biometric-employee-sync.json /tmp/biometric-employee-sync-result.json
+              sudo rm -f /tmp/biometric-employee-sync.json /tmp/biometric-employee-sync-result.json
               echo BIOMETRIC_EMPLOYEE_SYNC_OK
             else
               echo BIOMETRIC_EMPLOYEE_SYNC_NOT_PENDING
