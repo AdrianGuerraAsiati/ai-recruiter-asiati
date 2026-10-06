@@ -17,7 +17,6 @@ const navItems = [
   { to: "/ranking", label: "Ranking IA", icon: "ranking", section: "Reclutamiento", permission: "ranking.read" },
   { to: "/employees", label: "Empleados", icon: "employee", section: "Equipo", permission: "employees.read" },
   { to: "/access", label: "Usuarios y accesos", icon: "profile", section: "Equipo", permission: "employees.credentials.manage" },
-  { to: "/talent-id", label: "Talent ID", icon: "employee", section: "Equipo", permission: "talent_id.manage" },
   {
     to: "/attendance",
     label: "Asistencia",
