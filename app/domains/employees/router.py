@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.access_control import ADMIN, EMPLOYEE
 from app.deps import get_db, require_permission
 from app.domains.employees import service
+from app.domains.odoo_sync import employee_delivery, integration
 from app.domains.employees.schemas import (
     CreateEmployeeRequest,
     SetEmployeeRoleRequest,
@@ -78,6 +79,36 @@ def _ensure_automatic_onboarding(
             "Automatic ASIATI onboarding sync failed for employee %s",
             employee_id,
         )
+
+
+def _sync_created_employee_to_odoo(db: Session, employee) -> dict:
+    sync = employee_delivery.ensure_direct_employee_sync(
+        db,
+        employee=employee,
+    )
+    try:
+        return employee_delivery.sync_employee_now(
+            db,
+            employee_id=employee.id,
+        )
+    except (integration.OdooDisabled, integration.OdooNotConfigured) as exc:
+        return {
+            "employee_id": employee.id,
+            "status": "PENDING",
+            "attempt_count": sync.attempt_count,
+            "odoo_record_id": sync.odoo_record_id,
+            "action": "DEFERRED",
+            "detail": str(exc),
+        }
+    except employee_delivery.OdooEmployeeDeliveryError as exc:
+        return {
+            "employee_id": employee.id,
+            "status": "FAILED",
+            "attempt_count": sync.attempt_count,
+            "odoo_record_id": sync.odoo_record_id,
+            "action": "RETRY_REQUIRED",
+            "detail": str(exc),
+        }
 
 
 def _translate_service_error(exc: Exception):
@@ -200,6 +231,8 @@ def create_employee(
             employee_id=employee.id,
             created_by_sub=principal.get("sub"),
         )
+        odoo_sync = _sync_created_employee_to_odoo(db, employee)
+        db.refresh(employee)
         return {
             "employee": service.employee_payload(db, employee),
             "credentials": {
@@ -207,6 +240,7 @@ def create_employee(
                 "temporary_password": temporary_password,
                 "must_change_password": True,
             },
+            "odoo_sync": odoo_sync,
         }
     except Exception as exc:
         _translate_service_error(exc)
