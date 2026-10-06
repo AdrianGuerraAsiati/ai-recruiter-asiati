@@ -3,10 +3,8 @@ import React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import api from "../api/client";
-import TalentIdDeviceManager from "../components/TalentIdDeviceManager";
-import TalentIdFaceEnrollment from "../components/TalentIdFaceEnrollment";
 import PageHeader from "../components/ui/PageHeader";
-import { EmptyState, FeedbackMessage, LoadingState, MetricCard } from "../components/ui/StatePanel";
+import { EmptyState, FeedbackMessage, LoadingState } from "../components/ui/StatePanel";
 import { getApiErrorMessage } from "../utils/errors";
 import "../talent-id.css";
 
@@ -30,16 +28,13 @@ function emptyScheduleForm() {
 }
 
 
-function TalentId() {
+function AttendanceSettings() {
   const [sites, setSites] = useState([]);
   const [schedules, setSchedules] = useState([]);
-  const [devices, setDevices] = useState([]);
-  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
-  const [readiness, setReadiness] = useState(null);
   const [siteForm, setSiteForm] = useState(() => emptySiteForm());
   const [scheduleForm, setScheduleForm] = useState(() => emptyScheduleForm());
 
@@ -49,23 +44,17 @@ function TalentId() {
     setError("");
 
     try {
-      const [sitesResponse, schedulesResponse, devicesResponse, employeesResponse, readinessResponse] = await Promise.all([
+      const [sitesResponse, schedulesResponse] = await Promise.all([
         api.get("/talent-id/sites"),
         api.get("/talent-id/schedules"),
-        api.get("/talent-id/devices"),
-        api.get("/employees", { params: { status: "ACTIVE" } }),
-        api.get("/talent-id/readiness").catch(() => ({ data: null })),
       ]);
       setSites(sitesResponse.data?.items || []);
       setSchedules(schedulesResponse.data?.items || []);
-      setDevices(devicesResponse.data?.items || []);
-      setEmployees(employeesResponse.data?.items || []);
-      setReadiness(readinessResponse.data || null);
     } catch (err) {
       setError(getApiErrorMessage(err, {
-        action: "cargar la configuración de Talent ID",
-        resource: "Talent ID",
-        fallback: "No se pudo cargar sedes, horarios, empleados y kioscos.",
+        action: "cargar la configuración de asistencia",
+        resource: "asistencia",
+        fallback: "No se pudieron cargar sedes y horarios.",
       }));
     } finally {
       if (!silent) setLoading(false);
@@ -73,39 +62,8 @@ function TalentId() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    Promise.all([
-      api.get("/talent-id/sites"),
-      api.get("/talent-id/schedules"),
-      api.get("/talent-id/devices"),
-      api.get("/employees", { params: { status: "ACTIVE" } }),
-      api.get("/talent-id/readiness").catch(() => ({ data: null })),
-    ])
-      .then(([sitesResponse, schedulesResponse, devicesResponse, employeesResponse, readinessResponse]) => {
-        if (cancelled) return;
-        setSites(sitesResponse.data?.items || []);
-        setSchedules(schedulesResponse.data?.items || []);
-        setDevices(devicesResponse.data?.items || []);
-        setEmployees(employeesResponse.data?.items || []);
-        setReadiness(readinessResponse.data || null);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(getApiErrorMessage(err, {
-          action: "cargar la configuración de Talent ID",
-          resource: "Talent ID",
-          fallback: "No se pudo cargar sedes, horarios, empleados y kioscos.",
-        }));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void loadAll();
+  }, [loadAll]);
 
   const activeSites = useMemo(
     () => sites.filter((site) => site.active !== false),
@@ -114,10 +72,6 @@ function TalentId() {
   const activeSchedules = useMemo(
     () => schedules.filter((schedule) => schedule.active !== false),
     [schedules],
-  );
-  const activeDevices = useMemo(
-    () => devices.filter((device) => device.active !== false),
-    [devices],
   );
 
   async function createSite(event) {
@@ -133,12 +87,12 @@ function TalentId() {
         timezone: siteForm.timezone.trim(),
       });
       setSiteForm(emptySiteForm());
-      setFeedback("Sede creada. Ya puede asignarse a empleados y kioscos.");
+      setFeedback("Sede creada. Ya puede asignarse a empleados y usarse al cargar reportes.");
       await loadAll({ silent: true });
     } catch (err) {
       setError(getApiErrorMessage(err, {
         action: "crear la sede",
-        resource: "Talent ID",
+        resource: "asistencia",
         fallback: "No se pudo crear la sede. Revisa nombre, código y zona horaria.",
       }));
     } finally {
@@ -165,7 +119,7 @@ function TalentId() {
     } catch (err) {
       setError(getApiErrorMessage(err, {
         action: "crear el horario",
-        resource: "Talent ID",
+        resource: "asistencia",
         fallback: "No se pudo crear el horario. Revisa horas y tolerancia.",
       }));
     } finally {
@@ -176,68 +130,34 @@ function TalentId() {
   return (
     <div className="page talent-id-page">
       <PageHeader
-        eyebrow="Asistencia · Talent ID"
-        title="Administración de Talent ID"
-        description="Configura sedes, jornadas, consentimiento, reconocimiento facial, QR móvil y credenciales de los kioscos de asistencia desde un solo lugar."
+        eyebrow="Asistencia · Configuración"
+        title="Sedes y horarios"
+        description="Configura la sede y jornada que Talent usará para interpretar los reportes exportados por los equipos de huella."
         actions={(
-          <button className="btn btn-secondary" type="button" onClick={loadAll} disabled={loading}>
+          <button className="btn btn-secondary" type="button" onClick={() => loadAll()} disabled={loading}>
             Actualizar
           </button>
         )}
         className="split-header"
       />
 
-      {error && <FeedbackMessage title="Talent ID requiere atención">{error}</FeedbackMessage>}
+      <div className="talent-id-success">
+        La marcación en línea, reconocimiento facial y QR móvil están suspendidos. La fuente oficial de asistencia son los reportes biométricos cargados en la vista Asistencia.
+      </div>
+
+      {error && <FeedbackMessage title="La configuración requiere atención">{error}</FeedbackMessage>}
       {feedback && <div className="talent-id-success" role="status">{feedback}</div>}
 
-      {readiness && (
-        <section
-          className={`panel talent-id-readiness ${readiness.ready_for_pilot ? "is-ready" : "needs-attention"}`}
-          aria-label="Preparación de Talent ID"
-        >
-          <div className="talent-id-readiness-heading">
-            <div>
-              <span className="eyebrow">Preparación del piloto</span>
-              <h2>{readiness.ready_for_pilot ? "Configuración técnica lista" : "Faltan configuraciones para el piloto"}</h2>
-              <p>
-                {readiness.ready_for_pilot
-                  ? "Biometría, firma electrónica, QR móvil, sede, horario y kiosco tienen la configuración mínima."
-                  : "Completa los puntos pendientes antes de probar el flujo de punta a punta."}
-              </p>
-            </div>
-            <span className={`status-pill ${readiness.ready_for_pilot ? "" : "status-disabled"}`}>
-              <i /> {readiness.ready_for_pilot ? "Listo" : "Pendiente"}
-            </span>
-          </div>
-
-          {(readiness.issues?.length > 0 || readiness.warnings?.length > 0) && (
-            <div className="talent-id-readiness-items">
-              {(readiness.issues || []).map((item) => (
-                <span key={item} className="talent-id-readiness-item is-issue">{item}</span>
-              ))}
-              {(readiness.warnings || []).map((item) => (
-                <span key={item} className="talent-id-readiness-item is-warning">{item}</span>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      <section className="metrics-grid talent-id-metrics" aria-label="Estado de Talent ID">
-        <MetricCard icon="employee" label="Sedes activas" value={activeSites.length} detail="Disponibles para asistencia" tone="blue" />
-        <MetricCard icon="calendar" label="Horarios activos" value={activeSchedules.length} detail="Disponibles para empleados" tone="cyan" />
-        <MetricCard icon="profile" label="Kioscos activos" value={activeDevices.length} detail={`${devices.length} dispositivos registrados`} tone="violet" />
-        <MetricCard icon="users" label="Empleados activos" value={employees.length} detail="Disponibles para enrolamiento" />
-      </section>
-
       {loading ? (
-        <LoadingState label="Cargando Talent ID…" />
+        <LoadingState label="Cargando configuración de asistencia…" />
       ) : (
         <div className="talent-id-admin-grid">
           <section className="panel talent-id-admin-card">
             <span className="eyebrow">1 · Ubicación</span>
             <h2>Sedes</h2>
-            <p className="muted">Cada kiosco pertenece a una sede y solo registra asistencia de empleados asignados a ella.</p>
+            <p className="muted">
+              Cada reporte se carga contra una sede. Los empleados deben tener esa misma sede asignada para que sus marcaciones se importen.
+            </p>
 
             <form className="talent-id-admin-form" onSubmit={createSite}>
               <div className="form-group">
@@ -277,7 +197,7 @@ function TalentId() {
 
             <div className="talent-id-admin-list">
               {activeSites.length === 0 ? (
-                <EmptyState compact title="Aún no hay sedes" description="Crea la sede del piloto para continuar." />
+                <EmptyState compact title="Aún no hay sedes" description="Crea la sede antes de importar reportes." />
               ) : activeSites.map((site) => (
                 <article key={site.id} className="talent-id-admin-row">
                   <div>
@@ -293,7 +213,9 @@ function TalentId() {
           <section className="panel talent-id-admin-card">
             <span className="eyebrow">2 · Jornada</span>
             <h2>Horarios</h2>
-            <p className="muted">Define la jornada que luego se asignará a cada empleado desde el directorio.</p>
+            <p className="muted">
+              El horario permite calcular puntualidad, minutos de retraso y jornadas completas después de importar el reporte.
+            </p>
 
             <form className="talent-id-admin-form" onSubmit={createSchedule}>
               <div className="form-group">
@@ -346,7 +268,7 @@ function TalentId() {
 
             <div className="talent-id-admin-list">
               {activeSchedules.length === 0 ? (
-                <EmptyState compact title="Aún no hay horarios" description="Crea el horario del piloto para continuar." />
+                <EmptyState compact title="Aún no hay horarios" description="Crea un horario para calcular puntualidad." />
               ) : activeSchedules.map((schedule) => (
                 <article key={schedule.id} className="talent-id-admin-row">
                   <div>
@@ -361,25 +283,10 @@ function TalentId() {
               ))}
             </div>
           </section>
-
-          <TalentIdFaceEnrollment
-            employees={employees}
-            sites={sites}
-            schedules={schedules}
-            onEmployeeUpdated={() => loadAll({ silent: true })}
-          />
-
-          <TalentIdDeviceManager
-            sites={sites}
-            devices={devices}
-            onRefresh={loadAll}
-            onError={setError}
-            onFeedback={setFeedback}
-          />
         </div>
       )}
     </div>
   );
 }
 
-export default TalentId;
+export default AttendanceSettings;
