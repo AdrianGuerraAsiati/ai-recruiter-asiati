@@ -183,3 +183,32 @@ def test_image_reader_rejects_non_image_content_type():
         asyncio.run(_read_image(image))
 
     assert exc.value.status_code == 415
+
+
+def test_kiosk_explains_when_matched_employee_has_no_current_biometric_authorization(db, monkeypatch):
+    monkeypatch.setenv("TALENT_ID_REKOGNITION_MATCH_THRESHOLD", "98")
+    _employee, device, secret, provider = _setup(db)
+
+    event = db.query(TalentBiometricConsentEvent).one()
+    event.document_version = "stale-consent-version"
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            recognize_and_record_attendance(
+                image=_jpeg(),
+                event_type="check_in",
+                x_device_id=device.id,
+                x_device_secret=secret,
+                idempotency_key="consent-required-001",
+                db=db,
+                provider=provider,
+            )
+        )
+
+    assert exc.value.status_code == 412
+    detail = str(exc.value.detail)
+    assert "rostro fue identificado" in detail.lower()
+    assert "autorización biométrica" in detail.lower()
+    assert "mi perfil" in detail.lower()
+    assert "qr móvil" in detail.lower()
