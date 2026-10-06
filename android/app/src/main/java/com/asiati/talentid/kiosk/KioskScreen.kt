@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,17 +40,25 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -77,6 +86,7 @@ import com.asiati.talentid.ui.TalentWarning
 import com.asiati.talentid.ui.TalentWarningSoft
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @Composable
 fun TalentIdApp(viewModel: KioskViewModel) {
@@ -927,6 +937,8 @@ private fun CameraStage(
     faceObservation: FaceObservation,
     faceReadyStable: Boolean,
 ) {
+    var previewBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+
     val statusText = when {
         faceObservation.faceCount > 1 -> "Solo una persona"
         faceReadyStable -> "Rostro listo"
@@ -948,7 +960,18 @@ private fun CameraStage(
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(RoundedCornerShape(24.dp)),
+                onPreviewBitmap = { bitmap ->
+                    previewBitmap = bitmap
+                },
             )
+
+            previewBitmap?.let { bitmap ->
+                FocusedPrivacyPreview(
+                    bitmap = bitmap,
+                    observation = faceObservation,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
 
             FaceTrackingGuide(
                 observation = faceObservation,
@@ -1010,68 +1033,112 @@ private fun CameraStage(
 }
 
 @Composable
+private fun FocusedPrivacyPreview(
+    bitmap: android.graphics.Bitmap,
+    observation: FaceObservation,
+    modifier: Modifier = Modifier,
+) {
+    val imageBitmap = remember(bitmap) { bitmap.asImageBitmap() }
+
+    Box(modifier = modifier) {
+        Image(
+            bitmap = imageBitmap,
+            contentDescription = null,
+            modifier = Modifier
+                .fillMaxSize()
+                .blur(10.dp),
+            contentScale = ContentScale.FillBounds,
+        )
+
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val oval = faceOvalRect(size, observation)
+            val ovalPath = Path().apply { addOval(oval) }
+
+            clipPath(ovalPath) {
+                drawImage(
+                    image = imageBitmap,
+                    srcOffset = IntOffset.Zero,
+                    srcSize = IntSize(imageBitmap.width, imageBitmap.height),
+                    dstOffset = IntOffset.Zero,
+                    dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+                )
+            }
+        }
+    }
+}
+
+private fun faceOvalRect(
+    canvasSize: Size,
+    observation: FaceObservation,
+): Rect {
+    val bounds = observation.bounds
+    if (bounds == null) {
+        val guideWidth = canvasSize.width * 0.48f
+        val guideHeight = canvasSize.height * 0.62f
+        val left = (canvasSize.width - guideWidth) / 2f
+        val top = (canvasSize.height - guideHeight) / 2f
+        return Rect(
+            left = left,
+            top = top,
+            right = left + guideWidth,
+            bottom = top + guideHeight,
+        )
+    }
+
+    val scale = maxOf(
+        canvasSize.width / bounds.imageWidth.toFloat(),
+        canvasSize.height / bounds.imageHeight.toFloat(),
+    )
+    val renderedWidth = bounds.imageWidth * scale
+    val renderedHeight = bounds.imageHeight * scale
+    val offsetX = (canvasSize.width - renderedWidth) / 2f
+    val offsetY = (canvasSize.height - renderedHeight) / 2f
+
+    val rawLeft = offsetX + bounds.left * scale
+    val rawTop = offsetY + bounds.top * scale
+    val rawRight = offsetX + bounds.right * scale
+    val rawBottom = offsetY + bounds.bottom * scale
+    val faceWidth = rawRight - rawLeft
+    val faceHeight = rawBottom - rawTop
+    val horizontalPadding = faceWidth * 0.10f
+    val verticalPadding = faceHeight * 0.10f
+
+    return Rect(
+        left = (rawLeft - horizontalPadding).coerceAtLeast(0f),
+        top = (rawTop - verticalPadding).coerceAtLeast(0f),
+        right = (rawRight + horizontalPadding).coerceAtMost(canvasSize.width),
+        bottom = (rawBottom + verticalPadding).coerceAtMost(canvasSize.height),
+    )
+}
+
+@Composable
 private fun FaceTrackingGuide(
     observation: FaceObservation,
     ready: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Canvas(modifier = modifier) {
-        val bounds = observation.bounds
-        if (bounds == null) {
-            val guideWidth = size.width * 0.48f
-            val guideHeight = size.height * 0.62f
-            val topLeft = Offset(
-                x = (size.width - guideWidth) / 2f,
-                y = (size.height - guideHeight) / 2f,
-            )
-            drawOval(
-                color = Color.White.copy(alpha = 0.52f),
-                topLeft = topLeft,
-                size = Size(guideWidth, guideHeight),
-                style = Stroke(width = 2.dp.toPx()),
-            )
-            return@Canvas
-        }
-
-        val scale = maxOf(
-            size.width / bounds.imageWidth.toFloat(),
-            size.height / bounds.imageHeight.toFloat(),
-        )
-        val renderedWidth = bounds.imageWidth * scale
-        val renderedHeight = bounds.imageHeight * scale
-        val offsetX = (size.width - renderedWidth) / 2f
-        val offsetY = (size.height - renderedHeight) / 2f
-
-        val rawLeft = offsetX + bounds.left * scale
-        val rawTop = offsetY + bounds.top * scale
-        val rawRight = offsetX + bounds.right * scale
-        val rawBottom = offsetY + bounds.bottom * scale
-        val faceWidth = rawRight - rawLeft
-        val faceHeight = rawBottom - rawTop
-        val horizontalPadding = faceWidth * 0.10f
-        val verticalPadding = faceHeight * 0.10f
-
-        val left = (rawLeft - horizontalPadding).coerceAtLeast(0f)
-        val top = (rawTop - verticalPadding).coerceAtLeast(0f)
-        val right = (rawRight + horizontalPadding).coerceAtMost(size.width)
-        val bottom = (rawBottom + verticalPadding).coerceAtMost(size.height)
-
+        val oval = faceOvalRect(size, observation)
         val color = when {
             observation.faceCount > 1 -> TalentWarning
             ready -> TalentSuccess
+            observation.bounds == null -> Color.White.copy(alpha = 0.52f)
             else -> TalentCyan
         }
 
-        drawOval(
-            color = color.copy(alpha = 0.08f),
-            topLeft = Offset(left, top),
-            size = Size(right - left, bottom - top),
-        )
+        if (observation.bounds != null) {
+            drawOval(
+                color = color.copy(alpha = 0.08f),
+                topLeft = Offset(oval.left, oval.top),
+                size = Size(oval.width, oval.height),
+            )
+        }
+
         drawOval(
             color = color,
-            topLeft = Offset(left, top),
-            size = Size(right - left, bottom - top),
-            style = Stroke(width = 3.dp.toPx()),
+            topLeft = Offset(oval.left, oval.top),
+            size = Size(oval.width, oval.height),
+            style = Stroke(width = if (observation.bounds == null) 2.dp.toPx() else 3.dp.toPx()),
         )
     }
 }
