@@ -16,35 +16,35 @@ es independiente y no habilita reconocimiento facial.
 Los administradores pueden consultar el estado y descargar la evidencia firmada, pero no
 pueden cambiar el estado de consentimiento.
 
-## Firma electrónica
+## Aceptación electrónica
 
 1. El empleado inicia sesión en Talent.
-2. En **Mi perfil** revisa la versión vigente de la autorización.
-3. Selecciona Autorizar, No autorizar o, cuando corresponda, Revocar.
-4. Talent genera un OTP de seis dígitos vinculado a:
-   - empleado,
-   - decisión,
-   - versión exacta del documento.
-5. El OTP se envía al correo registrado del empleado.
-6. El empleado confirma el OTP.
-7. Talent genera un PDF de evidencia y conserva:
-   - decisión,
-   - versión del documento,
-   - SHA-256 del documento base,
-   - SHA-256 del PDF firmado,
-   - fecha/hora del servidor,
-   - correo verificado mediante OTP,
-   - identificador de la cuenta autenticada,
-   - hashes de IP y User-Agent para trazabilidad.
+2. En **Mi perfil > Talent ID** ve una casilla de autorización biométrica cuando no existe una autorización vigente.
+3. Puede abrir la versión completa de la autorización antes de decidir.
+4. Marca expresamente la casilla que indica que autoriza el tratamiento biométrico y selecciona **Aceptar y continuar**.
+5. Talent registra un evento inmutable y genera un comprobante PDF con:
+   - decisión `AUTHORIZED`;
+   - versión exacta del documento;
+   - SHA-256 del documento base;
+   - SHA-256 del comprobante PDF;
+   - fecha/hora del servidor;
+   - cuenta Talent autenticada;
+   - origen de la aceptación;
+   - hashes de IP y User-Agent cuando el secreto de auditoría está configurado.
 
-El OTP se almacena únicamente como HMAC-SHA256 y expira. Solicitar un nuevo OTP invalida
-los desafíos anteriores para impedir reutilización.
+La casilla desaparece después de aceptar y queda únicamente el estado de autorización, fecha,
+versión, acceso al comprobante y opción de revocación. La interfaz no permite a Talento Humano
+autorizar en nombre del empleado.
+
+La revocación se confirma desde la misma sesión autenticada. Al revocar, Talent ID bloquea
+el reconocimiento facial de inmediato e inicia la limpieza de los datos biométricos del proveedor.
 
 ## Enrolamiento y revocación
 
 El endpoint administrativo de enrolamiento valida en backend que el estado sea
-`AUTHORIZED`. La interfaz administrativa no contiene un checkbox para que Talento Humano
-declare consentimiento en nombre del empleado.
+`AUTHORIZED`. La casilla de autorización solo existe en la experiencia autenticada del
+propio empleado; la interfaz administrativa no permite que Talento Humano declare
+consentimiento en su nombre.
 
 Si el empleado firma `DENIED` o `REVOKED`, el reconocimiento queda bloqueado por estado.
 Cuando existe un enrolamiento activo, Talent lo desactiva localmente e intenta eliminar del
@@ -143,8 +143,8 @@ En producción:
 Empleado autenticado:
 
 - `GET /api/talent-id/consent`
-- `POST /api/talent-id/consent/otp`
-- `POST /api/talent-id/consent/sign`
+- `POST /api/talent-id/consent/accept`
+- `POST /api/talent-id/consent/revoke`
 - `GET /api/talent-id/consent/document`
 
 Marcación QR del empleado:
@@ -166,3 +166,6 @@ Administración:
 El enrolamiento existente en
 `POST /api/talent-id/employees/{employee_id}/biometrics/enroll` rechaza solicitudes sin
 consentimiento `AUTHORIZED`.
+
+Los endpoints OTP anteriores se mantienen temporalmente en backend por compatibilidad con
+clientes antiguos, pero ya no forman parte del flujo visible de Talent ID.
