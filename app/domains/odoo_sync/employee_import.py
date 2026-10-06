@@ -208,6 +208,7 @@ def sync_employees_from_odoo(
                     last_name=None,
                     job_title=_job_title(row),
                     department=_department(row),
+                    company_name=_company(row),
                     hire_date=_hire_date(row),
                     onboarding_status="NOT_REQUIRED",
                     status=_employee_status(row),
