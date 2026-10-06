@@ -43,9 +43,16 @@ data class FaceObservation(
     val bounds: FaceBounds? = null,
     val centered: Boolean = false,
     val largeEnough: Boolean = false,
+    val tooLarge: Boolean = false,
+    val fullyVisible: Boolean = false,
 ) {
     val ready: Boolean
-        get() = faceCount == 1 && bounds != null && centered && largeEnough
+        get() = faceCount == 1 &&
+            bounds != null &&
+            centered &&
+            largeEnough &&
+            !tooLarge &&
+            fullyVisible
 }
 
 private const val FACE_UI_UPDATE_INTERVAL_MS = 90L
@@ -136,12 +143,29 @@ fun rememberKioskCameraController(
                             widthRatio >= 0.18f && heightRatio >= 0.24f
                         } ?: false
 
+                        val tooLarge = bounds?.let {
+                            val widthRatio = (it.right - it.left) / it.imageWidth
+                            val heightRatio = (it.bottom - it.top) / it.imageHeight
+                            widthRatio > 0.62f || heightRatio > 0.76f
+                        } ?: false
+
+                        val fullyVisible = bounds?.let {
+                            val marginX = it.imageWidth * 0.04f
+                            val marginY = it.imageHeight * 0.04f
+                            it.left >= marginX &&
+                                it.right <= it.imageWidth - marginX &&
+                                it.top >= marginY &&
+                                it.bottom <= it.imageHeight - marginY
+                        } ?: false
+
                         currentCallback.value(
                             FaceObservation(
                                 faceCount = faces.size,
                                 bounds = bounds,
                                 centered = centered,
                                 largeEnough = largeEnough,
+                                tooLarge = tooLarge,
+                                fullyVisible = fullyVisible,
                             ),
                         )
                     }
