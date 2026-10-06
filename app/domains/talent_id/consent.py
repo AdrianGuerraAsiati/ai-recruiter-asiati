@@ -21,7 +21,7 @@ from app.domains.talent_id.models import (
 from app.models import UserProfile
 
 
-BIOMETRIC_CONSENT_VERSION = "1.1"
+BIOMETRIC_CONSENT_VERSION = "1.2"
 BIOMETRIC_CONSENT_TITLE = (
     "Autorización para el tratamiento de datos biométricos - Talent ID"
 )
@@ -35,7 +35,7 @@ ASIATI aplicará medidas técnicas, administrativas y humanas para proteger esta
 
 He sido informado de que puedo conocer, actualizar y rectificar mis datos, solicitar información sobre su uso, presentar consultas o reclamos, solicitar la supresión cuando proceda y revocar esta autorización en los casos permitidos por la legislación aplicable.
 
-Esta decisión se firma electrónicamente mediante mi cuenta autenticada de Talent y un código OTP de un solo uso enviado a mi correo registrado. La evidencia de firma conserva la versión exacta del documento, fecha y hora, decisión, identificadores de verificación y huellas criptográficas de integridad."""
+Esta decisión se registra electrónicamente desde mi cuenta autenticada de Talent. Cuando autorizo el uso biométrico, marco de forma expresa la casilla de aceptación y confirmo mi decisión. La evidencia conserva la versión exacta del documento, fecha y hora, decisión, identificadores de la sesión autenticada y huellas criptográficas de integridad."""
 
 
 class ConsentOtpCooldown(Exception):
@@ -137,7 +137,13 @@ def get_latest_event(
 
 def current_status(db: Session, employee_id: str) -> str:
     event = get_latest_event(db, employee_id)
-    return event.decision if event is not None else "PENDING"
+    if event is None:
+        return "PENDING"
+    if event.decision == "REVOKED":
+        return "REVOKED"
+    if event.document_version != BIOMETRIC_CONSENT_VERSION:
+        return "PENDING"
+    return event.decision
 
 
 def consent_payload(
@@ -148,21 +154,20 @@ def consent_payload(
 ) -> dict:
     employee = _employee(db, employee_id)
     event = get_latest_event(db, employee.id)
+    effective_status = current_status(db, employee.id)
     payload = {
         "employee_id": employee.id,
-        "status": event.decision if event else "PENDING",
+        "status": effective_status,
         "signed_at": event.signed_at.isoformat() if event else None,
-        "document_version": (
-            event.document_version if event else BIOMETRIC_CONSENT_VERSION
-        ),
-        "document_sha256": (
-            event.document_sha256 if event else document_sha256()
-        ),
+        "document_version": BIOMETRIC_CONSENT_VERSION,
+        "accepted_document_version": event.document_version if event else None,
+        "document_sha256": document_sha256(),
         "pdf_sha256": event.pdf_sha256 if event else None,
         "verified_email": (
             _mask_email(event.verified_email) if event else _mask_email(employee.email)
         ),
         "has_signed_document": bool(event and event.signed_pdf),
+        "last_decision": event.decision if event else None,
     }
     if include_document:
         payload["document"] = {
@@ -310,6 +315,7 @@ def _render_signed_pdf(
     decision: str,
     signed_at: datetime,
     event_id: str,
+    signature_method: str = "Cuenta Talent autenticada + código OTP de un solo uso.",
 ) -> bytes:
     local_time = signed_at.astimezone(ZoneInfo("America/Bogota"))
     decision_label = {
@@ -338,7 +344,7 @@ def _render_signed_pdf(
         f"Fecha y hora: {local_time.strftime('%Y-%m-%d %H:%M:%S %Z')}",
         f"ID de evidencia: {event_id}",
         "",
-        "Firma electrónica: cuenta Talent autenticada + código OTP de un solo uso.",
+        f"Evidencia electrónica: {signature_method}",
         "La huella SHA-256 del PDF se conserva en Talent Intelligence para verificar integridad.",
     ]
 
@@ -360,6 +366,70 @@ def _render_signed_pdf(
         )
         y += 18 if font_size >= 13 else 13
     return doc.tobytes(garbage=4, deflate=True)
+
+
+def record_authenticated_decision(
+    db: Session,
+    *,
+    employee_id: str,
+    decision: str,
+    expected_document_version: str,
+    confirmed: bool,
+    evidence: dict | None = None,
+) -> TalentBiometricConsentEvent:
+    """Record an explicit consent decision from an authenticated Talent session."""
+    if expected_document_version != BIOMETRIC_CONSENT_VERSION:
+        raise ConsentStateError(
+            "La autorización cambió. Actualiza la pantalla antes de continuar."
+        )
+    if not confirmed:
+        raise ConsentStateError(
+            "Debes confirmar expresamente tu decisión antes de continuar."
+        )
+
+    employee = _employee(db, employee_id)
+    normalized_decision = decision.strip().upper()
+    _validate_transition(current_status(db, employee.id), normalized_decision)
+
+    now = _now()
+    event_id = str(uuid.uuid4())
+    signature_method = (
+        "Cuenta Talent autenticada + casilla de aceptación expresa."
+        if normalized_decision == "AUTHORIZED"
+        else "Cuenta Talent autenticada + confirmación expresa de revocación."
+    )
+    pdf_bytes = _render_signed_pdf(
+        employee=employee,
+        decision=normalized_decision,
+        signed_at=now,
+        event_id=event_id,
+        signature_method=signature_method,
+    )
+    event_evidence = {
+        "method": (
+            "AUTHENTICATED_CHECKBOX"
+            if normalized_decision == "AUTHORIZED"
+            else "AUTHENTICATED_CONFIRMATION"
+        ),
+        **(evidence or {}),
+    }
+    event = TalentBiometricConsentEvent(
+        id=event_id,
+        employee_id=employee.id,
+        decision=normalized_decision,
+        document_version=BIOMETRIC_CONSENT_VERSION,
+        document_sha256=document_sha256(),
+        pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
+        signed_pdf=pdf_bytes,
+        verified_email=employee.email,
+        otp_challenge_id=None,
+        evidence=event_evidence,
+        signed_at=now,
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+    return event
 
 
 def sign_decision(
