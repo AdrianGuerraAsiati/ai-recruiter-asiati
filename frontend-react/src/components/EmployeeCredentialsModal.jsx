@@ -13,6 +13,7 @@ export default function EmployeeCredentialsModal({
   open,
   employeeName,
   credentials,
+  odooSync,
   onClose,
 }) {
   const [copied, setCopied] = useState("");
@@ -53,6 +54,21 @@ export default function EmployeeCredentialsModal({
             cambiarla en su primer acceso.
           </span>
         </div>
+
+        {odooSync && (
+          <div className={`employee-credentials-warning ${odooSync.status === "SYNCED" ? "is-success" : "is-warning"}`} role="status">
+            <strong>
+              {odooSync.status === "SYNCED"
+                ? "Empleado sincronizado con Odoo"
+                : "Empleado creado en Talent; Odoo requiere reintento"}
+            </strong>
+            <span>
+              {odooSync.status === "SYNCED"
+                ? `Odoo confirmó el registro #${odooSync.odoo_record_id || ""}.`
+                : "El acceso y el perfil quedaron creados. La sincronización con Odoo quedó pendiente y puede reintentarse sin duplicar el empleado."}
+            </span>
+          </div>
+        )}
 
         <div className="employee-credentials-grid">
           <div className="employee-credential-field">
