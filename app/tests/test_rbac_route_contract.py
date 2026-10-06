@@ -13,6 +13,7 @@ ROUTE_PERMISSIONS = {
     "app/domains/evaluations/router.py": "candidates.evaluate",
     "app/domains/candidate_imports/router.py": "candidates.read",
     "app/domains/indeed/router.py": "integrations.manage",
+    "app/domains/psychotechnical/router.py": "psychotechnical.read",
 }
 
 
@@ -45,6 +46,10 @@ WRITE_ROUTE_PERMISSIONS = {
     },
     "app/domains/odoo_sync/router.py": {
         "sync_employee_to_odoo": "employees.update",
+    },
+    "app/domains/psychotechnical/router.py": {
+        "create_assignment": "psychotechnical.manage",
+        "cancel_assignment": "psychotechnical.manage",
     },
 }
 
