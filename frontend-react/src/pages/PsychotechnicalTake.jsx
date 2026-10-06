@@ -172,9 +172,9 @@ export default function PsychotechnicalTake() {
               : dimensionQuestions[0]?.dimension === "NUMERICAL" ? "Razonamiento numérico"
                 : dimensionQuestions[0]?.dimension === "ATTENTION" ? "Atención al detalle"
                   : "Comprensión verbal"}</h2>
-            {dimensionQuestions.map((question, index) => (
+            {dimensionQuestions.map((question) => (
               <fieldset className="psychotechnical-question" key={question.id}>
-                <legend>{index + 1}. {question.prompt}</legend>
+                <legend>{questions.findIndex((item) => item.id === question.id) + 1}. {question.prompt}</legend>
                 <div className="psychotechnical-options">
                   {question.options.map((option) => (
                     <label
