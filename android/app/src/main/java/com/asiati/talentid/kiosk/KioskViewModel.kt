@@ -261,6 +261,8 @@ class KioskViewModel(
             404 -> "No pudimos validar la marcación."
             409 -> "Este código ya fue utilizado para otra operación."
             410 -> "El código QR expiró. Genera uno nuevo en tu celular."
+            412 -> error.message
+                ?: "Tu rostro fue identificado, pero debes aceptar la autorización biométrica en Talent > Mi perfil antes de marcar con reconocimiento facial."
             422 -> error.message ?: "El código QR o la solicitud no son válidos."
             else -> error.message ?: "Talent ID rechazó la solicitud."
         }
