@@ -159,7 +159,7 @@ def build_hr_job_values(client, payload: dict) -> tuple[dict, str]:
     desired = {
         "name": title,
         "description": job.get("description"),
-        "active": True,
+        "active": published,
         "no_of_recruitment": 1,
         publication_field: published,
     }
@@ -236,7 +236,6 @@ def sync_job_now(
     """Synchronize one Talent vacancy with Odoo immediately and idempotently."""
 
     sync = require_job_sync(db, job_id)
-    transport = client or integration.build_odoo_client()
 
     sync.attempt_count = int(sync.attempt_count or 0) + 1
     sync.status = "PENDING"
@@ -248,6 +247,27 @@ def sync_job_now(
         payload = dict(sync.payload or {})
         job_payload = dict(payload.get("job") or {})
         title = str(job_payload.get("title") or "").strip()
+        status = str(job_payload.get("status") or "ACTIVE").strip().upper()
+
+        if status != "ACTIVE" and not str(sync.odoo_record_id or "").strip():
+            sync.status = "SYNCED"
+            sync.last_error = None
+            sync.synced_at = _utcnow()
+            db.commit()
+            db.refresh(sync)
+            return {
+                "job_id": sync.job_id,
+                "status": sync.status,
+                "attempt_count": sync.attempt_count,
+                "odoo_record_id": None,
+                "action": "SKIPPED",
+                "publication_field": None,
+                "published": False,
+                "fields_written": [],
+                "synced_at": sync.synced_at.isoformat() if sync.synced_at else None,
+            }
+
+        transport = client or integration.build_odoo_client()
         values, publication_field = build_hr_job_values(transport, payload)
         existing_id = _find_existing_job_id(
             transport,
@@ -322,13 +342,28 @@ def sync_all_jobs_now(db: Session, *, client=None) -> dict:
             "skipped": skipped,
         }
 
-    transport = client or integration.build_odoo_client()
+    transport = client
     synced = 0
     failed = 0
     for job_id in pending_job_ids:
+        sync = require_job_sync(db, job_id)
+        job_payload = dict((sync.payload or {}).get("job") or {})
+        status = str(job_payload.get("status") or "ACTIVE").strip().upper()
+        requires_transport = status == "ACTIVE" or bool(
+            str(sync.odoo_record_id or "").strip()
+        )
+        if requires_transport and transport is None:
+            transport = integration.build_odoo_client()
         try:
-            sync_job_now(db, job_id=job_id, client=transport)
-            synced += 1
+            result = sync_job_now(
+                db,
+                job_id=job_id,
+                client=transport if requires_transport else None,
+            )
+            if result.get("action") == "SKIPPED":
+                skipped += 1
+            else:
+                synced += 1
         except OdooJobDeliveryError:
             failed += 1
 

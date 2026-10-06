@@ -9,7 +9,12 @@ from app.deps import get_db, require_permission
 from app.domains.jobs import presenter, service
 from app.domains.jobs.enrichment import JobEnrichmentError, enrich_job_draft
 from app.domains.jobs.exceptions import JobNotFound
-from app.domains.jobs.schemas import CreateJobRequest, JobEnrichmentRequest, UpdateJobRequest
+from app.domains.jobs.schemas import (
+    CreateJobRequest,
+    JobEnrichmentRequest,
+    SetJobStatusRequest,
+    UpdateJobRequest,
+)
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -141,6 +146,26 @@ def update_job(
             evaluation_profile=_evaluation_profile(body),
             owner_sub=_user["sub"],
             **_publication_fields(body),
+        )
+    except JobNotFound:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada.")
+
+    return presenter.job_payload(job)
+
+
+@router.put("/{job_id}/status")
+def update_job_status(
+    job_id: str,
+    body: SetJobStatusRequest,
+    db: Session = Depends(get_db),
+    _user: dict = Depends(require_permission("jobs.manage")),
+):
+    try:
+        job = service.update_job(
+            db,
+            job_id=job_id,
+            owner_sub=_user["sub"],
+            status=body.status,
         )
     except JobNotFound:
         raise HTTPException(status_code=404, detail="Vacante no encontrada.")

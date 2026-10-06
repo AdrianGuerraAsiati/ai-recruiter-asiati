@@ -114,6 +114,7 @@ function Jobs() {
   const [deleteJobTarget, setDeleteJobTarget] = useState(null);
   const [deletingJob, setDeletingJob] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [statusBusyId, setStatusBusyId] = useState("");
 
   const [successMessage, setSuccessMessage] = useState("");
   const detailsRequestRef = useRef(0);
@@ -473,6 +474,44 @@ function Jobs() {
     }
     setDeleteJobTarget(job);
     setDeleteError("");
+  }
+
+  async function toggleJobStatus(job) {
+    if (!job?.job_id || statusBusyId) return;
+
+    const nextStatus = job.status === "PAUSED" ? "ACTIVE" : "PAUSED";
+    setStatusBusyId(job.job_id);
+    setError("");
+    try {
+      const { data } = await api.put(`/jobs/${job.job_id}/status`, {
+        status: nextStatus,
+      });
+      const updated = {
+        ...job,
+        ...(data || {}),
+        status: data?.status || nextStatus,
+      };
+      setJobs((current) => current.map((item) => (
+        item.job_id === updated.job_id ? { ...item, ...updated } : item
+      )));
+      if (viewJob?.job_id === updated.job_id) {
+        setViewJob((current) => current ? { ...current, ...updated } : current);
+      }
+      setSuccessMessage(
+        nextStatus === "ACTIVE"
+          ? "Vacante activada. La sincronización con Odoo quedó solicitada."
+          : "Vacante desactivada. Si ya existía en Odoo, quedará retirada de publicación.",
+      );
+      setTimeout(() => setSuccessMessage(""), 5000);
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, {
+        action: nextStatus === "ACTIVE" ? "activar la vacante" : "desactivar la vacante",
+        resource: "vacante",
+        fallback: "El estado de la vacante no cambió. Recarga la lista antes de volver a intentarlo.",
+      }));
+    } finally {
+      setStatusBusyId("");
+    }
   }
 
   async function confirmDeleteJob(deleteCandidates) {
@@ -872,7 +911,7 @@ function Jobs() {
       )}
 
       <section className="jobs-section">
-        <div className="section-heading"><div><h2>Posiciones registradas</h2><p>{jobsPage.total} {jobsPage.total === 1 ? "vacante activa" : "vacantes activas"}</p></div></div>
+        <div className="section-heading"><div><h2>Posiciones registradas</h2><p>{jobsPage.total} {jobsPage.total === 1 ? "vacante registrada" : "vacantes registradas"}</p></div></div>
 
         <JobsListToolbar
           searchValue={jobSearch}
@@ -909,6 +948,8 @@ function Jobs() {
                 onView={openJobDetails}
                 onEdit={editJob}
                 onDelete={openDeleteJobModal}
+                onToggleStatus={toggleJobStatus}
+                statusBusy={statusBusyId === job.job_id}
               />
             ))}
           </div>
@@ -1066,7 +1107,22 @@ function Jobs() {
               )}
             </div>
 
-            <div className="modal-footer"><button type="button" className="btn btn-ghost" onClick={closeJobDetails}>Cerrar</button><Link className="btn btn-primary" to={`/candidates?job_id=${viewJob.job_id}`}>Agregar candidatos</Link></div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-ghost" onClick={closeJobDetails}>Cerrar</button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => toggleJobStatus(viewJob)}
+                disabled={statusBusyId === viewJob.job_id}
+              >
+                {statusBusyId === viewJob.job_id
+                  ? "Actualizando…"
+                  : viewJob.status === "PAUSED"
+                    ? "Activar vacante"
+                    : "Desactivar vacante"}
+              </button>
+              <Link className="btn btn-primary" to={`/candidates?job_id=${viewJob.job_id}`}>Agregar candidatos</Link>
+            </div>
           </div>
         </div>
       )}

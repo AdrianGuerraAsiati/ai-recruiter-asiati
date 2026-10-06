@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 
 import Icon from "../../components/ui/Icon";
 
-function JobCard({ job, onView, onEdit, onDelete }) {
+function JobCard({ job, onView, onEdit, onDelete, onToggleStatus, statusBusy = false }) {
   const candidateCount = job.candidate_count || 0;
   const location = [job.city, job.country_code].filter(Boolean).join(" · ");
   const paused = job.status === "PAUSED";
@@ -39,6 +39,15 @@ function JobCard({ job, onView, onEdit, onDelete }) {
           onClick={() => onView(job)}
         >
           Ver
+        </button>
+        <button
+          type="button"
+          className={paused ? "btn btn-primary" : "btn btn-secondary"}
+          onClick={() => onToggleStatus(job)}
+          disabled={statusBusy}
+          aria-label={paused ? `Activar ${job.title}` : `Desactivar ${job.title}`}
+        >
+          {statusBusy ? "Actualizando…" : paused ? "Activar" : "Desactivar"}
         </button>
         <Link
           className="btn btn-primary"

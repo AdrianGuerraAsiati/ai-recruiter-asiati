@@ -196,7 +196,7 @@ def test_paused_talent_vacancy_unpublishes_existing_odoo_job(db):
         {
             "name": "Backend Developer",
             "description": "<p>Python y AWS</p>",
-            "active": True,
+            "active": False,
             "no_of_recruitment": 1,
             "is_published": False,
         },
@@ -321,7 +321,7 @@ def test_existing_single_named_odoo_job_is_adopted_instead_of_duplicated(db):
     assert sync.odoo_record_id == "88"
 
 
-def test_updating_talent_job_refreshes_and_delivers_publication(db, monkeypatch):
+def test_pausing_never_published_talent_job_does_not_send_it_to_odoo(db, monkeypatch):
     delivery = _publication_module()
     Sync = _sync_model()
     delivered = []
@@ -350,6 +350,43 @@ def test_updating_talent_job_refreshes_and_delivers_publication(db, monkeypatch)
     sync = db.query(Sync).filter(Sync.job_id == job.id).one()
     assert updated.status == "PAUSED"
     assert sync.payload["job"]["status"] == "PAUSED"
+    assert sync.status == "SYNCED"
+    assert sync.odoo_record_id is None
+    assert delivered == []
+
+
+def test_pausing_previously_published_talent_job_withdraws_it_from_odoo(db, monkeypatch):
+    delivery = _publication_module()
+    Sync = _sync_model()
+    delivered = []
+
+    def fake_delivery(_db, *, job_id, client=None):
+        delivered.append(job_id)
+        return {"job_id": job_id, "status": "SYNCED", "action": "UPDATED"}
+
+    monkeypatch.setattr(delivery, "sync_job_now", fake_delivery)
+
+    job = jobs_service.create_job(
+        db,
+        title="Coordinador de operaciones",
+        description="Coordinar operación.",
+        owner_sub="admin-sub",
+    )
+    sync = db.query(Sync).filter(Sync.job_id == job.id).one()
+    sync.odoo_record_id = "77"
+    db.commit()
+    delivered.clear()
+
+    updated = jobs_service.update_job(
+        db,
+        job_id=job.id,
+        owner_sub="admin-sub",
+        status="PAUSED",
+    )
+
+    db.refresh(sync)
+    assert updated.status == "PAUSED"
+    assert sync.payload["job"]["status"] == "PAUSED"
     assert delivered == [job.id]
 
 
@@ -365,16 +402,17 @@ def test_sync_all_backfills_existing_talent_vacancies(db):
     assert result == {
         "total": 2,
         "attempted": 2,
-        "synced": 2,
+        "synced": 1,
         "failed": 0,
-        "skipped": 0,
+        "skipped": 1,
     }
     assert db.query(Sync).count() == 2
     assert {
         sync.job_id for sync in db.query(Sync).all()
     } == {active.id, paused.id}
-    assert len(client.created) == 2
-    assert {row["website_published"] for row in client.created} == {True, False}
+    assert len(client.created) == 1
+    assert client.created[0]["website_published"] is True
+    assert client.created[0]["active"] is True
 
 
 
@@ -412,3 +450,37 @@ def test_job_publication_resolves_existing_location_and_employment_type(db):
     assert result["status"] == "SYNCED"
     assert client.created[0]["address_id"] == 33
     assert client.created[0]["contract_type_id"] == 44
+
+
+def test_paused_never_published_vacancy_is_not_created_in_odoo(db):
+    delivery = _publication_module()
+    Sync = _sync_model()
+    job = _job(db, status="PAUSED", title="Vacante Interna Pausada")
+    sync = Sync(
+        job_id=job.id,
+        idempotency_key=f"job:{job.id}",
+        payload={
+            "schema_version": 1,
+            "operation": "UPSERT_JOB",
+            "job": {
+                "external_id": job.id,
+                "title": job.title,
+                "description": job.description,
+                "status": "PAUSED",
+            },
+        },
+        status="PENDING",
+    )
+    db.add(sync)
+    db.commit()
+
+    client = FakeOdooClient(publication_field="website_published")
+    result = delivery.sync_job_now(db, job_id=job.id, client=client)
+
+    assert result["status"] == "SYNCED"
+    assert result["action"] == "SKIPPED"
+    assert result["published"] is False
+    assert result["odoo_record_id"] is None
+    assert client.created == []
+    assert client.written == []
+    assert client.searches == []
