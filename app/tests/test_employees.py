@@ -132,6 +132,8 @@ def test_create_employee_provisions_cognito_and_employee_role(db):
         last_name="Employee",
         job_title="Comercial",
         department="Ventas",
+        country_code="CO",
+        company_name="ASIATI Colombia",
         hire_date=date(2026, 9, 24),
         role_code=EMPLOYEE,
         created_by_sub="admin-sub",
@@ -143,6 +145,8 @@ def test_create_employee_provisions_cognito_and_employee_role(db):
     assert profile.onboarding_status == "PENDING"
     assert service.roles_for_profile(db, profile.id) == [EMPLOYEE]
     assert profile.hire_date == date(2026, 9, 24)
+    assert profile.country_code == "CO"
+    assert profile.company_name == "ASIATI Colombia"
     assert cognito.created[0]["UserPoolId"] == "pool-test"
     assert cognito.created[0]["MessageAction"] == "SUPPRESS"
     assert "TemporaryPassword" in cognito.created[0]
@@ -372,3 +376,23 @@ def test_existing_imported_employee_is_linked_to_cognito_profile(db):
     assert profile.cognito_sub == "sub-imported-link@asiati.com.co"
     assert profile.onboarding_status == "PENDING"
     assert db.query(UserProfile).count() == 1
+
+
+def test_update_employee_can_change_country_and_company(db):
+    employee = _profile(db, email="country-company@asiati.com.co", role=EMPLOYEE)
+
+    updated = service.update_employee(
+        db,
+        employee.id,
+        changes={
+            "country_code": "CL",
+            "company_name": "ASIATI Chile",
+        },
+        cognito_client=FakeCognitoClient(),
+    )
+
+    assert updated.country_code == "CL"
+    assert updated.company_name == "ASIATI Chile"
+    payload = service.employee_payload(db, updated)
+    assert payload["country_code"] == "CL"
+    assert payload["company_name"] == "ASIATI Chile"
