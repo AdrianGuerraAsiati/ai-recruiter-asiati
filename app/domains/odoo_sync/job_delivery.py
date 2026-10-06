@@ -95,6 +95,30 @@ def _exact_address_id(
     return int(exact[0]["id"])
 
 
+def _company_id(client, company_name: str | None) -> int | None:
+    normalized = str(company_name or "").strip()
+    if not normalized:
+        return None
+    try:
+        rows = client.search_read(
+            "res.company",
+            [["name", "=ilike", normalized]],
+            fields=["id", "name"],
+            limit=10,
+        )
+    except OdooClientError:
+        return None
+
+    exact = [
+        row
+        for row in rows
+        if str(row.get("name") or "").strip().casefold() == normalized.casefold()
+    ]
+    if len(exact) != 1:
+        return None
+    return int(exact[0]["id"])
+
+
 def _employment_type_id(client, value: str | None) -> int | None:
     normalized = str(value or "").strip().upper()
     if not normalized:
@@ -168,6 +192,11 @@ def build_hr_job_values(client, payload: dict) -> tuple[dict, str]:
         for field, value in desired.items()
         if field in writable and value is not None
     }
+
+    if "company_id" in writable:
+        company_id = _company_id(client, job.get("company_name"))
+        if company_id is not None:
+            values["company_id"] = company_id
 
     if "address_id" in writable and str(job.get("city") or "").strip():
         address_id = _exact_address_id(
