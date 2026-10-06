@@ -16,6 +16,10 @@ from app.domains.candidate_ingestion.router import router as candidate_ingestion
 from app.domains.candidates.router import assign_router, router as candidates_router
 from app.domains.evaluations.router import router as evaluations_router
 from app.domains.employee_scores.router import router as employee_scores_router
+from app.domains.employee_documents.router import (
+    admin_router as employee_documents_admin_router,
+    self_router as employee_self_router,
+)
 from app.domains.employees.router import router as employees_router
 from app.domains.indeed.router import router as indeed_router
 from app.domains.hiring.router import router as hiring_router
@@ -64,7 +68,9 @@ def create_app() -> FastAPI:
     app.include_router(assign_router)
     app.include_router(evaluations_router)
     app.include_router(employee_scores_router)
+    app.include_router(employee_self_router)
     app.include_router(employees_router)
+    app.include_router(employee_documents_admin_router)
     app.include_router(hiring_router)
     app.include_router(odoo_sync_router)
     app.include_router(ranking_router)
