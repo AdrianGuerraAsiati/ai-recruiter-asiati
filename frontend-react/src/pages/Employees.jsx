@@ -8,6 +8,8 @@ import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
 import EmployeeCredentialsModal from "../components/EmployeeCredentialsModal";
 import EmployeeBiometricModal from "../components/EmployeeBiometricModal";
+import EmployeeDocumentsModal from "../components/EmployeeDocumentsModal";
+import "../employee-self-service.css";
 import TalentIdAttendanceFields from "../components/TalentIdAttendanceFields";
 import {
   EmptyState,
@@ -40,6 +42,7 @@ function Employees() {
   const { principal, hasPermission } = useSession();
   const canReadTrainingResults = hasPermission("training.results.read");
   const canManageTalentId = hasPermission("talent_id.manage");
+  const canManageDocuments = hasPermission("employee_documents.read_all");
   const canImportOdoo = hasPermission("employees.create");
   const [employees, setEmployees] = useState([]);
   const [query, setQuery] = useState("");
@@ -59,7 +62,9 @@ function Employees() {
   const [onboardingDetailError, setOnboardingDetailError] = useState("");
   const [createdCredentials, setCreatedCredentials] = useState(null);
   const [createdEmployeeName, setCreatedEmployeeName] = useState("");
+  const [createdOdooSync, setCreatedOdooSync] = useState(null);
   const [biometricTarget, setBiometricTarget] = useState(null);
+  const [documentsTarget, setDocumentsTarget] = useState(null);
   const [editTalentIdLoading, setEditTalentIdLoading] = useState(false);
   const [editAttendance, setEditAttendance] = useState(null);
   const [editSites, setEditSites] = useState([]);
@@ -142,6 +147,7 @@ function Employees() {
           || "Empleado",
       );
       setCreatedCredentials(data?.credentials || null);
+      setCreatedOdooSync(data?.odoo_sync || null);
       setForm(emptyEmployeeForm());
       setFormOpen(false);
       await loadEmployees();
@@ -482,15 +488,26 @@ function Employees() {
                         </span>
                       </td>
                       <td>
-                        {!canManageTarget && canManageTalentId && employee.status === "ACTIVE" && (
+                        {!canManageTarget && (canManageTalentId || canManageDocuments) && (
                           <div className="ui-actions">
-                            <button
-                              className="btn btn-ghost employee-talent-id-button"
-                              type="button"
-                              onClick={() => setBiometricTarget(employee)}
-                            >
-                              Talent ID
-                            </button>
+                            {canManageDocuments && (
+                              <button
+                                className="btn btn-ghost"
+                                type="button"
+                                onClick={() => setDocumentsTarget(employee)}
+                              >
+                                Documentos
+                              </button>
+                            )}
+                            {canManageTalentId && employee.status === "ACTIVE" && (
+                              <button
+                                className="btn btn-ghost employee-talent-id-button"
+                                type="button"
+                                onClick={() => setBiometricTarget(employee)}
+                              >
+                                Talent ID
+                              </button>
+                            )}
                           </div>
                         )}
                         {canManageTarget && (
@@ -502,6 +519,15 @@ function Employees() {
                             >
                               Editar
                             </button>
+                            {canManageDocuments && (
+                              <button
+                                className="btn btn-ghost"
+                                type="button"
+                                onClick={() => setDocumentsTarget(employee)}
+                              >
+                                Documentos
+                              </button>
+                            )}
                             {canManageTalentId && employee.status === "ACTIVE" && (
                               <button
                                 className="btn btn-ghost employee-talent-id-button"
@@ -734,13 +760,23 @@ function Employees() {
         />
       )}
 
+      {documentsTarget && (
+        <EmployeeDocumentsModal
+          open
+          employee={documentsTarget}
+          onClose={() => setDocumentsTarget(null)}
+        />
+      )}
+
       <EmployeeCredentialsModal
         open={Boolean(createdCredentials)}
         employeeName={createdEmployeeName}
         credentials={createdCredentials}
+        odooSync={createdOdooSync}
         onClose={() => {
           setCreatedCredentials(null);
           setCreatedEmployeeName("");
+          setCreatedOdooSync(null);
         }}
       />
 
