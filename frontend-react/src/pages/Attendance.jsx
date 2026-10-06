@@ -31,12 +31,6 @@ function defaultRange() {
 }
 
 
-function localDateTimeValue(date = new Date()) {
-  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
-}
-
-
 function employeeLabel(employee) {
   const name = [employee?.first_name, employee?.last_name].filter(Boolean).join(" ");
   return name
@@ -73,42 +67,70 @@ function statusLabel(status) {
 }
 
 
+function methodLabel(method) {
+  if (method === "REPORT") return "Reporte biométrico";
+  if (method === "MANUAL") return "Ajuste histórico";
+  if (method) return "Registro histórico";
+  return "";
+}
+
+
+function unmatchedReason(reason) {
+  return {
+    NO_MATCH: "No coincide con un empleado activo",
+    AMBIGUOUS_NAME: "Hay más de un empleado con ese nombre",
+    ATTENDANCE_NOT_ENABLED: "Asistencia no habilitada para el empleado",
+    SITE_MISMATCH: "El empleado está asignado a otra sede",
+  }[reason] || "No se pudo asociar";
+}
+
+
 function Attendance() {
   const { principal, hasPermission } = useSession();
   const canReadAll = (
     hasPermission("talent_id.attendance.read_all")
     || hasPermission("talent_id.manage")
   );
+  const canImportReports = hasPermission("talent_id.manage");
+
   const [range, setRange] = useState(() => defaultRange());
   const [employeeId, setEmployeeId] = useState("");
   const [employees, setEmployees] = useState([]);
+  const [sites, setSites] = useState([]);
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [manualSaving, setManualSaving] = useState(false);
-  const [manualSuccess, setManualSuccess] = useState("");
-  const [manual, setManual] = useState({
-    employee_id: "",
-    event_type: "check_in",
-    reason: "",
-    occurred_at: localDateTimeValue(),
-  });
+
+  const [reportFile, setReportFile] = useState(null);
+  const [reportSiteId, setReportSiteId] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   useEffect(() => {
     if (!canReadAll) return undefined;
 
     let cancelled = false;
-    api.get("/employees", { params: { status: "ACTIVE" } })
-      .then(({ data }) => {
+    Promise.all([
+      api.get("/employees", { params: { status: "ACTIVE" } }),
+      api.get("/talent-id/sites"),
+    ])
+      .then(([employeesResponse, sitesResponse]) => {
         if (cancelled) return;
+        const loadedEmployees = employeesResponse.data?.items || [];
+        const loadedSites = (sitesResponse.data?.items || []).filter((site) => site.active !== false);
         setEmployees(
-          (data?.items || [])
+          loadedEmployees
             .slice()
             .sort((a, b) => employeeLabel(a).localeCompare(employeeLabel(b), "es", { sensitivity: "base" })),
         );
+        setSites(loadedSites);
+        setReportSiteId((current) => current || (loadedSites.length === 1 ? loadedSites[0].id : ""));
       })
       .catch(() => {
-        if (!cancelled) setEmployees([]);
+        if (!cancelled) {
+          setEmployees([]);
+          setSites([]);
+        }
       });
 
     return () => {
@@ -131,7 +153,7 @@ function Attendance() {
     } catch (err) {
       setError(getApiErrorMessage(err, {
         action: "cargar el reporte de asistencia",
-        resource: "Talent ID",
+        resource: "asistencia",
         fallback: "No se pudo consultar la asistencia. Revisa el rango de fechas y vuelve a intentarlo.",
       }));
       setReport(null);
@@ -147,51 +169,47 @@ function Attendance() {
     return () => window.clearTimeout(timeoutId);
   }, [loadReport]);
 
-
-  async function submitManualAttendance(event) {
+  async function uploadBiometricReport(event) {
     event.preventDefault();
-    if (!manual.employee_id) {
-      setError("Selecciona el empleado para registrar la contingencia.");
+    if (!reportFile) {
+      setError("Selecciona el archivo .xls exportado por el reloj biométrico.");
       return;
     }
-    if (manual.reason.trim().length < 5) {
-      setError("Indica un motivo de al menos 5 caracteres.");
+    if (!reportSiteId) {
+      setError("Selecciona la sede a la que corresponde el reporte.");
       return;
     }
 
-    setManualSaving(true);
+    setImporting(true);
     setError("");
-    setManualSuccess("");
+    setImportResult(null);
     try {
-      const occurredAt = new Date(manual.occurred_at);
-      if (Number.isNaN(occurredAt.getTime())) {
-        setError("Selecciona una fecha y hora válidas para la contingencia.");
-        return;
+      const body = new FormData();
+      body.append("report", reportFile);
+      body.append("site_id", reportSiteId);
+      const { data } = await api.post("/talent-id/attendance/import-report", body);
+      setImportResult(data || null);
+      setReportFile(null);
+
+      const fileInput = document.getElementById("attendance-report-file");
+      if (fileInput) fileInput.value = "";
+
+      if (data?.date_range?.from && data?.date_range?.to) {
+        setRange({
+          start_date: String(data.date_range.from).slice(0, 10),
+          end_date: String(data.date_range.to).slice(0, 10),
+        });
+      } else {
+        await loadReport();
       }
-      await api.post("/talent-id/attendance/manual", {
-        employee_id: manual.employee_id,
-        event_type: manual.event_type,
-        reason: manual.reason.trim(),
-        occurred_at: occurredAt.toISOString(),
-      });
-      const employee = employees.find((item) => item.id === manual.employee_id);
-      setManualSuccess(
-        `Marcación manual registrada para ${employee ? employeeLabel(employee) : "el empleado"}. La operación quedó auditada.`,
-      );
-      setManual((current) => ({
-        ...current,
-        reason: "",
-        occurred_at: localDateTimeValue(),
-      }));
-      await loadReport();
     } catch (err) {
       setError(getApiErrorMessage(err, {
-        action: "registrar la marcación manual",
-        resource: "Talent ID",
-        fallback: "No fue posible registrar la contingencia de asistencia.",
+        action: "importar el reporte biométrico",
+        resource: "asistencia",
+        fallback: "No fue posible leer el reporte. Verifica que sea el .xls original exportado por el equipo.",
       }));
     } finally {
-      setManualSaving(false);
+      setImporting(false);
     }
   }
 
@@ -217,12 +235,12 @@ function Attendance() {
   return (
     <div className="page attendance-page">
       <PageHeader
-        eyebrow="Talent ID · Asistencia"
+        eyebrow="Asistencia · Reportes biométricos"
         title={title}
         description={
           canReadAll
-            ? "Consulta entradas, salidas, puntualidad y jornadas registradas por Talent ID."
-            : "Consulta tus propias entradas, salidas y puntualidad registradas por Talent ID."
+            ? "Carga los reportes exportados por los equipos de huella y consulta entradas, salidas, puntualidad y jornadas."
+            : "Consulta tus entradas, salidas y puntualidad procesadas desde los reportes biométricos de la empresa."
         }
         actions={(
           <button className="btn btn-secondary" type="button" onClick={loadReport} disabled={loading}>
@@ -231,6 +249,120 @@ function Attendance() {
         )}
         className="split-header"
       />
+
+      {canImportReports && (
+        <section className="panel attendance-import" aria-label="Importar reporte biométrico">
+          <div className="attendance-import-heading">
+            <div>
+              <span className="eyebrow">Fuente oficial de asistencia</span>
+              <h2>Cargar reporte del reloj biométrico</h2>
+              <p>
+                Talent acepta el archivo <b>.xls</b> original con las columnas ID de usuario, Nombre, Fecha/Hora,
+                Dispositivo Nro., Registro y Departamento.
+              </p>
+            </div>
+            <span className="attendance-import-badge">Solo reportes</span>
+          </div>
+
+          <form className="attendance-import-form" onSubmit={uploadBiometricReport}>
+            <div className="form-group">
+              <label htmlFor="attendance-report-site">Sede del reporte</label>
+              <select
+                id="attendance-report-site"
+                value={reportSiteId}
+                onChange={(event) => setReportSiteId(event.target.value)}
+                required
+              >
+                <option value="">Selecciona sede</option>
+                {sites.map((site) => (
+                  <option key={site.id} value={site.id}>
+                    {site.name}{site.code ? ` · ${site.code}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group attendance-import-file">
+              <label htmlFor="attendance-report-file">Reporte .xls</label>
+              <input
+                id="attendance-report-file"
+                type="file"
+                accept=".xls,application/vnd.ms-excel"
+                onChange={(event) => setReportFile(event.target.files?.[0] || null)}
+                required
+              />
+            </div>
+
+            <button className="btn btn-primary" type="submit" disabled={importing || sites.length === 0}>
+              {importing ? "Procesando reporte…" : "Cargar reporte"}
+            </button>
+          </form>
+
+          <div className="attendance-import-help">
+            <strong>Cómo se interpreta</strong>
+            <span>
+              Registro <b>0</b> = entrada y <b>1</b> = salida. Otros códigos no se inventan: se omiten y aparecen
+              en el resumen para revisión. Repetir el mismo archivo no duplica marcaciones.
+            </span>
+          </div>
+
+          {importResult && (
+            <div className="attendance-import-result" role="status">
+              <div className="attendance-import-result-heading">
+                <div>
+                  <span className="eyebrow">Importación completada</span>
+                  <h3>{importResult.filename}</h3>
+                  <p>
+                    {importResult.site_name} · {String(importResult.date_range?.from || "").slice(0, 10)}
+                    {" a "}{String(importResult.date_range?.to || "").slice(0, 10)}
+                  </p>
+                </div>
+                <strong>{importResult.imported_events || 0} nuevas</strong>
+              </div>
+
+              <div className="attendance-import-stats">
+                <div><span>Filas leídas</span><strong>{importResult.rows_total || 0}</strong></div>
+                <div><span>Personas fuente</span><strong>{importResult.source_users || 0}</strong></div>
+                <div><span>Empleados asociados</span><strong>{importResult.matched_employees || 0}</strong></div>
+                <div><span>Duplicadas</span><strong>{importResult.duplicate_events || 0}</strong></div>
+                <div><span>Códigos omitidos</span><strong>{importResult.unsupported_rows || 0}</strong></div>
+                <div>
+                  <span>Sin asociar/configurar</span>
+                  <strong>
+                    {(importResult.unmatched_rows || 0)
+                      + (importResult.ambiguous_rows || 0)
+                      + (importResult.attendance_not_enabled_rows || 0)
+                      + (importResult.site_mismatch_rows || 0)}
+                  </strong>
+                </div>
+              </div>
+
+              {Object.keys(importResult.unsupported_codes || {}).length > 0 && (
+                <p className="attendance-import-warning">
+                  Códigos de Registro no interpretados: {Object.entries(importResult.unsupported_codes)
+                    .map(([code, count]) => `${code} (${count})`)
+                    .join(", ")}.
+                </p>
+              )}
+
+              {(importResult.unmatched_people || []).length > 0 && (
+                <details className="attendance-import-unmatched">
+                  <summary>Ver personas que requieren revisión ({importResult.unmatched_people.length})</summary>
+                  <div>
+                    {importResult.unmatched_people.map((person) => (
+                      <article key={`${person.device_user_id}-${person.name}`}>
+                        <strong>{person.name}</strong>
+                        <span>ID reloj {person.device_user_id || "—"} · {person.department || "Sin departamento"}</span>
+                        <small>{unmatchedReason(person.reason)}</small>
+                      </article>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="panel attendance-filters" aria-label="Filtros de asistencia">
         <div className="attendance-filter-grid">
@@ -271,86 +403,12 @@ function Attendance() {
           )}
         </div>
         <small>
-          Puedes consultar hasta 93 días por vez. Las horas se muestran en tu zona horaria local.
+          Puedes consultar hasta 93 días por vez. Las horas se interpretan con la zona horaria de la sede.
         </small>
       </section>
 
-      {canReadAll && (
-        <section className="panel attendance-manual" aria-label="Marcación manual de contingencia">
-          <div className="attendance-manual-heading">
-            <div>
-              <span className="eyebrow">Contingencia auditada</span>
-              <h2>Registrar marcación manual</h2>
-              <p>
-                Úsala solo cuando el empleado no pueda marcar por biometría o QR. El motivo y el administrador quedan registrados.
-              </p>
-            </div>
-          </div>
-
-          {manualSuccess && <div className="talent-id-success" role="status">{manualSuccess}</div>}
-
-          <form className="attendance-manual-form" onSubmit={submitManualAttendance}>
-            <div className="form-group">
-              <label htmlFor="manual-attendance-employee">Empleado</label>
-              <select
-                id="manual-attendance-employee"
-                value={manual.employee_id}
-                onChange={(event) => setManual({ ...manual, employee_id: event.target.value })}
-                required
-              >
-                <option value="">Selecciona empleado</option>
-                {employees.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employeeLabel(employee)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="manual-attendance-event">Tipo</label>
-              <select
-                id="manual-attendance-event"
-                value={manual.event_type}
-                onChange={(event) => setManual({ ...manual, event_type: event.target.value })}
-              >
-                <option value="check_in">Entrada</option>
-                <option value="check_out">Salida</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="manual-attendance-time">Fecha y hora</label>
-              <input
-                id="manual-attendance-time"
-                type="datetime-local"
-                value={manual.occurred_at}
-                onChange={(event) => setManual({ ...manual, occurred_at: event.target.value })}
-                required
-              />
-            </div>
-
-            <div className="form-group attendance-manual-reason">
-              <label htmlFor="manual-attendance-reason">Motivo</label>
-              <input
-                id="manual-attendance-reason"
-                value={manual.reason}
-                onChange={(event) => setManual({ ...manual, reason: event.target.value })}
-                maxLength={500}
-                placeholder="Ej. Falla temporal del kiosco en recepción"
-                required
-              />
-            </div>
-
-            <button className="btn btn-secondary" type="submit" disabled={manualSaving}>
-              {manualSaving ? "Registrando…" : "Registrar contingencia"}
-            </button>
-          </form>
-        </section>
-      )}
-
       {error && (
-        <FeedbackMessage title="No se pudo cargar la asistencia">{error}</FeedbackMessage>
+        <FeedbackMessage title="No se pudo completar la operación">{error}</FeedbackMessage>
       )}
 
       {loading ? (
@@ -389,9 +447,9 @@ function Attendance() {
             {canReadAll && (
               <MetricCard
                 icon="check"
-                label="Contingencias"
-                value={summary.manual_events || 0}
-                detail="Marcaciones manuales auditadas"
+                label="Marcaciones importadas"
+                value={summary.report_events || 0}
+                detail="Eventos provenientes de reportes biométricos"
                 tone="neutral"
               />
             )}
@@ -415,7 +473,7 @@ function Attendance() {
               <EmptyState
                 icon="calendar"
                 title="No hay marcaciones en este período"
-                description="Cuando Talent ID registre entradas o salidas, aparecerán aquí."
+                description="Carga un reporte biométrico para incorporar entradas y salidas."
               />
             ) : (
               <div className="table-wrap attendance-table-wrap">
@@ -447,14 +505,12 @@ function Attendance() {
                         <td>{row.site_name}</td>
                         <td>
                           <strong>{timeLabel(row.check_in)}</strong>
-                          {row.check_in_method && <small>{row.check_in_method === "MANUAL" ? "Manual" : row.check_in_method === "QR" ? "QR móvil" : "Facial"}</small>}
-                          {row.check_in_manual_reason && <small className="attendance-manual-note">{row.check_in_manual_reason}</small>}
+                          {row.check_in_method && <small>{methodLabel(row.check_in_method)}</small>}
                           {row.late_minutes > 0 && <small className="attendance-late">+{row.late_minutes} min</small>}
                         </td>
                         <td>
                           <strong>{timeLabel(row.check_out)}</strong>
-                          {row.check_out_method && <small>{row.check_out_method === "MANUAL" ? "Manual" : row.check_out_method === "QR" ? "QR móvil" : "Facial"}</small>}
-                          {row.check_out_manual_reason && <small className="attendance-manual-note">{row.check_out_manual_reason}</small>}
+                          {row.check_out_method && <small>{methodLabel(row.check_out_method)}</small>}
                         </td>
                         <td>{durationLabel(row.worked_minutes)}</td>
                         <td>
