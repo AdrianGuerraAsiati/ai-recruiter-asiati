@@ -321,7 +321,7 @@ def test_existing_single_named_odoo_job_is_adopted_instead_of_duplicated(db):
     assert sync.odoo_record_id == "88"
 
 
-def test_updating_talent_job_refreshes_and_delivers_publication(db, monkeypatch):
+def test_pausing_never_published_talent_job_does_not_send_it_to_odoo(db, monkeypatch):
     delivery = _publication_module()
     Sync = _sync_model()
     delivered = []
@@ -348,6 +348,43 @@ def test_updating_talent_job_refreshes_and_delivers_publication(db, monkeypatch)
     )
 
     sync = db.query(Sync).filter(Sync.job_id == job.id).one()
+    assert updated.status == "PAUSED"
+    assert sync.payload["job"]["status"] == "PAUSED"
+    assert sync.status == "SYNCED"
+    assert sync.odoo_record_id is None
+    assert delivered == []
+
+
+def test_pausing_previously_published_talent_job_withdraws_it_from_odoo(db, monkeypatch):
+    delivery = _publication_module()
+    Sync = _sync_model()
+    delivered = []
+
+    def fake_delivery(_db, *, job_id, client=None):
+        delivered.append(job_id)
+        return {"job_id": job_id, "status": "SYNCED", "action": "UPDATED"}
+
+    monkeypatch.setattr(delivery, "sync_job_now", fake_delivery)
+
+    job = jobs_service.create_job(
+        db,
+        title="Coordinador de operaciones",
+        description="Coordinar operación.",
+        owner_sub="admin-sub",
+    )
+    sync = db.query(Sync).filter(Sync.job_id == job.id).one()
+    sync.odoo_record_id = "77"
+    db.commit()
+    delivered.clear()
+
+    updated = jobs_service.update_job(
+        db,
+        job_id=job.id,
+        owner_sub="admin-sub",
+        status="PAUSED",
+    )
+
+    db.refresh(sync)
     assert updated.status == "PAUSED"
     assert sync.payload["job"]["status"] == "PAUSED"
     assert delivered == [job.id]
