@@ -115,7 +115,7 @@ export default function Psychotechnical() {
         const { data } = await api.get(
           `/candidates?page=1&page_size=20&q=${encodeURIComponent(normalized)}`,
         );
-        setCandidateOptions(data?.items || []);
+        setCandidateOptions((data?.items || []).filter((candidate) => !candidate.is_banned));
       } catch {
         setCandidateOptions([]);
       } finally {
