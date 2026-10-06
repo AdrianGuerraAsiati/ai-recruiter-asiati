@@ -162,7 +162,7 @@ def test_temperament_returns_distribution_not_hiring_score(db):
     assert assignment.dimension_scores["C"]["count"] == 30
     assert assignment.dimension_scores["C"]["primary"] is True
     assert assignment.dimension_scores["PROFILE"]["profiles"] == ["Melancólico"]
-    assert "no se utiliza automáticamente" in assignment.dimension_scores["PROFILE"]["note"]
+    assert "no se utiliza automáticamente" in assignment.dimension_scores["PROFILE"]["note"].lower()
 
 
 def test_valanti_uses_pair_allocations_and_returns_five_values(db):
