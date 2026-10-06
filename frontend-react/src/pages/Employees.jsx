@@ -8,7 +8,6 @@ import { COUNTRY_OPTIONS, countryName } from "../data/countries";
 import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
 import EmployeeCredentialsModal from "../components/EmployeeCredentialsModal";
-import EmployeeBiometricModal from "../components/EmployeeBiometricModal";
 import TalentIdAttendanceFields from "../components/TalentIdAttendanceFields";
 import {
   EmptyState,
@@ -62,7 +61,6 @@ function Employees() {
   const [onboardingDetailError, setOnboardingDetailError] = useState("");
   const [createdCredentials, setCreatedCredentials] = useState(null);
   const [createdEmployeeName, setCreatedEmployeeName] = useState("");
-  const [biometricTarget, setBiometricTarget] = useState(null);
   const [editTalentIdLoading, setEditTalentIdLoading] = useState(false);
   const [editAttendance, setEditAttendance] = useState(null);
   const [editSites, setEditSites] = useState([]);
@@ -218,7 +216,7 @@ function Employees() {
     } catch (err) {
       setEditError(getApiErrorMessage(err, {
         action: "cargar la configuración de asistencia",
-        resource: "Talent ID",
+        resource: "asistencia",
         fallback: "El perfil abrió, pero no se pudo cargar sede, horario y asistencia.",
       }));
     } finally {
@@ -493,17 +491,6 @@ function Employees() {
                         </span>
                       </td>
                       <td>
-                        {!canManageTarget && canManageTalentId && employee.status === "ACTIVE" && (
-                          <div className="ui-actions">
-                            <button
-                              className="btn btn-ghost employee-talent-id-button"
-                              type="button"
-                              onClick={() => setBiometricTarget(employee)}
-                            >
-                              Talent ID
-                            </button>
-                          </div>
-                        )}
                         {canManageTarget && (
                           <div className="ui-actions">
                             <button
@@ -513,15 +500,6 @@ function Employees() {
                             >
                               Editar
                             </button>
-                            {canManageTalentId && employee.status === "ACTIVE" && (
-                              <button
-                                className="btn btn-ghost employee-talent-id-button"
-                                type="button"
-                                onClick={() => setBiometricTarget(employee)}
-                              >
-                                Talent ID
-                              </button>
-                            )}
                             {employee.access_provisioned && (
                               <button
                                 className="btn btn-ghost employee-status-button"
@@ -665,7 +643,7 @@ function Employees() {
                 <div className="employee-edit-talent-id">
                   <div className="employee-edit-section-heading">
                     <div>
-                      <span className="eyebrow">Talent ID</span>
+                      <span className="eyebrow">Asistencia</span>
                       <h3>Asistencia del empleado</h3>
                     </div>
                     <small>Se guarda junto con los demás cambios del perfil.</small>
@@ -760,14 +738,6 @@ function Employees() {
             ) : null}
           </section>
         </div>
-      )}
-
-      {biometricTarget && (
-        <EmployeeBiometricModal
-          open
-          employee={biometricTarget}
-          onClose={() => setBiometricTarget(null)}
-        />
       )}
 
       <EmployeeCredentialsModal
