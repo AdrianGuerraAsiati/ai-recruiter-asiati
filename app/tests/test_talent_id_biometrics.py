@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 
 import app.models  # noqa: F401
 from app.db import Base
-from app.domains.talent_id import biometrics, service
+from app.domains.talent_id import biometrics, consent, service
 from app.domains.talent_id.models import (
     TalentBiometricConsentEvent,
     TalentBiometricEnrollment,
@@ -71,7 +71,7 @@ def _authorize_biometrics(db, employee):
         TalentBiometricConsentEvent(
             employee_id=employee.id,
             decision="AUTHORIZED",
-            document_version="test",
+            document_version=consent.BIOMETRIC_CONSENT_VERSION,
             document_sha256="d" * 64,
             pdf_sha256="p" * 64,
             signed_pdf=b"%PDF-test",

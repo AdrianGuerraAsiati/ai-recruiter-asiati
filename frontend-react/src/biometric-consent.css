@@ -17,7 +17,7 @@
 
 .biometric-consent-heading p,
 .biometric-consent-document p,
-.biometric-consent-otp p {
+.biometric-consent-revoke-confirm p {
   margin: 0;
   color: var(--text-muted, #667085);
   line-height: 1.55;
@@ -97,19 +97,103 @@
   gap: 10px;
 }
 
-.biometric-consent-otp {
+.biometric-consent-checkbox-flow,
+.biometric-consent-accepted {
   display: grid;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 14px;
-  border: 1px solid var(--border-color, #e5e7eb);
+  gap: 14px;
 }
 
-.biometric-consent-otp input {
-  max-width: 240px;
-  letter-spacing: 0.35em;
-  font-size: 1.15rem;
+.biometric-consent-check {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 14px;
+  background: var(--surface-subtle, rgba(248, 250, 252, 0.65));
+  cursor: pointer;
+}
+
+.biometric-consent-check input {
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+  flex: 0 0 auto;
+  accent-color: var(--primary, #2563eb);
+}
+
+.biometric-consent-check span {
+  display: grid;
+  gap: 6px;
+}
+
+.biometric-consent-check strong {
+  color: var(--text-primary, #101828);
+  line-height: 1.45;
+}
+
+.biometric-consent-check small {
+  color: var(--text-muted, #667085);
+  line-height: 1.5;
+}
+
+.biometric-consent-document-link {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--primary, #2563eb);
+  font: inherit;
+  font-size: 0.88rem;
   font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.biometric-consent-accept {
+  width: fit-content;
+  min-width: 190px;
+}
+
+.biometric-consent-accepted-summary {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.18);
+}
+
+.biometric-consent-accepted-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.16);
+  color: #047857;
+  font-weight: 800;
+}
+
+.biometric-consent-accepted-summary > div {
+  display: grid;
+  gap: 3px;
+}
+
+.biometric-consent-accepted-summary small {
+  color: var(--text-muted, #667085);
+}
+
+.biometric-consent-revoke-confirm {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  background: rgba(239, 68, 68, 0.06);
 }
 
 @media (max-width: 720px) {
@@ -120,5 +204,13 @@
 
   .biometric-consent-evidence {
     grid-template-columns: 1fr;
+  }
+
+  .biometric-consent-check {
+    padding: 14px;
+  }
+
+  .biometric-consent-accept {
+    width: 100%;
   }
 }

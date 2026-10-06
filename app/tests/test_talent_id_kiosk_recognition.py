@@ -13,7 +13,7 @@ from starlette.datastructures import Headers
 
 import app.models  # noqa: F401
 from app.db import Base
-from app.domains.talent_id import biometrics, service
+from app.domains.talent_id import biometrics, consent, service
 from app.domains.talent_id.models import TalentBiometricConsentEvent
 from app.domains.talent_id.router import (
     _read_image,
@@ -109,7 +109,7 @@ def _setup(db):
         TalentBiometricConsentEvent(
             employee_id=employee.id,
             decision="AUTHORIZED",
-            document_version="test",
+            document_version=consent.BIOMETRIC_CONSENT_VERSION,
             document_sha256="d" * 64,
             pdf_sha256="p" * 64,
             signed_pdf=b"%PDF-test",

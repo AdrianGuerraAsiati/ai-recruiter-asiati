@@ -35,6 +35,7 @@ from app.domains.talent_id.schemas import (
     CreateScheduleRequest,
     CreateSiteRequest,
     ProvisionKioskRequest,
+    RecordBiometricConsentRequest,
     RequestBiometricConsentOtp,
     SignBiometricConsentRequest,
     UpdateKioskRequest,
@@ -220,6 +221,75 @@ def get_my_biometric_consent(
         return consent.consent_payload(db, employee_id, include_document=True)
     except Exception as exc:
         return _consent_error(exc)
+
+
+@router.post("/consent/accept")
+def accept_my_biometric_consent(
+    body: RecordBiometricConsentRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    settings = get_talent_id_consent_settings()
+    client_ip = request.client.host if request.client else None
+    evidence = {
+        "auth_sub": principal.get("sub"),
+        "source": "talent_web",
+        "ip_hash": consent.hash_evidence_value(settings.otp_secret, client_ip),
+        "user_agent_hash": consent.hash_evidence_value(
+            settings.otp_secret,
+            request.headers.get("user-agent"),
+        ),
+    }
+    try:
+        consent.record_authenticated_decision(
+            db,
+            employee_id=employee_id,
+            decision="AUTHORIZED",
+            expected_document_version=body.document_version,
+            confirmed=body.confirmed,
+            evidence=evidence,
+        )
+    except Exception as exc:
+        return _consent_error(exc)
+
+    return consent.consent_payload(db, employee_id, include_document=False)
+
+
+@router.post("/consent/revoke")
+def revoke_my_biometric_consent(
+    body: RecordBiometricConsentRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(get_current_principal),
+):
+    employee_id = _principal_employee_id(principal)
+    settings = get_talent_id_consent_settings()
+    client_ip = request.client.host if request.client else None
+    evidence = {
+        "auth_sub": principal.get("sub"),
+        "source": "talent_web",
+        "ip_hash": consent.hash_evidence_value(settings.otp_secret, client_ip),
+        "user_agent_hash": consent.hash_evidence_value(
+            settings.otp_secret,
+            request.headers.get("user-agent"),
+        ),
+    }
+    try:
+        consent.record_authenticated_decision(
+            db,
+            employee_id=employee_id,
+            decision="REVOKED",
+            expected_document_version=body.document_version,
+            confirmed=body.confirmed,
+            evidence=evidence,
+        )
+    except Exception as exc:
+        return _consent_error(exc)
+
+    _disable_biometrics_after_opt_out(db, employee_id)
+    return consent.consent_payload(db, employee_id, include_document=False)
 
 
 @router.post("/consent/otp")

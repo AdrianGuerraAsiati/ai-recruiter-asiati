@@ -1,6 +1,6 @@
 // eslint-disable-next-line no-unused-vars
 import React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
@@ -27,11 +27,10 @@ function formatDateTime(value) {
 function BiometricConsentCard() {
   const [state, setState] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [requesting, setRequesting] = useState(false);
-  const [signing, setSigning] = useState(false);
-  const [pendingDecision, setPendingDecision] = useState("");
-  const [otp, setOtp] = useState("");
-  const [otpInfo, setOtpInfo] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [accepted, setAccepted] = useState(false);
+  const [showDocument, setShowDocument] = useState(false);
+  const [confirmRevocation, setConfirmRevocation] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -41,6 +40,8 @@ function BiometricConsentCard() {
     try {
       const { data } = await api.get("/talent-id/consent");
       setState(data);
+      setAccepted(false);
+      setConfirmRevocation(false);
     } catch (err) {
       setError(getApiErrorMessage(err, {
         action: "cargar la autorización biométrica",
@@ -61,76 +62,57 @@ function BiometricConsentCard() {
 
   const status = state?.status || "PENDING";
   const statusCopy = STATUS_COPY[status] || STATUS_COPY.PENDING;
-  const canAuthorize = status !== "AUTHORIZED";
-  const canDeny = status !== "AUTHORIZED" && status !== "DENIED";
-  const canRevoke = status === "AUTHORIZED";
+  const documentVersion = state?.document?.version || state?.document_version;
+  const authorized = status === "AUTHORIZED";
 
-  const decisionLabel = useMemo(() => ({
-    AUTHORIZED: "Autorizar reconocimiento facial",
-    DENIED: "No autorizar biometría",
-    REVOKED: "Revocar autorización",
-  }[pendingDecision] || ""), [pendingDecision]);
-
-  async function startDecision(decision) {
-    setRequesting(true);
-    setError("");
-    setSuccess("");
-    setOtp("");
-    try {
-      const { data } = await api.post("/talent-id/consent/otp", {
-        decision,
-        document_version: state?.document?.version || state?.document_version,
-      });
-      setOtpInfo(data);
-      setPendingDecision(decision);
-      setSuccess(`Enviamos un código de 6 dígitos a ${data.destination}.`);
-    } catch (err) {
-      setError(getApiErrorMessage(err, {
-        action: "enviar el código de firma",
-        resource: "Talent ID",
-        fallback: "No fue posible enviar el código de firma electrónica.",
-      }));
-    } finally {
-      setRequesting(false);
-    }
-  }
-
-  async function confirmDecision(event) {
-    event.preventDefault();
-    if (!/^\d{6}$/.test(otp)) {
-      setError("Ingresa el código de 6 dígitos enviado a tu correo.");
+  async function acceptBiometrics() {
+    if (!accepted) {
+      setError("Marca la casilla de autorización para continuar.");
       return;
     }
 
-    const decision = pendingDecision;
-    setSigning(true);
+    setSaving(true);
     setError("");
     setSuccess("");
     try {
-      await api.post("/talent-id/consent/sign", {
-        decision,
-        otp,
-        document_version: state?.document?.version || state?.document_version,
+      await api.post("/talent-id/consent/accept", {
+        document_version: documentVersion,
+        confirmed: true,
       });
-      setPendingDecision("");
-      setOtp("");
-      setOtpInfo(null);
-      setSuccess(
-        decision === "AUTHORIZED"
-          ? "Autorización firmada. Talento Humano ya puede habilitar tu enrolamiento facial."
-          : decision === "REVOKED"
-            ? "Revocación firmada. El reconocimiento facial quedó deshabilitado."
-            : "Decisión firmada. Seguirás teniendo disponible un mecanismo no biométrico de asistencia.",
-      );
+      setSuccess("Autorización biométrica registrada.");
+      setShowDocument(false);
       await load();
     } catch (err) {
       setError(getApiErrorMessage(err, {
-        action: "firmar tu decisión",
+        action: "registrar tu autorización biométrica",
         resource: "Talent ID",
-        fallback: "No fue posible validar el código o registrar la firma.",
+        fallback: "No fue posible registrar la autorización.",
       }));
     } finally {
-      setSigning(false);
+      setSaving(false);
+    }
+  }
+
+  async function revokeBiometrics() {
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      await api.post("/talent-id/consent/revoke", {
+        document_version: documentVersion,
+        confirmed: true,
+      });
+      setSuccess("Autorización revocada. El reconocimiento facial quedó deshabilitado.");
+      setShowDocument(false);
+      await load();
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "revocar tu autorización biométrica",
+        resource: "Talent ID",
+        fallback: "No fue posible revocar la autorización.",
+      }));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -150,9 +132,9 @@ function BiometricConsentCard() {
       URL.revokeObjectURL(url);
     } catch (err) {
       setError(getApiErrorMessage(err, {
-        action: "descargar el documento firmado",
+        action: "descargar el comprobante de autorización",
         resource: "Talent ID",
-        fallback: "No fue posible descargar el documento firmado.",
+        fallback: "No fue posible descargar el comprobante.",
       }));
     }
   }
@@ -171,7 +153,9 @@ function BiometricConsentCard() {
         <div>
           <span className="eyebrow">Talent ID · Privacidad</span>
           <h2>Reconocimiento facial</h2>
-          <p>Tu decisión es independiente del uso corporativo de fotografías o videos.</p>
+          <p>
+            La biometría es voluntaria. Si no la autorizas, puedes utilizar QR móvil para registrar asistencia.
+          </p>
         </div>
         <span className={`biometric-consent-status is-${statusCopy.tone}`}>
           {statusCopy.label}
@@ -181,114 +165,133 @@ function BiometricConsentCard() {
       {error && <FeedbackMessage title="No se pudo completar la operación">{error}</FeedbackMessage>}
       {success && <div className="talent-id-success" role="status">{success}</div>}
 
-      <div className="biometric-consent-document" tabIndex="0">
-        <div className="biometric-consent-document-meta">
-          <strong>{state?.document?.title}</strong>
-          <span>Versión {state?.document?.version || state?.document_version}</span>
-        </div>
-        {String(state?.document?.text || "").split("\n\n").map((paragraph) => (
-          <p key={paragraph.slice(0, 40)}>{paragraph}</p>
-        ))}
-      </div>
-
-      <div className="biometric-consent-note">
-        Si no autorizas o revocas la biometría, ASIATI debe mantener disponible una alternativa de marcación no biométrica.
-      </div>
-
-      {state?.signed_at && (
-        <div className="biometric-consent-evidence">
-          <div>
-            <span>Última decisión firmada</span>
-            <strong>{formatDateTime(state.signed_at)}</strong>
-          </div>
-          <div>
-            <span>Versión</span>
-            <strong>{state.document_version}</strong>
-          </div>
-          <div>
-            <span>Integridad</span>
-            <strong>{String(state.pdf_sha256 || "").slice(0, 12)}…</strong>
-          </div>
-        </div>
-      )}
-
-      {!pendingDecision ? (
-        <div className="biometric-consent-actions">
-          {canAuthorize && (
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={requesting}
-              onClick={() => startDecision("AUTHORIZED")}
-            >
-              {requesting ? "Enviando código…" : "Autorizar biometría"}
-            </button>
-          )}
-          {canDeny && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={requesting}
-              onClick={() => startDecision("DENIED")}
-            >
-              No autorizar
-            </button>
-          )}
-          {canRevoke && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={requesting}
-              onClick={() => startDecision("REVOKED")}
-            >
-              Revocar autorización
-            </button>
-          )}
-          {state?.has_signed_document && (
-            <button type="button" className="btn btn-ghost" onClick={downloadReceipt}>
-              Descargar documento firmado
-            </button>
-          )}
-        </div>
-      ) : (
-        <form className="biometric-consent-otp" onSubmit={confirmDecision}>
-          <div>
-            <span className="eyebrow">Firma electrónica</span>
-            <h3>{decisionLabel}</h3>
-            <p>
-              Código enviado a {otpInfo?.destination}. Confirma tu decisión con el OTP de un solo uso.
-            </p>
-          </div>
-          <label htmlFor="talent-id-consent-otp">Código de 6 dígitos</label>
-          <input
-            id="talent-id-consent-otp"
-            value={otp}
-            onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            pattern="[0-9]{6}"
-            placeholder="000000"
-            required
-          />
-          <div className="biometric-consent-actions">
-            <button className="btn btn-primary" type="submit" disabled={signing}>
-              {signing ? "Firmando…" : "Confirmar y firmar"}
-            </button>
-            <button
-              className="btn btn-ghost"
-              type="button"
-              disabled={signing}
-              onClick={() => {
-                setPendingDecision("");
-                setOtp("");
-                setOtpInfo(null);
+      {!authorized ? (
+        <div className="biometric-consent-checkbox-flow">
+          <label className="biometric-consent-check">
+            <input
+              type="checkbox"
+              checked={accepted}
+              onChange={(event) => {
+                setAccepted(event.target.checked);
                 setError("");
               }}
-            >
-              Cancelar
-            </button>
+            />
+            <span>
+              <strong>
+                Autorizo el tratamiento de mis datos biométricos para reconocimiento facial y registro de asistencia.
+              </strong>
+              <small>
+                Al marcar esta casilla y seleccionar <b>Aceptar y continuar</b>, declaro que leí y acepto la autorización
+                para el tratamiento de datos biométricos. Esta autorización es voluntaria y puedo usar QR móvil como alternativa.
+              </small>
+            </span>
+          </label>
+
+          <button
+            className="biometric-consent-document-link"
+            type="button"
+            onClick={() => setShowDocument((current) => !current)}
+          >
+            {showDocument ? "Ocultar autorización completa" : "Ver autorización completa"}
+          </button>
+
+          {showDocument && (
+            <div className="biometric-consent-document" tabIndex="0">
+              <div className="biometric-consent-document-meta">
+                <strong>{state?.document?.title}</strong>
+                <span>Versión {documentVersion}</span>
+              </div>
+              {String(state?.document?.text || "").split("\n\n").map((paragraph) => (
+                <p key={paragraph.slice(0, 40)}>{paragraph}</p>
+              ))}
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="btn btn-primary biometric-consent-accept"
+            disabled={!accepted || saving}
+            onClick={acceptBiometrics}
+          >
+            {saving ? "Registrando…" : "Aceptar y continuar"}
+          </button>
+        </div>
+      ) : (
+        <div className="biometric-consent-accepted">
+          <div className="biometric-consent-accepted-summary">
+            <span className="biometric-consent-accepted-icon" aria-hidden="true">✓</span>
+            <div>
+              <strong>Autorización biométrica registrada</strong>
+              <small>
+                {formatDateTime(state?.signed_at)}
+                {state?.document_version ? ` · Versión ${state.document_version}` : ""}
+              </small>
+            </div>
           </div>
-        </form>
+
+          <div className="biometric-consent-actions">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setShowDocument((current) => !current)}
+            >
+              {showDocument ? "Ocultar autorización" : "Ver autorización"}
+            </button>
+            {state?.has_signed_document && (
+              <button type="button" className="btn btn-ghost" onClick={downloadReceipt}>
+                Descargar comprobante
+              </button>
+            )}
+            {!confirmRevocation ? (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConfirmRevocation(true)}
+              >
+                Revocar autorización
+              </button>
+            ) : null}
+          </div>
+
+          {showDocument && (
+            <div className="biometric-consent-document" tabIndex="0">
+              <div className="biometric-consent-document-meta">
+                <strong>{state?.document?.title}</strong>
+                <span>Versión {documentVersion}</span>
+              </div>
+              {String(state?.document?.text || "").split("\n\n").map((paragraph) => (
+                <p key={paragraph.slice(0, 40)}>{paragraph}</p>
+              ))}
+            </div>
+          )}
+
+          {confirmRevocation && (
+            <div className="biometric-consent-revoke-confirm">
+              <p>
+                Al confirmar, Talent ID dejará de usar reconocimiento facial y conservará el registro de esta revocación.
+                Podrás seguir marcando mediante QR móvil.
+              </p>
+              <div className="biometric-consent-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={saving}
+                  onClick={revokeBiometrics}
+                >
+                  {saving ? "Revocando…" : "Confirmar revocación"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={saving}
+                  onClick={() => setConfirmRevocation(false)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </section>
   );

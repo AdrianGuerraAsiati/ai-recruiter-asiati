@@ -266,7 +266,7 @@ function TalentIdFaceEnrollment({
       setError(getApiErrorMessage(err, {
         action: "descargar la autorización biométrica",
         resource: "Talent ID",
-        fallback: "No fue posible descargar el documento firmado.",
+        fallback: "No fue posible descargar el comprobante de autorización.",
       }));
     }
   }
@@ -311,7 +311,7 @@ function TalentIdFaceEnrollment({
       return;
     }
     if (consent.status !== "AUTHORIZED") {
-      setError("El empleado debe firmar la autorización biométrica desde Mi perfil antes de registrar fotos.");
+      setError("El empleado debe aceptar la autorización biométrica desde Mi perfil antes de registrar fotos.");
       return;
     }
 
@@ -550,7 +550,7 @@ function TalentIdFaceEnrollment({
                     }
                   </strong>
                   <span>
-                    La decisión debe firmarla el empleado desde Mi perfil mediante OTP. Talento Humano no puede autorizar en su nombre.
+                    La decisión debe aceptarla expresamente el empleado desde Mi perfil. Talento Humano no puede autorizar en su nombre.
                     {consent.signed_at
                       ? ` Última decisión: ${new Date(consent.signed_at).toLocaleString("es-CO")}.`
                       : ""}
@@ -569,7 +569,7 @@ function TalentIdFaceEnrollment({
 
               {!biometricAuthorized && (
                 <div className="talent-id-biometric-blocker">
-                  El enrolamiento facial está bloqueado hasta que el empleado firme una autorización biométrica vigente.
+                  El enrolamiento facial está bloqueado hasta que el empleado acepte una autorización biométrica vigente.
                 </div>
               )}
 

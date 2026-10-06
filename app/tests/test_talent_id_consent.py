@@ -195,3 +195,43 @@ def test_consent_otp_requires_employee_email(db):
             max_attempts=5,
             send_otp=lambda *_args: None,
         )
+
+
+def test_authenticated_checkbox_authorization_records_auditable_evidence(db):
+    employee = _employee(db)
+
+    event = consent.record_authenticated_decision(
+        db,
+        employee_id=employee.id,
+        decision="AUTHORIZED",
+        expected_document_version=consent.BIOMETRIC_CONSENT_VERSION,
+        confirmed=True,
+        evidence={
+            "auth_sub": employee.cognito_sub,
+            "source": "talent_web",
+            "ip_hash": "hashed-ip",
+        },
+    )
+
+    assert event.decision == "AUTHORIZED"
+    assert event.otp_challenge_id is None
+    assert event.evidence["method"] == "AUTHENTICATED_CHECKBOX"
+    assert event.evidence["source"] == "talent_web"
+    assert event.signed_pdf.startswith(b"%PDF")
+    assert len(event.pdf_sha256) == 64
+    assert consent.current_status(db, employee.id) == "AUTHORIZED"
+
+
+def test_authenticated_checkbox_requires_explicit_confirmation(db):
+    employee = _employee(db)
+
+    with pytest.raises(consent.ConsentStateError, match="confirmar expresamente"):
+        consent.record_authenticated_decision(
+            db,
+            employee_id=employee.id,
+            decision="AUTHORIZED",
+            expected_document_version=consent.BIOMETRIC_CONSENT_VERSION,
+            confirmed=False,
+        )
+
+    assert db.query(talent_models.TalentBiometricConsentEvent).count() == 0
