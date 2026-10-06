@@ -348,3 +348,41 @@ def test_candidate_download_requires_owner_and_uses_canonical_storage(monkeypatc
         ("require", "candidate-1", "owner-1"),
         ("download", "candidate-1"),
     ]
+
+
+def test_list_candidates_page_passes_search_query_to_repository(monkeypatch):
+    calls = []
+
+    def fake_list(db, **kwargs):
+        calls.append((db, kwargs))
+        return [], 0
+
+    monkeypatch.setattr(
+        service.candidates_repository,
+        "list_candidates_page",
+        fake_list,
+    )
+    db = object()
+
+    result = service.list_candidates_page(
+        db,
+        "owner-1",
+        page=2,
+        page_size=20,
+        sort="name_asc",
+        q="ana@example.com",
+    )
+
+    assert result == ([], 0)
+    assert calls == [
+        (
+            db,
+            {
+                "owner_sub": None,
+                "page": 2,
+                "page_size": 20,
+                "sort": "name_asc",
+                "q": "ana@example.com",
+            },
+        )
+    ]
