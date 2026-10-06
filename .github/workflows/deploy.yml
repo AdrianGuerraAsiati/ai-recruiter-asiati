@@ -326,27 +326,27 @@ jobs:
               --bucket "$IMPORT_STAGING_BUCKET" \
               --key "\$BIOMETRIC_SYNC_KEY" \
               --profile ai-recruiter-bedrock >/dev/null 2>&1; then
-              AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws s3 cp \
-                "s3://$IMPORT_STAGING_BUCKET/\$BIOMETRIC_SYNC_KEY" \
-                /tmp/biometric-employee-sync.json \
+              AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws s3api get-object \
+                --bucket "$IMPORT_STAGING_BUCKET" \
+                --key "\$BIOMETRIC_SYNC_KEY" \
                 --profile ai-recruiter-bedrock \
-                --only-show-errors
+                /tmp/biometric-employee-sync.json >/dev/null
               sudo docker cp /tmp/biometric-employee-sync.json ai-recruiter-api:/tmp/biometric-employee-sync.json
               sudo docker exec ai-recruiter-api \
                 python -m app.scripts.sync_biometric_employee_directory \
                 --source /tmp/biometric-employee-sync.json \
                 --result /tmp/biometric-employee-sync-result.json
               sudo docker cp ai-recruiter-api:/tmp/biometric-employee-sync-result.json /tmp/biometric-employee-sync-result.json
-              AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws s3 cp \
-                /tmp/biometric-employee-sync-result.json \
-                "s3://$IMPORT_STAGING_BUCKET/\$BIOMETRIC_RESULT_KEY" \
-                --profile ai-recruiter-bedrock \
-                --sse AES256 \
-                --only-show-errors
-              AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws s3 rm \
-                "s3://$IMPORT_STAGING_BUCKET/\$BIOMETRIC_SYNC_KEY" \
-                --profile ai-recruiter-bedrock \
-                --only-show-errors
+              AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws s3api put-object \
+                --bucket "$IMPORT_STAGING_BUCKET" \
+                --key "\$BIOMETRIC_RESULT_KEY" \
+                --body /tmp/biometric-employee-sync-result.json \
+                --server-side-encryption AES256 \
+                --profile ai-recruiter-bedrock >/dev/null
+              AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws s3api delete-object \
+                --bucket "$IMPORT_STAGING_BUCKET" \
+                --key "\$BIOMETRIC_SYNC_KEY" \
+                --profile ai-recruiter-bedrock >/dev/null
               rm -f /tmp/biometric-employee-sync.json /tmp/biometric-employee-sync-result.json
               echo BIOMETRIC_EMPLOYEE_SYNC_OK
             else
