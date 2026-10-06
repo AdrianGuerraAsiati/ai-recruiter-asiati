@@ -59,8 +59,8 @@ describe("Attendance settings", () => {
     render(<AttendanceSettings />);
 
     expect(await screen.findByRole("heading", { name: "Sedes y horarios" })).toBeInTheDocument();
-    expect(screen.getByText("Bogotá Principal")).toBeInTheDocument();
-    expect(screen.getByText("Administrativo")).toBeInTheDocument();
+    expect(await screen.findByText("Bogotá Principal")).toBeInTheDocument();
+    expect(await screen.findByText("Administrativo")).toBeInTheDocument();
     expect(screen.getByText(/reconocimiento facial y QR móvil están suspendidos/i)).toBeInTheDocument();
 
     expect(screen.queryByText("Fotos para reconocimiento facial")).not.toBeInTheDocument();
