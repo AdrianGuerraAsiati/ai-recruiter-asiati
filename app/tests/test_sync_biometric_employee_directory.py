@@ -1,4 +1,4 @@
-"""Coverage for biometric employee directory reconciliation."""
+"""Coverage for active employee roster reconciliation."""
 
 import json
 import sys
@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 import app.models  # noqa: F401
+from app.access_control import EMPLOYEE
 from app.db import Base
 from app.domains.talent_id.models import TalentEmployeeAttendanceSetting, TalentSite
 from app.models import UserProfile
@@ -64,7 +65,7 @@ def test_load_source_rejects_non_array(tmp_path):
         raise AssertionError("Expected ValueError")
 
 
-def test_reconcile_matches_by_name_and_existing_id(monkeypatch):
+def test_reconcile_matches_reactivates_and_creates_active_employee(monkeypatch):
     engine, Session = _session_factory(monkeypatch)
     db = Session()
     try:
@@ -115,14 +116,23 @@ def test_reconcile_matches_by_name_and_existing_id(monkeypatch):
                     "department": "ASIATI HOLDING",
                     "device_number": "2",
                 },
+                {
+                    "device_user_id": "88",
+                    "name": "PERSONA AUSENTE",
+                    "department": "ASIATI HOLDING",
+                    "device_number": "2",
+                },
             ]
         )
 
-        assert result["source_people"] == 2
-        assert result["matched"] == 2
+        assert result["source_people"] == 3
+        assert result["matched"] == 3
+        assert result["active_employees_after_sync"] == 3
         assert result["linked_by_name"] == 1
         assert result["linked_by_existing_id"] == 1
-        assert result["created_attendance_settings"] == 1
+        assert result["created_employees"] == 1
+        assert result["reactivated_employees"] == 1
+        assert result["created_attendance_settings"] == 2
         assert result["unmatched_count"] == 0
         assert result["ambiguous_count"] == 0
         assert result["conflict_count"] == 0
@@ -130,16 +140,35 @@ def test_reconcile_matches_by_name_and_existing_id(monkeypatch):
 
         verify = Session()
         try:
-            profile = verify.get(UserProfile, by_name.id)
+            existing = verify.get(UserProfile, by_name.id)
+            reactivated = verify.get(UserProfile, by_id.id)
+            created = (
+                verify.query(UserProfile)
+                .filter(UserProfile.first_name == "PERSONA AUSENTE")
+                .one()
+            )
             setting = (
                 verify.query(TalentEmployeeAttendanceSetting)
                 .filter(TalentEmployeeAttendanceSetting.employee_id == by_name.id)
                 .one()
             )
-            assert profile.department == "Talento Humano"
+            created_setting = (
+                verify.query(TalentEmployeeAttendanceSetting)
+                .filter(TalentEmployeeAttendanceSetting.employee_id == created.id)
+                .one()
+            )
+
+            assert existing.department == "Talento Humano"
+            assert reactivated.status == "ACTIVE"
+            assert created.status == "ACTIVE"
+            assert created.email is None
+            assert created.cognito_sub is None
+            assert created.onboarding_status == "NOT_REQUIRED"
+            assert {role.role_code for role in created.role_assignments} == {EMPLOYEE}
             assert setting.biometric_user_id == "13"
-            assert setting.site_id == site.id
-            assert setting.attendance_eligible is True
+            assert created_setting.biometric_user_id == "88"
+            assert created_setting.site_id == site.id
+            assert created_setting.attendance_eligible is True
         finally:
             verify.close()
     finally:
@@ -147,14 +176,14 @@ def test_reconcile_matches_by_name_and_existing_id(monkeypatch):
         engine.dispose()
 
 
-def test_reconcile_reports_unmatched_ambiguous_and_conflict(monkeypatch):
+def test_reconcile_reports_ambiguous_and_biometric_conflict(monkeypatch):
     engine, Session = _session_factory(monkeypatch)
     db = Session()
     try:
         conflict = UserProfile(
             first_name="Empleado",
             last_name="Conflicto",
-            status="ACTIVE",
+            status="DISABLED",
         )
         ambiguous_a = UserProfile(
             first_name="Nombre",
@@ -192,23 +221,24 @@ def test_reconcile_reports_unmatched_ambiguous_and_conflict(monkeypatch):
                     "department": "",
                     "device_number": "2",
                 },
-                {
-                    "device_user_id": "88",
-                    "name": "PERSONA AUSENTE",
-                    "department": "",
-                    "device_number": "2",
-                },
             ]
         )
 
         assert result["matched"] == 0
-        assert result["unmatched_count"] == 1
+        assert result["created_employees"] == 0
+        assert result["reactivated_employees"] == 1
+        assert result["unmatched_count"] == 0
         assert result["ambiguous_count"] == 1
         assert result["conflict_count"] == 1
-        assert result["unmatched"][0]["reason"] == "NO_TALENT_EMPLOYEE"
         assert result["ambiguous"][0]["reason"] == "AMBIGUOUS_NAME"
         assert result["conflicts"][0]["reason"] == "EMPLOYEE_HAS_DIFFERENT_BIOMETRIC_ID"
         assert result["single_active_site_available"] is False
+
+        verify = Session()
+        try:
+            assert verify.get(UserProfile, conflict.id).status == "ACTIVE"
+        finally:
+            verify.close()
     finally:
         db.close()
         engine.dispose()
@@ -279,16 +309,19 @@ def test_main_writes_private_result_file(monkeypatch, tmp_path, capsys):
     )
     expected = {
         "source_people": 1,
-        "matched": 0,
+        "matched": 1,
+        "active_employees_after_sync": 1,
         "linked_by_existing_id": 0,
         "linked_by_name": 0,
+        "created_employees": 1,
+        "reactivated_employees": 0,
         "already_linked": 0,
-        "created_attendance_settings": 0,
-        "unmatched_count": 1,
+        "created_attendance_settings": 1,
+        "unmatched_count": 0,
         "ambiguous_count": 0,
         "conflict_count": 0,
         "single_active_site_available": False,
-        "unmatched": [{"name": "PERSONA"}],
+        "unmatched": [],
         "ambiguous": [],
         "conflicts": [],
     }
@@ -311,4 +344,4 @@ def test_main_writes_private_result_file(monkeypatch, tmp_path, capsys):
     assert saved == expected
     public_output = capsys.readouterr().out
     assert "PERSONA" not in public_output
-    assert '"unmatched_count": 1' in public_output
+    assert '"created_employees": 1' in public_output

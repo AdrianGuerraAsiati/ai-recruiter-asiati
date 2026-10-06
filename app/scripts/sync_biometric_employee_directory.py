@@ -1,16 +1,20 @@
-"""Reconcile biometric-clock identities with existing Talent employees.
+"""Reconcile an active employee roster from the fingerprint clock with Talent.
 
 The source file is intentionally external to the repository because it contains
-employee names and biometric-clock identifiers. Odoo/Talent remain the canonical
-HR directory: this script never creates, reactivates, or disables employees.
+employee names and clock identifiers. People present in this roster are employees,
+not candidates/applicants, and are authoritative as ACTIVE for this reconciliation.
 
 Safe mutations:
-- bind the clock's user ID to a uniquely matched Talent employee;
-- create an attendance setting only when needed.
+- link the fingerprint clock user ID to an employee;
+- create a directory-only ACTIVE employee when the roster person is missing;
+- reactivate a matched Talent directory employee;
+- assign the EMPLOYEE role to newly created directory employees;
+- create an attendance setting when needed.
 
-Odoo/Talent HR fields are never overwritten from the clock report. The report's
-"Departamento" value is retained only in the private reconciliation result because
-it may represent a clock grouping/company rather than the canonical HR department.
+No Cognito account, email, candidate, applicant or Odoo record is invented here.
+Existing HR fields such as title, canonical department, company and hire date are
+preserved. The report's "Departamento" value stays in the private result because
+it may represent a clock grouping rather than the canonical HR department.
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ import unicodedata
 from collections import defaultdict
 from pathlib import Path
 
+from app.access_control import EMPLOYEE, assign_role
 from app.db import SessionLocal
 from app.domains.talent_id.models import (
     TalentEmployeeAttendanceSetting,
@@ -70,6 +75,28 @@ def _load_source(path: Path) -> list[dict]:
     return rows
 
 
+def _create_active_employee(db, row: dict) -> UserProfile:
+    profile = UserProfile(
+        cognito_sub=None,
+        email=None,
+        login_username=None,
+        first_name=row["name"],
+        last_name=None,
+        onboarding_status="NOT_REQUIRED",
+        status="ACTIVE",
+        created_by_sub="biometric-active-roster",
+    )
+    db.add(profile)
+    db.flush()
+    assign_role(
+        db,
+        profile,
+        EMPLOYEE,
+        assigned_by_sub="biometric-active-roster",
+    )
+    return profile
+
+
 def reconcile(source_rows: list[dict]) -> dict:
     db = SessionLocal()
     try:
@@ -104,6 +131,8 @@ def reconcile(source_rows: list[dict]) -> dict:
         matched = 0
         linked_by_existing_id = 0
         linked_by_name = 0
+        created_employees = 0
+        reactivated_employees = 0
         created_attendance_settings = 0
         already_linked = 0
         unmatched: list[dict] = []
@@ -118,7 +147,8 @@ def reconcile(source_rows: list[dict]) -> dict:
             match_method = None
             if len(linked_settings) == 1:
                 profile = profiles_by_id.get(linked_settings[0].employee_id)
-                match_method = "BIOMETRIC_ID"
+                if profile is not None:
+                    match_method = "BIOMETRIC_ID"
             elif len(linked_settings) > 1:
                 conflicts.append(
                     {
@@ -129,7 +159,8 @@ def reconcile(source_rows: list[dict]) -> dict:
                 continue
 
             if profile is None:
-                name_matches = profiles_by_name.get(_normalize(row["name"]), [])
+                normalized_name = _normalize(row["name"])
+                name_matches = profiles_by_name.get(normalized_name, [])
                 if len(name_matches) == 1:
                     profile = name_matches[0]
                     match_method = "NAME"
@@ -137,8 +168,15 @@ def reconcile(source_rows: list[dict]) -> dict:
                     ambiguous.append({**row, "reason": "AMBIGUOUS_NAME"})
                     continue
                 else:
-                    unmatched.append({**row, "reason": "NO_TALENT_EMPLOYEE"})
-                    continue
+                    profile = _create_active_employee(db, row)
+                    profiles_by_id[profile.id] = profile
+                    profiles_by_name[normalized_name].append(profile)
+                    match_method = "CREATED"
+                    created_employees += 1
+
+            if profile.status != "ACTIVE":
+                profile.status = "ACTIVE"
+                reactivated_employees += 1
 
             setting = settings_by_employee.get(profile.id)
             if setting is None:
@@ -181,8 +219,11 @@ def reconcile(source_rows: list[dict]) -> dict:
         return {
             "source_people": len(source_rows),
             "matched": matched,
+            "active_employees_after_sync": matched,
             "linked_by_existing_id": linked_by_existing_id,
             "linked_by_name": linked_by_name,
+            "created_employees": created_employees,
+            "reactivated_employees": reactivated_employees,
             "already_linked": already_linked,
             "created_attendance_settings": created_attendance_settings,
             "unmatched_count": len(unmatched),
