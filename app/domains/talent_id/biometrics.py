@@ -166,7 +166,7 @@ def recognize_employee(
         return None
 
     if consent.current_status(db, enrollment.employee_id) != "AUTHORIZED":
-        return None
+        raise BiometricConsentRequired()
 
     try:
         employee = _allowed_employee(db, enrollment.employee_id)
