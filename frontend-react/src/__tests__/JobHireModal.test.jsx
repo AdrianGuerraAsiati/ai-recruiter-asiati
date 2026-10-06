@@ -12,6 +12,8 @@ const FORM = {
   last_name: "Pérez",
   job_title: "Backend Developer",
   department: "Tecnología",
+  country_code: "CO",
+  company_name: "ASIATI Colombia",
   hire_date: "2026-09-28",
   contract_type: "Indefinido",
   contract_start_date: "2026-09-28",
@@ -60,6 +62,8 @@ describe("JobHireModal", () => {
     expect(screen.getByLabelText("Nombre")).toHaveValue("Ana");
     expect(screen.getByLabelText("Usuario de Talent")).toHaveValue("ana.perez");
     expect(screen.getByLabelText("Correo de contacto")).toHaveValue("ana@test.com");
+    expect(screen.getByLabelText("País")).toHaveValue("CO");
+    expect(screen.getByLabelText("Empresa")).toHaveValue("ASIATI Colombia");
     expect(screen.getByLabelText("Fecha de ingreso")).toHaveValue("2026-09-28");
     expect(screen.getByLabelText("Tipo de contrato")).toHaveValue("Indefinido");
     expect(screen.getByLabelText("Salario mensual")).toHaveValue(3500000);
