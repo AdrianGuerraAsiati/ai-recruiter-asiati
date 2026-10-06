@@ -80,6 +80,7 @@ function BiometricConsentCard() {
         confirmed: true,
       });
       setSuccess("Autorización biométrica registrada.");
+      setShowDocument(false);
       await load();
     } catch (err) {
       setError(getApiErrorMessage(err, {
