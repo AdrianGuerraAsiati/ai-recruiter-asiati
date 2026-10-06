@@ -37,11 +37,21 @@ def list_candidates_page(
     page: int = 1,
     page_size: int = 20,
     sort: str = "created_desc",
+    q: str = "",
 ) -> tuple[list[Candidate], int]:
     """Return one stable candidate page and its total count."""
     query = db.query(Candidate)
     if owner_sub is not None:
         query = query.filter(Candidate.owner_sub == owner_sub)
+    normalized_q = q.strip()
+    if normalized_q:
+        pattern = f"%{normalized_q}%"
+        query = query.filter(
+            or_(
+                Candidate.name.ilike(pattern),
+                Candidate.email.ilike(pattern),
+            )
+        )
     total = query.count() or 0
     if sort == "name_asc":
         query = query.order_by(func.lower(Candidate.name).asc(), Candidate.id.asc())
