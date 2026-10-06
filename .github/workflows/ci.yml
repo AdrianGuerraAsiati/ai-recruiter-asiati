@@ -320,3 +320,179 @@ jobs:
         env:
           VITE_API_URL: /api
         run: npm run build
+
+
+  odoo-finance-probe:
+    name: Odoo finance probe (read-only)
+    if: github.event_name == 'pull_request' && github.head_ref == 'ops/odoo-finance-probe-20261006'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::890876258895:role/AiRecruiterGithubDeployRole
+          aws-region: us-east-2
+
+      - name: Open temporary SSH access
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_PUBLIC_IP=$(curl -fsS https://checkip.amazonaws.com | tr -d '[:space:]')
+          chmod +x scripts/manage-lightsail-ssh-firewall.sh
+          INSTANCE_NAME=ai-recruiter-micro-prod AWS_REGION=us-east-2             scripts/manage-lightsail-ssh-firewall.sh open "$RUNNER_PUBLIC_IP"
+
+      - name: Query Odoo financial aggregates through Talent runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACCESS_JSON=$(aws lightsail get-instance-access-details --instance-name ai-recruiter-micro-prod --protocol ssh --region us-east-2)
+          KEY_FILE=/tmp/lightsail-key
+          CERT_FILE="${KEY_FILE}-cert.pub"
+          echo "$ACCESS_JSON" | jq -er '.accessDetails.privateKey' > "$KEY_FILE"
+          echo "$ACCESS_JSON" | jq -er '.accessDetails.certKey' > "$CERT_FILE"
+          chmod 600 "$KEY_FILE" "$CERT_FILE"
+          SSH_USER=$(echo "$ACCESS_JSON" | jq -er '.accessDetails.username')
+          INSTANCE_IP=$(echo "$ACCESS_JSON" | jq -er '.accessDetails.ipAddress')
+          SSH=(-i "$KEY_FILE" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/lightsail-known-hosts)
+
+          ssh "${SSH[@]}" "$SSH_USER@$INSTANCE_IP" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          sudo docker exec -i ai-recruiter-api python - > /tmp/asiati-odoo-finance.json <<'PY'
+          import json
+          from app.domains.odoo_sync.integration import build_odoo_client
+
+          client = build_odoo_client()
+
+          def rpc(model, method, args=None, kwargs=None):
+              return client.execute_kw(model, method, args or [], kwargs or {})
+
+          def summary(company_id, start_date, end_date):
+              pnl_types = ["income", "income_other", "expense", "expense_direct_cost", "expense_depreciation"]
+              domain = [
+                  ["date", ">=", start_date],
+                  ["date", "<=", end_date],
+                  ["parent_state", "=", "posted"],
+                  ["company_id", "=", company_id],
+                  ["account_id.account_type", "in", pnl_types],
+              ]
+              groups = rpc(
+                  "account.move.line",
+                  "read_group",
+                  [domain, ["balance:sum", "account_id"], ["account_id"]],
+                  {"lazy": False},
+              )
+              account_ids = []
+              for group in groups:
+                  account = group.get("account_id")
+                  if isinstance(account, (list, tuple)) and account:
+                      account_ids.append(account[0])
+
+              accounts = {}
+              if account_ids:
+                  rows = rpc(
+                      "account.account",
+                      "read",
+                      [account_ids],
+                      {"fields": ["name", "code", "account_type"]},
+                  )
+                  accounts = {row["id"]: row for row in rows}
+
+              revenue = 0.0
+              expenses = 0.0
+              by_type = {}
+              for group in groups:
+                  account = group.get("account_id")
+                  account_id = account[0] if isinstance(account, (list, tuple)) and account else None
+                  account_type = (accounts.get(account_id) or {}).get("account_type")
+                  balance = float(group.get("balance") or 0.0)
+                  by_type[account_type] = by_type.get(account_type, 0.0) + balance
+                  if account_type in ("income", "income_other"):
+                      revenue += -balance
+                  elif account_type in ("expense", "expense_direct_cost", "expense_depreciation"):
+                      expenses += balance
+
+              invoice_domain = [
+                  ["invoice_date", ">=", start_date],
+                  ["invoice_date", "<=", end_date],
+                  ["state", "=", "posted"],
+                  ["company_id", "=", company_id],
+                  ["move_type", "in", ["out_invoice", "out_refund"]],
+              ]
+              invoice_groups = rpc(
+                  "account.move",
+                  "read_group",
+                  [invoice_domain, ["amount_untaxed_signed:sum", "amount_total_signed:sum"], []],
+                  {"lazy": False},
+              )
+              invoice = invoice_groups[0] if invoice_groups else {}
+
+              return {
+                  "start_date": start_date,
+                  "end_date": end_date,
+                  "accounting_revenue": round(revenue, 2),
+                  "accounting_expenses": round(expenses, 2),
+                  "accounting_net_profit": round(revenue - expenses, 2),
+                  "posted_sales_untaxed_signed": round(float(invoice.get("amount_untaxed_signed") or 0.0), 2),
+                  "posted_sales_total_signed": round(float(invoice.get("amount_total_signed") or 0.0), 2),
+                  "by_account_type_balance": {
+                      str(key): round(value, 2) for key, value in by_type.items()
+                  },
+              }
+
+          result = {"health": client.healthcheck()}
+          companies = client.search_read(
+              "res.company",
+              [],
+              fields=["name", "currency_id"],
+              limit=50,
+          )
+          result["visible_companies"] = companies
+          result["asiati_results"] = []
+          for company in companies:
+              name = str(company.get("name") or "")
+              if "asiati" not in name.casefold():
+                  continue
+              cid = int(company["id"])
+              try:
+                  result["asiati_results"].append(
+                      {
+                          "company_id": cid,
+                          "company_name": name,
+                          "currency": company.get("currency_id"),
+                          "FY2025": summary(cid, "2025-01-01", "2025-12-31"),
+                          "YTD2026": summary(cid, "2026-01-01", "2026-10-06"),
+                      }
+                  )
+              except Exception as exc:
+                  result["asiati_results"].append(
+                      {
+                          "company_id": cid,
+                          "company_name": name,
+                          "error": type(exc).__name__,
+                          "message": str(exc),
+                      }
+                  )
+
+          print(json.dumps(result, ensure_ascii=False))
+          PY
+
+          AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config             aws s3 cp /tmp/asiati-odoo-finance.json             s3://ai-recruiter-candidate-import-importstagingbucket-6ycz7qu9lgcp/admin/finance-probe/2026-10-06/asiati-summary.json             --profile ai-recruiter-bedrock             --sse AES256 >/dev/null
+
+          rm -f /tmp/asiati-odoo-finance.json
+          REMOTE
+
+      - name: Close temporary SSH access
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x scripts/manage-lightsail-ssh-firewall.sh
+          INSTANCE_NAME=ai-recruiter-micro-prod AWS_REGION=us-east-2             scripts/manage-lightsail-ssh-firewall.sh close
+          rm -f /tmp/lightsail-key /tmp/lightsail-key-cert.pub /tmp/lightsail-known-hosts
