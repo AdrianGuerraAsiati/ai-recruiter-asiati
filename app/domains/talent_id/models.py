@@ -81,6 +81,7 @@ class TalentEmployeeAttendanceSetting(Base):
         index=True,
     )
     attendance_eligible = Column(Boolean, nullable=False, default=True)
+    biometric_user_id = Column(Text, nullable=True)
     updated_at = Column(
         DateTime(timezone=True),
         nullable=False,
