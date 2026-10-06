@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.domains.psychotechnical import catalog
 from app.domains.psychotechnical.models import PsychotechnicalAssignment
-from app.models import Candidate, Job, JobCandidate
+from app.models import Candidate, Job
 
 
 class PsychotechnicalNotFound(LookupError):
@@ -100,19 +100,6 @@ def create_assignment(
         job = db.query(Job).filter(Job.id == job_id).one_or_none()
         if job is None:
             raise PsychotechnicalNotFound("job")
-        linked = (
-            db.query(JobCandidate.id)
-            .filter(
-                JobCandidate.job_id == job_id,
-                JobCandidate.candidate_id == candidate_id,
-            )
-            .first()
-        )
-        if linked is None:
-            raise PsychotechnicalConflict(
-                "El candidato debe estar asignado a la vacante antes de enviar la prueba."
-            )
-
     existing = (
         db.query(PsychotechnicalAssignment)
         .filter(
