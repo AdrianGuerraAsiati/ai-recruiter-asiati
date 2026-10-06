@@ -196,7 +196,7 @@ def test_paused_talent_vacancy_unpublishes_existing_odoo_job(db):
         {
             "name": "Backend Developer",
             "description": "<p>Python y AWS</p>",
-            "active": True,
+            "active": False,
             "no_of_recruitment": 1,
             "is_published": False,
         },
@@ -365,16 +365,17 @@ def test_sync_all_backfills_existing_talent_vacancies(db):
     assert result == {
         "total": 2,
         "attempted": 2,
-        "synced": 2,
+        "synced": 1,
         "failed": 0,
-        "skipped": 0,
+        "skipped": 1,
     }
     assert db.query(Sync).count() == 2
     assert {
         sync.job_id for sync in db.query(Sync).all()
     } == {active.id, paused.id}
-    assert len(client.created) == 2
-    assert {row["website_published"] for row in client.created} == {True, False}
+    assert len(client.created) == 1
+    assert client.created[0]["website_published"] is True
+    assert client.created[0]["active"] is True
 
 
 
@@ -412,3 +413,37 @@ def test_job_publication_resolves_existing_location_and_employment_type(db):
     assert result["status"] == "SYNCED"
     assert client.created[0]["address_id"] == 33
     assert client.created[0]["contract_type_id"] == 44
+
+
+def test_paused_never_published_vacancy_is_not_created_in_odoo(db):
+    delivery = _publication_module()
+    Sync = _sync_model()
+    job = _job(db, status="PAUSED", title="Vacante Interna Pausada")
+    sync = Sync(
+        job_id=job.id,
+        idempotency_key=f"job:{job.id}",
+        payload={
+            "schema_version": 1,
+            "operation": "UPSERT_JOB",
+            "job": {
+                "external_id": job.id,
+                "title": job.title,
+                "description": job.description,
+                "status": "PAUSED",
+            },
+        },
+        status="PENDING",
+    )
+    db.add(sync)
+    db.commit()
+
+    client = FakeOdooClient(publication_field="website_published")
+    result = delivery.sync_job_now(db, job_id=job.id, client=client)
+
+    assert result["status"] == "SYNCED"
+    assert result["action"] == "SKIPPED"
+    assert result["published"] is False
+    assert result["odoo_record_id"] is None
+    assert client.created == []
+    assert client.written == []
+    assert client.searches == []
