@@ -78,6 +78,8 @@ def hire_candidate(
             last_name=body.last_name,
             job_title=body.job_title,
             department=body.department,
+            country_code=body.country_code,
+            company_name=body.company_name,
             hire_date=body.hire_date,
             contract=(
                 body.contract.model_dump(mode="json")
