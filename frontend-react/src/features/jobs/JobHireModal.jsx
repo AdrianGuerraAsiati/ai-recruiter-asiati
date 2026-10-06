@@ -1,3 +1,5 @@
+import { COUNTRY_OPTIONS } from "../../data/countries";
+
 function JobHireModal({
   candidate,
   jobTitle,
@@ -109,6 +111,31 @@ function JobHireModal({
                 id="hire-department"
                 value={form.department}
                 onChange={(event) => onFormChange("department", event.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="job-hire-grid">
+            <div className="form-group">
+              <label htmlFor="hire-country">País</label>
+              <select
+                id="hire-country"
+                value={form.country_code || ""}
+                onChange={(event) => onFormChange("country_code", event.target.value)}
+              >
+                <option value="">Sin definir</option>
+                {COUNTRY_OPTIONS.map((country) => (
+                  <option key={country.code} value={country.code}>{country.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="hire-company">Empresa</label>
+              <input
+                id="hire-company"
+                value={form.company_name || ""}
+                onChange={(event) => onFormChange("company_name", event.target.value)}
+                placeholder="ASIATI"
               />
             </div>
           </div>
