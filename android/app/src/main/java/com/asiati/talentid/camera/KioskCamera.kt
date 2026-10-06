@@ -12,9 +12,11 @@ import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
@@ -24,6 +26,7 @@ import com.google.mlkit.vision.face.FaceDetectorOptions
 import java.io.File
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 data class FaceBounds(
@@ -166,19 +169,36 @@ fun rememberKioskCameraController(
 fun CameraPreview(
     controller: LifecycleCameraController,
     modifier: Modifier = Modifier,
+    onPreviewBitmap: ((android.graphics.Bitmap) -> Unit)? = null,
 ) {
+    val context = LocalContext.current
+    val currentBitmapCallback = rememberUpdatedState(onPreviewBitmap)
+    val previewView = remember(context, controller) {
+        PreviewView(context).apply {
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+            this.controller = controller
+        }
+    }
+
     AndroidView(
         modifier = modifier,
-        factory = { context ->
-            PreviewView(context).apply {
-                scaleType = PreviewView.ScaleType.FILL_CENTER
-                this.controller = controller
-            }
-        },
+        factory = { previewView },
         update = { preview ->
             preview.controller = controller
         },
     )
+
+    LaunchedEffect(previewView, onPreviewBitmap != null) {
+        if (onPreviewBitmap == null) return@LaunchedEffect
+
+        while (true) {
+            previewView.bitmap?.let { bitmap ->
+                currentBitmapCallback.value?.invoke(bitmap)
+            }
+            delay(120)
+        }
+    }
 }
 
 suspend fun captureKioskPhoto(
