@@ -942,6 +942,8 @@ private fun CameraStage(
     val statusText = when {
         faceObservation.faceCount > 1 -> "Solo una persona"
         faceReadyStable -> "Rostro listo"
+        faceObservation.faceCount == 1 && faceObservation.tooLarge -> "Aléjate un poco"
+        faceObservation.faceCount == 1 && !faceObservation.fullyVisible -> "Muestra el rostro completo"
         faceObservation.faceCount == 1 && !faceObservation.largeEnough -> "Acércate un poco"
         faceObservation.faceCount == 1 && !faceObservation.centered -> "Céntrate en la cámara"
         faceObservation.faceCount == 1 -> "Mantén la posición"
@@ -1158,6 +1160,8 @@ private fun ActionPanel(
     val helperText = when {
         faceObservation.faceCount > 1 -> "Debe haber una sola persona frente a la cámara."
         faceReady -> "Rostro listo · elige Entrada o Salida."
+        faceObservation.faceCount == 1 && faceObservation.tooLarge -> "Aléjate un poco para que se vea el rostro completo."
+        faceObservation.faceCount == 1 && !faceObservation.fullyVisible -> "Asegúrate de que todo tu rostro quede dentro de la cámara."
         faceObservation.faceCount == 1 -> "Ajusta tu posición hasta que el óvalo se vea verde."
         else -> "Ubica tu rostro dentro del óvalo."
     }
