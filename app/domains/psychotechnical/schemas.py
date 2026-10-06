@@ -11,6 +11,10 @@ class CreatePsychotechnicalAssignmentRequest(BaseModel):
     expires_days: int = Field(default=7, ge=1, le=30)
 
 
+class RegeneratePsychotechnicalLinkRequest(BaseModel):
+    expires_days: int = Field(default=7, ge=1, le=30)
+
+
 class PsychotechnicalAnswer(BaseModel):
     question_id: str = Field(min_length=1, max_length=16)
     option_id: str = Field(min_length=1, max_length=8)
