@@ -41,6 +41,17 @@ class RecognizedEmployee:
     similarity: float
 
 
+@dataclass(frozen=True)
+class BiometricDiagnostic:
+    selected_employee_id: str
+    matched_employee_id: str | None
+    matched_display_name: str | None
+    similarity: float | None
+    required_similarity: float
+    passes_threshold: bool
+    matches_selected_employee: bool
+
+
 def _allowed_employee(db: Session, employee_id: str) -> UserProfile:
     employee = (
         db.query(UserProfile)
@@ -168,6 +179,80 @@ def recognize_employee(
         similarity=float(match.similarity),
     )
 
+
+
+def diagnose_employee(
+    db: Session,
+    *,
+    provider: BiometricProvider,
+    employee_id: str,
+    image_bytes: bytes,
+    match_threshold: float,
+    diagnostic_floor: float = 50.0,
+) -> BiometricDiagnostic:
+    """Probe recognition for an administrator without recording attendance."""
+    selected = _allowed_employee(db, employee_id)
+    if consent.current_status(db, selected.id) != "AUTHORIZED":
+        raise BiometricConsentRequired()
+
+    enrollment = get_employee_enrollment(db, selected.id)
+    if enrollment is None or not enrollment.active:
+        raise ValueError("El empleado no tiene un enrolamiento biométrico activo.")
+
+    floor = min(float(match_threshold), max(0.0, float(diagnostic_floor)))
+    match = provider.recognize(
+        image_bytes=image_bytes,
+        threshold=floor,
+    )
+    if match is None:
+        return BiometricDiagnostic(
+            selected_employee_id=selected.id,
+            matched_employee_id=None,
+            matched_display_name=None,
+            similarity=None,
+            required_similarity=float(match_threshold),
+            passes_threshold=False,
+            matches_selected_employee=False,
+        )
+
+    matched_enrollment = (
+        db.query(TalentBiometricEnrollment)
+        .filter(
+            TalentBiometricEnrollment.provider_user_id == str(match.provider_user_id),
+            TalentBiometricEnrollment.active.is_(True),
+        )
+        .one_or_none()
+    )
+    if matched_enrollment is None:
+        return BiometricDiagnostic(
+            selected_employee_id=selected.id,
+            matched_employee_id=None,
+            matched_display_name=None,
+            similarity=float(match.similarity),
+            required_similarity=float(match_threshold),
+            passes_threshold=False,
+            matches_selected_employee=False,
+        )
+
+    matched_employee = (
+        db.query(UserProfile)
+        .filter(UserProfile.id == matched_enrollment.employee_id)
+        .one_or_none()
+    )
+    matches_selected = matched_enrollment.employee_id == selected.id
+    similarity = float(match.similarity)
+
+    return BiometricDiagnostic(
+        selected_employee_id=selected.id,
+        matched_employee_id=matched_enrollment.employee_id,
+        matched_display_name=(
+            _display_name(matched_employee) if matched_employee is not None else None
+        ),
+        similarity=similarity,
+        required_similarity=float(match_threshold),
+        passes_threshold=bool(matches_selected and similarity >= float(match_threshold)),
+        matches_selected_employee=matches_selected,
+    )
 
 
 def _attempt_provider_cleanup(
