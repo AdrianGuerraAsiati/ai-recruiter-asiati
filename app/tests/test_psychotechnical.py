@@ -177,3 +177,45 @@ def test_expired_assignment_is_reported_as_expired(db):
 
     with pytest.raises(service.PsychotechnicalExpired):
         service.public_assignment(db, token)
+
+
+def test_regenerate_link_invalidates_previous_token_and_restarts_pending(db):
+    candidate = _candidate(db)
+    assignment, old_token = service.create_assignment(
+        db,
+        candidate_id=candidate.id,
+        job_id=None,
+        expires_days=7,
+        created_by_sub="admin-sub",
+    )
+    service.start_assignment(db, old_token)
+
+    refreshed, new_token = service.regenerate_link(
+        db,
+        assignment.id,
+        expires_days=7,
+    )
+
+    assert new_token != old_token
+    assert refreshed.status == "PENDING"
+    assert refreshed.started_at is None
+
+    with pytest.raises(service.PsychotechnicalNotFound):
+        service.public_assignment(db, old_token)
+
+    assert service.public_assignment(db, new_token)["status"] == "PENDING"
+
+
+def test_banned_candidate_cannot_receive_psychotechnical_assignment(db):
+    candidate = _candidate(db)
+    candidate.is_banned = True
+    db.commit()
+
+    with pytest.raises(service.PsychotechnicalConflict):
+        service.create_assignment(
+            db,
+            candidate_id=candidate.id,
+            job_id=None,
+            expires_days=7,
+            created_by_sub="admin-sub",
+        )
