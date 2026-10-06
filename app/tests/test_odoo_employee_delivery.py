@@ -180,6 +180,8 @@ def test_sync_creates_employee_with_safe_available_fields(db):
     assert sync.odoo_record_id == "101"
     assert sync.last_error is None
     assert sync.synced_at is not None
+    employee = db.query(UserProfile).filter(UserProfile.id == sync.employee_id).one()
+    assert employee.odoo_employee_id == "101"
 
 
 def test_sync_updates_stored_odoo_employee_instead_of_creating(db):
@@ -263,3 +265,32 @@ def test_missing_employee_outbox_is_not_found(db):
             employee_id="missing",
             client=FakeOdooClient(),
         )
+
+
+
+def test_direct_talent_employee_creates_durable_odoo_outbox(db):
+    employee = UserProfile(
+        id="employee-direct",
+        cognito_sub="sub-direct",
+        email="direct@asiati.com.co",
+        first_name="Directo",
+        last_name="Talent",
+        job_title="Analista",
+        department="Operaciones",
+        onboarding_status="PENDING",
+        status="ACTIVE",
+    )
+    db.add(employee)
+    db.commit()
+
+    sync = employee_delivery.ensure_direct_employee_sync(
+        db,
+        employee=employee,
+    )
+
+    assert sync.employee_id == employee.id
+    assert sync.source_job_candidate_id is None
+    assert sync.status == "PENDING"
+    assert sync.payload["source"]["origin"] == "TALENT_EMPLOYEE_CREATE"
+    assert sync.payload["employee"]["name"] == "Directo Talent"
+    assert sync.payload["employee"]["email"] == "direct@asiati.com.co"
