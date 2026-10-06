@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class CreatePsychotechnicalAssignmentRequest(BaseModel):
     candidate_id: str
     job_id: str | None = None
+    test_key: str = Field(min_length=1, max_length=80)
     expires_days: int = Field(default=7, ge=1, le=30)
 
 
