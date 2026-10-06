@@ -355,12 +355,15 @@ def sync_all_jobs_now(db: Session, *, client=None) -> dict:
         if requires_transport and transport is None:
             transport = integration.build_odoo_client()
         try:
-            sync_job_now(
+            result = sync_job_now(
                 db,
                 job_id=job_id,
                 client=transport if requires_transport else None,
             )
-            synced += 1
+            if result.get("action") == "SKIPPED":
+                skipped += 1
+            else:
+                synced += 1
         except OdooJobDeliveryError:
             failed += 1
 
