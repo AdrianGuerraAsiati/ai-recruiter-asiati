@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
+from app.domains.talent_id import attendance_import
 from app.domains.talent_id.models import (
     TalentAttendanceEvent,
     TalentEmployeeAttendanceSetting,
@@ -212,21 +213,39 @@ def build_attendance_report(
                     schedule.end_time.isoformat() if schedule else None
                 ),
                 "check_in": first_in.isoformat() if first_in else None,
-                "check_in_method": first_in_event.method if first_in_event else None,
+                "check_in_method": (
+                    "REPORT"
+                    if first_in_event and attendance_import.is_report_event(first_in_event)
+                    else first_in_event.method if first_in_event else None
+                ),
                 "check_in_manual_reason": (
                     first_in_event.manual_reason
-                    if first_in_event and first_in_event.method == "MANUAL"
+                    if (
+                        first_in_event
+                        and first_in_event.method == "MANUAL"
+                        and not attendance_import.is_report_event(first_in_event)
+                    )
                     else None
                 ),
                 "check_out": last_out.isoformat() if last_out else None,
-                "check_out_method": last_out_event.method if last_out_event else None,
+                "check_out_method": (
+                    "REPORT"
+                    if last_out_event and attendance_import.is_report_event(last_out_event)
+                    else last_out_event.method if last_out_event else None
+                ),
                 "check_out_manual_reason": (
                     last_out_event.manual_reason
-                    if last_out_event and last_out_event.method == "MANUAL"
+                    if (
+                        last_out_event
+                        and last_out_event.method == "MANUAL"
+                        and not attendance_import.is_report_event(last_out_event)
+                    )
                     else None
                 ),
                 "has_manual_adjustment": any(
-                    event.method == "MANUAL" for event, _local_time in day_events
+                    event.method == "MANUAL"
+                    and not attendance_import.is_report_event(event)
+                    for event, _local_time in day_events
                 ),
                 "late_minutes": late_minutes,
                 "worked_minutes": worked_minutes,
@@ -265,10 +284,16 @@ def build_attendance_report(
             "days_with_activity": len(rows),
             "check_ins": check_in_count,
             "check_outs": check_out_count,
+            "report_events": sum(
+                1
+                for event, _local_time in filtered_events
+                if attendance_import.is_report_event(event)
+            ),
             "manual_events": sum(
                 1
                 for event, _local_time in filtered_events
                 if event.method == "MANUAL"
+                and not attendance_import.is_report_event(event)
             ),
             "late_arrivals": late_days,
             "incomplete_days": sum(1 for row in rows if row["status"] == "INCOMPLETE"),

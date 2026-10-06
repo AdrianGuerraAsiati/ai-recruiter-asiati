@@ -73,15 +73,36 @@ function statusLabel(status) {
 }
 
 
+function methodLabel(method) {
+  if (method === "REPORT") return "Reporte biométrico";
+  if (method === "MANUAL") return "Manual";
+  if (method === "QR") return "QR móvil";
+  if (method === "FACE") return "Facial";
+  return method || "";
+}
+
+
+function unmatchedReason(reason) {
+  return {
+    NO_MATCH: "No coincide con un empleado activo",
+    AMBIGUOUS_NAME: "Hay más de un empleado con ese nombre",
+    ATTENDANCE_NOT_ENABLED: "Asistencia no habilitada para el empleado",
+    SITE_MISMATCH: "El empleado está asignado a otra sede",
+  }[reason] || "No se pudo asociar";
+}
+
+
 function Attendance() {
   const { principal, hasPermission } = useSession();
   const canReadAll = (
     hasPermission("talent_id.attendance.read_all")
     || hasPermission("talent_id.manage")
   );
+  const canImportReports = hasPermission("talent_id.manage");
   const [range, setRange] = useState(() => defaultRange());
   const [employeeId, setEmployeeId] = useState("");
   const [employees, setEmployees] = useState([]);
+  const [sites, setSites] = useState([]);
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -93,6 +114,10 @@ function Attendance() {
     reason: "",
     occurred_at: localDateTimeValue(),
   });
+  const [reportFile, setReportFile] = useState(null);
+  const [reportSiteId, setReportSiteId] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   useEffect(() => {
     if (!canReadAll) return undefined;
@@ -115,6 +140,26 @@ function Attendance() {
       cancelled = true;
     };
   }, [canReadAll]);
+
+  useEffect(() => {
+    if (!canImportReports) return undefined;
+
+    let cancelled = false;
+    api.get("/talent-id/sites")
+      .then(({ data }) => {
+        if (cancelled) return;
+        const loadedSites = (data?.items || []).filter((site) => site.active !== false);
+        setSites(loadedSites);
+        setReportSiteId((value) => value || (loadedSites.length === 1 ? loadedSites[0].id : ""));
+      })
+      .catch(() => {
+        if (!cancelled) setSites([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canImportReports]);
 
   const loadReport = useCallback(async () => {
     setLoading(true);
@@ -146,6 +191,51 @@ function Attendance() {
     }, 0);
     return () => window.clearTimeout(timeoutId);
   }, [loadReport]);
+
+
+  async function uploadBiometricReport(event) {
+    event.preventDefault();
+    if (!reportFile) {
+      setError("Selecciona el archivo .xls exportado por el reloj biométrico.");
+      return;
+    }
+    if (!reportSiteId) {
+      setError("Selecciona la sede a la que corresponde el reporte.");
+      return;
+    }
+
+    setImporting(true);
+    setError("");
+    setImportResult(null);
+    try {
+      const body = new FormData();
+      body.append("report", reportFile);
+      body.append("site_id", reportSiteId);
+      const { data } = await api.post("/talent-id/attendance/import-report", body);
+      setImportResult(data || null);
+      setReportFile(null);
+
+      const fileInput = document.getElementById("attendance-report-file");
+      if (fileInput) fileInput.value = "";
+
+      if (data?.date_range?.from && data?.date_range?.to) {
+        setRange({
+          start_date: String(data.date_range.from).slice(0, 10),
+          end_date: String(data.date_range.to).slice(0, 10),
+        });
+      } else {
+        await loadReport();
+      }
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "importar el reporte biométrico",
+        resource: "asistencia",
+        fallback: "No fue posible leer el reporte. Verifica que sea el .xls original exportado por el equipo.",
+      }));
+    } finally {
+      setImporting(false);
+    }
+  }
 
 
   async function submitManualAttendance(event) {
@@ -221,8 +311,8 @@ function Attendance() {
         title={title}
         description={
           canReadAll
-            ? "Consulta entradas, salidas, puntualidad y jornadas registradas por Talent ID."
-            : "Consulta tus propias entradas, salidas y puntualidad registradas por Talent ID."
+            ? "Consulta entradas, salidas y puntualidad registradas por reconocimiento facial, QR, contingencias y reportes del reloj biométrico."
+            : "Consulta tus propias entradas, salidas y puntualidad registradas en Talent ID."
         }
         actions={(
           <button className="btn btn-secondary" type="button" onClick={loadReport} disabled={loading}>
@@ -231,6 +321,118 @@ function Attendance() {
         )}
         className="split-header"
       />
+
+      {canImportReports && (
+        <section className="panel attendance-import" aria-label="Importar reporte biométrico">
+          <div className="attendance-import-heading">
+            <div>
+              <span className="eyebrow">Fuente complementaria</span>
+              <h2>Cargar reporte del reloj biométrico</h2>
+              <p>
+                Importa el <b>.xls</b> original para incorporar marcaciones históricas del reloj sin desactivar el reconocimiento facial ni el QR de Talent ID.
+              </p>
+            </div>
+            <span className="attendance-import-badge">.xls original</span>
+          </div>
+
+          <form className="attendance-import-form" onSubmit={uploadBiometricReport}>
+            <div className="form-group">
+              <label htmlFor="attendance-report-site">Sede del reporte</label>
+              <select
+                id="attendance-report-site"
+                value={reportSiteId}
+                onChange={(event) => setReportSiteId(event.target.value)}
+                required
+              >
+                <option value="">Selecciona sede</option>
+                {sites.map((site) => (
+                  <option key={site.id} value={site.id}>
+                    {site.name}{site.code ? ` · ${site.code}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group attendance-import-file">
+              <label htmlFor="attendance-report-file">Reporte .xls</label>
+              <input
+                id="attendance-report-file"
+                type="file"
+                accept=".xls,application/vnd.ms-excel"
+                onChange={(event) => setReportFile(event.target.files?.[0] || null)}
+                required
+              />
+            </div>
+
+            <button className="btn btn-primary" type="submit" disabled={importing || sites.length === 0}>
+              {importing ? "Procesando reporte…" : "Cargar reporte"}
+            </button>
+          </form>
+
+          <div className="attendance-import-help">
+            <strong>Interpretación segura</strong>
+            <span>
+              Registro <b>0</b> = entrada y <b>1</b> = salida. Los demás códigos se omiten y quedan visibles para revisión. Volver a cargar el mismo archivo no duplica marcaciones.
+            </span>
+          </div>
+
+          {importResult && (
+            <div className="attendance-import-result" role="status">
+              <div className="attendance-import-result-heading">
+                <div>
+                  <span className="eyebrow">Importación completada</span>
+                  <h3>{importResult.filename}</h3>
+                  <p>
+                    {importResult.site_name} · {String(importResult.date_range?.from || "").slice(0, 10)}
+                    {" a "}{String(importResult.date_range?.to || "").slice(0, 10)}
+                  </p>
+                </div>
+                <strong>{importResult.imported_events || 0} nuevas</strong>
+              </div>
+
+              <div className="attendance-import-stats">
+                <div><span>Filas leídas</span><strong>{importResult.rows_total || 0}</strong></div>
+                <div><span>Personas fuente</span><strong>{importResult.source_users || 0}</strong></div>
+                <div><span>Empleados asociados</span><strong>{importResult.matched_employees || 0}</strong></div>
+                <div><span>Duplicadas</span><strong>{importResult.duplicate_events || 0}</strong></div>
+                <div><span>Códigos omitidos</span><strong>{importResult.unsupported_rows || 0}</strong></div>
+                <div>
+                  <span>Sin asociar/configurar</span>
+                  <strong>
+                    {(importResult.unmatched_rows || 0)
+                      + (importResult.ambiguous_rows || 0)
+                      + (importResult.attendance_not_enabled_rows || 0)
+                      + (importResult.site_mismatch_rows || 0)}
+                  </strong>
+                </div>
+              </div>
+
+              {Object.keys(importResult.unsupported_codes || {}).length > 0 && (
+                <p className="attendance-import-warning">
+                  Códigos de Registro no interpretados: {Object.entries(importResult.unsupported_codes)
+                    .map(([code, count]) => `${code} (${count})`)
+                    .join(", ")}.
+                </p>
+              )}
+
+              {(importResult.unmatched_people || []).length > 0 && (
+                <details className="attendance-import-unmatched">
+                  <summary>Ver personas que requieren revisión ({importResult.unmatched_people.length})</summary>
+                  <div>
+                    {importResult.unmatched_people.map((person) => (
+                      <article key={`${person.device_user_id}-${person.name}`}>
+                        <strong>{person.name}</strong>
+                        <span>ID reloj {person.device_user_id || "—"} · {person.department || "Sin departamento"}</span>
+                        <small>{unmatchedReason(person.reason)}</small>
+                      </article>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="panel attendance-filters" aria-label="Filtros de asistencia">
         <div className="attendance-filter-grid">
@@ -387,13 +589,22 @@ function Attendance() {
               tone="neutral"
             />
             {canReadAll && (
-              <MetricCard
-                icon="check"
-                label="Contingencias"
-                value={summary.manual_events || 0}
-                detail="Marcaciones manuales auditadas"
-                tone="neutral"
-              />
+              <>
+                <MetricCard
+                  icon="check"
+                  label="Biométrico importado"
+                  value={summary.report_events || 0}
+                  detail="Eventos provenientes de reportes .xls"
+                  tone="neutral"
+                />
+                <MetricCard
+                  icon="check"
+                  label="Contingencias"
+                  value={summary.manual_events || 0}
+                  detail="Marcaciones manuales auditadas"
+                  tone="neutral"
+                />
+              </>
             )}
           </section>
 
@@ -447,13 +658,13 @@ function Attendance() {
                         <td>{row.site_name}</td>
                         <td>
                           <strong>{timeLabel(row.check_in)}</strong>
-                          {row.check_in_method && <small>{row.check_in_method === "MANUAL" ? "Manual" : row.check_in_method === "QR" ? "QR móvil" : "Facial"}</small>}
+                          {row.check_in_method && <small>{methodLabel(row.check_in_method)}</small>}
                           {row.check_in_manual_reason && <small className="attendance-manual-note">{row.check_in_manual_reason}</small>}
                           {row.late_minutes > 0 && <small className="attendance-late">+{row.late_minutes} min</small>}
                         </td>
                         <td>
                           <strong>{timeLabel(row.check_out)}</strong>
-                          {row.check_out_method && <small>{row.check_out_method === "MANUAL" ? "Manual" : row.check_out_method === "QR" ? "QR móvil" : "Facial"}</small>}
+                          {row.check_out_method && <small>{methodLabel(row.check_out_method)}</small>}
                           {row.check_out_manual_reason && <small className="attendance-manual-note">{row.check_out_manual_reason}</small>}
                         </td>
                         <td>{durationLabel(row.worked_minutes)}</td>
