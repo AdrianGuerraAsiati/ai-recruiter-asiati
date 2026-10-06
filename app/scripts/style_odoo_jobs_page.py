@@ -130,7 +130,8 @@ STYLE_ARCH = r"""
                 font-weight: 700;
             }
 
-            .o_website_hr_recruitment_jobs_list .o_job_card_description {
+            .o_website_hr_recruitment_jobs_list .o_job_card_description,
+            .o_website_hr_recruitment_jobs_list #jobs_grid .card-body > .oe_empty.text-muted.mb16 {
                 display: none !important;
             }
 

@@ -56,6 +56,7 @@ def test_jobs_style_creates_inherited_qweb_view():
     assert values["key"] == style_odoo_jobs_page.VIEW_KEY
     assert ".o_website_hr_recruitment_jobs_list" in values["arch_db"]
     assert ".o_job_card_description" in values["arch_db"]
+    assert "#jobs_grid .card-body > .oe_empty.text-muted.mb16" in values["arch_db"]
     assert "display: none !important" in values["arch_db"]
     assert "#jobs_grid_right" in values["arch_db"]
 
