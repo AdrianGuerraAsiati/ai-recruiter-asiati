@@ -6,10 +6,11 @@ HR directory: this script never creates, reactivates, or disables employees.
 
 Safe mutations:
 - bind the clock's user ID to a uniquely matched Talent employee;
-- create an attendance setting only when needed;
-- fill department only when the Talent profile has no department.
+- create an attendance setting only when needed.
 
-Everything else is preserved.
+Odoo/Talent HR fields are never overwritten from the clock report. The report's
+"Departamento" value is retained only in the private reconciliation result because
+it may represent a clock grouping/company rather than the canonical HR department.
 """
 
 from __future__ import annotations
@@ -104,7 +105,6 @@ def reconcile(source_rows: list[dict]) -> dict:
         linked_by_existing_id = 0
         linked_by_name = 0
         created_attendance_settings = 0
-        departments_filled = 0
         already_linked = 0
         unmatched: list[dict] = []
         ambiguous: list[dict] = []
@@ -171,10 +171,6 @@ def reconcile(source_rows: list[dict]) -> dict:
                     setting.biometric_user_id = device_user_id
                     settings_by_biometric_id[device_user_id].append(setting)
 
-            if not (profile.department or "").strip() and row["department"]:
-                profile.department = row["department"]
-                departments_filled += 1
-
             matched += 1
             if match_method == "BIOMETRIC_ID":
                 linked_by_existing_id += 1
@@ -189,7 +185,6 @@ def reconcile(source_rows: list[dict]) -> dict:
             "linked_by_name": linked_by_name,
             "already_linked": already_linked,
             "created_attendance_settings": created_attendance_settings,
-            "departments_filled": departments_filled,
             "unmatched_count": len(unmatched),
             "ambiguous_count": len(ambiguous),
             "conflict_count": len(conflicts),
