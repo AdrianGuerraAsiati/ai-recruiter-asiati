@@ -148,7 +148,7 @@ describe("EmployeeBiometricModal", () => {
     expect(screen.getByLabelText("Sede")).toHaveValue("site-1");
     expect(screen.getByLabelText("Horario")).toHaveValue("schedule-1");
 
-    fireEvent.click(screen.getByLabelText(/Incluir empleado en reportes de asistencia/i));
+    fireEvent.click(screen.getByLabelText(/Habilitar marcación de asistencia/i));
     fireEvent.click(screen.getByRole("button", { name: "Guardar asistencia" }));
 
     await waitFor(() => {
@@ -161,7 +161,7 @@ describe("EmployeeBiometricModal", () => {
         },
       );
     });
-    expect(await screen.findByText("Configuración de asistencia guardada.")).toBeInTheDocument();
+    expect(await screen.findByText("Configuración de marcación guardada.")).toBeInTheDocument();
   });
 
   it("uploads an authorized image and becomes kiosk-ready with two references", async () => {
