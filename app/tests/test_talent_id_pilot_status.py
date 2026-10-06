@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 
 import app.models  # noqa: F401
 from app.db import Base
-from app.domains.talent_id import biometrics, router, service
+from app.domains.talent_id import biometrics, consent, router, service
 from app.domains.talent_id.models import TalentBiometricConsentEvent
 from app.models import UserProfile
 
@@ -143,7 +143,7 @@ def test_biometric_status_tracks_enrollment_without_raw_image_storage(db):
         TalentBiometricConsentEvent(
             employee_id=employee.id,
             decision="AUTHORIZED",
-            document_version="test",
+            document_version=consent.BIOMETRIC_CONSENT_VERSION,
             document_sha256="d" * 64,
             pdf_sha256="p" * 64,
             signed_pdf=b"%PDF-test",
