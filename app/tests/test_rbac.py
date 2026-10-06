@@ -58,6 +58,7 @@ def test_new_authenticated_user_gets_employee_role_only(db):
     assert "employees.create" not in principal["permissions"]
     assert "integrations.manage" not in principal["permissions"]
     assert "employee_scores.read" not in principal["permissions"]
+    assert "psychotechnical.read" not in principal["permissions"]
 
 
 def test_admin_receives_all_system_permissions(db):
@@ -84,6 +85,8 @@ def test_admin_receives_all_system_permissions(db):
     assert "employee_scores.create" in principal["permissions"]
     assert "employee_scores.correct" in principal["permissions"]
     assert "employee_scores.export" in principal["permissions"]
+    assert "psychotechnical.read" in principal["permissions"]
+    assert "psychotechnical.manage" in principal["permissions"]
 
 
 def test_permission_and_role_dependencies_return_403_when_missing(db):
