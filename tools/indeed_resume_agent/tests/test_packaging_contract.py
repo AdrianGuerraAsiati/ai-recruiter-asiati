@@ -68,3 +68,14 @@ def test_production_ui_starts_paused_before_agent_thread():
     thread_at = text.index("threading.Thread", text.index("def run_ui"))
     assert pause_at < thread_at
     assert "mantén Chrome abierto y luego pulsa Resume" in text
+
+
+def test_sign_script_uses_sha256_timestamp_and_validates_authenticode():
+    text = read("sign.ps1")
+    lower = text.lower()
+    assert "signtool.exe" in lower
+    assert "/fd sha256" in lower
+    assert "/td sha256" in lower
+    assert "/tr $timestampurl" in lower
+    assert "get-authenticodesignature" in lower
+    assert '$signature.status -ne "valid"' in lower
