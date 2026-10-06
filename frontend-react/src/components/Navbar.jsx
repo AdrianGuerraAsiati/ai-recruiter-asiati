@@ -28,6 +28,7 @@ const navItems = [
       "profile.read_own",
     ],
   },
+  { to: "/attendance/settings", label: "Config. asistencia", icon: "calendar", section: "Equipo", permission: "talent_id.manage" },
   { to: "/direction/scores", label: "Calificación", icon: "star", section: "Equipo", permission: "employee_scores.read" },
   { to: "/training", label: "Capacitación", icon: "training", section: "Desarrollo", permission: "training.read" },
   {
