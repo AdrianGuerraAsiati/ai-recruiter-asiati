@@ -161,7 +161,7 @@ describe("EmployeeBiometricModal", () => {
         },
       );
     });
-    expect(await screen.findByText("Configuración de marcación guardada.")).toBeInTheDocument();
+    expect(await screen.findByText("Configuración de asistencia guardada.")).toBeInTheDocument();
   });
 
   it("uploads an authorized image and becomes kiosk-ready with two references", async () => {
