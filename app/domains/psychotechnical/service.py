@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.domains.psychotechnical import catalog
 from app.domains.psychotechnical.models import PsychotechnicalAssignment
-from app.models import Candidate, Job
+from app.models import Candidate, Job, JobCandidate
 
 
 class PsychotechnicalNotFound(LookupError):
@@ -90,12 +90,28 @@ def create_assignment(
     candidate = db.query(Candidate).filter(Candidate.id == candidate_id).one_or_none()
     if candidate is None:
         raise PsychotechnicalNotFound("candidate")
+    if bool(candidate.is_banned):
+        raise PsychotechnicalConflict(
+            "No se puede asignar una prueba a un candidato vetado."
+        )
 
     job = None
     if job_id:
         job = db.query(Job).filter(Job.id == job_id).one_or_none()
         if job is None:
             raise PsychotechnicalNotFound("job")
+        linked = (
+            db.query(JobCandidate.id)
+            .filter(
+                JobCandidate.job_id == job_id,
+                JobCandidate.candidate_id == candidate_id,
+            )
+            .first()
+        )
+        if linked is None:
+            raise PsychotechnicalConflict(
+                "El candidato debe estar asignado a la vacante antes de enviar la prueba."
+            )
 
     existing = (
         db.query(PsychotechnicalAssignment)
@@ -211,7 +227,7 @@ def submit_assignment(db: Session, token: str, answers: list[dict]) -> dict:
 
     provided = {item["question_id"]: item["option_id"] for item in answers}
     expected_ids = {item["id"] for item in catalog.QUESTIONS}
-    if set(provided) != expected_ids:
+    if len(answers) != len(expected_ids) or set(provided) != expected_ids:
         raise PsychotechnicalConflict("Debes responder todas las preguntas una sola vez.")
 
     dimension_correct: dict[str, int] = defaultdict(int)
