@@ -148,6 +148,7 @@ export default function CandidateCreateUserModal({
 
   return (
     <>
+      {!credentialResult && (
       <div className="modal-overlay" role="presentation" onMouseDown={onClose}>
         <section
           className="modal employee-modal candidate-user-modal"
@@ -267,6 +268,7 @@ export default function CandidateCreateUserModal({
           )}
         </section>
       </div>
+      )}
 
       <EmployeeCredentialsModal
         open={Boolean(credentialResult?.credentials)}
