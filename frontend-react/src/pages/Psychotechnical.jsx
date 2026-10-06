@@ -38,13 +38,59 @@ function statusClass(status) {
   return "is-muted";
 }
 
+function resultEntries(item) {
+  return Object.entries(item.dimension_scores || {})
+    .filter(([key, value]) => key !== "PROFILE" && value && typeof value === "object");
+}
+
+function ResultSummary({ item }) {
+  const entries = resultEntries(item);
+  const profile = item.dimension_scores?.PROFILE;
+  const scoredEntries = entries.filter(([, value]) => Number.isFinite(Number(value.score)));
+
+  return (
+    <div className="psychotechnical-result">
+      <div className="psychotechnical-score">
+        <span>{item.score_total == null ? "Lectura descriptiva" : "Resultado"}</span>
+        {item.score_total == null ? (
+          <strong className="psychotechnical-score-label">
+            {profile?.profiles?.join(" / ") || profile?.highest || "Perfil disponible"}
+          </strong>
+        ) : (
+          <strong>{item.score_total}%</strong>
+        )}
+        <small>{durationLabel(item.duration_seconds)}</small>
+        {profile?.note && <small>{profile.note}</small>}
+      </div>
+
+      <div className="psychotechnical-dimensions">
+        {scoredEntries.map(([key, dimension]) => (
+          <div key={key}>
+            <span>{dimension.label || key}</span>
+            <strong>{Number(dimension.score).toFixed(Number(dimension.score) % 1 ? 1 : 0)}%</strong>
+            {dimension.band && <small>{dimension.band}</small>}
+            {Number.isFinite(Number(dimension.count)) && (
+              <small>{dimension.count} de {dimension.total}</small>
+            )}
+            {Number.isFinite(Number(dimension.direct)) && (
+              <small>Puntaje directo: {dimension.direct}</small>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Psychotechnical() {
   const [searchParams] = useSearchParams();
   const candidateIdFilter = searchParams.get("candidate_id") || "";
+  const [catalog, setCatalog] = useState([]);
   const [items, setItems] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
+  const [testFilter, setTestFilter] = useState("");
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
 
@@ -55,6 +101,7 @@ export default function Psychotechnical() {
   const [form, setForm] = useState({
     candidate_id: "",
     job_id: "",
+    test_key: "",
     expires_days: 7,
   });
   const [saving, setSaving] = useState(false);
@@ -68,6 +115,7 @@ export default function Psychotechnical() {
       const { data } = await api.get("/psychotechnical/assignments", {
         params: {
           ...(status ? { status } : {}),
+          ...(testFilter ? { test_key: testFilter } : {}),
           ...(query.trim() ? { q: query.trim() } : {}),
           ...(candidateIdFilter ? { candidate_id: candidateIdFilter } : {}),
         },
@@ -82,7 +130,7 @@ export default function Psychotechnical() {
     } finally {
       setLoading(false);
     }
-  }, [candidateIdFilter, query, status]);
+  }, [candidateIdFilter, query, status, testFilter]);
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -92,9 +140,23 @@ export default function Psychotechnical() {
   }, [loadAssignments, query]);
 
   useEffect(() => {
-    api.get("/jobs")
-      .then(({ data }) => setJobs((data || []).filter((job) => job.status !== "PAUSED")))
-      .catch(() => setJobs([]));
+    Promise.all([
+      api.get("/psychotechnical/catalog"),
+      api.get("/jobs"),
+    ])
+      .then(([catalogResponse, jobsResponse]) => {
+        const available = catalogResponse.data?.items || [];
+        setCatalog(available);
+        setForm((current) => ({
+          ...current,
+          test_key: current.test_key || available[0]?.key || "",
+        }));
+        setJobs((jobsResponse.data || []).filter((job) => job.status !== "PAUSED"));
+      })
+      .catch(() => {
+        setCatalog([]);
+        setJobs([]);
+      });
   }, []);
 
   useEffect(() => {
@@ -125,8 +187,18 @@ export default function Psychotechnical() {
     completed: items.filter((item) => item.status === "COMPLETED").length,
   }), [items]);
 
-  function openAssignment() {
-    setForm({ candidate_id: "", job_id: "", expires_days: 7 });
+  const selectedTest = useMemo(
+    () => catalog.find((test) => test.key === form.test_key) || catalog[0] || null,
+    [catalog, form.test_key],
+  );
+
+  function openAssignment(testKey = "") {
+    setForm({
+      candidate_id: candidateIdFilter || "",
+      job_id: "",
+      test_key: testKey || catalog[0]?.key || "",
+      expires_days: 7,
+    });
     setCandidateQuery("");
     setCandidateOptions([]);
     setCreatedLink("");
@@ -137,13 +209,14 @@ export default function Psychotechnical() {
 
   async function createAssignment(event) {
     event.preventDefault();
-    if (!form.candidate_id || saving) return;
+    if (!form.candidate_id || !form.test_key || saving) return;
     setSaving(true);
     setError("");
     try {
       const { data } = await api.post("/psychotechnical/assignments", {
         candidate_id: form.candidate_id,
         job_id: form.job_id || null,
+        test_key: form.test_key,
         expires_days: Number(form.expires_days),
       });
       const link = `${window.location.origin}/psychotechnical/take/${data.token}`;
@@ -191,7 +264,7 @@ export default function Psychotechnical() {
   }
 
   async function cancelAssignment(assignment) {
-    if (!window.confirm(`¿Cancelar la prueba de ${assignment.candidate_name || "este candidato"}?`)) return;
+    if (!window.confirm(`¿Cancelar ${assignment.test_name} para ${assignment.candidate_name || "este candidato"}?`)) return;
     try {
       await api.post(`/psychotechnical/assignments/${assignment.id}/cancel`);
       await loadAssignments();
@@ -206,22 +279,43 @@ export default function Psychotechnical() {
   return (
     <div className="page psychotechnical-page">
       <PageHeader
-        eyebrow="Evaluación complementaria"
+        eyebrow="Gestión de talento humano"
         title="Pruebas psicotécnicas"
-        description="Asigna pruebas laborales objetivas de razonamiento y atención. Los resultados complementan el proceso y no toman decisiones de contratación automáticamente."
+        description="Digitaliza los formatos internos de ASIATI: Sentido Común, Temperamento, VALANTI y Atención al Detalle. Cada resultado se conserva separado del Ranking IA."
         actions={(
-          <button className="btn btn-primary" type="button" onClick={openAssignment}>
+          <button className="btn btn-primary" type="button" onClick={() => openAssignment()}>
             Asignar prueba
           </button>
         )}
       />
 
       <div className="psychotechnical-safety-note">
-        <strong>Uso laboral, no clínico.</strong>
+        <strong>Evaluación complementaria.</strong>
         <span>
-          Esta prueba no diagnostica salud mental ni personalidad y no debe utilizarse como criterio único de selección.
+          Los resultados son descriptivos y de apoyo para Talento Humano. No descartan, seleccionan ni recomiendan candidatos automáticamente.
         </span>
       </div>
+
+      {catalog.length > 0 && (
+        <section className="psychotechnical-catalog" aria-label="Catálogo de pruebas ASIATI">
+          {catalog.map((test) => (
+            <article className="panel psychotechnical-catalog-card" key={test.key}>
+              <div className="psychotechnical-catalog-top">
+                <span className="psychotechnical-code">{test.code} · v{test.source_version}</span>
+                <span>{test.duration_minutes} min</span>
+              </div>
+              <h2>{test.name}</h2>
+              <p>{test.description}</p>
+              <div className="psychotechnical-catalog-footer">
+                <small>{test.question_count} ítems</small>
+                <button className="btn btn-secondary" type="button" onClick={() => openAssignment(test.key)}>
+                  Asignar
+                </button>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
 
       {error && <FeedbackMessage title="No pudimos completar la operación">{error}</FeedbackMessage>}
 
@@ -264,6 +358,16 @@ export default function Psychotechnical() {
               onChange={(event) => setQuery(event.target.value)}
             />
             <select
+              value={testFilter}
+              aria-label="Filtrar por prueba"
+              onChange={(event) => setTestFilter(event.target.value)}
+            >
+              <option value="">Todas las pruebas</option>
+              {catalog.map((test) => (
+                <option key={test.key} value={test.key}>{test.name}</option>
+              ))}
+            </select>
+            <select
               value={status}
               aria-label="Filtrar por estado"
               onChange={(event) => setStatus(event.target.value)}
@@ -285,7 +389,7 @@ export default function Psychotechnical() {
             icon="check"
             title="No hay pruebas con este filtro"
             description="Asigna una prueba a un candidato para comenzar el seguimiento."
-            action={<button className="btn btn-primary" type="button" onClick={openAssignment}>Asignar prueba</button>}
+            action={<button className="btn btn-primary" type="button" onClick={() => openAssignment()}>Asignar prueba</button>}
           />
         ) : (
           <div className="psychotechnical-list">
@@ -293,12 +397,16 @@ export default function Psychotechnical() {
               <article className="psychotechnical-assignment" key={item.id}>
                 <div className="psychotechnical-assignment-main">
                   <div>
-                    <span className={`psychotechnical-status ${statusClass(item.status)}`}>
-                      {STATUS_LABELS[item.status] || item.status}
-                    </span>
+                    <div className="psychotechnical-assignment-badges">
+                      <span className={`psychotechnical-status ${statusClass(item.status)}`}>
+                        {STATUS_LABELS[item.status] || item.status}
+                      </span>
+                      <span className="psychotechnical-test-badge">{item.test_code}</span>
+                    </div>
                     <h3>{item.candidate_name || "Candidato"}</h3>
-                    <p>{item.candidate_email || "Sin correo registrado"}</p>
-                    <small>{item.job_title ? `Vacante: ${item.job_title}` : "Sin vacante asociada"}</small>
+                    <p>{item.test_name}</p>
+                    <small>{item.candidate_email || "Sin correo registrado"}</small>
+                    <small>{item.job_title ? ` · Vacante: ${item.job_title}` : " · Sin vacante asociada"}</small>
                   </div>
                   <div className="psychotechnical-assignment-meta">
                     <span>Vence</span>
@@ -307,23 +415,7 @@ export default function Psychotechnical() {
                   </div>
                 </div>
 
-                {item.status === "COMPLETED" && (
-                  <div className="psychotechnical-result">
-                    <div className="psychotechnical-score">
-                      <span>Resultado objetivo</span>
-                      <strong>{item.score_total}%</strong>
-                      <small>{durationLabel(item.duration_seconds)}</small>
-                    </div>
-                    <div className="psychotechnical-dimensions">
-                      {Object.entries(item.dimension_scores || {}).map(([key, dimension]) => (
-                        <div key={key}>
-                          <span>{dimension.label}</span>
-                          <strong>{dimension.score}%</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {item.status === "COMPLETED" && <ResultSummary item={item} />}
 
                 {["PENDING", "IN_PROGRESS"].includes(item.status) && (
                   <div className="psychotechnical-assignment-actions">
@@ -362,7 +454,7 @@ export default function Psychotechnical() {
               <div>
                 <span className="eyebrow">Nueva asignación</span>
                 <h2 id="psychotechnical-assign-title">Asignar prueba psicotécnica</h2>
-                <p>Razonamiento lógico, numérico, atención al detalle y comprensión verbal · 20 min.</p>
+                <p>Selecciona uno de los formatos internos digitalizados de ASIATI.</p>
               </div>
               <button className="btn-close" type="button" aria-label="Cerrar" onClick={() => setAssignOpen(false)} disabled={saving}>×</button>
             </div>
@@ -384,18 +476,35 @@ export default function Psychotechnical() {
             ) : (
               <form onSubmit={createAssignment}>
                 <div className="form-group">
+                  <label htmlFor="psychotechnical-test">Prueba</label>
+                  <select
+                    id="psychotechnical-test"
+                    value={form.test_key}
+                    required
+                    onChange={(event) => setForm((current) => ({ ...current, test_key: event.target.value }))}
+                  >
+                    <option value="">Selecciona una prueba</option>
+                    {catalog.map((test) => (
+                      <option key={test.key} value={test.key}>{test.name} · {test.code}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
                   <label htmlFor="psychotechnical-candidate-search">Candidato</label>
                   <input
                     id="psychotechnical-candidate-search"
                     type="search"
                     placeholder="Escribe nombre o correo…"
                     value={candidateQuery}
+                    disabled={Boolean(candidateIdFilter)}
                     onChange={(event) => {
                       setCandidateQuery(event.target.value);
                       setCandidateOptions([]);
                       setForm((current) => ({ ...current, candidate_id: "" }));
                     }}
                   />
+                  {candidateIdFilter && <small>El candidato quedó preseleccionado desde su perfil.</small>}
                   {candidateLoading && <small>Buscando candidatos…</small>}
                   {candidateOptions.length > 0 && (
                     <div className="psychotechnical-candidate-options">
@@ -447,15 +556,18 @@ export default function Psychotechnical() {
                   </select>
                 </div>
 
-                <div className="psychotechnical-test-preview">
-                  <strong>Razonamiento y atención</strong>
-                  <span>12 preguntas · 20 minutos</span>
-                  <small>Resultado separado del Ranking IA; no descarta candidatos automáticamente.</small>
-                </div>
+                {selectedTest && (
+                  <div className="psychotechnical-test-preview">
+                    <strong>{selectedTest.name}</strong>
+                    <span>{selectedTest.code} · v{selectedTest.source_version} · {selectedTest.question_count} ítems · ~{selectedTest.duration_minutes} min</span>
+                    <small>{selectedTest.description}</small>
+                    <small>El resultado permanece separado del Ranking IA.</small>
+                  </div>
+                )}
 
                 <div className="form-actions">
                   <button className="btn btn-secondary" type="button" onClick={() => setAssignOpen(false)} disabled={saving}>Cancelar</button>
-                  <button className="btn btn-primary" type="submit" disabled={saving || !form.candidate_id}>
+                  <button className="btn btn-primary" type="submit" disabled={saving || !form.candidate_id || !form.test_key}>
                     {saving ? "Asignando…" : "Generar enlace"}
                   </button>
                 </div>
