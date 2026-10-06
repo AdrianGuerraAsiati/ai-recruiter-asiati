@@ -162,6 +162,73 @@ def _employment_type_id(client, value: str | None) -> int | None:
     return None
 
 
+_TITLE_ACRONYMS = {
+    "API", "APIS", "ASIATI", "AWS", "BI", "BPO", "CEO", "CFO", "COO", "CRM",
+    "CTO", "ERP", "HR", "IA", "IT", "KAM", "LATAM", "QA", "SAP", "SQL", "TI",
+    "UI", "UX",
+}
+_TITLE_LOWER_WORDS = {
+    "a", "al", "con", "de", "del", "e", "el", "en", "la", "las", "los",
+    "o", "para", "por", "sin", "u", "y",
+}
+
+
+def _display_job_title(value: str | None) -> str:
+    """Return a human-friendly title without mutating Talent's stored title."""
+
+    source = str(value or "").strip()
+    if not source:
+        return ""
+
+    rendered: list[str] = []
+    word_index = 0
+    for token in source.split():
+        separators = ("–", "—")
+        if token in separators:
+            rendered.append(token)
+            continue
+
+        pieces: list[str] = []
+        current = ""
+        for char in token:
+            if char in "/-":
+                if current:
+                    pieces.append(current)
+                    current = ""
+                pieces.append(char)
+            else:
+                current += char
+        if current:
+            pieces.append(current)
+
+        output: list[str] = []
+        for piece in pieces:
+            if piece in {"/", "-"}:
+                output.append(piece)
+                continue
+
+            suffix = ""
+            base = piece
+            if len(piece) > 3 and piece[-3:].lower() in {"(a)", "(o)"}:
+                base, suffix = piece[:-3], piece[-3:].lower()
+
+            upper = base.upper()
+            lower = base.lower()
+            if upper in _TITLE_ACRONYMS:
+                normalized = upper
+            elif word_index > 0 and lower in _TITLE_LOWER_WORDS:
+                normalized = lower
+            else:
+                normalized = lower[:1].upper() + lower[1:]
+
+            output.append(normalized + suffix)
+            word_index += 1
+
+        rendered.append("".join(output))
+
+    return " ".join(rendered)
+
+
 def build_hr_job_values(client, payload: dict) -> tuple[dict, str]:
     """Map the stable Talent vacancy contract onto writable Odoo hr.job fields."""
 
@@ -181,7 +248,7 @@ def build_hr_job_values(client, payload: dict) -> tuple[dict, str]:
     publication_field = _publication_field(writable)
 
     desired = {
-        "name": title,
+        "name": _display_job_title(title),
         "description": job.get("description"),
         "active": published,
         "no_of_recruitment": 1,
