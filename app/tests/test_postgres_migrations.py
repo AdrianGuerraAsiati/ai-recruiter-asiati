@@ -9,6 +9,7 @@ from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
 
 import app.models  # noqa: F401 - register ORM tables in Base.metadata
+import app.domains.psychotechnical.models  # noqa: F401 - register assessment table
 from app.db import Base
 
 
@@ -50,6 +51,7 @@ CORE_TABLES = {
     "talent_mobile_device_link_otps",
     "talent_mobile_devices",
     "talent_attendance_events",
+    "psychotechnical_assignments",
 }
 
 
@@ -117,6 +119,7 @@ def test_alembic_head_builds_current_postgres_schema():
             "talent_mobile_device_link_otps",
             "talent_mobile_devices",
             "talent_attendance_events",
+            "psychotechnical_assignments",
         }.issubset(tables)
 
         for table_name in sorted(CORE_TABLES):
@@ -496,6 +499,22 @@ def test_alembic_head_builds_current_postgres_schema():
             "created_by_sub",
         }.issubset(attendance_columns)
 
+        psychotechnical_columns = {
+            column["name"]
+            for column in inspector.get_columns("psychotechnical_assignments")
+        }
+        assert {
+            "candidate_id",
+            "job_id",
+            "test_key",
+            "test_version",
+            "token_hash",
+            "status",
+            "expires_at",
+            "score_total",
+            "dimension_scores",
+        }.issubset(psychotechnical_columns)
+
         employee_columns = {
             column["name"]
             for column in inspector.get_columns("user_profiles")
@@ -509,6 +528,6 @@ def test_alembic_head_builds_current_postgres_schema():
         assert "company_name" in job_columns
 
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
-        assert revision == "045"
+        assert revision == "046"
     finally:
         engine.dispose()
