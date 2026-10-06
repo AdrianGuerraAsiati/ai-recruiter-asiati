@@ -866,6 +866,53 @@ def get_employee_biometrics(
     }
 
 
+@router.post("/employees/{employee_id}/biometrics/diagnose")
+async def diagnose_employee_biometrics(
+    employee_id: str,
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("talent_id.manage")),
+    provider: RekognitionBiometricProvider = Depends(get_biometric_provider),
+):
+    image_bytes = await _read_image(image)
+    settings = get_talent_id_biometric_settings()
+    try:
+        diagnostic = biometrics.diagnose_employee(
+            db,
+            provider=provider,
+            employee_id=employee_id,
+            image_bytes=image_bytes,
+            match_threshold=settings.match_threshold,
+        )
+    except biometrics.BiometricConsentRequired as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="El empleado no tiene una autorización biométrica vigente.",
+        ) from exc
+    except biometrics.BiometricEmployeeNotAllowed as exc:
+        raise HTTPException(
+            status_code=403,
+            detail="Empleado no habilitado para diagnóstico biométrico.",
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ClientError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="El proveedor biométrico no respondió correctamente.",
+        ) from exc
+
+    return {
+        "employee_id": diagnostic.selected_employee_id,
+        "matched_employee_id": diagnostic.matched_employee_id,
+        "matched_display_name": diagnostic.matched_display_name,
+        "similarity": diagnostic.similarity,
+        "required_similarity": diagnostic.required_similarity,
+        "passes_threshold": diagnostic.passes_threshold,
+        "matches_selected_employee": diagnostic.matches_selected_employee,
+    }
+
+
 @router.post("/employees/{employee_id}/biometrics/purge-provider")
 def retry_employee_biometric_provider_cleanup(
     employee_id: str,
@@ -924,7 +971,7 @@ async def enroll_employee_biometrics(
     except biometrics.BiometricConsentRequired as exc:
         raise HTTPException(
             status_code=409,
-            detail="El empleado debe firmar una autorización biométrica vigente antes del enrolamiento.",
+            detail="El empleado debe aceptar una autorización biométrica vigente antes del enrolamiento.",
         ) from exc
     except biometrics.BiometricEmployeeNotAllowed as exc:
         raise HTTPException(
