@@ -114,7 +114,7 @@ def document_sha256() -> str:
 
 def hash_evidence_value(secret: str, value: str | None) -> str | None:
     normalized = (value or "").strip()
-    if not normalized:
+    if not normalized or not secret.strip():
         return None
     return hmac.new(
         secret.encode("utf-8"),
