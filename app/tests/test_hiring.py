@@ -86,6 +86,9 @@ def _application(db, *, email="ana@example.com", banned=False):
         title="Backend Developer",
         description="Python",
         owner_sub="admin-sub",
+        country_code="CO",
+        company_name="ASIATI Colombia",
+        city="Bogotá",
     )
     candidate = Candidate(
         name="Ana Pérez",
@@ -162,6 +165,8 @@ def test_hire_creates_employee_marks_application_and_assigns_onboarding(db, monk
     assert employee.last_name == "Pérez"
     assert employee.job_title == "Backend Developer"
     assert employee.department == "Tecnología"
+    assert employee.country_code == "CO"
+    assert employee.company_name == "ASIATI Colombia"
     assert employee.onboarding_status == "PENDING"
     assert employee.onboarding_started_at is None
     assert assignment.employee_id == employee.id
@@ -183,6 +188,8 @@ def test_hire_creates_employee_marks_application_and_assigns_onboarding(db, monk
     assert odoo_sync.payload["source"]["candidate_id"] == candidate.id
     assert odoo_sync.payload["source"]["job_id"] == job.id
     assert odoo_sync.payload["employee"]["email"] == "ana@example.com"
+    assert odoo_sync.payload["employee"]["country_code"] == "CO"
+    assert odoo_sync.payload["employee"]["company_name"] == "ASIATI Colombia"
     assert odoo_sync.payload["candidate"]["phone"] == "+57 300 123 4567"
     assert cognito.created == ["ana@example.com"]
 
