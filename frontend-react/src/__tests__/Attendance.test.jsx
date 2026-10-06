@@ -107,7 +107,7 @@ describe("Attendance dashboard", () => {
     expect(screen.getByText("+7 min")).toBeInTheDocument();
   });
 
-  it("lets admins upload the biometric clock XLS report without disabling live attendance", async () => {
+  it("lets admins upload the fingerprint clock XLS report as the only attendance source", async () => {
     useSession.mockReturnValue({
       principal: { profile: { id: "admin-1", first_name: "Admin" } },
       hasPermission: (permission) => (
@@ -201,73 +201,9 @@ describe("Attendance dashboard", () => {
     expect(body.get("report").name).toBe("REPORTE.xls");
     expect(await screen.findByText("2188")).toBeInTheDocument();
     expect(screen.getByText(/2 \(18\)/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Registrar contingencia" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Registrar contingencia" })).not.toBeInTheDocument();
   });
 
-
-  it("lets admins record an audited manual attendance contingency", async () => {
-    useSession.mockReturnValue({
-      principal: { profile: { id: "admin-1", first_name: "Admin" } },
-      hasPermission: (permission) => (
-        permission === "talent_id.attendance.read_all"
-        || permission === "talent_id.manage"
-      ),
-    });
-    api.get.mockImplementation((url) => {
-      if (url === "/employees") {
-        return Promise.resolve({
-          data: {
-            items: [
-              {
-                id: "employee-1",
-                first_name: "Ana",
-                last_name: "Torres",
-                email: "ana@asiati.com.co",
-                status: "ACTIVE",
-              },
-            ],
-          },
-        });
-      }
-      if (url === "/talent-id/attendance/report") {
-        return Promise.resolve({ data: reportData() });
-      }
-      return Promise.reject(new Error(`Unexpected GET ${url}`));
-    });
-    api.post.mockResolvedValue({
-      data: {
-        id: "manual-event-1",
-        employee_id: "employee-1",
-        event_type: "CHECK_IN",
-        method: "MANUAL",
-        created: true,
-      },
-    });
-
-    renderPage();
-
-    const employeeSelect = await screen.findByLabelText("Empleado", {
-      selector: "#manual-attendance-employee",
-    });
-    fireEvent.change(employeeSelect, { target: { value: "employee-1" } });
-    fireEvent.change(screen.getByLabelText("Motivo"), {
-      target: { value: "Falla temporal del kiosco" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Registrar contingencia" }));
-
-    await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith(
-        "/talent-id/attendance/manual",
-        expect.objectContaining({
-          employee_id: "employee-1",
-          event_type: "check_in",
-          reason: "Falla temporal del kiosco",
-          occurred_at: expect.any(String),
-        }),
-      );
-    });
-    expect(await screen.findByText(/marcación manual registrada/i)).toBeInTheDocument();
-  });
 
   it("shows only the own attendance view to employees", async () => {
     useSession.mockReturnValue({

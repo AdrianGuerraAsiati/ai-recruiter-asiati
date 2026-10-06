@@ -694,34 +694,20 @@ def create_schedule(
     return service.schedule_payload(schedule)
 
 
-@router.post("/attendance/manual", status_code=201)
+@router.post("/attendance/manual", status_code=410)
 def create_manual_attendance(
     body: ManualAttendanceRequest,
     db: Session = Depends(get_db),
     principal: dict = Depends(require_permission("talent_id.manage")),
 ):
-    actor_sub = str(principal.get("sub") or "").strip()
-    if not actor_sub:
-        raise HTTPException(
-            status_code=403,
-            detail="No fue posible identificar al administrador.",
-        )
-    try:
-        event, created = service.record_manual_attendance(
-            db,
-            employee_id=body.employee_id,
-            event_type=body.event_type,
-            reason=body.reason,
-            created_by_sub=actor_sub,
-            occurred_at=body.occurred_at,
-        )
-    except Exception as exc:
-        return _translate(exc)
-
-    return {
-        **service.attendance_event_payload(event),
-        "created": created,
-    }
+    del body, db, principal
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "La marcación manual está suspendida. "
+            "La asistencia se ingesta únicamente desde reportes del reloj biométrico."
+        ),
+    )
 
 
 @router.post("/attendance/import-report")
@@ -1168,35 +1154,14 @@ def consume_mobile_qr_attendance(
     x_device_secret: str = Header(alias="X-Device-Secret"),
     db: Session = Depends(get_db),
 ):
-    try:
-        kiosk = service.authenticate_kiosk(
-            db,
-            device_id=x_device_id,
-            secret=x_device_secret,
-        )
-    except service.InvalidKioskCredentials as exc:
-        raise HTTPException(
-            status_code=401,
-            detail="Credenciales de dispositivo inválidas.",
-        ) from exc
-
-    try:
-        employee, event, created = mobile_qr.consume_qr_attendance(
-            db,
-            raw_token=body.token,
-            kiosk_device=kiosk,
-            event_type=body.event_type,
-        )
-    except Exception as exc:
-        return _mobile_qr_error(exc)
-
-    return {
-        "employee_id": employee.id,
-        "display_name": service.employee_display_name(employee),
-        "verification_method": "qr",
-        "similarity": None,
-        "attendance": _attendance_response(event, created=created),
-    }
+    del body, x_device_id, x_device_secret, db
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "La marcación por QR está suspendida. "
+            "La asistencia se ingesta únicamente desde reportes del reloj biométrico."
+        ),
+    )
 
 
 @kiosk_router.post("/recognize")
@@ -1213,79 +1178,11 @@ async def recognize_and_record_attendance(
     db: Session = Depends(get_db),
     provider: RekognitionBiometricProvider = Depends(get_biometric_provider),
 ):
-    try:
-        device = service.authenticate_kiosk(
-            db,
-            device_id=x_device_id,
-            secret=x_device_secret,
-        )
-    except service.InvalidKioskCredentials as exc:
-        raise HTTPException(
-            status_code=401,
-            detail="Credenciales de dispositivo inválidas.",
-        ) from exc
-
-    normalized_event = event_type.strip().upper()
-    if normalized_event not in {"CHECK_IN", "CHECK_OUT"}:
-        raise HTTPException(status_code=422, detail="Tipo de marcación inválido.")
-
-    namespaced_key = f"{device.id}:{idempotency_key.strip()}"
-    existing = service.get_attendance_by_idempotency_key(db, namespaced_key)
-    if existing is not None:
-        if (
-            existing.device_id != device.id
-            or existing.event_type != normalized_event
-        ):
-            raise HTTPException(
-                status_code=409,
-                detail="Conflicto de Idempotency-Key.",
-            )
-        employee = service.get_employee(db, existing.employee_id)
-        return {
-            "employee_id": employee.id,
-            "display_name": service.employee_display_name(employee),
-            "similarity": existing.recognition_confidence or 0.0,
-            "attendance": _attendance_response(existing, created=False),
-        }
-
-    image_bytes = await _read_image(image)
-    settings = get_talent_id_biometric_settings()
-    try:
-        recognized = biometrics.recognize_employee(
-            db,
-            provider=provider,
-            image_bytes=image_bytes,
-            match_threshold=settings.match_threshold,
-        )
-    except ClientError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail="El proveedor biométrico no respondió correctamente.",
-        ) from exc
-
-    if recognized is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No se reconoció el rostro de un empleado habilitado.",
-        )
-
-    try:
-        event, created = service.record_attendance(
-            db,
-            employee_id=recognized.employee_id,
-            site_id=device.site_id,
-            device_id=device.id,
-            event_type=normalized_event,
-            method="FACE",
-            idempotency_key=namespaced_key,
-            recognition_confidence=recognized.similarity,
-        )
-    except Exception as exc:
-        return _translate(exc)
-
-    return {
-        "employee_id": recognized.employee_id,
-        "display_name": recognized.display_name,
-        "similarity": recognized.similarity,
-        "attendance": _attendance_response(event, created=created),
-    }
+    del image, event_type, x_device_id, x_device_secret, idempotency_key, db, provider
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "El reconocimiento facial está suspendido. "
+            "La asistencia se ingesta únicamente desde reportes del reloj biométrico."
+        ),
+    )

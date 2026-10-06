@@ -148,7 +148,7 @@ describe("EmployeeBiometricModal", () => {
     expect(screen.getByLabelText("Sede")).toHaveValue("site-1");
     expect(screen.getByLabelText("Horario")).toHaveValue("schedule-1");
 
-    fireEvent.click(screen.getByLabelText(/habilitar marcación de asistencia/i));
+    fireEvent.click(screen.getByLabelText(/Habilitar marcación de asistencia/i));
     fireEvent.click(screen.getByRole("button", { name: "Guardar asistencia" }));
 
     await waitFor(() => {
