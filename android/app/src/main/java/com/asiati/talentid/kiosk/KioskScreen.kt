@@ -352,8 +352,8 @@ private fun KioskScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(if (wideLayout) 28.dp else 18.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+                .padding(if (wideLayout) 28.dp else 12.dp),
+            verticalArrangement = Arrangement.spacedBy(if (wideLayout) 18.dp else 10.dp),
         ) {
             KioskHeader(context)
 
@@ -514,7 +514,9 @@ private fun KioskScreen(
                 }
             }
 
-            FooterNote()
+            if (wideLayout) {
+                FooterNote()
+            }
         }
 
         state.lastResult?.let { result ->
@@ -534,47 +536,64 @@ private fun IdentityMethodSelector(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         color = Color.White,
-        shadowElevation = 2.dp,
+        shadowElevation = 1.dp,
     ) {
-        Row(
-            modifier = Modifier.padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (selected == KioskIdentityMode.FACE) {
-                Button(
-                    modifier = Modifier.weight(1f),
-                    enabled = enabled,
-                    onClick = { onSelect(KioskIdentityMode.FACE) },
-                ) {
-                    Text("Reconocimiento facial")
-                }
-            } else {
-                OutlinedButton(
-                    modifier = Modifier.weight(1f),
-                    enabled = enabled,
-                    onClick = { onSelect(KioskIdentityMode.FACE) },
-                ) {
-                    Text("Reconocimiento facial")
-                }
-            }
+        BoxWithConstraints {
+            val compact = maxWidth < 460.dp
+            val faceLabel = if (compact) "Rostro" else "Reconocimiento facial"
 
-            if (selected == KioskIdentityMode.QR) {
-                Button(
-                    modifier = Modifier.weight(1f),
-                    enabled = enabled,
-                    onClick = { onSelect(KioskIdentityMode.QR) },
-                ) {
-                    Text("QR móvil")
+            Row(
+                modifier = Modifier.padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (selected == KioskIdentityMode.FACE) {
+                    Button(
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 44.dp),
+                        enabled = enabled,
+                        shape = RoundedCornerShape(12.dp),
+                        onClick = { onSelect(KioskIdentityMode.FACE) },
+                    ) {
+                        Text(faceLabel, maxLines = 1)
+                    }
+                } else {
+                    OutlinedButton(
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 44.dp),
+                        enabled = enabled,
+                        shape = RoundedCornerShape(12.dp),
+                        onClick = { onSelect(KioskIdentityMode.FACE) },
+                    ) {
+                        Text(faceLabel, maxLines = 1)
+                    }
                 }
-            } else {
-                OutlinedButton(
-                    modifier = Modifier.weight(1f),
-                    enabled = enabled,
-                    onClick = { onSelect(KioskIdentityMode.QR) },
-                ) {
-                    Text("QR móvil")
+
+                if (selected == KioskIdentityMode.QR) {
+                    Button(
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 44.dp),
+                        enabled = enabled,
+                        shape = RoundedCornerShape(12.dp),
+                        onClick = { onSelect(KioskIdentityMode.QR) },
+                    ) {
+                        Text("QR móvil", maxLines = 1)
+                    }
+                } else {
+                    OutlinedButton(
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 44.dp),
+                        enabled = enabled,
+                        shape = RoundedCornerShape(12.dp),
+                        onClick = { onSelect(KioskIdentityMode.QR) },
+                    ) {
+                        Text("QR móvil", maxLines = 1)
+                    }
                 }
             }
         }
@@ -692,32 +711,48 @@ private fun QrActionPanel(
     onEvent: (AttendanceEventType) -> Unit,
     horizontalActions: Boolean = false,
 ) {
+    val compact = horizontalActions
+
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(if (compact) 20.dp else 26.dp),
         color = Color.White,
-        shadowElevation = 3.dp,
+        shadowElevation = if (compact) 1.dp else 3.dp,
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.padding(if (compact) 14.dp else 20.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 14.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (compact) {
                 Text(
-                    text = "Marcación con QR móvil",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = TalentInk,
-                )
-                Text(
+                    modifier = Modifier.fillMaxWidth(),
                     text = if (selectedEvent == null) {
-                        "Primero indica si registrarás entrada o salida."
+                        "Elige Entrada o Salida y luego muestra tu QR."
                     } else {
-                        "Lector activo. Muestra el QR dinámico de Talent en tu celular."
+                        "Lector activo · muestra el QR dinámico de tu celular."
                     },
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = TalentInkSoft,
+                    textAlign = TextAlign.Center,
                 )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Marcación con QR móvil",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = TalentInk,
+                    )
+                    Text(
+                        text = if (selectedEvent == null) {
+                            "Primero indica si registrarás entrada o salida."
+                        } else {
+                            "Lector activo. Muestra el QR dinámico de Talent en tu celular."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TalentInkSoft,
+                    )
+                }
             }
 
             state.error?.let { ErrorBanner(it) }
@@ -732,12 +767,12 @@ private fun QrActionPanel(
             if (horizontalActions) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     AttendanceAction(
                         modifier = Modifier.weight(1f),
                         title = "Entrada",
-                        subtitle = "Activar lector QR",
+                        subtitle = "Activar QR",
                         primary = selectedEvent != AttendanceEventType.CHECK_OUT,
                         enabled = !state.submitting,
                         onClick = { onEvent(AttendanceEventType.CHECK_IN) },
@@ -745,12 +780,20 @@ private fun QrActionPanel(
                     AttendanceAction(
                         modifier = Modifier.weight(1f),
                         title = "Salida",
-                        subtitle = "Activar lector QR",
+                        subtitle = "Activar QR",
                         primary = selectedEvent == AttendanceEventType.CHECK_OUT,
                         enabled = !state.submitting,
                         onClick = { onEvent(AttendanceEventType.CHECK_OUT) },
                     )
                 }
+
+                Text(
+                    modifier = Modifier.fillMaxWidth(),
+                    text = "Token efímero · sin contraseñas en el QR",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TalentInkSoft,
+                    textAlign = TextAlign.Center,
+                )
             } else {
                 AttendanceAction(
                     modifier = Modifier.fillMaxWidth(),
@@ -768,18 +811,18 @@ private fun QrActionPanel(
                     enabled = !state.submitting,
                     onClick = { onEvent(AttendanceEventType.CHECK_OUT) },
                 )
-            }
 
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = TalentSurfaceSoft,
-            ) {
-                Text(
-                    modifier = Modifier.padding(14.dp),
-                    text = "El QR no contiene tu contraseña. Talent valida un token efímero emitido solo después de comprobar la llave privada de tu celular vinculado.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TalentInkSoft,
-                )
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = TalentSurfaceSoft,
+                ) {
+                    Text(
+                        modifier = Modifier.padding(14.dp),
+                        text = "El QR no contiene tu contraseña. Talent valida un token efímero emitido solo después de comprobar la llave privada de tu celular vinculado.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TalentInkSoft,
+                    )
+                }
             }
         }
     }
@@ -827,43 +870,31 @@ private fun KioskHeader(context: KioskContext) {
                 )
             }
         } else {
-            Column(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    BrandBadge()
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Talent ID",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = TalentNavy,
-                        )
-                        Text(
-                            text = context.siteName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TalentInkSoft,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    StatusPill(
-                        label = "Conectado",
-                        color = TalentSuccess,
-                        background = TalentSuccessSoft,
+                BrandBadge()
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Talent ID",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TalentNavy,
+                    )
+                    Text(
+                        text = context.siteName,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TalentInkSoft,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Text(
-                    text = context.deviceName,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TalentInkSoft,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                StatusPill(
+                    label = "En línea",
+                    color = TalentSuccess,
+                    background = TalentSuccessSoft,
                 )
             }
         }
@@ -873,8 +904,8 @@ private fun KioskHeader(context: KioskContext) {
 @Composable
 private fun BrandBadge() {
     Surface(
-        modifier = Modifier.size(46.dp),
-        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.size(40.dp),
+        shape = RoundedCornerShape(12.dp),
         color = TalentNavy,
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -882,7 +913,7 @@ private fun BrandBadge() {
                 text = "TI",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
             )
         }
     }
@@ -896,44 +927,28 @@ private fun CameraStage(
     faceObservation: FaceObservation,
     faceReadyStable: Boolean,
 ) {
+    val statusText = when {
+        faceObservation.faceCount > 1 -> "Solo una persona"
+        faceReadyStable -> "Rostro listo"
+        faceObservation.faceCount == 1 && !faceObservation.largeEnough -> "Acércate un poco"
+        faceObservation.faceCount == 1 && !faceObservation.centered -> "Céntrate en la cámara"
+        faceObservation.faceCount == 1 -> "Mantén la posición"
+        else -> "Mira a la cámara"
+    }
+
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(30.dp),
+        shape = RoundedCornerShape(24.dp),
         color = TalentNavy,
-        shadowElevation = 4.dp,
+        shadowElevation = 2.dp,
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             CameraPreview(
                 controller = controller,
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(30.dp)),
+                    .clip(RoundedCornerShape(24.dp)),
             )
-
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 18.dp)
-                    .background(
-                        color = TalentNavy.copy(alpha = 0.76f),
-                        shape = RoundedCornerShape(18.dp),
-                    )
-                    .padding(horizontal = 16.dp, vertical = 9.dp),
-            ) {
-                Text(
-                    text = when {
-                        faceObservation.faceCount > 1 -> "Solo una persona frente a la cámara"
-                        faceReadyStable -> "Rostro listo para marcar"
-                        faceObservation.faceCount == 1 && !faceObservation.largeEnough -> "Rostro detectado · acércate un poco"
-                        faceObservation.faceCount == 1 && !faceObservation.centered -> "Rostro detectado · céntrate en la cámara"
-                        faceObservation.faceCount == 1 -> "Rostro detectado · mantén la posición"
-                        else -> "Mira a la cámara para detectar tu rostro"
-                    },
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
 
             FaceTrackingGuide(
                 observation = faceObservation,
@@ -943,23 +958,19 @@ private fun CameraStage(
 
             Box(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(18.dp)
+                    .align(Alignment.TopCenter)
+                    .padding(12.dp)
                     .background(
-                        color = TalentNavy.copy(alpha = 0.76f),
-                        shape = RoundedCornerShape(16.dp),
+                        color = TalentNavy.copy(alpha = 0.72f),
+                        shape = RoundedCornerShape(14.dp),
                     )
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
             ) {
                 Text(
-                    text = when {
-                        faceObservation.faceCount > 1 -> "Debe verse un solo rostro"
-                        faceReadyStable -> "✓ Rostro detectado y bien posicionado"
-                        faceObservation.faceCount == 1 -> "Ajusta tu posición hasta que el óvalo cambie a verde"
-                        else -> "Una persona · rostro visible · buena iluminación"
-                    },
-                    color = Color.White.copy(alpha = 0.92f),
+                    text = statusText,
+                    color = Color.White,
                     style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
                 )
             }
@@ -1007,14 +1018,14 @@ private fun FaceTrackingGuide(
     Canvas(modifier = modifier) {
         val bounds = observation.bounds
         if (bounds == null) {
-            val guideWidth = size.width * 0.34f
-            val guideHeight = size.height * 0.56f
+            val guideWidth = size.width * 0.48f
+            val guideHeight = size.height * 0.62f
             val topLeft = Offset(
                 x = (size.width - guideWidth) / 2f,
                 y = (size.height - guideHeight) / 2f,
             )
             drawOval(
-                color = Color.White.copy(alpha = 0.34f),
+                color = Color.White.copy(alpha = 0.52f),
                 topLeft = topLeft,
                 size = Size(guideWidth, guideHeight),
                 style = Stroke(width = 2.dp.toPx()),
@@ -1037,8 +1048,8 @@ private fun FaceTrackingGuide(
         val rawBottom = offsetY + bounds.bottom * scale
         val faceWidth = rawRight - rawLeft
         val faceHeight = rawBottom - rawTop
-        val horizontalPadding = faceWidth * 0.18f
-        val verticalPadding = faceHeight * 0.12f
+        val horizontalPadding = faceWidth * 0.10f
+        val verticalPadding = faceHeight * 0.10f
 
         val left = (rawLeft - horizontalPadding).coerceAtLeast(0f)
         val top = (rawTop - verticalPadding).coerceAtLeast(0f)
@@ -1052,7 +1063,7 @@ private fun FaceTrackingGuide(
         }
 
         drawOval(
-            color = color.copy(alpha = 0.12f),
+            color = color.copy(alpha = 0.08f),
             topLeft = Offset(left, top),
             size = Size(right - left, bottom - top),
         )
@@ -1060,16 +1071,7 @@ private fun FaceTrackingGuide(
             color = color,
             topLeft = Offset(left, top),
             size = Size(right - left, bottom - top),
-            style = Stroke(width = 4.dp.toPx()),
-        )
-        drawOval(
-            color = Color.White.copy(alpha = 0.72f),
-            topLeft = Offset(left + 4.dp.toPx(), top + 4.dp.toPx()),
-            size = Size(
-                (right - left - 8.dp.toPx()).coerceAtLeast(1f),
-                (bottom - top - 8.dp.toPx()).coerceAtLeast(1f),
-            ),
-            style = Stroke(width = 1.dp.toPx()),
+            style = Stroke(width = 3.dp.toPx()),
         )
     }
 }
@@ -1085,33 +1087,46 @@ private fun ActionPanel(
     onEvent: (AttendanceEventType) -> Unit,
     horizontalActions: Boolean = false,
 ) {
+    val compact = horizontalActions
+    val helperText = when {
+        faceObservation.faceCount > 1 -> "Debe haber una sola persona frente a la cámara."
+        faceReady -> "Rostro listo · elige Entrada o Salida."
+        faceObservation.faceCount == 1 -> "Ajusta tu posición hasta que el óvalo se vea verde."
+        else -> "Ubica tu rostro dentro del óvalo."
+    }
+
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(if (compact) 20.dp else 26.dp),
         color = Color.White,
-        shadowElevation = 3.dp,
+        shadowElevation = if (compact) 1.dp else 3.dp,
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.padding(if (compact) 14.dp else 20.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 14.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (compact) {
                 Text(
-                    text = "¿Qué deseas registrar?",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = TalentInk,
-                )
-                Text(
-                    text = when {
-                        faceObservation.faceCount > 1 -> "Debe haber una sola persona frente a la cámara."
-                        faceReady -> "Tu rostro está listo. Selecciona Entrada o Salida."
-                        faceObservation.faceCount == 1 -> "Ajusta tu posición hasta que el óvalo se vea verde."
-                        else -> "Mira a la cámara. Activaremos la marcación cuando detectemos tu rostro."
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.fillMaxWidth(),
+                    text = helperText,
+                    style = MaterialTheme.typography.bodySmall,
                     color = TalentInkSoft,
+                    textAlign = TextAlign.Center,
                 )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "¿Qué deseas registrar?",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = TalentInk,
+                    )
+                    Text(
+                        text = helperText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TalentInkSoft,
+                    )
+                }
             }
 
             captureError?.let { ErrorBanner(it) }
@@ -1127,12 +1142,12 @@ private fun ActionPanel(
             if (horizontalActions) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     AttendanceAction(
                         modifier = Modifier.weight(1f),
                         title = "Entrada",
-                        subtitle = "Inicio de jornada",
+                        subtitle = "Inicio",
                         primary = true,
                         enabled = faceReady && !state.submitting,
                         onClick = { onEvent(AttendanceEventType.CHECK_IN) },
@@ -1140,12 +1155,20 @@ private fun ActionPanel(
                     AttendanceAction(
                         modifier = Modifier.weight(1f),
                         title = "Salida",
-                        subtitle = "Fin de jornada",
+                        subtitle = "Fin",
                         primary = false,
                         enabled = faceReady && !state.submitting,
                         onClick = { onEvent(AttendanceEventType.CHECK_OUT) },
                     )
                 }
+
+                Text(
+                    modifier = Modifier.fillMaxWidth(),
+                    text = "Imagen temporal · verificación segura",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TalentInkSoft,
+                    textAlign = TextAlign.Center,
+                )
             } else {
                 AttendanceAction(
                     modifier = Modifier.fillMaxWidth(),
@@ -1163,19 +1186,19 @@ private fun ActionPanel(
                     enabled = faceReady && !state.submitting,
                     onClick = { onEvent(AttendanceEventType.CHECK_OUT) },
                 )
-            }
 
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = TalentSurfaceSoft,
-            ) {
-                Text(
-                    modifier = Modifier.padding(14.dp),
-                    text = "La detección del óvalo ocurre localmente en la tablet y no identifica quién eres. " +
-                        "Cuando el rostro esté listo, Talent ID toma una imagen temporal para verificar tu identidad y registrar la marcación.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TalentInkSoft,
-                )
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = TalentSurfaceSoft,
+                ) {
+                    Text(
+                        modifier = Modifier.padding(14.dp),
+                        text = "La detección del óvalo ocurre localmente en la tablet y no identifica quién eres. " +
+                            "Cuando el rostro esté listo, Talent ID toma una imagen temporal para verificar tu identidad y registrar la marcación.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TalentInkSoft,
+                    )
+                }
             }
         }
     }
@@ -1192,7 +1215,7 @@ private fun AttendanceAction(
 ) {
     if (primary) {
         Button(
-            modifier = modifier.heightIn(min = 76.dp),
+            modifier = modifier.heightIn(min = 64.dp),
             enabled = enabled,
             shape = RoundedCornerShape(18.dp),
             colors = ButtonDefaults.buttonColors(
@@ -1219,7 +1242,7 @@ private fun AttendanceAction(
         }
     } else {
         FilledTonalButton(
-            modifier = modifier.heightIn(min = 76.dp),
+            modifier = modifier.heightIn(min = 64.dp),
             enabled = enabled,
             shape = RoundedCornerShape(18.dp),
             colors = ButtonDefaults.filledTonalButtonColors(
