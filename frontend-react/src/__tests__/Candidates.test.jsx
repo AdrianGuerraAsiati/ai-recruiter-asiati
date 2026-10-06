@@ -19,7 +19,7 @@ import Candidates from "../pages/Candidates";
 
 vi.mock("../context/SessionContext", () => ({
   useSession: () => ({
-    hasPermission: (permission) => permission === "candidates.restrict",
+    hasPermission: (permission) => ["candidates.restrict", "employees.create"].includes(permission),
   }),
 }));
 
@@ -336,6 +336,33 @@ describe("Candidates evaluation", () => {
         "/candidates?page=1&page_size=20&sort=name_asc",
       );
     });
+  });
+
+
+  it("searches candidates by name or email", async () => {
+    renderCandidates();
+    await screen.findByText("Ana Test");
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Buscar candidatos" }), {
+      target: { value: "ana" },
+    });
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith(
+        "/candidates?page=1&page_size=20&q=ana",
+      );
+    });
+  });
+
+  it("opens create user from a candidate card", async () => {
+    renderCandidates();
+    await screen.findByText("Ana Test");
+
+    fireEvent.click(screen.getByRole("button", { name: "Crear usuario" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Crear usuario" }),
+    ).toBeInTheDocument();
   });
 
 });
