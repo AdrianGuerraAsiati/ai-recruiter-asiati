@@ -75,7 +75,7 @@ class UpdateEmployeeRequest(BaseModel):
     last_name: str | None = Field(default=None, max_length=100)
     job_title: str | None = Field(default=None, max_length=160)
     department: str | None = Field(default=None, max_length=160)
-    country_code: str | None = Field(default=None, min_length=2, max_length=2)
+    country_code: str | None = Field(default=None, max_length=2)
     company_name: str | None = Field(default=None, max_length=160)
     hire_date: date | None = None
 
