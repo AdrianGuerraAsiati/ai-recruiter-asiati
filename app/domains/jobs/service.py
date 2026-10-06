@@ -17,13 +17,25 @@ logger = logging.getLogger(__name__)
 
 
 def _sync_odoo_publication_best_effort(db: Session, job) -> None:
-    """Persist and attempt the Odoo mirror without making Odoo a Talent dependency."""
+    """Mirror active vacancies to Odoo and withdraw already-published paused ones."""
+
+    from datetime import datetime, timezone
 
     from app.domains.odoo_sync import integration as odoo_integration
     from app.domains.odoo_sync import job_delivery
     from app.domains.odoo_sync import service as odoo_sync_service
+    sync = odoo_sync_service.ensure_job_sync(db, job=job)
+    status = str(getattr(job, "status", None) or "ACTIVE").upper()
 
-    odoo_sync_service.ensure_job_sync(db, job=job)
+    # A paused vacancy that has never reached Odoo is already in the desired
+    # remote state: absent. Do not create an archived/unpublished hr.job row.
+    if status != "ACTIVE" and not str(sync.odoo_record_id or "").strip():
+        sync.status = odoo_sync_service.SYNC_SYNCED
+        sync.last_error = None
+        sync.synced_at = datetime.now(timezone.utc)
+        db.commit()
+        return
+
     db.commit()
     try:
         job_delivery.sync_job_now(db, job_id=job.id)
