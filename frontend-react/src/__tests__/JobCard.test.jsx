@@ -8,7 +8,7 @@ import JobCard from "../features/jobs/JobCard";
 
 const JOB = {
   job_id: "job-1",
-  title: "Backend Developer",
+  title: "BACKEND DEVELOPER",
   description: "Python APIs REST",
   active_description_source: "ai",
   city: "Bogotá",
