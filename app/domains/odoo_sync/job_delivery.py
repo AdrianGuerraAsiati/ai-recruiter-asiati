@@ -359,19 +359,37 @@ def sync_all_jobs_now(db: Session, *, client=None) -> dict:
     jobs = db.query(Job).order_by(Job.created_at.asc(), Job.id.asc()).all()
     pending_job_ids: list[str] = []
     skipped = 0
+    active_total = 0
+    paused_total = 0
 
     for job in jobs:
         sync = sync_service.ensure_job_sync(db, job=job)
         db.commit()
         db.refresh(sync)
-        if sync.status == "SYNCED":
-            skipped += 1
-        else:
+
+        status = str(getattr(job, "status", None) or "ACTIVE").strip().upper()
+        if status == "ACTIVE":
+            active_total += 1
+            # Reconcile every active vacancy on each explicit/backfill sync.
+            # A historic SYNCED marker only means the previous delivery attempt
+            # finished; it does not prove that the remote hr.job still exists
+            # or remains published in Odoo.
             pending_job_ids.append(job.id)
+            continue
+
+        paused_total += 1
+        # Paused vacancies only need Odoo I/O when there is a known remote
+        # record to delete, or when a previous attempt failed/pended.
+        if str(sync.odoo_record_id or "").strip() or sync.status != "SYNCED":
+            pending_job_ids.append(job.id)
+        else:
+            skipped += 1
 
     if not pending_job_ids:
         return {
             "total": len(jobs),
+            "active_total": active_total,
+            "paused_total": paused_total,
             "attempted": 0,
             "synced": 0,
             "failed": 0,
@@ -405,6 +423,8 @@ def sync_all_jobs_now(db: Session, *, client=None) -> dict:
 
     return {
         "total": len(jobs),
+        "active_total": active_total,
+        "paused_total": paused_total,
         "attempted": len(pending_job_ids),
         "synced": synced,
         "failed": failed,
