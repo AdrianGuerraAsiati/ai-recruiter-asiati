@@ -70,6 +70,7 @@ def build_job_upsert_payload(*, job: Job) -> dict:
             "description": job.description,
             "status": getattr(job, "status", None) or "ACTIVE",
             "country_code": getattr(job, "country_code", None),
+            "company_name": getattr(job, "company_name", None),
             "city": getattr(job, "city", None),
             "employment_type": getattr(job, "employment_type", None),
             "public_slug": getattr(job, "public_slug", None),
@@ -158,6 +159,7 @@ def build_applicant_upsert_payload(
             "external_id": job.id,
             "title": job.title,
             "country_code": job.country_code,
+            "company_name": getattr(job, "company_name", None),
             "city": job.city,
             "employment_type": job.employment_type,
             "selection_process": {
@@ -270,6 +272,8 @@ def build_employee_upsert_payload(
             "email": employee.email,
             "job_title": employee.job_title,
             "department": employee.department,
+            "country_code": getattr(employee, "country_code", None),
+            "company_name": getattr(employee, "company_name", None),
             "hire_date": _iso(employee.hire_date),
         },
         "candidate": {
