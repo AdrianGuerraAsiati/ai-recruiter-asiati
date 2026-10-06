@@ -59,6 +59,10 @@ def test_jobs_style_creates_inherited_qweb_view():
     assert "#jobs_grid .card-body > .oe_empty.text-muted.mb16" in values["arch_db"]
     assert "display: none !important" in values["arch_db"]
     assert "#jobs_grid_right" in values["arch_db"]
+    assert "asiati-job-country" in values["arch_db"]
+    assert "asiati-job-country-flag" in values["arch_db"]
+    assert "job.address_id.country_id" in values["arch_db"]
+    assert "asiati_country.image_url" in values["arch_db"]
 
 
 def test_jobs_style_updates_existing_view_instead_of_duplicating():

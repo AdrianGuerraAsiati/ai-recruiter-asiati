@@ -135,6 +135,31 @@ STYLE_ARCH = r"""
                 display: none !important;
             }
 
+            .o_website_hr_recruitment_jobs_list .asiati-job-country {
+                display: inline-flex;
+                align-items: center;
+                gap: .42rem;
+                width: fit-content;
+                margin: .05rem 0 .65rem;
+                padding: .28rem .58rem;
+                border: 1px solid rgba(15, 61, 86, .09);
+                border-radius: 999px;
+                background: var(--asiati-soft);
+                color: #42566d;
+                font-size: .78rem;
+                font-weight: 700;
+                line-height: 1;
+            }
+
+            .o_website_hr_recruitment_jobs_list .asiati-job-country-flag {
+                width: 22px;
+                height: 15px;
+                flex: 0 0 22px;
+                border-radius: 2px;
+                object-fit: cover;
+                box-shadow: 0 0 0 1px rgba(15, 61, 86, .10);
+            }
+
             .o_website_hr_recruitment_jobs_list .o_job_infos {
                 gap: .34rem;
                 margin-top: auto;
@@ -225,6 +250,16 @@ STYLE_ARCH = r"""
                 }
             }
         </style>
+    </xpath>
+
+    <xpath expr="//div[@id='jobs_grid']//div[@t-field='job.description']" position="before">
+        <t t-set="asiati_country" t-value="job.address_id.country_id"/>
+        <div t-if="asiati_country" class="asiati-job-country">
+            <img class="asiati-job-country-flag"
+                 t-att-src="asiati_country.image_url"
+                 t-att-alt="asiati_country.name"/>
+            <span t-out="asiati_country.name"/>
+        </div>
     </xpath>
 </data>
 """.strip()
