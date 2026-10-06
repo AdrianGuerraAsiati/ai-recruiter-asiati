@@ -43,7 +43,7 @@ describe("JobCard", () => {
 
     expect(screen.getByText("Backend Developer")).toBeInTheDocument();
     expect(screen.getByText("IA")).toBeInTheDocument();
-    expect(screen.getByText("Bogotá · CO")).toBeInTheDocument();
+    expect(screen.getByText("Bogotá · Colombia")).toBeInTheDocument();
     expect(screen.getByText("1 candidato asignado")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Agregar candidatos" }))
       .toHaveAttribute("href", "/candidates?job_id=job-1");
