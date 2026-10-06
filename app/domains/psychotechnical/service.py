@@ -31,6 +31,16 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _is_expired(assignment: PsychotechnicalAssignment) -> bool:
+    return _as_utc(assignment.expires_at) <= _utcnow()
+
+
 def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
@@ -42,7 +52,7 @@ def _public_token() -> str:
 def _status_for(assignment: PsychotechnicalAssignment) -> str:
     if assignment.status in {"COMPLETED", "CANCELED"}:
         return assignment.status
-    if assignment.expires_at <= _utcnow():
+    if _is_expired(assignment):
         return "EXPIRED"
     return assignment.status
 
@@ -97,7 +107,7 @@ def create_assignment(
         .order_by(PsychotechnicalAssignment.created_at.desc())
         .first()
     )
-    if existing is not None and existing.expires_at > _utcnow():
+    if existing is not None and not _is_expired(existing):
         raise PsychotechnicalConflict(
             "El candidato ya tiene una prueba psicotécnica pendiente o en curso."
         )
@@ -157,7 +167,7 @@ def _assignment_by_token(db: Session, token: str) -> PsychotechnicalAssignment:
         raise PsychotechnicalNotFound("assignment")
     if assignment.status == "CANCELED":
         raise PsychotechnicalConflict("La prueba fue cancelada.")
-    if assignment.status != "COMPLETED" and assignment.expires_at <= _utcnow():
+    if assignment.status != "COMPLETED" and _is_expired(assignment):
         raise PsychotechnicalExpired("La prueba expiró.")
     return assignment
 
@@ -242,7 +252,7 @@ def submit_assignment(db: Session, token: str, answers: list[dict]) -> dict:
     }
 
     completed_at = _utcnow()
-    started_at = assignment.started_at or completed_at
+    started_at = _as_utc(assignment.started_at) if assignment.started_at else completed_at
     assignment.status = "COMPLETED"
     assignment.completed_at = completed_at
     assignment.duration_seconds = max(
