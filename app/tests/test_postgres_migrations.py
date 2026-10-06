@@ -487,6 +487,25 @@ def test_alembic_head_builds_current_postgres_schema():
             "provider_cleanup_attempted_at",
         }.issubset(biometric_enrollment_columns)
 
+        assert {
+            "employee_personal_profiles",
+            "employee_document_requests",
+        }.issubset(set(inspector.get_table_names()))
+
+        employee_document_columns = {
+            column["name"]
+            for column in inspector.get_columns("employee_document_requests")
+        }
+        assert {
+            "employee_id",
+            "label",
+            "status",
+            "storage_key",
+            "original_filename",
+            "sha256",
+            "uploaded_at",
+        }.issubset(employee_document_columns)
+
         attendance_columns = {
             column["name"]
             for column in inspector.get_columns("talent_attendance_events")
@@ -497,6 +516,6 @@ def test_alembic_head_builds_current_postgres_schema():
         }.issubset(attendance_columns)
 
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
-        assert revision == "044"
+        assert revision == "045"
     finally:
         engine.dispose()
