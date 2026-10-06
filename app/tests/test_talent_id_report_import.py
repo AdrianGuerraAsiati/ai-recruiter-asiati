@@ -9,7 +9,10 @@ from sqlalchemy.orm import sessionmaker
 import app.models  # noqa: F401
 from app.db import Base
 from app.domains.talent_id import attendance_import, reporting, service
-from app.domains.talent_id.models import TalentAttendanceEvent
+from app.domains.talent_id.models import (
+    TalentAttendanceEvent,
+    TalentEmployeeAttendanceSetting,
+)
 from app.models import UserProfile
 
 
@@ -160,6 +163,13 @@ def test_import_report_matches_employee_dedupes_and_surfaces_unknown_codes(monke
         assert all(attendance_import.is_report_event(event) for event in events)
         assert events[0].occurred_at.hour == 13  # 08:16 in Bogotá stored as UTC.
 
+        attendance_setting = (
+            db.query(TalentEmployeeAttendanceSetting)
+            .filter(TalentEmployeeAttendanceSetting.employee_id == employee.id)
+            .one()
+        )
+        assert attendance_setting.biometric_user_id == "13"
+
         report = reporting.build_attendance_report(
             db,
             start_date=date(2026, 1, 5),
@@ -179,6 +189,81 @@ def test_import_report_matches_employee_dedupes_and_surfaces_unknown_codes(monke
         )
         assert second["imported_events"] == 0
         assert second["duplicate_events"] == 3
+    finally:
+        db.close()
+        engine.dispose()
+
+
+
+def test_import_report_prefers_biometric_id_for_historical_employee(monkeypatch):
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+
+    try:
+        employee = UserProfile(
+            cognito_sub="historical-sub",
+            email="historical@asiati.com.co",
+            first_name="Nombre Actual",
+            last_name="Distinto",
+            status="DISABLED",
+        )
+        db.add(employee)
+        db.commit()
+        db.refresh(employee)
+
+        site = service.create_site(
+            db,
+            name="Bogotá Histórica",
+            code="BOG-HIST",
+            timezone_name="America/Bogota",
+        )
+        schedule = service.create_schedule(
+            db,
+            name="Histórico",
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            tolerance_minutes=0,
+        )
+        setting = service.configure_employee_attendance(
+            db,
+            employee_id=employee.id,
+            site_id=site.id,
+            schedule_id=schedule.id,
+            attendance_eligible=True,
+        )
+        setting.biometric_user_id = "9001"
+        db.commit()
+
+        monkeypatch.setattr(
+            attendance_import,
+            "parse_biometric_xls",
+            lambda _raw: [
+                attendance_import.AttendanceReportRow(
+                    device_user_id="9001",
+                    employee_name="NOMBRE ANTIGUO EN EL RELOJ",
+                    occurred_local=datetime(2026, 1, 3, 8, 0, 0),
+                    device_number="2",
+                    record_code="0",
+                    department="ASIATI HOLDING",
+                    source_row=2,
+                )
+            ],
+        )
+
+        result = attendance_import.import_biometric_report(
+            db,
+            raw=b"fake-xls",
+            site_id=site.id,
+            created_by_sub="admin-sub",
+            filename="historico.xls",
+        )
+
+        assert result["matched_employees"] == 1
+        assert result["imported_events"] == 1
+        event = db.query(TalentAttendanceEvent).one()
+        assert event.employee_id == employee.id
     finally:
         db.close()
         engine.dispose()
