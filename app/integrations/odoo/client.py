@@ -190,6 +190,9 @@ class OdooXmlRpcClient:
     def write(self, model: str, ids: Sequence[int], values: Mapping[str, Any]) -> bool:
         return bool(self.execute_kw(model, "write", [list(ids), dict(values)]))
 
+    def unlink(self, model: str, ids: Sequence[int]) -> bool:
+        return bool(self.execute_kw(model, "unlink", [list(ids)]))
+
     def healthcheck(self) -> dict:
         version = self.server_version()
         uid = self.authenticate()
