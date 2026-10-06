@@ -268,3 +268,225 @@ def test_import_report_prefers_biometric_id_for_historical_employee(monkeypatch)
     finally:
         db.close()
         engine.dispose()
+
+
+
+def test_import_report_surfaces_biometric_identity_guardrails(monkeypatch):
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+
+    try:
+        selected_site = service.create_site(
+            db,
+            name="Bogotá Principal",
+            code="BOG-GUARD",
+            timezone_name="America/Bogota",
+        )
+        other_site = service.create_site(
+            db,
+            name="Bogotá Alterna",
+            code="BOG-ALT",
+            timezone_name="America/Bogota",
+        )
+        schedule = service.create_schedule(
+            db,
+            name="Administrativo Guard",
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            tolerance_minutes=0,
+        )
+
+        mismatch = UserProfile(
+            first_name="Empleado",
+            last_name="Mismatch",
+            status="ACTIVE",
+        )
+        ineligible = UserProfile(
+            first_name="Empleado",
+            last_name="Ineligible",
+            status="ACTIVE",
+        )
+        wrong_site = UserProfile(
+            first_name="Empleado",
+            last_name="Otra Sede",
+            status="ACTIVE",
+        )
+        duplicate_a = UserProfile(first_name="Duplicado", last_name="Uno", status="ACTIVE")
+        duplicate_b = UserProfile(first_name="Duplicado", last_name="Dos", status="ACTIVE")
+        db.add_all([mismatch, ineligible, wrong_site, duplicate_a, duplicate_b])
+        db.commit()
+        for item in [mismatch, ineligible, wrong_site, duplicate_a, duplicate_b]:
+            db.refresh(item)
+
+        mismatch_setting = service.configure_employee_attendance(
+            db,
+            employee_id=mismatch.id,
+            site_id=selected_site.id,
+            schedule_id=schedule.id,
+            attendance_eligible=True,
+        )
+        mismatch_setting.biometric_user_id = "OLD"
+
+        service.configure_employee_attendance(
+            db,
+            employee_id=ineligible.id,
+            site_id=selected_site.id,
+            schedule_id=schedule.id,
+            attendance_eligible=False,
+        )
+        service.configure_employee_attendance(
+            db,
+            employee_id=wrong_site.id,
+            site_id=other_site.id,
+            schedule_id=schedule.id,
+            attendance_eligible=True,
+        )
+        duplicate_a_setting = service.configure_employee_attendance(
+            db,
+            employee_id=duplicate_a.id,
+            site_id=selected_site.id,
+            schedule_id=schedule.id,
+            attendance_eligible=True,
+        )
+        duplicate_b_setting = service.configure_employee_attendance(
+            db,
+            employee_id=duplicate_b.id,
+            site_id=selected_site.id,
+            schedule_id=schedule.id,
+            attendance_eligible=True,
+        )
+        duplicate_a_setting.biometric_user_id = "DUP"
+        duplicate_b_setting.biometric_user_id = "DUP"
+        db.commit()
+
+        rows = [
+            attendance_import.AttendanceReportRow(
+                device_user_id="NEW",
+                employee_name="EMPLEADO MISMATCH",
+                occurred_local=datetime(2026, 1, 5, 8, 0),
+                device_number="2",
+                record_code="0",
+                department="ASIATI HOLDING",
+                source_row=2,
+            ),
+            attendance_import.AttendanceReportRow(
+                device_user_id="INELIGIBLE",
+                employee_name="EMPLEADO INELIGIBLE",
+                occurred_local=datetime(2026, 1, 5, 8, 1),
+                device_number="2",
+                record_code="0",
+                department="ASIATI HOLDING",
+                source_row=3,
+            ),
+            attendance_import.AttendanceReportRow(
+                device_user_id="OTHER-SITE",
+                employee_name="EMPLEADO OTRA SEDE",
+                occurred_local=datetime(2026, 1, 5, 8, 2),
+                device_number="2",
+                record_code="0",
+                department="ASIATI HOLDING",
+                source_row=4,
+            ),
+            attendance_import.AttendanceReportRow(
+                device_user_id="DUP",
+                employee_name="NOMBRE IRRELEVANTE",
+                occurred_local=datetime(2026, 1, 5, 8, 3),
+                device_number="2",
+                record_code="0",
+                department="ASIATI HOLDING",
+                source_row=5,
+            ),
+        ]
+        monkeypatch.setattr(
+            attendance_import,
+            "parse_biometric_xls",
+            lambda _raw: rows,
+        )
+
+        result = attendance_import.import_biometric_report(
+            db,
+            raw=b"fake-xls",
+            site_id=selected_site.id,
+            created_by_sub="admin-sub",
+            filename="guardrails.xls",
+        )
+
+        assert result["imported_events"] == 0
+        assert result["unmatched_rows"] == 1
+        assert result["attendance_not_enabled_rows"] == 1
+        assert result["site_mismatch_rows"] == 1
+        assert result["ambiguous_rows"] == 1
+        reasons = {item["reason"] for item in result["unmatched_people"]}
+        assert {
+            "BIOMETRIC_ID_MISMATCH",
+            "ATTENDANCE_NOT_ENABLED",
+            "SITE_MISMATCH",
+            "AMBIGUOUS_BIOMETRIC_ID",
+        }.issubset(reasons)
+    finally:
+        db.close()
+        engine.dispose()
+
+
+def test_import_report_rejects_missing_site_and_invalid_timezone(monkeypatch):
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+
+    try:
+        row = attendance_import.AttendanceReportRow(
+            device_user_id="13",
+            employee_name="PERSONA",
+            occurred_local=datetime(2026, 1, 5, 8, 0),
+            device_number="2",
+            record_code="0",
+            department="ASIATI HOLDING",
+            source_row=2,
+        )
+        monkeypatch.setattr(
+            attendance_import,
+            "parse_biometric_xls",
+            lambda _raw: [row],
+        )
+
+        try:
+            attendance_import.import_biometric_report(
+                db,
+                raw=b"fake-xls",
+                site_id="missing",
+                created_by_sub="admin-sub",
+                filename="missing.xls",
+            )
+        except attendance_import.AttendanceReportError as exc:
+            assert "no existe" in str(exc)
+        else:
+            raise AssertionError("Expected missing-site error")
+
+        site = TalentSite(
+            name="Zona inválida",
+            code="BAD-TZ",
+            timezone="Mars/Olympus",
+            active=True,
+        )
+        db.add(site)
+        db.commit()
+        db.refresh(site)
+
+        try:
+            attendance_import.import_biometric_report(
+                db,
+                raw=b"fake-xls",
+                site_id=site.id,
+                created_by_sub="admin-sub",
+                filename="timezone.xls",
+            )
+        except attendance_import.AttendanceReportError as exc:
+            assert "zona horaria" in str(exc)
+        else:
+            raise AssertionError("Expected timezone error")
+    finally:
+        db.close()
+        engine.dispose()
