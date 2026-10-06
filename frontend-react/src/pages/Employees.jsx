@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
+import { COUNTRY_OPTIONS, countryName } from "../data/countries";
 import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
 import EmployeeCredentialsModal from "../components/EmployeeCredentialsModal";
@@ -31,6 +32,8 @@ function emptyEmployeeForm() {
     email: "",
     job_title: "",
     department: "",
+    country_code: "",
+    company_name: "",
     hire_date: todayInputValue(),
     role: "EMPLOYEE",
   };
@@ -179,6 +182,8 @@ function Employees() {
       last_name: employee.last_name || "",
       job_title: employee.job_title || "",
       department: employee.department || "",
+      country_code: employee.country_code || "",
+      company_name: employee.company_name || "",
       role: employee.roles?.[0] || "EMPLOYEE",
     });
     setEditAttendance(null);
@@ -262,6 +267,8 @@ function Employees() {
         last_name: editForm.last_name,
         job_title: editForm.job_title,
         department: editForm.department,
+        country_code: editForm.country_code || null,
+        company_name: editForm.company_name || null,
       });
 
       if (attendanceNeedsSave) {
@@ -440,7 +447,11 @@ function Employees() {
                       </td>
                       <td>
                         <strong className="employee-secondary">{employee.job_title || "Sin cargo"}</strong>
-                        <small>{employee.department || "Sin área"}</small>
+                        <small>{[
+                          employee.department,
+                          employee.company_name,
+                          countryName(employee.country_code),
+                        ].filter(Boolean).join(" · ") || "Sin área, empresa ni país"}</small>
                       </td>
                       <td>
                         <span className={`role-pill role-${role.toLowerCase()}`}>
@@ -600,6 +611,31 @@ function Employees() {
                     id="employee-edit-department"
                     value={editForm.department}
                     onChange={(event) => setEditForm({ ...editForm, department: event.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="employee-form-grid">
+                <div className="form-group">
+                  <label htmlFor="employee-edit-country">País</label>
+                  <select
+                    id="employee-edit-country"
+                    value={editForm.country_code}
+                    onChange={(event) => setEditForm({ ...editForm, country_code: event.target.value })}
+                  >
+                    <option value="">Sin definir</option>
+                    {COUNTRY_OPTIONS.map((country) => (
+                      <option key={country.code} value={country.code}>{country.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="employee-edit-company">Empresa</label>
+                  <input
+                    id="employee-edit-company"
+                    value={editForm.company_name}
+                    onChange={(event) => setEditForm({ ...editForm, company_name: event.target.value })}
+                    placeholder="ASIATI"
                   />
                 </div>
               </div>
@@ -793,6 +829,31 @@ function Employees() {
                   <input id="employee-department" value={form.department} onChange={(event) => setForm({ ...form, department: event.target.value })} />
                 </div>
               </div>
+              <div className="employee-form-grid">
+                <div className="form-group">
+                  <label htmlFor="employee-country">País</label>
+                  <select
+                    id="employee-country"
+                    value={form.country_code}
+                    onChange={(event) => setForm({ ...form, country_code: event.target.value })}
+                  >
+                    <option value="">Sin definir</option>
+                    {COUNTRY_OPTIONS.map((country) => (
+                      <option key={country.code} value={country.code}>{country.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="employee-company">Empresa</label>
+                  <input
+                    id="employee-company"
+                    value={form.company_name}
+                    onChange={(event) => setForm({ ...form, company_name: event.target.value })}
+                    placeholder="ASIATI"
+                  />
+                </div>
+              </div>
+
               <div className="form-group">
                 <label htmlFor="employee-hire-date">Fecha de ingreso</label>
                 <input
