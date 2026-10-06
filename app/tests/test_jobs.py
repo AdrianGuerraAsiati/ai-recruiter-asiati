@@ -286,3 +286,39 @@ class TestDeleteJobGlobalAdminAccess:
 
         db_session.expire_all()
         assert db_session.query(Candidate).filter(Candidate.id == other_id).first() is None
+
+
+class TestJobStatus:
+    def test_admin_can_pause_and_reactivate_job(self, client, db_session):
+        job = _seed_job(db_session)
+        job_id = job.id
+
+        paused = client.put(
+            f"/api/jobs/{job_id}/status",
+            json={"status": "PAUSED"},
+        )
+        assert paused.status_code == 200
+        assert paused.json()["status"] == "PAUSED"
+
+        db_session.expire_all()
+        assert db_session.query(Job).filter(Job.id == job_id).one().status == "PAUSED"
+
+        active = client.put(
+            f"/api/jobs/{job_id}/status",
+            json={"status": "ACTIVE"},
+        )
+        assert active.status_code == 200
+        assert active.json()["status"] == "ACTIVE"
+
+        db_session.expire_all()
+        assert db_session.query(Job).filter(Job.id == job_id).one().status == "ACTIVE"
+
+    def test_job_status_rejects_unknown_state(self, client, db_session):
+        job = _seed_job(db_session)
+
+        response = client.put(
+            f"/api/jobs/{job.id}/status",
+            json={"status": "CLOSED"},
+        )
+
+        assert response.status_code == 422
