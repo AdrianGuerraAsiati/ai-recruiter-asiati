@@ -33,6 +33,8 @@ class FakeOdooClient:
         fields = {
             "name": {"readonly": False, "type": "char"},
             "description": {"readonly": False, "type": "html"},
+            "website_description": {"readonly": False, "type": "html"},
+            "job_details": {"readonly": False, "type": "html"},
             "active": {"readonly": False, "type": "boolean"},
             "no_of_recruitment": {"readonly": False, "type": "integer"},
         }
@@ -159,6 +161,8 @@ def test_active_talent_vacancy_creates_published_odoo_job(db):
     assert client.created == [{
         "name": "Backend Developer",
         "description": "<p>Python y AWS</p>",
+        "website_description": "<p>Python y AWS</p>",
+        "job_details": False,
         "active": True,
         "no_of_recruitment": 1,
         "website_published": True,
@@ -574,3 +578,34 @@ def test_odoo_publication_normalizes_all_caps_title_for_display():
     assert publication_field == "website_published"
     assert values["name"] == "KAM - Key Account Manager Chile"
     assert values["description"] == "Gestión de cuentas estratégicas."
+
+
+
+def test_publication_replaces_odoo_demo_copy_with_talent_description():
+    delivery = _publication_module()
+    client = FakeOdooClient(publication_field="website_published")
+
+    values, _ = delivery.build_hr_job_values(
+        client,
+        {
+            "job": {
+                "title": "Analista Contable",
+                "description": "Gestionar conciliaciones bancarias.\n\nPreparar informes contables.",
+                "status": "ACTIVE",
+            },
+        },
+    )
+
+    assert "Gestionar conciliaciones bancarias." in values["website_description"]
+    assert "Preparar informes contables." in values["website_description"]
+    assert "Responsibilities" not in values["website_description"]
+    assert "Customer Relationship" not in values["website_description"]
+    assert values["job_details"] is False
+
+
+def test_public_description_preserves_existing_html():
+    delivery = _publication_module()
+
+    assert delivery._public_website_description("<p>Experiencia contable</p>") == (
+        "<p>Experiencia contable</p>"
+    )

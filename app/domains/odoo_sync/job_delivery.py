@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import html
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -229,6 +231,34 @@ def _display_job_title(value: str | None) -> str:
     return " ".join(rendered)
 
 
+def _public_website_description(value: str | None) -> str | None:
+    """Render Talent's vacancy description safely for Odoo's public careers page."""
+
+    source = str(value or "").strip()
+    if not source:
+        return None
+
+    if re.search(r"<[a-zA-Z][^>]*>", source):
+        return source
+
+    paragraphs = [
+        paragraph.strip()
+        for paragraph in re.split(r"\n\s*\n", source)
+        if paragraph.strip()
+    ]
+    body = "".join(
+        "<p>" + "<br/>".join(html.escape(line.strip()) for line in paragraph.splitlines()) + "</p>"
+        for paragraph in paragraphs
+    )
+    return (
+        '<section class="pt32 pb32">'
+        '<div class="container"><div class="row">'
+        '<div class="col-lg-9" itemprop="description">'
+        f"{body}"
+        "</div></div></div></section>"
+    )
+
+
 def build_hr_job_values(client, payload: dict) -> tuple[dict, str]:
     """Map the stable Talent vacancy contract onto writable Odoo hr.job fields."""
 
@@ -247,9 +277,15 @@ def build_hr_job_values(client, payload: dict) -> tuple[dict, str]:
     published = status == "ACTIVE"
     publication_field = _publication_field(writable)
 
+    public_description = _public_website_description(job.get("description"))
     desired = {
         "name": _display_job_title(title),
         "description": job.get("description"),
+        "website_description": public_description,
+        # Odoo's default job_details contain generic English sample copy.
+        # Talent is the source of truth, so suppress that placeholder instead
+        # of publishing misleading process details.
+        "job_details": False,
         "active": published,
         "no_of_recruitment": 1,
         publication_field: published,
