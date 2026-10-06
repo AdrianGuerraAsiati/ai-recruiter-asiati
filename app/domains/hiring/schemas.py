@@ -43,6 +43,8 @@ class HireCandidateRequest(BaseModel):
     last_name: str | None = Field(default=None, max_length=100)
     job_title: str | None = Field(default=None, max_length=160)
     department: str | None = Field(default=None, max_length=160)
+    country_code: str | None = Field(default=None, max_length=2)
+    company_name: str | None = Field(default=None, max_length=160)
     hire_date: date | None = None
     contract: HireContractRequest | None = None
 
@@ -57,7 +59,19 @@ class HireCandidateRequest(BaseModel):
             raise ValueError("invalid username")
         return normalized
 
-    @field_validator("email", "first_name", "last_name", "job_title", "department")
+    @field_validator("country_code")
+    @classmethod
+    def normalize_country_code(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        if not normalized:
+            return None
+        if len(normalized) != 2 or not normalized.isalpha():
+            raise ValueError("invalid country code")
+        return normalized
+
+    @field_validator("email", "first_name", "last_name", "job_title", "department", "company_name")
     @classmethod
     def strip_optional_text(cls, value: str | None) -> str | None:
         if value is None:
