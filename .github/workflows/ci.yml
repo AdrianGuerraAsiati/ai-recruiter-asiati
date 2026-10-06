@@ -457,8 +457,6 @@ jobs:
           result["asiati_results"] = []
           for company in companies:
               name = str(company.get("name") or "")
-              if "asiati" not in name.casefold():
-                  continue
               cid = int(company["id"])
               try:
                   result["asiati_results"].append(
