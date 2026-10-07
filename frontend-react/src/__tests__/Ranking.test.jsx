@@ -34,7 +34,7 @@ const EMPTY_RANKING = {
     candidates: [],
     ranking_generated_at: null,
     ranking_version: null,
-    ranking_scope: "assigned",
+    ranking_scope: "all",
     ranking_total: 0,
     total: 0,
     total_pages: 0,
@@ -47,11 +47,11 @@ const EMPTY_RANKING = {
 const CANDIDATES_RANKING = {
   data: {
     candidates: [
-      { candidate_id: "c1", candidate_name: "Ana", position: 1, status: "COMPLETED", match_score: 85, recommendation: "GOOD_MATCH", strengths: ["Python"], gaps: [] },
+      { candidate_id: "c1", candidate_name: "Ana", position: 1, status: "COMPLETED", match_score: 85, recommendation: "GOOD_MATCH", strengths: ["Python"], gaps: [], applied_to_job: true },
     ],
     ranking_generated_at: "2026-09-06T12:00:00Z",
     ranking_version: 1,
-    ranking_scope: "assigned",
+    ranking_scope: "all",
     ranking_total: 1,
     total: 1,
     total_pages: 1,
@@ -187,8 +187,8 @@ describe("Ranking page", () => {
 
     renderRanking();
 
-    expect(await screen.findByRole("option", { name: "Vacante vacía · Sin candidatos" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Vacante con candidatos · 2 candidatos" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "Vacante vacía · 0 postulantes directos" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Vacante con candidatos · 2 postulantes directos" })).toBeInTheDocument();
   });
 
   it("shows active jobs when candidate_count is missing and hides paused jobs", async () => {
@@ -208,12 +208,12 @@ describe("Ranking page", () => {
 
     renderRanking();
 
-    expect(await screen.findByRole("option", { name: "Vacante activa · 1 candidato" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Vacante sin conteo · Sin candidatos" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "Vacante activa · 1 postulante directo" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Vacante sin conteo · 0 postulantes directos" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Vacante pausada/ })).not.toBeInTheDocument();
   });
 
-  it("keeps empty active vacancies visible and disables assigned evaluation actions", async () => {
+  it("keeps empty active vacancies visible and rankable against the Talent base", async () => {
     api.get.mockImplementation((url) => {
       if (url === "/jobs") {
         return Promise.resolve({
@@ -229,11 +229,11 @@ describe("Ranking page", () => {
 
     renderRanking();
 
-    expect(await screen.findByRole("option", { name: "Vacante vacía 1 · Sin candidatos" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Vacante vacía 2 · Sin candidatos" })).toBeInTheDocument();
-    expect(await screen.findByText("Vacante activa sin candidatos")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Evaluar candidatos" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Recalcular ranking" })).toBeDisabled();
+    expect(await screen.findByRole("option", { name: "Vacante vacía 1 · 0 postulantes directos" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Vacante vacía 2 · 0 postulantes directos" })).toBeInTheDocument();
+    expect(await screen.findByText("Ranking listo para generar")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Evaluar candidatos" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled();
     expect(screen.getByRole("button", { name: "Actualizar ranking" })).not.toBeDisabled();
   });
 
@@ -247,10 +247,13 @@ describe("Ranking page", () => {
       expect(screen.getByRole("button", { name: "Evaluar candidatos" })).toBeInTheDocument();
     });
     expect(screen.getByRole("button", { name: "Actualizar ranking" })).toBeInTheDocument();
+    expect(screen.queryByText("Aplicó a esta vacante")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Recalcular ranking" })).toBeInTheDocument();
     expect(screen.queryByText("Calcular evaluaciones")).not.toBeInTheDocument();
     expect(screen.queryByText("Generar ranking")).not.toBeInTheDocument();
     expect(screen.queryByText("Ver ranking")).not.toBeInTheDocument();
+    expect(screen.queryByText("Fuente de candidatos")).not.toBeInTheDocument();
+    expect(screen.getByText(/Se compara contra toda la base de Talent/i)).toBeInTheDocument();
   });
 
   // ============================================================
@@ -266,7 +269,7 @@ describe("Ranking page", () => {
       expect(api.post).toHaveBeenCalledWith(
         "/jobs/job-1/ranking/recalculate",
         null,
-        { params: { mode: "incremental", scope: "assigned" } },
+        { params: { mode: "incremental", scope: "all" } },
       );
     });
   });
@@ -275,7 +278,7 @@ describe("Ranking page", () => {
   // TEST 3 — EVALUAR IGNORA rankingScope
   // ============================================================
 
-  it("Evaluar candidatos uses the selected rankingScope", async () => {
+  it("Evaluar candidatos always uses the all-candidates scope", async () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
@@ -285,8 +288,6 @@ describe("Ranking page", () => {
     api.post.mockResolvedValueOnce({ data: { total_candidates: 3, evaluated: 3, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Evaluar candidatos" })).not.toBeDisabled(); });
-    fireEvent.change(screen.getByDisplayValue("Solo esta vacante"), { target: { value: "all" } });
-    await waitFor(() => { expect(screen.getByDisplayValue("Todos mis candidatos")).toBeInTheDocument(); });
     fireEvent.click(screen.getByRole("button", { name: "Evaluar candidatos" }));
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith(
@@ -322,7 +323,7 @@ describe("Ranking page", () => {
   // TEST 5 — ACTUALIZAR RESPETA SCOPE
   // ============================================================
 
-  it("Actualizar ranking uses rankingScope for the GET", async () => {
+  it("Actualizar ranking always reads the all-candidates scope", async () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
@@ -331,8 +332,6 @@ describe("Ranking page", () => {
     });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Actualizar ranking" })).not.toBeDisabled(); });
-    fireEvent.change(screen.getByDisplayValue("Solo esta vacante"), { target: { value: "all" } });
-    await waitFor(() => { expect(screen.getByDisplayValue("Todos mis candidatos")).toBeInTheDocument(); });
     api.post.mockClear();
     api.get.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "Actualizar ranking" }));
@@ -375,7 +374,7 @@ describe("Ranking page", () => {
       expect(api.post).toHaveBeenCalledWith(
         "/jobs/job-1/ranking/recalculate",
         null,
-        { params: { mode: "full", scope: "assigned" } },
+        { params: { mode: "full", scope: "all" } },
       );
     });
   });
@@ -384,7 +383,7 @@ describe("Ranking page", () => {
   // TEST 8 — RECALCULAR IGNORA rankingScope
   // ============================================================
 
-  it("Recalcular ranking uses the selected rankingScope", async () => {
+  it("Recalcular ranking always uses the all-candidates scope", async () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1 }] });
@@ -394,8 +393,6 @@ describe("Ranking page", () => {
     api.post.mockResolvedValueOnce({ data: { total_candidates: 1, evaluated: 1, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled(); });
-    fireEvent.change(screen.getByDisplayValue("Solo esta vacante"), { target: { value: "all" } });
-    await waitFor(() => { expect(screen.getByDisplayValue("Todos mis candidatos")).toBeInTheDocument(); });
     await confirmRecalculation();
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith(
@@ -626,15 +623,10 @@ describe("Ranking page", () => {
       ).not.toBeDisabled();
     });
 
-    fireEvent.change(
-      screen.getByDisplayValue("Solo esta vacante"),
-      { target: { value: "all" } },
-    );
-
     await waitFor(() => {
       expect(
         screen.getByText(
-          /El ranking actual fue generado solo para los candidatos asignados/i,
+          /El ranking guardado pertenece al alcance anterior/i,
         ),
       ).toBeInTheDocument();
     });
@@ -655,8 +647,6 @@ describe("Ranking page", () => {
     api.post.mockResolvedValueOnce({ data: { total_candidates: 5, evaluated: 5, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled(); });
-    fireEvent.change(screen.getByDisplayValue("Solo esta vacante"), { target: { value: "all" } });
-    await waitFor(() => { expect(screen.getByDisplayValue("Todos mis candidatos")).toBeInTheDocument(); });
     await confirmRecalculation();
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith(
@@ -678,8 +668,6 @@ describe("Ranking page", () => {
     api.post.mockResolvedValueOnce({ data: { total_candidates: 5, evaluated: 5, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Evaluar candidatos" })).not.toBeDisabled(); });
-    fireEvent.change(screen.getByDisplayValue("Solo esta vacante"), { target: { value: "all" } });
-    await waitFor(() => { expect(screen.getByDisplayValue("Todos mis candidatos")).toBeInTheDocument(); });
     fireEvent.click(screen.getByRole("button", { name: "Evaluar candidatos" }));
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith(
@@ -727,12 +715,10 @@ describe("Ranking page", () => {
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled(); });
     // Change scope to "all" to trigger scope_mismatch (ranking was generated for "assigned")
-    fireEvent.change(screen.getByDisplayValue("Solo esta vacante"), { target: { value: "all" } });
-    await waitFor(() => { expect(screen.getByDisplayValue("Todos mis candidatos")).toBeInTheDocument(); });
     await confirmRecalculation();
     await waitFor(() => {
       expect(screen.queryByText("Ranking recalculado correctamente.")).not.toBeInTheDocument();
-      const messages = screen.getAllByText(/El ranking actual fue generado solo para los candidatos asignados/i);
+      const messages = screen.getAllByText(/El ranking guardado pertenece al alcance anterior/i);
       expect(messages.length).toBeGreaterThan(0);
     });
   });
@@ -791,11 +777,9 @@ describe("Ranking page", () => {
     api.post.mockResolvedValueOnce({ data: { total_candidates: 0, evaluated: 0, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled(); });
-    fireEvent.change(screen.getByDisplayValue("Solo esta vacante"), { target: { value: "all" } });
-    await waitFor(() => { expect(screen.getByDisplayValue("Todos mis candidatos")).toBeInTheDocument(); });
     await confirmRecalculation();
     await waitFor(() => {
-      expect(screen.getByText("No hay candidatos registrados en tu cuenta.")).toBeInTheDocument();
+      expect(screen.getByText("No hay candidatos registrados en Talent para construir el ranking.")).toBeInTheDocument();
     });
   });
 
@@ -817,7 +801,7 @@ describe("Ranking page", () => {
     await waitFor(() => { expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled(); });
     await confirmRecalculation();
     await waitFor(() => {
-      expect(screen.getByText("No hay candidatos asignados a esta vacante.")).toBeInTheDocument();
+      expect(screen.getByText("No hay candidatos registrados en Talent para construir el ranking.")).toBeInTheDocument();
     });
   });
 
@@ -835,12 +819,10 @@ describe("Ranking page", () => {
     });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Actualizar ranking" })).not.toBeDisabled(); });
-    fireEvent.change(screen.getByDisplayValue("Solo esta vacante"), { target: { value: "all" } });
-    await waitFor(() => { expect(screen.getByDisplayValue("Todos mis candidatos")).toBeInTheDocument(); });
     fireEvent.click(screen.getByRole("button", { name: "Actualizar ranking" }));
     await waitFor(() => {
       expect(screen.queryByText("Ranking actualizado.")).not.toBeInTheDocument();
-      const messages = screen.getAllByText(/El ranking actual fue generado solo para los candidatos asignados/i);
+      const messages = screen.getAllByText(/El ranking guardado pertenece al alcance anterior/i);
       expect(messages.length).toBeGreaterThan(0);
     });
   });
