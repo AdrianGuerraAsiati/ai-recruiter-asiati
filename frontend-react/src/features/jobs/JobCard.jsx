@@ -1,13 +1,15 @@
 import { Link } from "react-router-dom";
 
 import Icon from "../../components/ui/Icon";
-import { countryName } from "../../data/countries";
+import { countryFlag, countryName } from "../../data/countries";
 import { titleCase } from "../../utils/text";
 
 function JobCard({ job, onView, onEdit, onDelete, onToggleStatus, statusBusy = false }) {
   const candidateCount = job.candidate_count || 0;
   const location = [job.company_name, job.city, countryName(job.country_code)].filter(Boolean).join(" · ");
   const paused = job.status === "PAUSED";
+  const country = countryName(job.country_code) || "País sin definir";
+  const flag = countryFlag(job.country_code);
 
   return (
     <article className="job-card">
@@ -15,9 +17,19 @@ function JobCard({ job, onView, onEdit, onDelete, onToggleStatus, statusBusy = f
         <span className="job-card-icon" aria-hidden="true">
           <Icon name="briefcase" size={18} />
         </span>
-        <span className={`status-pill ${paused ? "is-paused" : ""}`}>
-          <i /> {paused ? "Pausada" : "Activa"}
-        </span>
+        <div className="job-card-badges">
+          <span
+            className="job-country-flag"
+            role="img"
+            aria-label={`País: ${country}`}
+            title={country}
+          >
+            {flag}
+          </span>
+          <span className={`status-pill ${paused ? "is-paused" : ""}`}>
+            <i /> {paused ? "Pausada" : "Activa"}
+          </span>
+        </div>
       </div>
 
       <h3>{titleCase(job.title)}</h3>
