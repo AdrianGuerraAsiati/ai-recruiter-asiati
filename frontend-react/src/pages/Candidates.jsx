@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
+import { COUNTRY_OPTIONS } from "../data/countries";
 import { useSession } from "../context/SessionContext";
 import { useNotice } from "../context/noticeStore";
 import PageHeader from "../components/ui/PageHeader";
@@ -40,13 +41,17 @@ function Candidates() {
   const candidateSort = ["created_desc", "name_asc", "name_desc"].includes(requestedSort)
     ? requestedSort
     : "created_desc";
+  const requestedCountry = String(searchParams.get("country") || "").trim().toUpperCase();
+  const countryFilter = COUNTRY_OPTIONS.some((item) => item.code === requestedCountry)
+    ? requestedCountry
+    : "";
 
   const loadData = useCallback(async (targetPage = page) => {
     setLoadError("");
     try {
       const [candidatesResponse, jobsResponse] = await Promise.all([
         api.get(
-          `/candidates?page=${targetPage}&page_size=${PAGE_SIZE}${candidateSort === "created_desc" ? "" : `&sort=${candidateSort}`}`,
+          `/candidates?page=${targetPage}&page_size=${PAGE_SIZE}${candidateSort === "created_desc" ? "" : `&sort=${candidateSort}`}${countryFilter ? `&country_code=${encodeURIComponent(countryFilter)}` : ""}`,
         ),
         api.get("/jobs"),
       ]);
@@ -70,7 +75,7 @@ function Candidates() {
         fallback: "No se pudo completar el directorio porque candidatos o vacantes no respondieron. Recarga la página antes de asignar perfiles.",
       }));
     }
-  }, [candidateSort, page]);
+  }, [candidateSort, countryFilter, page]);
 
   useEffect(() => {
     // The initial request synchronizes this view with the API.
@@ -102,6 +107,14 @@ function Candidates() {
     const next = new URLSearchParams(searchParams);
     if (nextSort === "created_desc") next.delete("sort");
     else next.set("sort", nextSort);
+    setSearchParams(next, { replace: true });
+    setPage(1);
+  }
+
+  function changeCandidateCountry(nextCountry) {
+    const next = new URLSearchParams(searchParams);
+    if (nextCountry) next.set("country", nextCountry);
+    else next.delete("country");
     setSearchParams(next, { replace: true });
     setPage(1);
   }
@@ -380,19 +393,35 @@ function Candidates() {
               : "perfiles disponibles"}
           </p>
         </div>
-        <label className="candidate-sort-control">
-          <span>Ordenar por</span>
-          <select
-            className="select"
-            aria-label="Ordenar candidatos"
-            value={candidateSort}
-            onChange={(event) => changeCandidateSort(event.target.value)}
-          >
-            <option value="created_desc">Más recientes</option>
-            <option value="name_asc">Nombre A–Z</option>
-            <option value="name_desc">Nombre Z–A</option>
-          </select>
-        </label>
+        <div className="ui-actions">
+          <label className="candidate-sort-control">
+            <span>País</span>
+            <select
+              className="select"
+              aria-label="Filtrar candidatos por país"
+              value={countryFilter}
+              onChange={(event) => changeCandidateCountry(event.target.value)}
+            >
+              <option value="">Todos los países</option>
+              {COUNTRY_OPTIONS.map((item) => (
+                <option key={item.code} value={item.code}>{item.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="candidate-sort-control">
+            <span>Ordenar por</span>
+            <select
+              className="select"
+              aria-label="Ordenar candidatos"
+              value={candidateSort}
+              onChange={(event) => changeCandidateSort(event.target.value)}
+            >
+              <option value="created_desc">Más recientes</option>
+              <option value="name_asc">Nombre A–Z</option>
+              <option value="name_desc">Nombre Z–A</option>
+            </select>
+          </label>
+        </div>
       </div>
 
       {candidates.length === 0 ? (
