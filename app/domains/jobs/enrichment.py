@@ -39,6 +39,8 @@ REGLAS ABSOLUTAS:
 - Conserva sin traducir nombres oficiales de tecnologías, productos, certificaciones, siglas y marcas (por ejemplo: AWS, Terraform, Power BI).
 - Las claves JSON deben conservar exactamente los nombres definidos en el contrato de salida; solo sus valores de lenguaje natural deben estar en español.
 - Devuelve unicamente JSON que cumpla exactamente el contrato de salida.
+- Siempre incluye improved_description con una descripcion completa, lista para publicar.
+- Siempre devuelve las listas del perfil aunque esten vacias.
 {_retry_instruction}
 """.strip()
 
@@ -59,8 +61,20 @@ def _build_prompt(request: JobEnrichmentRequest, company_context: dict) -> str:
         "technical_competencies": ["string"],
         "assumptions_to_validate": ["string"],
     }
+    task_instruction = (
+        "MEJORA ITERATIVA: la descripcion recibida ya fue enriquecida previamente. "
+        "Usala como base, conserva los hechos utiles, elimina redundancias, mejora claridad y estructura, "
+        "fortalece responsabilidades y criterios evaluables sin inventar requisitos. "
+        "Devuelve una version claramente mejor que la actual y un perfil completo."
+        if request.mode == "improve"
+        else (
+            "ENRIQUECIMIENTO INICIAL: convierte el borrador en una vacante clara, completa y evaluable, "
+            "sin inventar requisitos que no esten sustentados por el cargo o el contexto."
+        )
+    )
     return "\n\n".join(
         [
+            "TASK\n" + task_instruction,
             "COMPANY_CONTEXT\n" + json.dumps(company_context, ensure_ascii=False, sort_keys=True),
             "JOB_DRAFT\n" + json.dumps(request.model_dump(mode="json"), ensure_ascii=False, sort_keys=True),
             (
@@ -109,7 +123,18 @@ def enrich_job_draft(
 
     try:
         raw = invoke(prompt)
-        proposal = JobEnrichmentProposal.model_validate(raw)
+        try:
+            proposal = JobEnrichmentProposal.model_validate(raw)
+        except (ValidationError, ValueError, TypeError, KeyError):
+            repair_prompt = (
+                prompt
+                + "\n\nVALIDATION_RETRY\n"
+                + "La respuesta anterior no cumplio el contrato de salida. "
+                + "Devuelve nuevamente SOLO el objeto JSON del OUTPUT_CONTRACT, sin propiedades adicionales. "
+                + "improved_description debe ser un string no vacio y todas las colecciones deben ser listas JSON."
+            )
+            raw = invoke(repair_prompt)
+            proposal = JobEnrichmentProposal.model_validate(raw)
     except (ValidationError, ValueError, TypeError, KeyError) as exc:
         raise JobEnrichmentError(
             "El modelo no devolvio una propuesta de vacante valida."
