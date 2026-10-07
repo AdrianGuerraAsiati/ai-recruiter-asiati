@@ -33,7 +33,7 @@ status_order = {
 }
 
 
-def _ranking_candidates(db: Session, *, job, scope: str):
+def resolve_ranking_candidates(db: Session, *, job, scope: str):
     """Resolve the eligible ranking pool.
 
     UI scope=all means:
@@ -137,7 +137,7 @@ def recalculate_ranking(
             scope=scope,
         )
 
-        ranking_candidates = _ranking_candidates(db, job=job, scope=scope)
+        ranking_candidates = resolve_ranking_candidates(db, job=job, scope=scope)
 
         evaluated_count = 0
         failed_count = 0
@@ -275,7 +275,7 @@ def materialize_ranking_from_evaluations(
             scope=scope,
         )
 
-        ranking_candidates = _ranking_candidates(db, job=job, scope=scope)
+        ranking_candidates = resolve_ranking_candidates(db, job=job, scope=scope)
 
         evaluated_count = 0
         failed_count = 0
