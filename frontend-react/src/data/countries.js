@@ -25,6 +25,10 @@ const COUNTRY_NAMES = {
 
 const ASIATI_COMMERCIAL_COUNTRY_CODES = ["BR", "CL", "CO", "EC"];
 
+export const ALL_COUNTRY_OPTIONS = Object.entries(COUNTRY_NAMES)
+  .map(([code, name]) => ({ code, name }))
+  .sort((a, b) => a.name.localeCompare(b.name, "es"));
+
 export const COUNTRY_OPTIONS = ASIATI_COMMERCIAL_COUNTRY_CODES.map((code) => ({
   code,
   name: COUNTRY_NAMES[code],
