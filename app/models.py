@@ -21,7 +21,6 @@ from sqlalchemy.orm import relationship
 from app.db import Base
 class Candidate(Base):
     __tablename__ = "candidates"
-
     id = Column(
         UUID(as_uuid=False),
         primary_key=True,
