@@ -500,19 +500,22 @@ def assign_candidates_to_job(
             skipped += 1
             continue
 
-        existing = db.query(JobCandidate).filter(JobCandidate.job_id == job_id, JobCandidate.candidate_id == cid).first()
+        existing = db.query(JobCandidate).filter(
+            JobCandidate.job_id == job_id,
+            JobCandidate.candidate_id == cid,
+        ).first()
         if existing:
             skipped += 1
             continue
 
-        savepoint = db.begin_nested()
         try:
-            db.add(JobCandidate(job_id=job_id, candidate_id=cid))
-            db.flush()
-            savepoint.commit()
+            ensure_candidate_assigned_to_job(
+                db,
+                job_id=job_id,
+                candidate_id=cid,
+            )
             assigned += 1
         except IntegrityError:
-            savepoint.rollback()
             skipped += 1
 
     db.commit()
