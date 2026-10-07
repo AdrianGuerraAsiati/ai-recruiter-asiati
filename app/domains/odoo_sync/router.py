@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_permission
 from app.domains.odoo_sync import (
+    applicant_import,
     contract_delivery,
     employee_delivery,
     employee_import,
@@ -66,6 +67,23 @@ def sync_jobs_to_odoo(
         raise HTTPException(
             status_code=502,
             detail=f"No fue posible actualizar las vacantes en Odoo: {exc}",
+        )
+
+
+@router.post("/applicants/import")
+def import_applicants_from_odoo(
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("candidates.manage")),
+):
+    """Incrementally import Odoo Recruitment applicants and their resumes."""
+    try:
+        return applicant_import.sync_applicants_from_odoo(db)
+    except (integration.OdooDisabled, integration.OdooNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except applicant_import.OdooApplicantImportError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"No fue posible importar los candidatos desde Odoo: {exc}",
         )
 
 

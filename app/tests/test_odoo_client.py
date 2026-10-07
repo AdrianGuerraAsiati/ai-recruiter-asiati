@@ -189,6 +189,27 @@ def test_execute_kw_uses_authenticated_contract():
     ]
 
 
+def test_search_read_supports_paging_and_ordering():
+    factory = ProxyFactory()
+    client = _client(factory)
+
+    client.search_read(
+        "hr.applicant",
+        [["job_id", "=", 34]],
+        fields=["id", "write_date"],
+        limit=100,
+        offset=200,
+        order="write_date asc, id asc",
+    )
+
+    assert factory.models.calls[-1][-1] == {
+        "fields": ["id", "write_date"],
+        "limit": 100,
+        "offset": 200,
+        "order": "write_date asc, id asc",
+    }
+
+
 def test_rpc_fault_is_sanitized():
     factory = ProxyFactory(models=FakeModels(fail=True))
     client = _client(factory)
