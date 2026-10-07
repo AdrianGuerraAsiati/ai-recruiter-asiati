@@ -53,6 +53,8 @@ function Jobs() {
   const requestedSort = searchParams.get("sort") || "created_desc";
   const sort = SORT_OPTIONS.has(requestedSort) ? requestedSort : "created_desc";
   const query = searchParams.get("q") || "";
+  const requestedStatus = String(searchParams.get("status") || "").trim().toUpperCase();
+  const statusFilter = ["ACTIVE", "PAUSED"].includes(requestedStatus) ? requestedStatus : "";
   const requestedCountry = String(searchParams.get("country") || "").trim().toUpperCase();
   const countryFilter = COUNTRY_OPTIONS.some((item) => item.code === requestedCountry)
     ? requestedCountry
@@ -138,6 +140,7 @@ function Jobs() {
           sort,
           q: query,
           country_code: countryFilter || undefined,
+          status: statusFilter || undefined,
         },
       });
       setJobs(Array.isArray(data?.items) ? data.items : []);
@@ -157,12 +160,12 @@ function Jobs() {
         fallback: "La lista de vacantes no se actualizó. Conservamos la página y filtros actuales para que puedas reintentar.",
       }));
     }
-  }, [countryFilter, page, pageSize, query, sort]);
+  }, [countryFilter, page, pageSize, query, sort, statusFilter]);
 
   function updateListParams(nextValues) {
     const next = new URLSearchParams(searchParams);
     Object.entries(nextValues).forEach(([key, value]) => {
-      if ((key === "q" || key === "country") && !String(value || "").trim()) next.delete(key);
+      if ((key === "q" || key === "country" || key === "status") && !String(value || "").trim()) next.delete(key);
       else next.set(key, String(value));
     });
     setSearchParams(next, { replace: true });
@@ -1045,12 +1048,14 @@ function Jobs() {
           pageSizeOptions={PAGE_SIZE_OPTIONS}
           country={countryFilter}
           countryOptions={COUNTRY_OPTIONS}
+          status={statusFilter}
           onSearchValueChange={setJobSearch}
           onSearchSubmit={submitJobSearch}
           onClearSearch={clearJobSearch}
           onSortChange={(value) => updateListParams({ page: 1, sort: value })}
           onPageSizeChange={(value) => updateListParams({ page: 1, page_size: value })}
           onCountryChange={(value) => updateListParams({ page: 1, country: value })}
+          onStatusChange={(value) => updateListParams({ page: 1, status: value })}
         />
 
         <div className="jobs-page-meta">
@@ -1060,8 +1065,8 @@ function Jobs() {
         {jobs.length === 0 ? (
           <EmptyState
             icon="briefcase"
-            title={(query || countryFilter) ? "No encontramos vacantes con esos filtros" : "Tu tablero de vacantes está vacío"}
-            description={(query || countryFilter) ? "Prueba otro título, país o limpia los filtros." : "Crea una posición para comenzar a comparar candidatos."}
+            title={(query || countryFilter || statusFilter) ? "No encontramos vacantes con esos filtros" : "Tu tablero de vacantes está vacío"}
+            description={(query || countryFilter || statusFilter) ? "Prueba otro título, país, estado o limpia los filtros." : "Crea una posición para comenzar a comparar candidatos."}
             action={query
               ? <button className="btn btn-secondary" type="button" onClick={clearJobSearch}>Limpiar búsqueda</button>
               : <button className="btn btn-secondary" type="button" onClick={() => { setEditingJob(null); resetJobFields(); setShowForm(true); }}>Crear primera vacante</button>}
