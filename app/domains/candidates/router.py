@@ -16,6 +16,7 @@ from app.domains.candidates.exceptions import (
 )
 from app.domains.candidates.schemas import (
     ApplicationStatusRequest,
+    CandidateCountryRequest,
     CandidateRestrictionRequest,
 )
 from app.domains.jobs.schemas import AssignCandidatesRequest
@@ -375,6 +376,25 @@ async def upload_candidates_bulk(
         "candidates": results,
         "errors": errors,
     }
+
+
+@router.put("/{candidate_id}/country")
+def update_candidate_country(
+    candidate_id: str,
+    body: CandidateCountryRequest,
+    db: Session = Depends(get_db),
+    _user: dict = Depends(require_permission("candidates.manage")),
+):
+    try:
+        candidate = service.set_candidate_country(
+            db,
+            candidate_id=candidate_id,
+            owner_sub=_user["sub"],
+            country_code=body.country_code,
+        )
+    except CandidateNotFound:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado.")
+    return presenter.candidate_to_dict(candidate)
 
 
 @router.post("/{candidate_id}/ban")
