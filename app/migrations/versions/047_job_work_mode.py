@@ -31,6 +31,12 @@ def upgrade() -> None:
         "work_mode IN ('ONSITE', 'HYBRID', 'REMOTE')",
     )
 
+    # Existing rankings were built before country/work-mode eligibility existed.
+    # They are derived data, so invalidate them to prevent cross-country results
+    # from being displayed under the new policy.
+    op.execute("DELETE FROM ranking_items")
+    op.execute("DELETE FROM rankings")
+
 
 def downgrade() -> None:
     op.drop_constraint("ck_jobs_work_mode", "jobs", type_="check")
