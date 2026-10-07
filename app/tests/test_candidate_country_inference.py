@@ -32,6 +32,18 @@ def test_explicit_country_in_contact_header_wins():
     assert result.confidence == "HIGH"
 
 
+def test_country_only_in_later_work_history_is_not_a_deterministic_residence():
+    header_lines = ["Ana Test", "Ingeniera", "correo@example.com"]
+    header_lines.extend([f"Perfil profesional {index}" for index in range(10)])
+    header_lines.append("Experiencia anterior en Chile")
+
+    result = country.infer_country_deterministic(
+        _parsed(header="\\n".join(header_lines))
+    )
+
+    assert result.country_code is None
+
+
 def test_common_surname_is_not_treated_as_colombian_city():
     result = country.infer_country_deterministic(
         _parsed(header="María Pereira\\nIngeniera industrial")
