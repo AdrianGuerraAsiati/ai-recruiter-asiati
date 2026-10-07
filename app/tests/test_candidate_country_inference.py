@@ -2,6 +2,8 @@
 
 from types import SimpleNamespace
 
+from langchain_core.runnables import RunnableLambda
+
 from app.domains.candidates import country
 
 
@@ -48,7 +50,7 @@ def test_conflicting_city_and_phone_stays_unresolved():
 
 
 def test_ai_fallback_accepts_high_confidence_alpha2(monkeypatch):
-    monkeypatch.setattr(country, "get_llm", lambda: object())
+    monkeypatch.setattr(country, "get_llm", lambda: RunnableLambda(lambda value: value))
     monkeypatch.setattr(
         country,
         "invoke_json_prompt",
@@ -72,7 +74,7 @@ def test_ai_fallback_accepts_high_confidence_alpha2(monkeypatch):
 
 
 def test_ai_low_confidence_does_not_assign_country(monkeypatch):
-    monkeypatch.setattr(country, "get_llm", lambda: object())
+    monkeypatch.setattr(country, "get_llm", lambda: RunnableLambda(lambda value: value))
     monkeypatch.setattr(
         country,
         "invoke_json_prompt",
@@ -90,7 +92,7 @@ def test_ai_low_confidence_does_not_assign_country(monkeypatch):
 
 
 def test_ai_failure_is_non_fatal(monkeypatch):
-    monkeypatch.setattr(country, "get_llm", lambda: object())
+    monkeypatch.setattr(country, "get_llm", lambda: RunnableLambda(lambda value: value))
 
     def _raise(*_args, **_kwargs):
         raise RuntimeError("bedrock unavailable")
