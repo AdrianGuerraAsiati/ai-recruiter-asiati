@@ -61,6 +61,7 @@ class JobEnrichmentRequest(BaseModel):
     company_name: str | None = Field(default=None, max_length=160)
     city: str | None = None
     employment_type: str | None = None
+    work_mode: Literal["ONSITE", "HYBRID", "REMOTE"] = "ONSITE"
     evaluation_profile: EvaluationProfile | None = None
 
 
@@ -78,6 +79,7 @@ class CreateJobRequest(BaseModel):
     company_name: str | None = Field(default=None, max_length=160)
     city: str | None = None
     employment_type: str | None = None
+    work_mode: Literal["ONSITE", "HYBRID", "REMOTE"] = "ONSITE"
     response_time_business_days: int = Field(default=2, ge=0, le=30)
     phone_call_count: int = Field(default=1, ge=0, le=10)
     onsite_interview_count: int = Field(default=1, ge=0, le=10)
@@ -98,6 +100,7 @@ class UpdateJobRequest(BaseModel):
     company_name: str | None = Field(default=None, max_length=160)
     city: str | None = None
     employment_type: str | None = None
+    work_mode: Literal["ONSITE", "HYBRID", "REMOTE"] | None = None
     response_time_business_days: int | None = Field(default=None, ge=0, le=30)
     phone_call_count: int | None = Field(default=None, ge=0, le=10)
     onsite_interview_count: int | None = Field(default=None, ge=0, le=10)
@@ -125,6 +128,7 @@ class JobResponse(BaseModel):
     company_name: str | None = Field(default=None, max_length=160)
     city: str | None = None
     employment_type: str | None = None
+    work_mode: Literal["ONSITE", "HYBRID", "REMOTE"] = "ONSITE"
     response_time_business_days: int = 2
     phone_call_count: int = 1
     onsite_interview_count: int = 1
