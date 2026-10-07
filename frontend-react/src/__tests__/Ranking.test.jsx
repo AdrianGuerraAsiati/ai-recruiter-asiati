@@ -293,7 +293,7 @@ describe("Ranking page", () => {
     expect(screen.queryByText("Generar ranking")).not.toBeInTheDocument();
     expect(screen.queryByText("Ver ranking")).not.toBeInTheDocument();
     expect(screen.queryByText("Fuente de candidatos")).not.toBeInTheDocument();
-    expect(screen.getByText(/Toda la base de Talent/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Toda la base de Talent/i).length).toBeGreaterThan(0);
   });
 
   // ============================================================
