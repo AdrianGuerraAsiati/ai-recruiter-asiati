@@ -114,7 +114,13 @@ def test_pipeline_happy_path_downloads_stores_ingests_evaluates_and_ranks(db_ses
     monkeypatch.setattr(
         indeed_resumes.candidate_country,
         "apply_country_inference",
-        lambda _db, **kwargs: country_calls.append(kwargs),
+        lambda _db, **kwargs: country_calls.append(
+            {
+                "candidate_id": kwargs["candidate"].id,
+                "parsed_document": kwargs["parsed_document"],
+                "use_ai": kwargs["use_ai"],
+            }
+        ),
     )
     monkeypatch.setattr(
         indeed_resumes.storage,
@@ -155,7 +161,7 @@ def test_pipeline_happy_path_downloads_stores_ingests_evaluates_and_ranks(db_ses
         assert persisted.bedrock_ingestion_job_id == "bedrock-1"
         assert persisted.completed_at is not None
     assert len(country_calls) == 1
-    assert country_calls[0]["candidate"].id == candidate.id
+    assert country_calls[0]["candidate_id"] == candidate.id
     assert country_calls[0]["parsed_document"] is parsed
     assert country_calls[0]["use_ai"] is True
     assert evaluated == [{"candidate_id": candidate.id, "job_id": job.id, "owner_sub": "owner-1"}]
