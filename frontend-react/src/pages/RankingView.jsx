@@ -544,8 +544,8 @@ async function recalculateRanking() {
       setActionFeedback(null);
       setRankingMessage("");
 
-      const response = await api.post(
-        `/jobs/${selectedJob}/ranking/recalculate`,
+      const { data: task } = await api.post(
+        `/jobs/${selectedJob}/ranking/recalculate-async`,
         null,
         {
           params: {
@@ -555,47 +555,52 @@ async function recalculateRanking() {
         },
       );
 
-      const result = response.data;
+      setCostDialogOpen(false);
+      setCostEstimate(null);
+      setCostAccepted(false);
+      setActionFeedback({
+        type: "info",
+        message:
+          "Recálculo iniciado en segundo plano. Talent continuará aunque cierres esta pantalla.",
+      });
+
+      const completedTask = await waitForAsyncRankingTask(task.task_id, selectedJob);
+      if (!completedTask) return;
+
+      if (completedTask.status === "FAILED") {
+        setActionFeedback({
+          type: "error",
+          message:
+            completedTask.last_error_message
+            || "No fue posible completar el recálculo del ranking.",
+        });
+        return;
+      }
 
       setPage(1);
       const refreshed = await loadRanking(1, pageSize, selectedJob, rankingScope);
 
       if (!refreshed.ok) {
-        if (refreshed.scopeMismatch) {
-          setActionFeedback({
-            type: "error",
-            message:
-              "El ranking guardado pertenece al alcance anterior. Recalcula para comparar esta vacante contra toda la base de candidatos de Talent.",
-          });
-        } else {
-          setActionFeedback({
-            type: "error",
-            message:
-              "El recálculo terminó, pero la consulta posterior no devolvió la nueva versión del ranking. No recalcules otra vez todavía; usa «Actualizar ranking» para recuperar los resultados guardados.",
-          });
-        }
-        return;
-      }
-
-      if (result.total_candidates > 0 && (refreshed.data.ranking_total === 0 || refreshed.data.total === 0)) {
         setActionFeedback({
           type: "error",
           message:
-            "El recálculo terminó, pero la consulta posterior no devolvió la nueva versión del ranking. No recalcules otra vez todavía; usa «Actualizar ranking» para recuperar los resultados guardados.",
+            "El recálculo terminó, pero no fue posible cargar la nueva versión. Usa «Actualizar ranking» para recuperarla.",
         });
         return;
       }
 
-      if (result.total_candidates === 0) {
-        const message = "No hay candidatos registrados en Talent para construir el ranking.";
+      if ((refreshed.data?.ranking_total ?? 0) === 0) {
         setActionFeedback({
           type: "info",
-          message,
+          message:
+            "El recálculo terminó, pero no hay candidatos elegibles para esta vacante según país y modalidad.",
         });
-      } else if (result.failed > 0) {
+      } else if (completedTask.last_error_code === "PARTIAL_EVALUATION_FAILURES") {
         setActionFeedback({
           type: "error",
-          message: `Ranking recalculado, pero ${result.failed} candidato(s) no pudieron evaluarse.`,
+          message:
+            completedTask.last_error_message
+            || "El ranking se generó, pero algunos candidatos no pudieron evaluarse.",
         });
       } else {
         setActionFeedback({
@@ -608,10 +613,11 @@ async function recalculateRanking() {
         type: "error",
         message:
           getApiErrorMessage(error, {
-          action: "recalcular el ranking",
-          resource: "ranking de candidatos",
-          fallback: "El nuevo ranking no quedó confirmado. Consulta la versión actual antes de volver a recalcular para evitar trabajo duplicado.",
-        }),
+            action: "iniciar el recálculo del ranking",
+            resource: "ranking de candidatos",
+            fallback:
+              "No fue posible iniciar el recálculo en segundo plano. Vuelve a intentarlo.",
+          }),
       });
     } finally {
       setIsRecalculating(false);
