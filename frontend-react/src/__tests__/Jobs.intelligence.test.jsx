@@ -133,6 +133,7 @@ describe("Jobs AI enrichment", () => {
 
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith("/jobs/enrich", {
+        mode: "enrich",
         title: "Cloud Engineer",
         description: "Necesitamos apoyo con AWS.",
         country_code: "CO",
@@ -193,6 +194,7 @@ describe("Jobs AI enrichment", () => {
 
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith("/jobs/enrich", {
+        mode: "enrich",
         title: "Existing Cloud Engineer",
         description: "Existing description",
         country_code: null,
@@ -315,4 +317,50 @@ describe("Jobs AI enrichment", () => {
 
     expect(await screen.findByText("Perfil actualizado · reevaluación de 2 candidatos pendiente")).toBeInTheDocument();
   });
+
+  it("improves an already enriched vacancy using the current AI version as the base", async () => {
+    api.get.mockImplementation((url) => {
+      if (url === "/jobs/page") {
+        return Promise.resolve({
+          data: {
+            items: [{
+              ...EXISTING_JOB,
+              description: EXPECTED_APPLIED_DESCRIPTION,
+              ai_description: EXPECTED_APPLIED_DESCRIPTION,
+              active_description_source: "ai",
+              evaluation_profile: {
+                responsibilities: ["Operar infraestructura cloud"],
+              },
+            }],
+            page: 1,
+            page_size: 12,
+            total: 1,
+            total_pages: 1,
+          },
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    renderJobs();
+    await screen.findByText("Existing Cloud Engineer");
+    fireEvent.click(screen.getByText("Editar"));
+
+    const improveButton = screen.getByRole("button", { name: /mejorar con ia/i });
+    expect(improveButton).toBeInTheDocument();
+    fireEvent.click(improveButton);
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith("/jobs/enrich", expect.objectContaining({
+        mode: "improve",
+        title: "Existing Cloud Engineer",
+        description: EXPECTED_APPLIED_DESCRIPTION,
+        evaluation_profile: expect.objectContaining({
+          responsibilities: ["Operar infraestructura cloud"],
+        }),
+      }));
+    });
+    expect(await screen.findByText("Propuesta de IA")).toBeInTheDocument();
+  });
+
 });

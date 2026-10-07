@@ -73,6 +73,21 @@ function Ranking() {
   const bestScore =
     rankingInfo.maximum != null ? Number(rankingInfo.maximum) : null;
 
+  const hasAssignedCandidates = Number(assignedCandidateCount || 0) > 0;
+  const canRunCandidateActions =
+    Boolean(selectedJob)
+    && (rankingScope === "all" || hasAssignedCandidates);
+  const selectedJobLocation = [
+    selectedJobData?.city,
+    selectedJobData?.country_code,
+  ].filter(Boolean).join(" · ") || "Ubicación por definir";
+  const selectedJobDescription = String(
+    selectedJobData?.description
+    || selectedJobData?.ai_description
+    || selectedJobData?.indeed_description
+    || "",
+  ).trim();
+
   // ============================================================
   // LOAD JOBS
   // ============================================================
@@ -82,9 +97,13 @@ function Ranking() {
       const response = await api.get("/jobs");
       const data = response.data;
       const loadedJobs = Array.isArray(data) ? data : data.jobs || [];
-      const rankingJobs = loadedJobs.filter(
-        (job) => Number(job.candidate_count) > 0,
-      );
+      const rankingJobs = loadedJobs
+        .filter((job) => String(job.status || "ACTIVE").toUpperCase() === "ACTIVE")
+        .sort((a, b) => String(a.title || "").localeCompare(
+          String(b.title || ""),
+          "es",
+          { sensitivity: "base" },
+        ));
       setJobs(rankingJobs);
 
       if (!selectedJob && rankingJobs.length > 0) {
@@ -755,42 +774,102 @@ async function recalculateRanking() {
         copyClassName="ranking-header-text"
       />
 
-      {/* 2. JOB PANEL + ACTIONS */}
-      <div className="ranking-job-panel">
-        <div className="ranking-job-panel-left">
-          <span className="ranking-job-label">Vacante activa</span>
+      {/* 2. RANKING WORKSPACE */}
+      <div className="ranking-control-grid">
+        <section className="ranking-control-card ranking-control-card--vacancy">
+          <div className="ranking-card-heading">
+            <div>
+              <span className="ranking-card-kicker">Vacante activa</span>
+              <h3>Selecciona la posición</h3>
+            </div>
+            <span className="ranking-active-count">{jobs.length} activas</span>
+          </div>
           <select
             className="ranking-job-select"
             value={selectedJob}
             onChange={handleJobChange}
           >
             <option value="">Seleccione vacante</option>
-            {jobs.map((job) => (
-              <option key={job.job_id} value={job.job_id}>{job.title}</option>
-            ))}
+            {jobs.map((job) => {
+              const count = Number(job.candidate_count || 0);
+              return (
+                <option key={job.job_id} value={job.job_id}>
+                  {job.title}{count === 0 ? " · Sin candidatos" : ` · ${count} candidato${count === 1 ? "" : "s"}`}
+                </option>
+              );
+            })}
           </select>
           <p className="ranking-job-hint">
             {selectedJob
               ? `${assignedCandidateCount} candidato${assignedCandidateCount === 1 ? "" : "s"} asignado${assignedCandidateCount === 1 ? "" : "s"} · ${evaluatedCount} evaluado${evaluatedCount === 1 ? "" : "s"} · ${rankingInfo.pending} pendiente${rankingInfo.pending === 1 ? "" : "s"}`
               : "Selecciona una vacante para comenzar"}
           </p>
-        </div>
-        <div className="ranking-job-panel-right">
-          {selectedJob && rankingInfo.pending > 0 && (
-            <span className="ranking-pending-badge ranking-pending-badge--warning">
-              {rankingInfo.pending} pendiente{rankingInfo.pending === 1 ? "" : "s"}
-            </span>
+        </section>
+
+        <section className="ranking-control-card ranking-control-card--profile">
+          <div className="ranking-card-heading">
+            <div>
+              <span className="ranking-card-kicker">Perfil</span>
+              <h3>{selectedJobData?.title || "Sin vacante seleccionada"}</h3>
+            </div>
+            {selectedJob && (
+              <span className="ranking-status-chip ranking-status-chip--active">Activa</span>
+            )}
+          </div>
+          {selectedJob ? (
+            <>
+              <div className="ranking-profile-facts">
+                <div>
+                  <span>Ubicación</span>
+                  <strong>{selectedJobLocation}</strong>
+                </div>
+                <div>
+                  <span>Candidatos</span>
+                  <strong>{assignedCandidateCount}</strong>
+                </div>
+              </div>
+              <p className="ranking-profile-copy">
+                {selectedJobDescription
+                  ? selectedJobDescription.slice(0, 220) + (selectedJobDescription.length > 220 ? "…" : "")
+                  : "La vacante todavía no tiene una descripción activa disponible."}
+              </p>
+            </>
+          ) : (
+            <p className="ranking-profile-copy">
+              Aquí verás el contexto de la posición y su estado antes de evaluar.
+            </p>
           )}
-          {selectedJob && rankingInfo.pending === 0 && rankingInfo.total > 0 && (
-            <span className="ranking-pending-badge ranking-pending-badge--success">
-              Evaluaciones al día
-            </span>
-          )}
+        </section>
+
+        <section className="ranking-control-card ranking-control-card--actions">
+          <div className="ranking-card-heading">
+            <div>
+              <span className="ranking-card-kicker">Acciones</span>
+              <h3>Evaluación y ranking</h3>
+            </div>
+            {selectedJob && rankingInfo.pending > 0 && (
+              <span className="ranking-pending-badge ranking-pending-badge--warning">
+                {rankingInfo.pending} pendiente{rankingInfo.pending === 1 ? "" : "s"}
+              </span>
+            )}
+            {selectedJob && rankingInfo.pending === 0 && rankingInfo.total > 0 && (
+              <span className="ranking-pending-badge ranking-pending-badge--success">
+                Evaluaciones al día
+              </span>
+            )}
+          </div>
+          <p className="ranking-actions-help">
+            {!selectedJob
+              ? "Selecciona una vacante para habilitar las acciones."
+              : rankingScope === "assigned" && !hasAssignedCandidates
+                ? "Esta vacante está activa, pero todavía no tiene candidatos asignados."
+                : "Evalúa pendientes, consulta resultados guardados o recalcula todo el ranking."}
+          </p>
           <div className="ranking-job-actions">
             <button
               className="btn btn-primary"
               onClick={evaluateCandidates}
-              disabled={!selectedJob || loading || rankingActionBusy}
+              disabled={!canRunCandidateActions || loading || rankingActionBusy}
               title="Procesa candidatos pendientes de esta vacante."
             >
               {isEvaluatingCandidates && <span className="ranking-spinner" />}
@@ -808,42 +887,54 @@ async function recalculateRanking() {
             <button
               className="btn ranking-btn-recalculate"
               onClick={openRecalculationDisclaimer}
-              disabled={!selectedJob || loading || rankingActionBusy}
+              disabled={!canRunCandidateActions || loading || rankingActionBusy}
               title="Vuelve a evaluar todos los candidatos de esta vacante."
             >
               {isRecalculating && <span className="ranking-spinner" />}
               {isRecalculating ? "Recalculando ranking..." : "Recalcular ranking"}
             </button>
           </div>
-        </div>
+        </section>
       </div>
 
       {/* 3. METRICS */}
-      {selectedJob && rankingInfo.total > 0 && (
-        <div className="ranking-metrics">
-          <div className="ranking-metric">
-            <span className="ranking-metric-label">Candidatos</span>
-            <span className="ranking-metric-value">{rankingInfo.total}</span>
+      {selectedJob && (
+        <section className="ranking-section-card" aria-label="Indicadores del ranking">
+          <div className="ranking-section-heading">
+            <div>
+              <span className="ranking-card-kicker">Indicadores</span>
+              <h3>Estado de la evaluación</h3>
+            </div>
           </div>
-          <div className="ranking-metric">
-            <span className="ranking-metric-label">Evaluados</span>
-            <span className="ranking-metric-value">{evaluatedCount}</span>
+          <div className="ranking-metrics">
+            <div className="ranking-metric">
+              <span className="ranking-metric-label">Candidatos asignados</span>
+              <span className="ranking-metric-value">{assignedCandidateCount}</span>
+              <span className="ranking-metric-detail">
+                {hasAssignedCandidates ? "Disponibles para esta vacante" : "Aún sin postulaciones"}
+              </span>
+            </div>
+            <div className="ranking-metric">
+              <span className="ranking-metric-label">Evaluados</span>
+              <span className="ranking-metric-value">{evaluatedCount}</span>
+              <span className="ranking-metric-detail">Con resultado persistido</span>
+            </div>
+            <div className={`ranking-metric ${rankingInfo.pending > 0 ? "ranking-metric--attention" : ""}`}>
+              <span className="ranking-metric-label">Pendientes</span>
+              <span className="ranking-metric-value">{rankingInfo.pending}</span>
+              <span className="ranking-metric-detail">
+                {rankingInfo.pending > 0 ? "Requieren evaluación" : "Todo al día"}
+              </span>
+            </div>
+            <div className="ranking-metric ranking-metric--highlight">
+              <span className="ranking-metric-label">Mejor puntuación</span>
+              <span className="ranking-metric-value">
+                {bestScore != null ? `${bestScore}%` : "—"}
+              </span>
+              <span className="ranking-metric-detail">Mejor perfil disponible</span>
+            </div>
           </div>
-          <div className={`ranking-metric ${rankingInfo.pending > 0 ? "ranking-metric--attention" : ""}`}>
-            <span className="ranking-metric-label">Pendientes</span>
-            <span className="ranking-metric-value">{rankingInfo.pending}</span>
-            <span className="ranking-metric-detail">
-              {rankingInfo.pending > 0 ? "Requieren evaluación" : "Todo al día"}
-            </span>
-          </div>
-          <div className="ranking-metric ranking-metric--highlight">
-            <span className="ranking-metric-label">Mejor puntuación</span>
-            <span className="ranking-metric-value">
-              {bestScore != null ? `${bestScore}%` : "—"}
-            </span>
-            <span className="ranking-metric-detail">Mejor perfil visible</span>
-          </div>
-        </div>
+        </section>
       )}
 
       {/* 4. FILTERS */}
@@ -962,10 +1053,25 @@ async function recalculateRanking() {
       {!loading && selectedJob && ranking.length === 0 && (
         <div className="ranking-empty">
           <div className="ranking-empty-icon">📋</div>
-          {rankingInfo.pending > 0 ? (
+          {rankingScope === "assigned" && !hasAssignedCandidates ? (
+            <>
+              <h3>Vacante activa sin candidatos</h3>
+              <p>La posición seguirá visible en Ranking IA. Cuando llegue la primera postulación podrás evaluarla desde aquí.</p>
+            </>
+          ) : rankingMessage ? (
+            <>
+              <h3>El alcance del ranking cambió</h3>
+              <p>{rankingMessage}</p>
+            </>
+          ) : rankingInfo.pending > 0 ? (
             <>
               <h3>Hay candidatos pendientes de evaluación</h3>
               <p>Usa "Evaluar candidatos" para procesar los candidatos asignados a esta vacante.</p>
+            </>
+          ) : !hasRanking && hasAssignedCandidates ? (
+            <>
+              <h3>Candidatos listos para evaluar</h3>
+              <p>Esta vacante ya tiene postulantes, pero todavía no existe un ranking. Usa "Evaluar candidatos" para generarlo.</p>
             </>
           ) : (
             <>

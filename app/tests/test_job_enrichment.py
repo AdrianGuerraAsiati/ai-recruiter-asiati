@@ -201,3 +201,61 @@ def test_enrichment_system_prompt_requires_spanish_values_and_preserves_official
     assert "claves JSON" in prompt
     assert "AWS" in prompt
     assert "Terraform" in prompt
+
+
+def test_improve_mode_marks_existing_ai_description_as_iterative_refinement():
+    engine, db = _db()
+    try:
+        prompts = []
+
+        enrich_job_draft(
+            db,
+            owner_sub="owner-1",
+            request=JobEnrichmentRequest(
+                mode="improve",
+                title="SAC",
+                description="Descripcion IA existente.",
+                evaluation_profile={
+                    "responsibilities": ["Atender solicitudes de clientes"],
+                },
+            ),
+            model_client=lambda prompt: prompts.append(prompt) or _proposal(),
+        )
+
+        assert len(prompts) == 1
+        assert "MEJORA ITERATIVA" in prompts[0]
+        assert "Descripcion IA existente." in prompts[0]
+        assert '"mode": "improve"' in prompts[0]
+    finally:
+        db.close()
+        engine.dispose()
+
+
+def test_enrichment_retries_when_first_json_does_not_match_schema():
+    engine, db = _db()
+    try:
+        calls = []
+
+        def model(prompt):
+            calls.append(prompt)
+            if len(calls) == 1:
+                return {"unexpected": True}
+            return _proposal()
+
+        proposal, _version = enrich_job_draft(
+            db,
+            owner_sub="owner-1",
+            request=JobEnrichmentRequest(
+                mode="improve",
+                title="Cloud Engineer",
+                description="Version enriquecida existente.",
+            ),
+            model_client=model,
+        )
+
+        assert proposal.improved_description
+        assert len(calls) == 2
+        assert "VALIDATION_RETRY" in calls[1]
+    finally:
+        db.close()
+        engine.dispose()
