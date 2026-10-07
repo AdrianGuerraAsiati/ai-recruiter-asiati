@@ -517,6 +517,9 @@ function Jobs() {
       if (viewJob?.job_id === updated.job_id) {
         setViewJob((current) => current ? { ...current, ...updated } : current);
       }
+      if (statusFilter && updated.status !== statusFilter) {
+        await loadJobs();
+      }
       setSuccessMessage(
         nextStatus === "ACTIVE"
           ? "Vacante activada. La sincronización con Odoo quedó solicitada."
