@@ -306,3 +306,74 @@ def test_imports_candidate_without_resume_and_marks_review(db, monkeypatch):
     assert event.last_error_code == "RESUME_ATTACHMENT_MISSING"
     assert db.query(CandidateIngestionDocument).count() == 0
     assert storage.objects == []
+
+
+def test_preview_is_read_only_and_returns_resume_metadata(db):
+    job = _mapped_job(db)
+    client = FakeOdooClient(include_resume=True)
+
+    result = applicant_import.preview_applicants_from_odoo(
+        db,
+        client=client,
+        job_id=job.id,
+        limit=1,
+    )
+
+    assert result["dry_run"] is True
+    assert result["read_only"] is True
+    assert result["job_id"] == job.id
+    assert result["limit"] == 1
+    assert result["count"] == 1
+    item = result["items"][0]
+    assert item["talent_job_id"] == job.id
+    assert item["odoo_job_id"] == 34
+    assert item["odoo_applicant_id"] == 501
+    assert item["candidate_name"] == "Ana Pérez"
+    assert item["candidate_email"] == "ana@example.com"
+    assert item["resume"] == {
+        "id": 91,
+        "filename": "ana_cv.pdf",
+        "content_type": "application/pdf",
+        "created_at": "2026-10-07 12:00:00",
+    }
+    assert item["already_ingested"] is False
+
+    assert db.query(Candidate).count() == 0
+    assert db.query(JobCandidate).count() == 0
+    assert db.query(OdooApplicantSync).count() == 0
+    assert db.query(CandidateIngestionEvent).count() == 0
+    assert db.query(CandidateIngestionDocument).count() == 0
+    assert db.query(CandidateIngestionCursor).count() == 0
+
+    applicant_calls = [
+        call
+        for call in client.calls
+        if call["model"] == "hr.applicant"
+    ]
+    assert applicant_calls[-1]["limit"] == 1
+
+
+def test_bounded_import_processes_only_requested_number(db, monkeypatch):
+    _mapped_job(db)
+    client = FakeOdooClient(include_resume=False)
+    monkeypatch.setattr(
+        applicant_import.queue,
+        "send_candidate_ingestion",
+        lambda _event_id: pytest.fail("No queue message expected without a resume"),
+    )
+
+    result = applicant_import.sync_applicants_from_odoo(
+        db,
+        client=client,
+        storage=FakeStorage(),
+        limit=1,
+    )
+
+    assert result["limit"] == 1
+    assert result["discovered"] == 1
+    applicant_calls = [
+        call
+        for call in client.calls
+        if call["model"] == "hr.applicant"
+    ]
+    assert applicant_calls[0]["limit"] == 1

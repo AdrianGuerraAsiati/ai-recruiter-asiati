@@ -214,14 +214,19 @@ def _cursor_domain(*, odoo_job_id: int, cursor_value: str | None) -> list:
     return domain
 
 
-def _mapped_jobs(db: Session) -> list[tuple[OdooJobSync, Job]]:
-    return (
+def _mapped_jobs(
+    db: Session,
+    *,
+    job_id: str | None = None,
+) -> list[tuple[OdooJobSync, Job]]:
+    query = (
         db.query(OdooJobSync, Job)
         .join(Job, Job.id == OdooJobSync.job_id)
         .filter(OdooJobSync.odoo_record_id.isnot(None))
-        .order_by(Job.created_at.asc(), Job.id.asc())
-        .all()
     )
+    if job_id:
+        query = query.filter(Job.id == str(job_id))
+    return query.order_by(Job.created_at.asc(), Job.id.asc()).all()
 
 
 def _normalize_filename(name: str | None, mimetype: str | None) -> tuple[str, str] | None:
@@ -259,6 +264,62 @@ def _decode_attachment_data(value: Any) -> bytes:
         except (binascii.Error, ValueError) as exc:
             raise OdooApplicantImportError("Odoo returned invalid attachment data.") from exc
     raise OdooApplicantImportError("Odoo returned an unsupported attachment payload.")
+
+
+def _resume_attachment_preview(
+    client,
+    *,
+    row: dict,
+    attachment_field_names: set[str],
+) -> dict | None:
+    """Return supported resume metadata without downloading attachment bytes."""
+
+    metadata_fields = [
+        name
+        for name in ("id", "name", "mimetype", "create_date")
+        if name == "id" or name in attachment_field_names
+    ]
+    main_attachment_id = _many2one_id(row.get("message_main_attachment_id"))
+    candidates: list[dict] = []
+    if main_attachment_id is not None:
+        candidates.extend(
+            client.search_read(
+                "ir.attachment",
+                [["id", "=", main_attachment_id]],
+                fields=metadata_fields,
+                limit=1,
+            )
+        )
+
+    linked_attachments = client.search_read(
+        "ir.attachment",
+        [
+            ["res_model", "=", "hr.applicant"],
+            ["res_id", "=", int(row["id"])],
+        ],
+        fields=metadata_fields,
+        limit=20,
+        order="create_date desc, id desc",
+    )
+    seen_ids = {int(item["id"]) for item in candidates if item.get("id")}
+    candidates.extend(
+        item
+        for item in linked_attachments
+        if item.get("id") and int(item["id"]) not in seen_ids
+    )
+
+    for item in candidates:
+        normalized = _normalize_filename(item.get("name"), item.get("mimetype"))
+        if normalized is None:
+            continue
+        filename, content_type = normalized
+        return {
+            "id": int(item["id"]),
+            "filename": filename,
+            "content_type": content_type,
+            "created_at": _text(item.get("create_date")),
+        }
+    return None
 
 
 def _resume_attachment(client, *, row: dict, attachment_field_names: set[str]) -> dict | None:
@@ -543,6 +604,7 @@ def _sync_job(
     attachment_field_names: set[str],
     storage,
     page_size: int,
+    max_applicants: int | None = None,
 ) -> dict:
     owner_sub = str(job.owner_sub or "").strip()
     if not owner_sub:
@@ -564,6 +626,12 @@ def _sync_job(
     cursor_value = cursor.cursor_value if cursor is not None else None
 
     while True:
+        if max_applicants is not None and discovered >= max_applicants:
+            break
+        request_limit = page_size
+        if max_applicants is not None:
+            request_limit = min(page_size, max_applicants - discovered)
+
         rows = client.search_read(
             "hr.applicant",
             _cursor_domain(
@@ -571,7 +639,7 @@ def _sync_job(
                 cursor_value=cursor_value,
             ),
             fields=applicant_fields,
-            limit=page_size,
+            limit=request_limit,
             order="write_date asc, id asc",
         )
         if not rows:
@@ -611,7 +679,9 @@ def _sync_job(
         )
         db.commit()
 
-        if len(rows) < page_size:
+        if len(rows) < request_limit:
+            break
+        if max_applicants is not None and discovered >= max_applicants:
             break
 
     return {
@@ -628,18 +698,17 @@ def _sync_job(
     }
 
 
-def sync_applicants_from_odoo(
+def preview_applicants_from_odoo(
     db: Session,
     *,
     client=None,
-    storage=None,
-    page_size: int = DEFAULT_PAGE_SIZE,
+    job_id: str | None = None,
+    limit: int = 5,
 ) -> dict:
-    """Incrementally import applicants and resumes for every mapped Talent vacancy."""
+    """Preview pending Odoo applicants without mutating Talent, S3 or sync cursors."""
 
     transport = client or integration.build_odoo_client()
-    source_storage = storage or EmailIngestionStorage()
-    bounded_page_size = max(1, min(int(page_size), 500))
+    bounded_limit = max(1, min(int(limit), 100))
     database = get_odoo_settings().database or "odoo"
 
     try:
@@ -650,25 +719,140 @@ def sync_applicants_from_odoo(
             )
         attachment_field_names = _attachment_fields(transport)
 
-        jobs = _mapped_jobs(db)
-        job_results = []
+        items: list[dict] = []
+        jobs = _mapped_jobs(db, job_id=job_id)
         for sync, job in jobs:
+            if len(items) >= bounded_limit:
+                break
+            stored_id = str(sync.odoo_record_id or "").strip()
+            owner_sub = str(job.owner_sub or "").strip()
+            if not stored_id.isdigit() or not owner_sub:
+                continue
+
+            odoo_job_id = int(stored_id)
+            source_account = _source_account(
+                database=database,
+                odoo_job_id=odoo_job_id,
+            )
+            cursor = ingestion_repository.get_cursor(
+                db,
+                owner_sub=owner_sub,
+                source=SOURCE,
+                provider=PROVIDER,
+                source_account=source_account,
+            )
+            cursor_value = cursor.cursor_value if cursor is not None else None
+            rows = transport.search_read(
+                "hr.applicant",
+                _cursor_domain(
+                    odoo_job_id=odoo_job_id,
+                    cursor_value=cursor_value,
+                ),
+                fields=applicant_fields,
+                limit=bounded_limit - len(items),
+                order="write_date asc, id asc",
+            )
+            for row in rows:
+                external_id = str(row["id"])
+                existing_event = ingestion_repository.get_event_by_external_id(
+                    db,
+                    owner_sub=owner_sub,
+                    source=SOURCE,
+                    provider=PROVIDER,
+                    source_account=source_account,
+                    external_id=external_id,
+                )
+                resume = _resume_attachment_preview(
+                    transport,
+                    row=row,
+                    attachment_field_names=attachment_field_names,
+                )
+                items.append(
+                    {
+                        "talent_job_id": job.id,
+                        "odoo_job_id": odoo_job_id,
+                        "job_title": job.title,
+                        "odoo_applicant_id": int(row["id"]),
+                        "candidate_name": _candidate_name(row),
+                        "candidate_email": _email(row.get("email_from")),
+                        "candidate_phone": _candidate_phone(row),
+                        "stage": _many2one_name(row.get("stage_id")),
+                        "created_at": _text(row.get("create_date")),
+                        "updated_at": _text(row.get("write_date")),
+                        "resume": resume,
+                        "already_ingested": existing_event is not None,
+                    }
+                )
+                if len(items) >= bounded_limit:
+                    break
+
+        return {
+            "source": "ODOO",
+            "model": "hr.applicant",
+            "dry_run": True,
+            "read_only": True,
+            "job_id": job_id,
+            "limit": bounded_limit,
+            "count": len(items),
+            "items": items,
+        }
+    except OdooApplicantImportError:
+        raise
+    except OdooClientError as exc:
+        raise OdooApplicantImportError(str(exc)) from exc
+    except Exception as exc:
+        raise OdooApplicantImportError("ODOO_APPLICANT_PREVIEW_FAILED") from exc
+
+
+def sync_applicants_from_odoo(
+    db: Session,
+    *,
+    client=None,
+    storage=None,
+    page_size: int = DEFAULT_PAGE_SIZE,
+    job_id: str | None = None,
+    limit: int | None = None,
+) -> dict:
+    """Incrementally import applicants and resumes for mapped Talent vacancies."""
+
+    transport = client or integration.build_odoo_client()
+    source_storage = storage or EmailIngestionStorage()
+    bounded_page_size = max(1, min(int(page_size), 500))
+    bounded_limit = None if limit is None else max(1, min(int(limit), 500))
+    database = get_odoo_settings().database or "odoo"
+
+    try:
+        applicant_fields = _applicant_fields(transport)
+        if "write_date" not in applicant_fields or "job_id" not in applicant_fields:
+            raise OdooApplicantImportError(
+                "Odoo hr.applicant must expose job_id and write_date for safe incremental sync."
+            )
+        attachment_field_names = _attachment_fields(transport)
+
+        jobs = _mapped_jobs(db, job_id=job_id)
+        job_results = []
+        remaining = bounded_limit
+        for sync, job in jobs:
+            if remaining is not None and remaining <= 0:
+                break
             stored_id = str(sync.odoo_record_id or "").strip()
             if not stored_id.isdigit():
                 continue
-            job_results.append(
-                _sync_job(
-                    db,
-                    client=transport,
-                    sync=sync,
-                    job=job,
-                    database=database,
-                    applicant_fields=applicant_fields,
-                    attachment_field_names=attachment_field_names,
-                    storage=source_storage,
-                    page_size=bounded_page_size,
-                )
+            result = _sync_job(
+                db,
+                client=transport,
+                sync=sync,
+                job=job,
+                database=database,
+                applicant_fields=applicant_fields,
+                attachment_field_names=attachment_field_names,
+                storage=source_storage,
+                page_size=bounded_page_size,
+                max_applicants=remaining,
             )
+            job_results.append(result)
+            if remaining is not None:
+                remaining -= int(result["discovered"])
     except OdooApplicantImportError:
         db.rollback()
         raise
@@ -693,6 +877,8 @@ def sync_applicants_from_odoo(
     return {
         "source": "ODOO",
         "model": "hr.applicant",
+        "job_id": job_id,
+        "limit": bounded_limit,
         "jobs_scanned": len(job_results),
         **totals,
         "jobs": job_results,
