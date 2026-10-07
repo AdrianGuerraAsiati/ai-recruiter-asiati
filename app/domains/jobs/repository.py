@@ -82,6 +82,7 @@ def create_job(
     status: str = "ACTIVE",
     owner_sub: str | None = None,
     country_code: str | None = None,
+    company_name: str | None = None,
     city: str | None = None,
     employment_type: str | None = None,
     response_time_business_days: int = 2,
@@ -102,6 +103,7 @@ def create_job(
         status=status,
         owner_sub=owner_sub,
         country_code=country_code,
+        company_name=company_name,
         city=city,
         employment_type=employment_type,
         response_time_business_days=response_time_business_days,
@@ -131,6 +133,7 @@ def update_job(
     active_description_source: str | None = None,
     status: str | None = None,
     country_code: str | None = None,
+    company_name: str | None = None,
     city: str | None = None,
     employment_type: str | None = None,
     response_time_business_days: int | None = None,
@@ -163,6 +166,7 @@ def update_job(
 
     for name, value in {
         "country_code": country_code,
+        "company_name": company_name,
         "city": city,
         "employment_type": employment_type,
         "response_time_business_days": response_time_business_days,
