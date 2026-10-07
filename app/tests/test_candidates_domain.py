@@ -59,6 +59,7 @@ def test_candidate_to_dict_preserves_public_shape():
         "id": "candidate-1",
         "name": "Ana Test",
         "email": "ana@example.com",
+        "country_code": None,
         "created_at": None,
         "metadata": {"filename": "ana.pdf"},
         "filename": "ana.pdf",
