@@ -20,7 +20,7 @@ from app.db import Base
 from app.deps import get_current_user, get_db
 from app.infrastructure.locking.job_lock import acquire_job_lock, advisory_lock_key
 from app.main import app
-from app.models import Candidate, Evaluation, Job, JobCandidate, Ranking, RankingItem
+from app.models import Candidate, Evaluation, Job, JobCandidate, JobReevaluationTask, Ranking, RankingItem
 from app.crud import build_ranking_response, get_ranking_metadata, get_ranking_items, insert_ranking_items
 
 
@@ -279,6 +279,78 @@ def test_recalculate_increments_version(client, db_session):
         params={"mode": "full"},
     )
     assert resp3.json()["ranking_version"] == 3
+
+
+# ============================================================
+# TESTS — DURABLE ASYNC RANKING
+# ============================================================
+
+def test_async_recalculate_queues_scope_all_without_running_llm_in_request(
+    client,
+    db_session,
+    monkeypatch,
+):
+    from app.domains.ranking import router as ranking_router
+
+    job = _seed_job(db_session, work_mode="REMOTE")
+    sent = []
+    monkeypatch.setattr(
+        ranking_router.queue,
+        "send_job_reevaluation",
+        lambda task_id: sent.append(task_id) or "message-1",
+    )
+
+    resp = client.post(
+        f"/api/jobs/{job.id}/ranking/recalculate-async",
+        params={"mode": "incremental", "scope": "all"},
+    )
+
+    assert resp.status_code == 202
+    payload = resp.json()
+    assert payload["job_id"] == job.id
+    assert payload["status"] == "PENDING"
+    assert payload["scope"] == "all"
+    assert payload["force_evaluation"] is False
+    assert sent == [payload["task_id"]]
+
+    task = db_session.query(JobReevaluationTask).filter(
+        JobReevaluationTask.id == payload["task_id"]
+    ).one()
+    assert task.scope == "all"
+    assert task.force_evaluation is False
+    assert task.queue_dispatched_at is not None
+
+
+def test_async_full_recalculate_marks_task_as_force_evaluation(
+    client,
+    db_session,
+    monkeypatch,
+):
+    from app.domains.ranking import router as ranking_router
+
+    job = _seed_job(db_session, work_mode="REMOTE")
+    monkeypatch.setattr(
+        ranking_router.queue,
+        "send_job_reevaluation",
+        lambda _task_id: "message-1",
+    )
+
+    resp = client.post(
+        f"/api/jobs/{job.id}/ranking/recalculate-async",
+        params={"mode": "full", "scope": "all"},
+    )
+
+    assert resp.status_code == 202
+    payload = resp.json()
+    assert payload["force_evaluation"] is True
+
+    status = client.get(
+        f"/api/jobs/{job.id}/ranking/recalculate-async/{payload['task_id']}"
+    )
+    assert status.status_code == 200
+    assert status.json()["status"] == "PENDING"
+    assert status.json()["scope"] == "all"
+    assert status.json()["force_evaluation"] is True
 
 
 # ============================================================
