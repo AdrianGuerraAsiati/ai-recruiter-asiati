@@ -46,8 +46,11 @@ function Ranking() {
   const [rankingBaseTotal, setRankingBaseTotal] = useState(0);
   const [rankingLoadedScope, setRankingLoadedScope] = useState(null);
   const [rankingMessage, setRankingMessage] = useState("");
+  const [eligiblePoolCount, setEligiblePoolCount] = useState(null);
+  const [eligiblePoolLoading, setEligiblePoolLoading] = useState(false);
   const rankingAbortRef = useRef(null);
   const asyncRankingAbortRef = useRef(null);
+  const poolAbortRef = useRef(null);
   const analysisAbortRef = useRef(null);
 
   const [rankingInfo, setRankingInfo] = useState({
@@ -72,7 +75,11 @@ function Ranking() {
 
   const directApplicantCount = Number(selectedJobData?.candidate_count || 0);
   const evaluableCandidateCount =
-    rankingVersion != null ? Number(rankingBaseTotal || rankingInfo.total || 0) : null;
+    eligiblePoolCount != null
+      ? Number(eligiblePoolCount)
+      : rankingVersion != null
+        ? Number(rankingBaseTotal || rankingInfo.total || 0)
+        : null;
 
   const bestScore =
     rankingInfo.maximum != null ? Number(rankingInfo.maximum) : null;
@@ -124,7 +131,10 @@ function Ranking() {
       if (!selectedJob && rankingJobs.length > 0) {
         const firstJobId = rankingJobs[0].job_id;
         setSelectedJob(firstJobId);
-        await loadRanking(1, pageSize, firstJobId, rankingScope);
+        await Promise.all([
+          loadRanking(1, pageSize, firstJobId, rankingScope),
+          loadEligiblePool(firstJobId),
+        ]);
       }
     } catch (error) {
       setActionFeedback({
@@ -144,10 +154,57 @@ function Ranking() {
     return () => {
       rankingAbortRef.current?.abort();
       asyncRankingAbortRef.current?.abort();
+      poolAbortRef.current?.abort();
       analysisAbortRef.current?.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+// ============================================================
+// LOAD ELIGIBLE POOL
+// ============================================================
+
+async function loadEligiblePool(targetJob = selectedJob) {
+    poolAbortRef.current?.abort();
+
+    if (!targetJob) {
+      setEligiblePoolCount(null);
+      setEligiblePoolLoading(false);
+      return null;
+    }
+
+    const controller = new AbortController();
+    poolAbortRef.current = controller;
+    setEligiblePoolLoading(true);
+    setEligiblePoolCount(null);
+
+    try {
+      const { data } = await api.get(
+        `/jobs/${targetJob}/ranking/cost-estimate`,
+        {
+          params: {
+            mode: "fast",
+            scope: rankingScope,
+          },
+          signal: controller.signal,
+        },
+      );
+      const count = Number(data?.available_candidate_count);
+      const normalizedCount = Number.isFinite(count) ? count : null;
+      setEligiblePoolCount(normalizedCount);
+      return normalizedCount;
+    } catch (error) {
+      if (error?.code !== "ERR_CANCELED") {
+        setEligiblePoolCount(null);
+      }
+      return null;
+    } finally {
+      if (poolAbortRef.current === controller) {
+        poolAbortRef.current = null;
+        setEligiblePoolLoading(false);
+      }
+    }
+}
 
 // ============================================================
 // LOAD RANKING
@@ -669,19 +726,25 @@ async function recalculateRanking() {
     setPage(1);
     setRankingMessage("");
     setActionFeedback(null);
+    setEligiblePoolCount(null);
 
     if (!nextJob) {
+      poolAbortRef.current?.abort();
       setRanking([]);
       setRankingGeneratedAt(null);
       setRankingVersion(null);
       setRankingLoadedScope(null);
       setRankingBaseTotal(0);
+      setEligiblePoolLoading(false);
       setTotalPages(0);
       setRankingInfo({ total: 0, pending: 0, minimum: 0, maximum: 0 });
       return;
     }
 
-    await loadRanking(1, pageSize, nextJob, rankingScope);
+    await Promise.all([
+      loadRanking(1, pageSize, nextJob, rankingScope),
+      loadEligiblePool(nextJob),
+    ]);
   }
 
   // ============================================================
@@ -836,7 +899,13 @@ async function recalculateRanking() {
           </select>
           <p className="ranking-job-hint">
             {selectedJob
-              ? `${rankingPoolLabel} · ${directApplicantCount} postulante${directApplicantCount === 1 ? "" : "s"} directo${directApplicantCount === 1 ? "" : "s"}`
+              ? `${rankingPoolLabel} · ${
+                  eligiblePoolLoading
+                    ? "calculando base evaluable…"
+                    : evaluableCandidateCount != null
+                      ? `${evaluableCandidateCount} elegible${evaluableCandidateCount === 1 ? "" : "s"}`
+                      : "base evaluable por calcular"
+                } · ${directApplicantCount} postulante${directApplicantCount === 1 ? "" : "s"} directo${directApplicantCount === 1 ? "" : "s"}`
               : "Selecciona una vacante para comenzar"}
           </p>
         </section>
@@ -861,6 +930,16 @@ async function recalculateRanking() {
                 <div>
                   <span>Modalidad</span>
                   <strong>{selectedWorkModeLabel}</strong>
+                </div>
+                <div>
+                  <span>Base evaluable</span>
+                  <strong>
+                    {eligiblePoolLoading
+                      ? "…"
+                      : evaluableCandidateCount != null
+                        ? evaluableCandidateCount
+                        : "—"}
+                  </strong>
                 </div>
                 <div>
                   <span>Postulantes directos</span>
@@ -903,7 +982,7 @@ async function recalculateRanking() {
               : selectedWorkMode === "REMOTE"
                 ? "Vacante remota: Talent compara contra toda la base de candidatos. Evalúa nuevos perfiles o recalcula todo el ranking cuando cambie el perfil del cargo."
                 : selectedJobCountry
-                  ? `Vacante ${selectedWorkModeLabel.toLowerCase()}: Talent solo rankea candidatos con historial de postulación en ${selectedJobCountry}.`
+                  ? `Vacante ${selectedWorkModeLabel.toLowerCase()}: Talent rankea candidatos elegibles de ${selectedJobCountry}${evaluableCandidateCount != null ? ` (${evaluableCandidateCount} en la base actual)` : ""}. Los postulantes directos no limitan el ranking.`
                   : "Define el país de esta vacante para ampliar el ranking más allá de sus postulantes directos."}
           </p>
           <div className="ranking-job-actions">
@@ -955,12 +1034,18 @@ async function recalculateRanking() {
             <div className="ranking-metric">
               <span className="ranking-metric-label">Base evaluable</span>
               <span className="ranking-metric-value">
-                {evaluableCandidateCount != null ? evaluableCandidateCount : "—"}
+                {eligiblePoolLoading
+                  ? "…"
+                  : evaluableCandidateCount != null
+                    ? evaluableCandidateCount
+                    : "—"}
               </span>
               <span className="ranking-metric-detail">
-                {evaluableCandidateCount != null
-                  ? rankingPoolLabel
-                  : "Se calcula al generar el ranking"}
+                {eligiblePoolLoading
+                  ? "Calculando candidatos elegibles"
+                  : evaluableCandidateCount != null
+                    ? rankingPoolLabel
+                    : "No se pudo precalcular la base; el ranking puede intentarse igualmente"}
               </span>
             </div>
             <div className="ranking-metric">
