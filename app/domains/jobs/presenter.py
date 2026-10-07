@@ -28,6 +28,7 @@ def job_payload(job, *, candidate_count: int | None = None) -> dict:
         "company_name": getattr(job, "company_name", None),
         "city": getattr(job, "city", None),
         "employment_type": getattr(job, "employment_type", None),
+        "work_mode": getattr(job, "work_mode", None) or "ONSITE",
         "response_time_business_days": getattr(job, "response_time_business_days", None),
         "phone_call_count": getattr(job, "phone_call_count", None),
         "onsite_interview_count": getattr(job, "onsite_interview_count", None),

@@ -115,6 +115,7 @@ describe("Jobs Indeed integration", () => {
         company_name: null,
         city: "Bogotá",
         employment_type: "FULL_TIME",
+        work_mode: "ONSITE",
         response_time_business_days: 2,
         phone_call_count: 1,
         onsite_interview_count: 1,

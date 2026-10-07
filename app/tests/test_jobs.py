@@ -358,6 +358,72 @@ class TestJobCompanyPersistence:
 
 
 
+class TestJobWorkMode:
+    def test_create_and_update_persist_work_mode(self, client, db_session):
+        created = client.post(
+            "/api/jobs",
+            json={
+                "title": "Analista remoto",
+                "description": "Vacante de prueba.",
+                "country_code": "CO",
+                "work_mode": "REMOTE",
+            },
+        )
+        assert created.status_code == 201
+        assert created.json()["work_mode"] == "REMOTE"
+        job_id = created.json()["job_id"]
+
+        updated = client.put(
+            f"/api/jobs/{job_id}",
+            json={"work_mode": "HYBRID"},
+        )
+        assert updated.status_code == 200
+        assert updated.json()["work_mode"] == "HYBRID"
+
+        db_session.expire_all()
+        job = db_session.query(Job).filter(Job.id == job_id).one()
+        assert job.work_mode == "HYBRID"
+
+    def test_changing_country_or_work_mode_invalidates_saved_ranking(
+        self,
+        client,
+        db_session,
+    ):
+        job = _seed_job(db_session)
+        job.country_code = "CO"
+        job.work_mode = "ONSITE"
+        candidate = _seed_candidate(db_session)
+        ranking = Ranking(
+            id=_uid(),
+            job_id=job.id,
+            ranking_version=1,
+            mode="full",
+            notes="scope:all",
+        )
+        db_session.add(ranking)
+        db_session.flush()
+        db_session.add(
+            RankingItem(
+                id=_uid(),
+                ranking_id=ranking.id,
+                candidate_id=candidate.id,
+                score=80,
+                position=1,
+            )
+        )
+        db_session.commit()
+
+        response = client.put(
+            f"/api/jobs/{job.id}",
+            json={"work_mode": "REMOTE"},
+        )
+        assert response.status_code == 200
+
+        db_session.expire_all()
+        assert db_session.query(Ranking).filter(Ranking.job_id == job.id).count() == 0
+        assert db_session.query(RankingItem).count() == 0
+
+
 class TestJobsPageStatusFilter:
     def test_filters_active_and_paused_vacancies(self, client, db_session):
         active = Job(

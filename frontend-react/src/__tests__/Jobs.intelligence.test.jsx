@@ -139,6 +139,7 @@ describe("Jobs AI enrichment", () => {
         country_code: "CO",
         city: "Bogotá",
         employment_type: null,
+        work_mode: "ONSITE",
         evaluation_profile: null,
       });
     });
@@ -200,6 +201,7 @@ describe("Jobs AI enrichment", () => {
         country_code: null,
         city: null,
         employment_type: null,
+        work_mode: "ONSITE",
         evaluation_profile: {},
       });
     });

@@ -30,6 +30,63 @@ def list_candidates(db: Session, owner_sub: str | None = None) -> list[Candidate
     return query.order_by(Candidate.created_at.desc()).all()
 
 
+def list_candidates_for_country(
+    db: Session,
+    *,
+    country_code: str,
+    owner_sub: str | None = None,
+    include_banned: bool = False,
+) -> list[Candidate]:
+    """Return candidates with at least one application in the requested country."""
+    normalized_country = str(country_code or "").strip().upper()
+    if not normalized_country:
+        return []
+
+    country_assignment_exists = (
+        db.query(JobCandidate.id)
+        .join(Job, Job.id == JobCandidate.job_id)
+        .filter(
+            JobCandidate.candidate_id == Candidate.id,
+            func.upper(Job.country_code) == normalized_country,
+        )
+        .exists()
+    )
+    query = db.query(Candidate).filter(country_assignment_exists)
+    if owner_sub is not None:
+        query = query.filter(Candidate.owner_sub == owner_sub)
+    if not include_banned:
+        query = query.filter(Candidate.is_banned.is_(False))
+    return query.order_by(Candidate.created_at.desc(), Candidate.id.desc()).all()
+
+
+def count_candidates_for_country(
+    db: Session,
+    *,
+    country_code: str,
+    owner_sub: str | None = None,
+    include_banned: bool = False,
+) -> int:
+    normalized_country = str(country_code or "").strip().upper()
+    if not normalized_country:
+        return 0
+
+    country_assignment_exists = (
+        db.query(JobCandidate.id)
+        .join(Job, Job.id == JobCandidate.job_id)
+        .filter(
+            JobCandidate.candidate_id == Candidate.id,
+            func.upper(Job.country_code) == normalized_country,
+        )
+        .exists()
+    )
+    query = db.query(Candidate).filter(country_assignment_exists)
+    if owner_sub is not None:
+        query = query.filter(Candidate.owner_sub == owner_sub)
+    if not include_banned:
+        query = query.filter(Candidate.is_banned.is_(False))
+    return int(query.count() or 0)
+
+
 def list_candidates_page(
     db: Session,
     *,

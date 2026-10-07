@@ -235,6 +235,10 @@ def test_scope_all_uses_organization_candidate_pool(
         candidate_b,
     ) = seed_owned_data(db)
 
+    # Remote vacancies intentionally use the complete organization-wide pool.
+    job_a.work_mode = "REMOTE"
+    db.commit()
+
     monkeypatch.setattr(
         evaluation,
         "retrieve_candidate",

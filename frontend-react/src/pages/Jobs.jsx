@@ -79,6 +79,7 @@ function Jobs() {
   const [companyName, setCompanyName] = useState("");
   const [city, setCity] = useState("");
   const [employmentType, setEmploymentType] = useState("");
+  const [workMode, setWorkMode] = useState("ONSITE");
   const [publicSlug, setPublicSlug] = useState("");
   const [responseTimeBusinessDays, setResponseTimeBusinessDays] = useState(2);
   const [phoneCallCount, setPhoneCallCount] = useState(1);
@@ -609,6 +610,7 @@ function Jobs() {
         country_code: countryCode || null,
         city: city || null,
         employment_type: employmentType || null,
+        work_mode: workMode,
         evaluation_profile: evaluationProfile,
       });
       setEnrichmentProposal(data?.proposal || null);
@@ -668,6 +670,7 @@ function Jobs() {
       company_name: companyName || null,
       city,
       employment_type: employmentType,
+      work_mode: workMode,
       response_time_business_days: responseTimeBusinessDays,
       phone_call_count: phoneCallCount,
       onsite_interview_count: onsiteInterviewCount,
@@ -726,6 +729,7 @@ function Jobs() {
     setCompanyName(job.company_name || "");
     setCity(job.city || "");
     setEmploymentType(job.employment_type || "");
+    setWorkMode(job.work_mode || "ONSITE");
     setResponseTimeBusinessDays(job.response_time_business_days ?? 2);
     setPhoneCallCount(job.phone_call_count ?? 1);
     setOnsiteInterviewCount(job.onsite_interview_count ?? 1);
@@ -749,6 +753,7 @@ function Jobs() {
     setCompanyName("");
     setCity("");
     setEmploymentType("");
+    setWorkMode("ONSITE");
     setResponseTimeBusinessDays(2);
     setPhoneCallCount(1);
     setOnsiteInterviewCount(1);
@@ -1029,6 +1034,15 @@ function Jobs() {
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
                 />
+              </div>
+              <div className="form-group">
+                <label htmlFor="job-work-mode">Modalidad</label>
+                <select id="job-work-mode" value={workMode} onChange={(e) => setWorkMode(e.target.value)}>
+                  <option value="ONSITE">Presencial</option>
+                  <option value="HYBRID">Híbrido</option>
+                  <option value="REMOTE">Remoto</option>
+                </select>
+                <small>{workMode === "REMOTE" ? "El ranking podrá comparar contra toda la base de Talent." : "El ranking se limitará a candidatos con historial en el mismo país."}</small>
               </div>
               <div className="form-group"><label htmlFor="job-employment">Tipo de empleo</label><select id="job-employment" value={employmentType} onChange={(e) => setEmploymentType(e.target.value)}><option value="">Sin definir</option><option value="FULL_TIME">Tiempo completo</option><option value="PART_TIME">Medio tiempo</option><option value="CONTRACT">Contrato</option><option value="TEMPORARY">Temporal</option><option value="INTERNSHIP">Prácticas</option></select></div>
               <div className="form-group"><label htmlFor="job-slug">URL pública</label><input id="job-slug" placeholder="country-manager-chile" value={publicSlug} onChange={(e) => setPublicSlug(e.target.value)} /></div>

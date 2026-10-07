@@ -11,6 +11,7 @@ from app.domains.jobs.profile import (
     normalize_evaluation_profile,
 )
 from app.domains.jobs.reevaluation import schedule_reevaluation
+from app.domains.ranking import repository as ranking_repository
 
 
 logger = logging.getLogger(__name__)
@@ -227,6 +228,25 @@ def update_job(
         else normalize_evaluation_profile(evaluation_profile)
     )
 
+    current_country = str(getattr(job, "country_code", None) or "").strip().upper()
+    current_work_mode = str(getattr(job, "work_mode", None) or "ONSITE").strip().upper()
+    requested_country = publication_fields.get("country_code")
+    requested_work_mode = publication_fields.get("work_mode")
+    next_country = (
+        current_country
+        if requested_country is None
+        else str(requested_country or "").strip().upper()
+    )
+    next_work_mode = (
+        current_work_mode
+        if requested_work_mode is None
+        else str(requested_work_mode or "ONSITE").strip().upper()
+    )
+    ranking_pool_changed = (
+        current_country != next_country
+        or current_work_mode != next_work_mode
+    )
+
     old_signature = evaluation_signature(
         job.title,
         job.description,
@@ -271,8 +291,15 @@ def update_job(
             )
             reevaluation_scheduled = True
 
-        # The job version and its durable reevaluation task are committed as one
-        # transaction, preventing a successful edit from losing its work item.
+        if ranking_pool_changed:
+            ranking_repository.delete_ranking_for_job(
+                db,
+                job_id=updated.id,
+                commit=False,
+            )
+
+        # The job version, reevaluation task and any ranking invalidation are
+        # committed as one transaction.
         db.commit()
         db.refresh(updated)
     except Exception:

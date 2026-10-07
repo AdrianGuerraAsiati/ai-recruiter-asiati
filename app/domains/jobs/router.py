@@ -25,6 +25,7 @@ def _publication_fields(body) -> dict:
         "company_name": body.company_name,
         "city": body.city,
         "employment_type": body.employment_type,
+        "work_mode": body.work_mode,
         "response_time_business_days": body.response_time_business_days,
         "phone_call_count": body.phone_call_count,
         "onsite_interview_count": body.onsite_interview_count,
