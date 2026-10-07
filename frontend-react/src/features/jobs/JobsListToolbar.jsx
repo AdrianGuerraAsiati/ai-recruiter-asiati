@@ -40,7 +40,7 @@ function JobsListToolbar({
 
       <div className="jobs-list-filters">
         <label className="jobs-filter">
-          <span>País</span>
+          <span>Filtrar por país</span>
           <select
             aria-label="Filtrar vacantes por país"
             value={country}
