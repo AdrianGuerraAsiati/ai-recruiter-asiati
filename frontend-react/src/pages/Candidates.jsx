@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
-import { COUNTRY_OPTIONS } from "../data/countries";
+import { COUNTRY_OPTIONS, countryFlag, countryName } from "../data/countries";
 import { useSession } from "../context/SessionContext";
 import { useNotice } from "../context/noticeStore";
 import PageHeader from "../components/ui/PageHeader";
@@ -35,6 +35,7 @@ function Candidates() {
   const [restrictionReason, setRestrictionReason] = useState("");
   const [restrictionSaving, setRestrictionSaving] = useState(false);
   const [odooImporting, setOdooImporting] = useState(false);
+  const [countrySavingId, setCountrySavingId] = useState("");
 
   const requestedJobId = searchParams.get("job_id") || "";
   const requestedSort = searchParams.get("sort") || "created_desc";
@@ -149,6 +150,37 @@ function Candidates() {
       });
     } finally {
       setOdooImporting(false);
+    }
+  }
+
+  async function updateCandidateCountry(candidateId, countryCode) {
+    setCountrySavingId(candidateId);
+    try {
+      const { data } = await api.put(`/candidates/${candidateId}/country`, {
+        country_code: countryCode || null,
+      });
+      setCandidates((current) => current.map((candidate) =>
+        candidate.candidate_id === candidateId ? { ...candidate, ...data } : candidate
+      ));
+      notify({
+        tone: "success",
+        title: "País del candidato actualizado",
+        message: countryCode
+          ? `El perfil quedó asociado a ${countryName(countryCode)} para los rankings geográficos.`
+          : "El candidato quedó sin país definido.",
+      });
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "No se actualizó el país",
+        message: getApiErrorMessage(error, {
+          action: "actualizar el país del candidato",
+          resource: "candidato",
+          fallback: "No fue posible guardar el país. Intenta nuevamente.",
+        }),
+      });
+    } finally {
+      setCountrySavingId("");
     }
   }
 
@@ -436,7 +468,11 @@ function Candidates() {
             <div className="candidate-header candidate-directory-header">
               <div>
                 <h2>{candidate.name}</h2>
-                <p className="muted candidate-directory-subtitle">Candidato registrado</p>
+                <p className="muted candidate-directory-subtitle">
+                  Candidato registrado · {candidate.country_code
+                    ? `${countryFlag(candidate.country_code)} ${countryName(candidate.country_code)}`
+                    : "País por definir"}
+                </p>
                 {candidate.is_banned && (
                   <div className="candidate-ban-alert" role="alert">
                     <strong>⚠ Candidato vetado</strong>
@@ -471,6 +507,24 @@ function Candidates() {
               </span>
               <strong>{getDisplayFilename(candidate)}</strong>
             </div>
+
+            {canManageCandidates && (
+              <label className="candidate-country-editor">
+                <span>País para ranking</span>
+                <select
+                  className="select"
+                  aria-label={`País para ${candidate.name || "candidato"}`}
+                  value={candidate.country_code || ""}
+                  onChange={(event) => updateCandidateCountry(candidate.candidate_id, event.target.value)}
+                  disabled={countrySavingId === candidate.candidate_id}
+                >
+                  <option value="">Sin definir</option>
+                  {COUNTRY_OPTIONS.map((item) => (
+                    <option key={item.code} value={item.code}>{item.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
 
             <div className="controls candidate-directory-controls">
               <select

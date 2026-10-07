@@ -12,6 +12,7 @@ def candidate_to_dict(candidate) -> dict:
         "id": candidate.id,
         "name": candidate.name,
         "email": candidate.email,
+        "country_code": getattr(candidate, "country_code", None),
         "created_at": candidate.created_at.isoformat() if candidate.created_at else None,
         "metadata": metadata,
         "filename": metadata.get("filename") if metadata else None,
@@ -36,6 +37,7 @@ def application_to_dict(link, candidate, job) -> dict:
             "candidate_id": candidate.id,
             "name": candidate.name,
             "email": candidate.email,
+            "country_code": getattr(candidate, "country_code", None),
             "is_banned": bool(candidate.is_banned),
         },
         "job": {

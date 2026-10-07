@@ -1,7 +1,6 @@
 """SQLAlchemy ORM models — sync PostgreSQL."""
 import uuid
 from datetime import datetime, timezone
-
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -21,7 +20,6 @@ from sqlalchemy.orm import relationship
 from app.db import Base
 class Candidate(Base):
     __tablename__ = "candidates"
-
     id = Column(
         UUID(as_uuid=False),
         primary_key=True,
@@ -29,6 +27,7 @@ class Candidate(Base):
     )
     name = Column(Text, nullable=False)
     email = Column(Text, nullable=True)
+    country_code = Column(Text, nullable=True)
     owner_sub = Column(Text, nullable=True)
     created_at = Column(
         DateTime(timezone=True),

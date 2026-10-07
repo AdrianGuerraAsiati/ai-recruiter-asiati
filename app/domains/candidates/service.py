@@ -283,6 +283,21 @@ def set_candidate_ban(
     )
 
 
+def set_candidate_country(
+    db: Session,
+    *,
+    candidate_id: str,
+    owner_sub: str,
+    country_code: str | None,
+):
+    candidate = require_candidate(db, candidate_id, owner_sub)
+    return candidates_repository.set_candidate_country(
+        db,
+        candidate,
+        country_code=country_code,
+    )
+
+
 def get_candidate_restriction_history(
     db: Session,
     *,
@@ -368,6 +383,7 @@ __all__ = [
     "delete_candidate",
     "delete_all_candidates",
     "set_candidate_ban",
+    "set_candidate_country",
     "get_candidate_restriction_history",
     "create_and_index_candidate",
 ]

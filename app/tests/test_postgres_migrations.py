@@ -287,6 +287,7 @@ def test_alembic_head_builds_current_postgres_schema():
             column["name"] for column in inspector.get_columns("candidates")
         }
         assert {
+            "country_code",
             "is_banned",
             "banned_at",
             "banned_by_sub",
@@ -511,6 +512,6 @@ def test_alembic_head_builds_current_postgres_schema():
         assert "company_name" in job_columns
 
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
-        assert revision == "047"
+        assert revision == "048"
     finally:
         engine.dispose()

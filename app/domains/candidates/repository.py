@@ -51,7 +51,12 @@ def list_candidates_for_country(
         )
         .exists()
     )
-    query = db.query(Candidate).filter(country_assignment_exists)
+    query = db.query(Candidate).filter(
+        or_(
+            func.upper(Candidate.country_code) == normalized_country,
+            country_assignment_exists,
+        )
+    )
     if owner_sub is not None:
         query = query.filter(Candidate.owner_sub == owner_sub)
     if not include_banned:
@@ -79,7 +84,12 @@ def count_candidates_for_country(
         )
         .exists()
     )
-    query = db.query(Candidate).filter(country_assignment_exists)
+    query = db.query(Candidate).filter(
+        or_(
+            func.upper(Candidate.country_code) == normalized_country,
+            country_assignment_exists,
+        )
+    )
     if owner_sub is not None:
         query = query.filter(Candidate.owner_sub == owner_sub)
     if not include_banned:
@@ -112,7 +122,12 @@ def list_candidates_page(
             )
             .exists()
         )
-        query = query.filter(country_assignment_exists)
+        query = query.filter(
+            or_(
+                func.upper(Candidate.country_code) == normalized_country,
+                country_assignment_exists,
+            )
+        )
 
     total = query.count() or 0
     if sort == "name_asc":
@@ -248,6 +263,18 @@ def create_candidate_pending(
     return candidate
 
 
+def set_candidate_country(
+    db: Session,
+    candidate: Candidate,
+    *,
+    country_code: str | None,
+) -> Candidate:
+    candidate.country_code = str(country_code or "").strip().upper() or None
+    db.commit()
+    db.refresh(candidate)
+    return candidate
+
+
 def update_candidate_document_metadata(
     db: Session,
     candidate: Candidate,
@@ -271,7 +298,16 @@ def ensure_candidate_assigned_to_job(
     job_id: str,
     candidate_id: str,
 ) -> JobCandidate:
-    """Idempotently assign a candidate to a job inside the caller transaction."""
+    """Idempotently assign a candidate and persist reliable country context."""
+    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).one_or_none()
+    job = db.query(Job).filter(Job.id == job_id).one_or_none()
+    if candidate is not None and job is not None:
+        candidate_country = str(candidate.country_code or "").strip().upper()
+        job_country = str(job.country_code or "").strip().upper()
+        if not candidate_country and job_country:
+            candidate.country_code = job_country
+            db.flush()
+
     existing = (
         db.query(JobCandidate)
         .filter(
