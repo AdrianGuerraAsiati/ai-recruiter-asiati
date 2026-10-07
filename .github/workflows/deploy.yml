@@ -12,6 +12,7 @@ on:
       - "frontend-react/src/__tests__/**"
       - "frontend-react/e2e/**"
       - "tools/indeed_resume_agent/tests/**"
+  # Manual recovery path when a test-only fix follows a failed production run.
   workflow_dispatch:
 
 permissions:
