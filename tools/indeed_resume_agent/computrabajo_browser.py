@@ -91,12 +91,31 @@ def _official_url(raw: str, *, fallback: str) -> str:
 
 
 def _external_candidate_id(url: str) -> str:
+    """Build an application identity so one person may belong to multiple jobs."""
     parsed = urlsplit(str(url or ""))
-    query = parse_qs(parsed.query)
-    for key in ("ids", "ims", "id", "cv", "candidateId"):
-        values = query.get(key) or query.get(key.casefold())
+    query = {str(key).casefold(): values for key, values in parse_qs(parsed.query).items()}
+
+    candidate_key = None
+    candidate_value = None
+    for key in ("ids", "ims", "id", "cv", "candidateid"):
+        values = query.get(key)
         if values and str(values[0]).strip():
-            return f"{key.casefold()}:{str(values[0]).strip()}"
+            candidate_key = key
+            candidate_value = str(values[0]).strip()
+            break
+
+    offer_values = query.get("oi") or query.get("offerid") or query.get("jobid")
+    offer_value = (
+        str(offer_values[0]).strip()
+        if offer_values and str(offer_values[0]).strip()
+        else None
+    )
+
+    if candidate_value and offer_value:
+        return f"application:{offer_value}:{candidate_key}:{candidate_value}"
+    if candidate_value:
+        return f"{candidate_key}:{candidate_value}"
+
     digest = hashlib.sha256(str(url).encode("utf-8")).hexdigest()
     return f"url:{digest[:40]}"
 
