@@ -77,9 +77,23 @@ function Ranking() {
     rankingInfo.maximum != null ? Number(rankingInfo.maximum) : null;
 
   const canRunCandidateActions = Boolean(selectedJob);
+  const selectedWorkMode = String(selectedJobData?.work_mode || "ONSITE").toUpperCase();
+  const selectedWorkModeLabel =
+    selectedWorkMode === "REMOTE"
+      ? "Remoto"
+      : selectedWorkMode === "HYBRID"
+        ? "Híbrido"
+        : "Presencial";
+  const selectedJobCountry = String(selectedJobData?.country_code || "").trim().toUpperCase();
+  const rankingPoolLabel =
+    selectedWorkMode === "REMOTE"
+      ? "Toda la base de Talent"
+      : selectedJobCountry
+        ? `Solo candidatos con historial en ${selectedJobCountry}`
+        : "Solo postulantes directos hasta definir país";
   const selectedJobLocation = [
     selectedJobData?.city,
-    selectedJobData?.country_code,
+    selectedJobCountry,
   ].filter(Boolean).join(" · ") || "Ubicación por definir";
   const selectedJobDescription = String(
     selectedJobData?.description
@@ -778,7 +792,7 @@ async function recalculateRanking() {
           </select>
           <p className="ranking-job-hint">
             {selectedJob
-              ? `Se compara contra toda la base de Talent · ${directApplicantCount} postulante${directApplicantCount === 1 ? "" : "s"} directo${directApplicantCount === 1 ? "" : "s"}`
+              ? `${rankingPoolLabel} · ${directApplicantCount} postulante${directApplicantCount === 1 ? "" : "s"} directo${directApplicantCount === 1 ? "" : "s"}`
               : "Selecciona una vacante para comenzar"}
           </p>
         </section>
@@ -799,6 +813,10 @@ async function recalculateRanking() {
                 <div>
                   <span>Ubicación</span>
                   <strong>{selectedJobLocation}</strong>
+                </div>
+                <div>
+                  <span>Modalidad</span>
+                  <strong>{selectedWorkModeLabel}</strong>
                 </div>
                 <div>
                   <span>Postulantes directos</span>
@@ -838,14 +856,20 @@ async function recalculateRanking() {
           <p className="ranking-actions-help">
             {!selectedJob
               ? "Selecciona una vacante para habilitar las acciones."
-              : "Talent compara esta vacante contra toda la base de candidatos. Evalúa nuevos perfiles o recalcula todo el ranking cuando cambie el perfil del cargo."}
+              : selectedWorkMode === "REMOTE"
+                ? "Vacante remota: Talent compara contra toda la base de candidatos. Evalúa nuevos perfiles o recalcula todo el ranking cuando cambie el perfil del cargo."
+                : selectedJobCountry
+                  ? `Vacante ${selectedWorkModeLabel.toLowerCase()}: Talent solo rankea candidatos con historial de postulación en ${selectedJobCountry}.`
+                  : "Define el país de esta vacante para ampliar el ranking más allá de sus postulantes directos."}
           </p>
           <div className="ranking-job-actions">
             <button
               className="btn btn-primary"
               onClick={evaluateCandidates}
               disabled={!canRunCandidateActions || loading || rankingActionBusy}
-              title="Evalúa contra esta vacante los candidatos de Talent que aún estén pendientes."
+              title={selectedWorkMode === "REMOTE"
+                ? "Evalúa los candidatos de toda la base de Talent que aún estén pendientes."
+                : "Evalúa candidatos elegibles del mismo país que aún estén pendientes."}
             >
               {isEvaluatingCandidates && <span className="ranking-spinner" />}
               {isEvaluatingCandidates ? "Evaluando candidatos..." : "Evaluar candidatos"}
@@ -863,7 +887,9 @@ async function recalculateRanking() {
               className="btn ranking-btn-recalculate"
               onClick={openRecalculationDisclaimer}
               disabled={!canRunCandidateActions || loading || rankingActionBusy}
-              title="Vuelve a evaluar toda la base de candidatos de Talent contra esta vacante."
+              title={selectedWorkMode === "REMOTE"
+                ? "Vuelve a evaluar toda la base de candidatos de Talent contra esta vacante."
+                : "Vuelve a evaluar todos los candidatos elegibles del mismo país contra esta vacante."}
             >
               {isRecalculating && <span className="ranking-spinner" />}
               {isRecalculating ? "Recalculando ranking..." : "Recalcular ranking"}
@@ -889,7 +915,7 @@ async function recalculateRanking() {
               </span>
               <span className="ranking-metric-detail">
                 {evaluableCandidateCount != null
-                  ? "Candidatos comparados contra esta vacante"
+                  ? rankingPoolLabel
                   : "Se calcula al generar el ranking"}
               </span>
             </div>
@@ -1297,8 +1323,8 @@ async function recalculateRanking() {
                   <strong>Importante</strong>
                   <p>{costEstimate.disclaimer}</p>
                   <p>
-                    Esta confirmación usa la cantidad real de candidatos elegibles de
-                    toda la base de Talent. El cálculo es informativo y no constituye
+                    Esta confirmación usa la cantidad real de candidatos elegibles según
+                    país y modalidad de la vacante. El cálculo es informativo y no constituye
                     una factura ni un tope garantizado de AWS.
                   </p>
                 </div>
