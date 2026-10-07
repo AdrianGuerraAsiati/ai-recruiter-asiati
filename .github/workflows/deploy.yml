@@ -283,6 +283,18 @@ jobs:
               -v /opt/ai-recruiter/rolesanywhere/client.key:/run/rolesanywhere/client.key:ro \
               "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}" \
               python -m app.scripts.backfill_candidate_identities
+            sudo docker run --rm --network ai-recruiter --add-host=host.docker.internal:host-gateway \
+              -e "DATABASE_URL=\$DATABASE_URL_VALUE" \
+              -e "AWS_REGION=$AWS_REGION" \
+              -e "AWS_PROFILE=ai-recruiter-bedrock" \
+              -e "BEDROCK_AWS_PROFILE=ai-recruiter-bedrock" \
+              -e "S3_BUCKET=$S3_BUCKET" \
+              -v /opt/ai-recruiter/aws/config:/root/.aws/config:ro \
+              -v /usr/local/bin/aws_signing_helper:/usr/local/bin/aws_signing_helper:ro \
+              -v /opt/ai-recruiter/rolesanywhere/client.crt:/run/rolesanywhere/client.crt:ro \
+              -v /opt/ai-recruiter/rolesanywhere/client.key:/run/rolesanywhere/client.key:ro \
+              "$ECR_REGISTRY/$ECR_BACKEND_REPO:${{ github.sha }}" \
+              python -m app.scripts.backfill_candidate_countries
           REMOTE_PREFLIGHT
 
       - name: Deploy API worker and frontend via SSH
