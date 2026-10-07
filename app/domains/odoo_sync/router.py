@@ -73,7 +73,7 @@ def sync_jobs_to_odoo(
 @router.post("/applicants/import")
 def import_applicants_from_odoo(
     db: Session = Depends(get_db),
-    _principal: dict = Depends(require_permission("candidates.create")),
+    _principal: dict = Depends(require_permission("candidates.manage")),
 ):
     """Incrementally import Odoo Recruitment applicants and their resumes."""
     try:
