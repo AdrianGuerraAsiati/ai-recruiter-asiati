@@ -120,6 +120,78 @@ def test_worker_evaluates_only_stale_owned_candidates_and_materializes_once(monk
         engine.dispose()
 
 
+def test_manual_async_ranking_uses_all_scope_and_force_flag(monkeypatch):
+    engine, db = _db()
+    try:
+        job = Job(
+            title="Remote Engineer",
+            description="Cloud engineering",
+            owner_sub="owner-1",
+            evaluation_version=1,
+            work_mode="REMOTE",
+        )
+        first = Candidate(name="Candidate One", owner_sub="owner-1")
+        second = Candidate(name="Candidate Two", owner_sub="owner-1")
+        db.add_all([job, first, second])
+        db.flush()
+        task = JobReevaluationTask(
+            owner_sub="owner-1",
+            job_id=job.id,
+            target_evaluation_version=1,
+            scope="all",
+            force_evaluation=True,
+            status="PENDING",
+        )
+        db.add(task)
+        db.commit()
+
+        evaluated = []
+        ranked = []
+        monkeypatch.setattr(
+            job_reevaluations.ranking_service,
+            "resolve_ranking_candidates",
+            lambda _db, *, job, scope: [first, second],
+        )
+
+        def fake_evaluate(_db, *, candidate, job, force=False):
+            evaluated.append((candidate.id, force))
+            evaluation = Evaluation(
+                candidate_id=candidate.id,
+                job_id=job.id,
+                job_evaluation_version=job.evaluation_version,
+                status="COMPLETED",
+                match_score=80,
+                recommendation="GOOD_MATCH",
+                summary=(
+                    "Complete asynchronous evaluation summary with enough detail "
+                    "to satisfy the ranking completeness contract for this test."
+                ),
+                strengths=["Cloud"],
+                gaps=[],
+            )
+            _db.add(evaluation)
+            _db.commit()
+            return evaluation, True, None
+
+        monkeypatch.setattr(
+            job_reevaluations.evaluations_service,
+            "evaluate_candidate_for_job",
+            fake_evaluate,
+        )
+        monkeypatch.setattr(
+            job_reevaluations.ranking_service,
+            "materialize_ranking_from_evaluations",
+            lambda _db, **kwargs: ranked.append(kwargs) or {"ranking_version": 1},
+        )
+
+        assert job_reevaluations.process_job_reevaluation(db, task_id=task.id) == "COMPLETED"
+        assert evaluated == [(first.id, True), (second.id, True)]
+        assert ranked == [{"job_id": job.id, "owner_sub": "owner-1", "scope": "all"}]
+    finally:
+        db.close()
+        engine.dispose()
+
+
 def test_worker_retry_does_not_duplicate_current_evaluations(monkeypatch):
     engine, db = _db()
     try:
