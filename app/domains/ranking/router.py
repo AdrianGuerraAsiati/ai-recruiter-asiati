@@ -215,6 +215,20 @@ def recalculate_ranking_async_endpoint(
     db.commit()
     db.refresh(task)
 
+    requested_force = mode == "full"
+    task_scope = str(getattr(task, "scope", None) or "assigned").strip().lower()
+    task_force = bool(getattr(task, "force_evaluation", False))
+    if task.status in {"PROCESSING", "RANKING"} and (
+        task_scope != scope or (requested_force and not task_force)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Ya existe una evaluación en curso para esta vacante con otro alcance. "
+                "Espera a que termine y vuelve a iniciar el ranking."
+            ),
+        )
+
     if task.status == "PENDING" and task.queue_dispatched_at is None:
         try:
             queue.send_job_reevaluation(task.id)
