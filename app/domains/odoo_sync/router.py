@@ -1,6 +1,6 @@
 """HTTP endpoints for explicit Odoo synchronization actions."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_permission
@@ -72,12 +72,25 @@ def sync_jobs_to_odoo(
 
 @router.post("/applicants/import")
 def import_applicants_from_odoo(
+    dry_run: bool = Query(default=False),
+    job_id: str | None = Query(default=None),
+    limit: int | None = Query(default=None, ge=1, le=500),
     db: Session = Depends(get_db),
     _principal: dict = Depends(require_permission("candidates.manage")),
 ):
-    """Incrementally import Odoo Recruitment applicants and their resumes."""
+    """Preview or incrementally import Odoo Recruitment applicants and resumes."""
     try:
-        return applicant_import.sync_applicants_from_odoo(db)
+        if dry_run:
+            return applicant_import.preview_applicants_from_odoo(
+                db,
+                job_id=job_id,
+                limit=limit or 5,
+            )
+        return applicant_import.sync_applicants_from_odoo(
+            db,
+            job_id=job_id,
+            limit=limit,
+        )
     except (integration.OdooDisabled, integration.OdooNotConfigured) as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except applicant_import.OdooApplicantImportError as exc:
