@@ -66,10 +66,9 @@ def dispatch_undispatched_job_reevaluations(db: Session) -> int:
 def process_job_reevaluation(db: Session, *, task_id: str) -> str:
     """Process one durable task using the current vacancy evaluation version.
 
-    The central evaluation service remains the final freshness authority. This
-    worker performs a cheap persistence pre-check so already-current candidates
-    never enter that service unnecessarily, then calls it with ``force=False``
-    for stale/missing/failed evaluations only.
+    The central evaluation service remains the final freshness authority. Manual
+    ranking runs can widen the pool to scope=all and optionally force every
+    candidate to be evaluated again without keeping the HTTP request open.
     """
     task = reevaluation_repository.get_reevaluation_task_by_id(db, task_id)
     if task is None:
@@ -110,13 +109,22 @@ def process_job_reevaluation(db: Session, *, task_id: str) -> str:
     task.last_error_message = None
     db.commit()
 
-    candidates, _total = candidates_repository.list_candidates_for_job(
-        db,
-        job.id,
-        page=1,
-        page_size=100000,
-        owner_sub=task.owner_sub,
-    )
+    scope = str(getattr(task, "scope", None) or "assigned").strip().lower()
+    force_evaluation = bool(getattr(task, "force_evaluation", False))
+    if scope == "all":
+        candidates = ranking_service.resolve_ranking_candidates(
+            db,
+            job=job,
+            scope="all",
+        )
+    else:
+        candidates, _total = candidates_repository.list_candidates_for_job(
+            db,
+            job.id,
+            page=1,
+            page_size=100000,
+            owner_sub=task.owner_sub,
+        )
 
     failures: list[str] = []
     for candidate in candidates:
@@ -128,7 +136,7 @@ def process_job_reevaluation(db: Session, *, task_id: str) -> str:
         if not evaluations_repository.needs_evaluation(
             existing,
             current_job_version=current_version,
-            force=False,
+            force=force_evaluation,
         ):
             continue
 
@@ -138,7 +146,7 @@ def process_job_reevaluation(db: Session, *, task_id: str) -> str:
                     db,
                     candidate=candidate,
                     job=job,
-                    force=False,
+                    force=force_evaluation,
                 )
             )
         except Exception as exc:
@@ -167,7 +175,7 @@ def process_job_reevaluation(db: Session, *, task_id: str) -> str:
             db,
             job_id=job.id,
             owner_sub=task.owner_sub,
-            scope="assigned",
+            scope=scope,
         )
     except Exception as exc:
         return _fail_task(
