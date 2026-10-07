@@ -83,6 +83,7 @@ def list_jobs_page(
     page_size: int,
     sort: str,
     q: str = "",
+    country_code: str = "",
 ):
     return repository.list_jobs_page(
         db,
@@ -91,6 +92,7 @@ def list_jobs_page(
         page_size=page_size,
         sort=sort,
         q=q,
+        country_code=country_code,
     )
 
 

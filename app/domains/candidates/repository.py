@@ -37,11 +37,26 @@ def list_candidates_page(
     page: int = 1,
     page_size: int = 20,
     sort: str = "created_desc",
+    country_code: str = "",
 ) -> tuple[list[Candidate], int]:
     """Return one stable candidate page and its total count."""
     query = db.query(Candidate)
     if owner_sub is not None:
         query = query.filter(Candidate.owner_sub == owner_sub)
+
+    normalized_country = str(country_code or "").strip().upper()
+    if normalized_country:
+        country_assignment_exists = (
+            db.query(JobCandidate.id)
+            .join(Job, Job.id == JobCandidate.job_id)
+            .filter(
+                JobCandidate.candidate_id == Candidate.id,
+                func.upper(Job.country_code) == normalized_country,
+            )
+            .exists()
+        )
+        query = query.filter(country_assignment_exists)
+
     total = query.count() or 0
     if sort == "name_asc":
         query = query.order_by(func.lower(Candidate.name).asc(), Candidate.id.asc())

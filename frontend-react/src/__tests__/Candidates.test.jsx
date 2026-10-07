@@ -338,4 +338,20 @@ describe("Candidates evaluation", () => {
     });
   });
 
+
+  it("filters candidates by assigned vacancy country", async () => {
+    renderCandidates();
+    await screen.findByText("Ana Test");
+
+    fireEvent.change(screen.getByLabelText("Filtrar candidatos por país"), {
+      target: { value: "CO" },
+    });
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith(
+        "/candidates?page=1&page_size=20&country_code=CO",
+      );
+    });
+  });
+
 });

@@ -60,12 +60,13 @@ def _uid():
     return str(uuid.uuid4())
 
 
-def _seed_job(db, *, title, created_at, owner="user-a"):
+def _seed_job(db, *, title, created_at, owner="user-a", country_code=None):
     job = Job(
         id=_uid(),
         title=title,
         description=f"Descripción {title}",
         owner_sub=owner,
+        country_code=country_code,
         created_at=created_at,
         updated_at=created_at,
     )
@@ -201,3 +202,26 @@ def test_jobs_page_supports_alphabetical_title_sort(client, db_session):
         "Data Engineer",
         "Backend Developer",
     ]
+
+
+def test_jobs_page_filters_by_country(client, db_session):
+    now = datetime(2026, 10, 7, tzinfo=timezone.utc)
+    _seed_job(db_session, title="Vacante Colombia", created_at=now, country_code="CO")
+    _seed_job(db_session, title="Vacante Chile", created_at=now, country_code="CL")
+    _seed_job(db_session, title="Vacante sin país", created_at=now)
+
+    response = client.get(
+        "/api/jobs/page",
+        params={
+            "page": 1,
+            "page_size": 12,
+            "sort": "title_asc",
+            "country_code": "co",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert [item["title"] for item in payload["items"]] == ["Vacante Colombia"]
+    assert payload["items"][0]["country_code"] == "CO"
