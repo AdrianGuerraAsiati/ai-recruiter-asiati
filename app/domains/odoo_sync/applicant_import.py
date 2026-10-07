@@ -271,24 +271,31 @@ def _resume_attachment(client, *, row: dict, attachment_field_names: set[str]) -
     main_attachment_id = _many2one_id(row.get("message_main_attachment_id"))
     candidates: list[dict] = []
     if main_attachment_id is not None:
-        candidates = client.search_read(
-            "ir.attachment",
-            [["id", "=", main_attachment_id]],
-            fields=metadata_fields,
-            limit=1,
+        candidates.extend(
+            client.search_read(
+                "ir.attachment",
+                [["id", "=", main_attachment_id]],
+                fields=metadata_fields,
+                limit=1,
+            )
         )
 
-    if not candidates:
-        candidates = client.search_read(
-            "ir.attachment",
-            [
-                ["res_model", "=", "hr.applicant"],
-                ["res_id", "=", int(row["id"])],
-            ],
-            fields=metadata_fields,
-            limit=20,
-            order="create_date desc, id desc",
-        )
+    linked_attachments = client.search_read(
+        "ir.attachment",
+        [
+            ["res_model", "=", "hr.applicant"],
+            ["res_id", "=", int(row["id"])],
+        ],
+        fields=metadata_fields,
+        limit=20,
+        order="create_date desc, id desc",
+    )
+    seen_ids = {int(item["id"]) for item in candidates if item.get("id")}
+    candidates.extend(
+        item
+        for item in linked_attachments
+        if item.get("id") and int(item["id"]) not in seen_ids
+    )
 
     for item in candidates:
         normalized = _normalize_filename(item.get("name"), item.get("mimetype"))
