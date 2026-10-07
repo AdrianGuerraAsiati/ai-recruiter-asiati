@@ -1,32 +1,39 @@
-export const COUNTRY_OPTIONS = [
-  { code: "AR", name: "Argentina" },
-  { code: "BO", name: "Bolivia" },
-  { code: "BR", name: "Brasil" },
-  { code: "CL", name: "Chile" },
-  { code: "CO", name: "Colombia" },
-  { code: "CR", name: "Costa Rica" },
-  { code: "DO", name: "República Dominicana" },
-  { code: "EC", name: "Ecuador" },
-  { code: "SV", name: "El Salvador" },
-  { code: "GT", name: "Guatemala" },
-  { code: "HN", name: "Honduras" },
-  { code: "MX", name: "México" },
-  { code: "NI", name: "Nicaragua" },
-  { code: "PA", name: "Panamá" },
-  { code: "PY", name: "Paraguay" },
-  { code: "PE", name: "Perú" },
-  { code: "PR", name: "Puerto Rico" },
-  { code: "UY", name: "Uruguay" },
-  { code: "VE", name: "Venezuela" },
-  { code: "US", name: "Estados Unidos" },
-  { code: "ES", name: "España" },
-];
+const COUNTRY_NAMES = {
+  AR: "Argentina",
+  BO: "Bolivia",
+  BR: "Brasil",
+  CL: "Chile",
+  CO: "Colombia",
+  CR: "Costa Rica",
+  DO: "República Dominicana",
+  EC: "Ecuador",
+  SV: "El Salvador",
+  GT: "Guatemala",
+  HN: "Honduras",
+  MX: "México",
+  NI: "Nicaragua",
+  PA: "Panamá",
+  PY: "Paraguay",
+  PE: "Perú",
+  PR: "Puerto Rico",
+  UY: "Uruguay",
+  VE: "Venezuela",
+  US: "Estados Unidos",
+  ES: "España",
+  CN: "China",
+};
+
+const ASIATI_COMMERCIAL_COUNTRY_CODES = ["BR", "CL", "CO", "EC"];
+
+export const COUNTRY_OPTIONS = ASIATI_COMMERCIAL_COUNTRY_CODES.map((code) => ({
+  code,
+  name: COUNTRY_NAMES[code],
+}));
 
 export function countryName(code) {
   const normalized = String(code || "").trim().toUpperCase();
-  return COUNTRY_OPTIONS.find((item) => item.code === normalized)?.name || normalized;
+  return COUNTRY_NAMES[normalized] || normalized;
 }
-
 
 export function countryFlag(code) {
   const normalized = String(code || "").trim().toUpperCase();
