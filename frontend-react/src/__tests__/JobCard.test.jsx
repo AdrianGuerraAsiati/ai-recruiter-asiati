@@ -45,6 +45,7 @@ describe("JobCard", () => {
     expect(screen.getByText("IA")).toBeInTheDocument();
     expect(screen.getByText("Bogotá · Colombia")).toBeInTheDocument();
     expect(screen.getByText("1 candidato asignado")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "País: Colombia" })).toHaveTextContent("🇨🇴");
     expect(screen.getByRole("link", { name: "Agregar candidatos" }))
       .toHaveAttribute("href", "/candidates?job_id=job-1");
   });
@@ -60,6 +61,7 @@ describe("JobCard", () => {
     expect(screen.getByText("Indeed")).toBeInTheDocument();
     expect(screen.getByText("2 candidatos asignados")).toBeInTheDocument();
     expect(screen.queryByText("Bogotá · CO")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "País: País sin definir" })).toHaveTextContent("🌐");
   });
 
   it("renders paused vacancies explicitly", () => {
