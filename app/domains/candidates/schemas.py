@@ -44,6 +44,20 @@ class CandidateEvaluationsResponse(BaseModel):
     evaluations: list[dict[str, Any]]
 
 
+class CandidateCountryRequest(BaseModel):
+    country_code: str | None = Field(default=None, max_length=2)
+
+    @field_validator("country_code")
+    @classmethod
+    def normalize_country_code(cls, value: str | None) -> str | None:
+        normalized = str(value or "").strip().upper()
+        if not normalized:
+            return None
+        if len(normalized) != 2 or not normalized.isalpha():
+            raise ValueError("country_code must be a 2-letter code")
+        return normalized
+
+
 class ApplicationStatusRequest(BaseModel):
     status: str
 
