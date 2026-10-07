@@ -308,6 +308,8 @@ class JobReevaluationTask(Base):
         nullable=False,
     )
     target_evaluation_version = Column(Integer, nullable=False)
+    scope = Column(Text, nullable=False, default="assigned")
+    force_evaluation = Column(Boolean, nullable=False, default=False)
     status = Column(Text, nullable=False, default="PENDING")
     attempt_count = Column(Integer, nullable=False, default=0)
     queue_dispatched_at = Column(DateTime(timezone=True), nullable=True)
