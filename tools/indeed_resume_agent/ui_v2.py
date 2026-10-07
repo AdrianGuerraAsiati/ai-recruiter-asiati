@@ -65,6 +65,7 @@ _BUSY_STATES = {
     "DOWNLOADING",
     "SYNCING_JOBS",
     "SYNCING_APPLICATIONS",
+    "COMPUTRABAJO_SYNCING",
     "DIAGNOSTIC_MODE",
 }
 _ATTENTION_STATES = {
@@ -74,6 +75,7 @@ _ATTENTION_STATES = {
     "FULL_SYNC_ATTENTION",
     "SYNC_FAILED",
     "JOBS_SYNC_ATTENTION",
+    "COMPUTRABAJO_SYNC_ATTENTION",
 }
 
 
@@ -108,6 +110,10 @@ def build_ui_state(snapshot: WorkerSnapshot, stats: QueueStats) -> UiState:
         "FULL_SYNC_COMPLETED": "Sincronización incremental completada",
         "FULL_SYNC_ATTENTION": "Sincronización completada con casos por revisar",
         "SYNC_FAILED": "No fue posible preparar la sincronización incremental",
+        "COMPUTRABAJO_BROWSER_READY": "Computrabajo está abierto y listo.",
+        "COMPUTRABAJO_SYNCING": "Importando candidatos visibles desde Computrabajo...",
+        "COMPUTRABAJO_SYNC_COMPLETED": "Importación de Computrabajo completada",
+        "COMPUTRABAJO_SYNC_ATTENTION": "Computrabajo requiere atención",
     }
     status_label = labels.get(state, "Procesando")
     diagnostic_marker = " — Diagnóstico local: "
@@ -126,6 +132,10 @@ def build_ui_state(snapshot: WorkerSnapshot, stats: QueueStats) -> UiState:
         "JOBS_SYNC_COMPLETED",
         "JOBS_SYNC_ATTENTION",
         "SYNC_FAILED",
+        "COMPUTRABAJO_BROWSER_READY",
+        "COMPUTRABAJO_SYNCING",
+        "COMPUTRABAJO_SYNC_COMPLETED",
+        "COMPUTRABAJO_SYNC_ATTENTION",
     } and snapshot.last_error:
         status_label = snapshot.last_error
     if state in {"RETRY", "FAILED", "ERROR"} and snapshot.last_error:
