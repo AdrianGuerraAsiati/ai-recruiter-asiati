@@ -519,6 +519,12 @@ function Candidates() {
                   disabled={countrySavingId === candidate.candidate_id}
                 >
                   <option value="">Sin definir</option>
+                  {candidate.country_code
+                    && !ALL_COUNTRY_OPTIONS.some((item) => item.code === candidate.country_code) && (
+                      <option value={candidate.country_code}>
+                        {countryName(candidate.country_code)}
+                      </option>
+                    )}
                   {ALL_COUNTRY_OPTIONS.map((item) => (
                     <option key={item.code} value={item.code}>{item.name}</option>
                   ))}
