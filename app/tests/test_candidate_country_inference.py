@@ -109,7 +109,7 @@ def test_ai_fallback_accepts_high_confidence_alpha2(monkeypatch):
     result = country.infer_country_with_ai(
         _parsed(
             header="Ana Test",
-            text="Ana Test\nActualmente resido en Toronto, Canada.",
+            text="Ana Test\nToronto, Canada",
         )
     )
 
