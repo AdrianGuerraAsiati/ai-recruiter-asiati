@@ -150,8 +150,20 @@ def schedule_reevaluation(
     *,
     job,
     owner_sub: str,
+    scope: str = "assigned",
+    force_evaluation: bool = False,
+    restart_terminal: bool = False,
 ) -> JobReevaluationTask:
-    """Create or return the single durable task for a job evaluation version."""
+    """Create or reuse the durable task for one vacancy evaluation version.
+
+    Automatic vacancy edits keep the historical assigned/incremental behavior.
+    Manual ranking runs may restart a terminal task with scope=all and optionally
+    force every candidate to be evaluated again.
+    """
+    normalized_scope = str(scope or "assigned").strip().lower()
+    if normalized_scope not in {"assigned", "all"}:
+        raise ValueError("scope must be assigned or all")
+
     target_version = int(getattr(job, "evaluation_version", 1) or 1)
     existing = get_reevaluation_task(
         db,
@@ -159,12 +171,26 @@ def schedule_reevaluation(
         target_evaluation_version=target_version,
     )
     if existing is not None:
+        if restart_terminal and existing.status in TERMINAL_REEVALUATION_STATUSES:
+            existing.scope = normalized_scope
+            existing.force_evaluation = bool(force_evaluation)
+            existing.status = "PENDING"
+            existing.attempt_count = 0
+            existing.queue_dispatched_at = None
+            existing.processing_token = None
+            existing.heartbeat_at = None
+            existing.last_error_code = None
+            existing.last_error_message = None
+            existing.completed_at = None
+            db.flush()
         return existing
 
     task = JobReevaluationTask(
         owner_sub=owner_sub,
         job_id=job.id,
         target_evaluation_version=target_version,
+        scope=normalized_scope,
+        force_evaluation=bool(force_evaluation),
         status="PENDING",
     )
     try:
