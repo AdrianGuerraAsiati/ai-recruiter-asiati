@@ -87,6 +87,7 @@ describe("Jobs page", () => {
           page_size: 12,
           sort: "title_asc",
           q: "",
+          country_code: undefined,
         },
       });
     });
@@ -623,4 +624,26 @@ describe("Jobs page", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it("filters vacancies by country and keeps it in the list request", async () => {
+    renderJobs();
+    await screen.findByText("Backend Developer");
+
+    fireEvent.change(screen.getByLabelText("Filtrar vacantes por país"), {
+      target: { value: "CL" },
+    });
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith("/jobs/page", {
+        params: {
+          page: 1,
+          page_size: 12,
+          sort: "created_desc",
+          q: "",
+          country_code: "CL",
+        },
+      });
+    });
+  });
+
 });
