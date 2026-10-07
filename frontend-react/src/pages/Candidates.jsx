@@ -17,7 +17,7 @@ function Candidates() {
   const { hasPermission } = useSession();
   const { notify } = useNotice();
   const canRestrictCandidates = hasPermission("candidates.restrict");
-  const canCreateCandidates = hasPermission("candidates.manage");
+  const canManageCandidates = hasPermission("candidates.manage");
   const [candidates, setCandidates] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState({});
@@ -339,14 +339,14 @@ function Candidates() {
         description="Centraliza CVs, asigna perfiles a vacantes y ejecuta evaluaciones asistidas por IA."
         actions={(
           <div className="ui-actions">
-            {canCreateCandidates && (
+            {canManageCandidates && (
               <button
                 type="button"
                 className="btn btn-secondary"
                 onClick={importCandidatesFromOdoo}
                 disabled={odooImporting}
               >
-                {odooImporting ? "Actualizando Odoo…" : "Actualizar desde Odoo"}
+                {odooImporting ? "Trayendo desde Odoo…" : "Actualizar desde Odoo"}
               </button>
             )}
             <button
