@@ -194,6 +194,22 @@ def _contains_phrase(text: str, phrase: str) -> bool:
     return bool(re.search(rf"(?<![a-z0-9]){escaped}(?![a-z0-9])", text))
 
 
+def _contact_header(value: str) -> str:
+    """Keep deterministic location detection inside the CV contact/header zone."""
+    selected = []
+    used_chars = 0
+    for raw_line in str(value or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if len(selected) >= 12 or used_chars >= 1500:
+            break
+        remaining = 1500 - used_chars
+        selected.append(line[:remaining])
+        used_chars += len(selected[-1]) + 1
+    return _normalize("\n".join(selected))
+
+
 def _explicit_country(header: str) -> CountryInference | None:
     matches: set[str] = set()
     for code, aliases in COUNTRY_NAMES.items():
@@ -240,7 +256,7 @@ def _city_country(header: str) -> CountryInference | None:
 
 def infer_country_deterministic(parsed_document) -> CountryInference:
     """Infer country from strong contact/header signals without model usage."""
-    header = _normalize(getattr(parsed_document, "header_text", "") or "")
+    header = _contact_header(getattr(parsed_document, "header_text", "") or "")
     explicit = _explicit_country(header)
     if explicit is not None:
         return explicit
