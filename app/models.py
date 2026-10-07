@@ -106,6 +106,7 @@ class Job(Base):
     company_name = Column(Text, nullable=True)
     city = Column(Text, nullable=True)
     employment_type = Column(Text, nullable=True)
+    work_mode = Column(Text, nullable=False, default="ONSITE")
     response_time_business_days = Column(Integer, nullable=False, default=2)
     phone_call_count = Column(Integer, nullable=False, default=1)
     onsite_interview_count = Column(Integer, nullable=False, default=1)
