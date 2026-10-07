@@ -32,6 +32,13 @@ def test_explicit_country_in_contact_header_wins():
     assert result.confidence == "HIGH"
 
 
+def test_common_surname_is_not_treated_as_colombian_city():
+    result = country.infer_country_deterministic(
+        _parsed(header="María Pereira\\nIngeniera industrial")
+    )
+    assert result.country_code is None
+
+
 def test_phone_prefix_is_medium_confidence_fallback():
     result = country.infer_country_deterministic(
         _parsed(header="Ana Test\nIngeniera", phone="+56 9 1234 5678")
