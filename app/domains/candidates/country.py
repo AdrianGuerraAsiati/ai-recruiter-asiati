@@ -198,7 +198,17 @@ def _contact_header(value: str) -> str:
     """Keep deterministic location detection inside the CV contact/header zone."""
     selected = []
     used_chars = 0
-    for raw_line in str(value or "").splitlines():
+    # Some extractors/storage paths preserve escaped line breaks (\\n)
+    # instead of real newline characters. Normalize both representations before
+    # enforcing the contact-header line/character limits so later CV sections
+    # cannot leak into deterministic residence detection.
+    raw_value = (
+        str(value or "")
+        .replace("\\r\\n", "\n")
+        .replace("\\n", "\n")
+        .replace("\\r", "\n")
+    )
+    for raw_line in raw_value.splitlines():
         line = raw_line.strip()
         if not line:
             continue
