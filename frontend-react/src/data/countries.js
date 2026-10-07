@@ -26,3 +26,12 @@ export function countryName(code) {
   const normalized = String(code || "").trim().toUpperCase();
   return COUNTRY_OPTIONS.find((item) => item.code === normalized)?.name || normalized;
 }
+
+
+export function countryFlag(code) {
+  const normalized = String(code || "").trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(normalized)) return "🌐";
+  return String.fromCodePoint(
+    ...[...normalized].map((char) => 127397 + char.charCodeAt(0)),
+  );
+}
