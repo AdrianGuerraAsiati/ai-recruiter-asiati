@@ -34,19 +34,49 @@ def get_mass_evaluation_cost_estimate(
     db: Session = Depends(get_db),
     _user: dict = Depends(require_permission("candidates.evaluate")),
 ):
-    _require_job(db, job_id, _user["sub"])
+    job = _require_job(db, job_id, _user["sub"])
 
     if scope == "all":
-        available = candidates_repository.count_candidates(
-            db,
-            owner_sub=None,
-            include_banned=False,
-        )
-        total_including_banned = candidates_repository.count_candidates(
-            db,
-            owner_sub=None,
-            include_banned=True,
-        )
+        work_mode = str(getattr(job, "work_mode", None) or "ONSITE").upper()
+        country_code = str(getattr(job, "country_code", None) or "").strip().upper()
+
+        if work_mode == "REMOTE":
+            available = candidates_repository.count_candidates(
+                db,
+                owner_sub=None,
+                include_banned=False,
+            )
+            total_including_banned = candidates_repository.count_candidates(
+                db,
+                owner_sub=None,
+                include_banned=True,
+            )
+        elif country_code:
+            available = candidates_repository.count_candidates_for_country(
+                db,
+                country_code=country_code,
+                owner_sub=None,
+                include_banned=False,
+            )
+            total_including_banned = candidates_repository.count_candidates_for_country(
+                db,
+                country_code=country_code,
+                owner_sub=None,
+                include_banned=True,
+            )
+        else:
+            available = candidates_repository.count_candidates_for_job(
+                db,
+                job_id=job_id,
+                owner_sub=None,
+                include_banned=False,
+            )
+            total_including_banned = candidates_repository.count_candidates_for_job(
+                db,
+                job_id=job_id,
+                owner_sub=None,
+                include_banned=True,
+            )
     else:
         available = candidates_repository.count_candidates_for_job(
             db,
