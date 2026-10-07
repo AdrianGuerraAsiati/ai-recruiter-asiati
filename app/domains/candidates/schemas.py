@@ -11,6 +11,7 @@ class CandidateResponse(BaseModel):
     id: str
     name: str
     email: str | None = None
+    country_code: str | None = None
     created_at: datetime | None = None
     metadata: dict[str, Any] | None = None
     filename: str | None = None
