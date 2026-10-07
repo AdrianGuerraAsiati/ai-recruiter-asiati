@@ -629,3 +629,99 @@ def test_empty_talent_description_clears_odoo_demo_copy():
 
     assert values["website_description"] is False
     assert values["job_details"] is False
+
+
+
+class MissingJobLocationOdooClient(FakeOdooClient):
+    def __init__(self):
+        super().__init__(
+            publication_field="website_published",
+            include_location_fields=True,
+        )
+        self.created_partners = []
+
+    def search_read(self, model, domain, *, fields=None, limit=None):
+        self.searches.append((model, domain, fields, limit))
+        if model == "res.country":
+            return [{"id": 57, "name": "Colombia", "code": "CO"}]
+        if model == "res.partner":
+            return []
+        if model == "hr.contract.type":
+            return [{"id": 44, "name": "Full-Time"}]
+        if model == "hr.job":
+            return []
+        raise AssertionError(model)
+
+    def create(self, model, values):
+        if model == "res.partner":
+            self.created_partners.append(dict(values))
+            return 733
+        return super().create(model, values)
+
+
+class MultipleExistingLocationsOdooClient(FakeOdooClient):
+    def __init__(self):
+        super().__init__(
+            publication_field="website_published",
+            include_location_fields=True,
+        )
+
+    def search_read(self, model, domain, *, fields=None, limit=None):
+        self.searches.append((model, domain, fields, limit))
+        if model == "res.partner":
+            return [
+                {"id": 42, "city": "Bogotá", "country_id": [57, "Colombia"]},
+                {"id": 33, "city": "Bogotá", "country_id": [57, "Colombia"]},
+            ]
+        if model == "hr.contract.type":
+            return [{"id": 44, "name": "Full-Time"}]
+        if model == "hr.job":
+            return []
+        raise AssertionError(model)
+
+
+def test_odoo_job_country_creates_reusable_location_when_office_is_missing():
+    delivery = _publication_module()
+    client = MissingJobLocationOdooClient()
+
+    values, _ = delivery.build_hr_job_values(
+        client,
+        {
+            "job": {
+                "title": "Auxiliar administrativo y de operaciones",
+                "description": "Apoyo administrativo.",
+                "status": "ACTIVE",
+                "country_code": "CO",
+                "city": "Bogotá",
+                "employment_type": "FULL_TIME",
+            },
+        },
+    )
+
+    assert values["address_id"] == 733
+    assert client.created_partners == [{
+        "name": "ASIATI Talent · Bogotá · Colombia",
+        "country_id": 57,
+        "city": "Bogotá",
+    }]
+
+
+def test_odoo_job_country_keeps_country_when_multiple_contacts_share_city():
+    delivery = _publication_module()
+    client = MultipleExistingLocationsOdooClient()
+
+    values, _ = delivery.build_hr_job_values(
+        client,
+        {
+            "job": {
+                "title": "Analista de operaciones",
+                "description": "Operación.",
+                "status": "ACTIVE",
+                "country_code": "CO",
+                "city": "Bogotá",
+                "employment_type": "FULL_TIME",
+            },
+        },
+    )
+
+    assert values["address_id"] == 33
