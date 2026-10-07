@@ -284,17 +284,23 @@ def infer_country_with_ai(parsed_document) -> CountryInference:
 
     code = str(result.get("country_code") or "").strip().upper() or None
     confidence = str(result.get("confidence") or "LOW").strip().upper()
+    evidence = str(result.get("evidence") or "").strip()
     if confidence not in {"HIGH", "MEDIUM", "LOW"}:
         confidence = "LOW"
     if not code or not re.fullmatch(r"[A-Z]{2}", code):
         return CountryInference(None, "CV_UNRESOLVED", confidence, None)
 
-    # Accept any syntactically valid ISO-style code from the model. Known codes
-    # receive the same treatment; unknown codes remain usable for remote/global
-    # candidates and can still be corrected manually.
-    if confidence not in {"HIGH", "MEDIUM"}:
+    # A model answer is accepted only when it cites a literal fragment of the CV.
+    # This keeps the fallback grounded instead of trusting a bare country guess.
+    normalized_context = _normalize(context)
+    normalized_evidence = _normalize(evidence)
+    if (
+        confidence not in {"HIGH", "MEDIUM"}
+        or len(normalized_evidence) < 3
+        or normalized_evidence not in normalized_context
+    ):
         return CountryInference(None, "CV_UNRESOLVED", confidence, None)
-    return CountryInference(code, "CV_AI", confidence, "MODEL")
+    return CountryInference(code, "CV_AI", confidence, "MODEL_GROUNDED")
 
 
 def _metadata(candidate) -> dict:
