@@ -155,7 +155,7 @@ def _prepare_document(db: Session, event) -> str | None:
         db,
         candidate=candidate,
         parsed_document=parsed,
-        use_ai=True,
+        use_ai=candidate_country.country_ai_enabled(),
     )
 
     written = storage.write_canonical_candidate_document(
