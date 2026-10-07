@@ -594,13 +594,18 @@ function Jobs() {
 
   async function enrichJobDraft() {
     if (enriching || !title.trim()) return;
+    const improvingExistingAi = Boolean(String(aiDescription || "").trim());
+    const enrichmentBaseDescription = improvingExistingAi
+      ? aiDescription
+      : activeDescription;
     setEnriching(true);
     setEnrichmentError("");
     setEnrichmentProposal(null);
     try {
       const { data } = await api.post("/jobs/enrich", {
+        mode: improvingExistingAi ? "improve" : "enrich",
         title,
-        description: activeDescription || null,
+        description: enrichmentBaseDescription || null,
         country_code: countryCode || null,
         city: city || null,
         employment_type: employmentType || null,
@@ -625,7 +630,11 @@ function Jobs() {
     const profile = { ...enrichmentProposal };
     delete profile.improved_description;
     const generatedDescription = (
-      formatEnrichmentProposalDescription(enrichmentProposal, activeDescription)
+      formatEnrichmentProposalDescription(
+        enrichmentProposal,
+        String(aiDescription || "").trim() ? aiDescription : activeDescription,
+      )
+      || aiDescription
       || activeDescription
     );
     setAiDescription(generatedDescription);
@@ -939,14 +948,29 @@ function Jobs() {
 
             <div className="job-enrichment-actions">
               <div>
-                <strong>¿Quieres ayuda para completar el perfil?</strong>
+                <strong>
+                  {String(aiDescription || "").trim()
+                    ? "¿Quieres mejorar todavía más esta vacante?"
+                    : "¿Quieres ayuda para completar el perfil?"}
+                </strong>
                 <p className="muted">
-                  {editingJob
-                    ? "La IA usa el contexto de Asiati y los datos actuales. Nada se guarda hasta que pulses Guardar cambios."
-                    : "La IA usa el contexto de Asiati y tu borrador. Nada se guarda hasta que crees la vacante."}
+                  {String(aiDescription || "").trim()
+                    ? "La IA toma la versión optimizada actual como base y propone una mejora adicional. Nada se guarda hasta que pulses Guardar cambios."
+                    : editingJob
+                      ? "La IA usa el contexto de Asiati y los datos actuales. Nada se guarda hasta que pulses Guardar cambios."
+                      : "La IA usa el contexto de Asiati y tu borrador. Nada se guarda hasta que crees la vacante."}
                 </p>
               </div>
-              <button type="button" className="btn btn-secondary" onClick={enrichJobDraft} disabled={enriching || !title.trim()}>{enriching ? "Enriqueciendo…" : "Enriquecer con IA"}</button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={enrichJobDraft}
+                disabled={enriching || !title.trim()}
+              >
+                {enriching
+                  ? (String(aiDescription || "").trim() ? "Mejorando…" : "Enriqueciendo…")
+                  : (String(aiDescription || "").trim() ? "Mejorar con IA" : "Enriquecer con IA")}
+              </button>
             </div>
 
             {enrichmentError && <div className="alert alert-error" role="alert"><span>{enrichmentError}</span></div>}
