@@ -88,3 +88,25 @@ def test_candidate_sync_timeout_can_be_overridden(tmp_path, monkeypatch):
     monkeypatch.setenv("ASIATI_RESUME_AGENT_SYNC_REQUEST_TIMEOUT_SECONDS", "180")
 
     assert load_config().sync_request_timeout_seconds == 180.0
+
+
+def test_computrabajo_uses_separate_persistent_profile(tmp_path, monkeypatch):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+
+    cfg = load_config()
+
+    assert cfg.computrabajo_profile_dir == (
+        tmp_path / "ASIATI" / "CandidateAgent" / "computrabajo-profile-chrome"
+    )
+    assert cfg.computrabajo_base_url == "https://empresa.computrabajo.com.co/"
+
+
+def test_computrabajo_url_must_be_official_https_domain(tmp_path, monkeypatch):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setenv(
+        "ASIATI_CANDIDATE_AGENT_COMPUTRABAJO_URL",
+        "https://evil.example/login",
+    )
+
+    with pytest.raises(ValueError, match="official"):
+        load_config()
