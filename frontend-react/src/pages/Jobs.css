@@ -74,6 +74,34 @@
 }
 
 /* =====================================================
+   JOBS — Country badge
+   ===================================================== */
+.job-card-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.job-country-flag {
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  height: 30px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  font-size: 1rem;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(4, 13, 27, 0.05);
+}
+
+[data-theme="dark"] .job-country-flag {
+  background: var(--navy-soft);
+  border-color: var(--border);
+}
+
+/* =====================================================
    JOBS — Card actions
    ===================================================== */
 .job-card-actions {
