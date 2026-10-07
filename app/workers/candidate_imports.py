@@ -18,6 +18,7 @@ from app.config import (
 )
 from app.db import SessionLocal
 from app.domains.candidate_imports import repository, service as import_service
+from app.domains.candidates import country as candidate_country
 from app.domains.candidate_imports.exceptions import IdentityConflict
 from app.domains.evaluations import repository as evaluations_repository
 from app.domains.evaluations import service as evaluations_service
@@ -377,6 +378,13 @@ def _prepare_batch_documents(db: Session, batch) -> None:
                 owner_sub=batch.owner_sub,
                 parsed_document=parsed,
                 batch_id=batch.id,
+            )
+
+            candidate_country.apply_country_inference(
+                db,
+                candidate=candidate,
+                parsed_document=parsed,
+                use_ai=candidate_country.country_ai_enabled(),
             )
 
             hash_is_old = (

@@ -257,20 +257,40 @@ def test_candidate_ban_delegates_to_audited_repository(monkeypatch):
 def test_create_and_index_candidate_preserves_create_before_index(monkeypatch):
     events = []
     candidate = _candidate(name="resume")
+    parsed = SimpleNamespace(
+        filename="resume.pdf",
+        header_text="Bogotá, Colombia",
+        text="Bogotá, Colombia",
+        phone=None,
+    )
+
+    class FakeDb:
+        def commit(self):
+            events.append("commit")
+
+        def refresh(self, value):
+            assert value is candidate
+            events.append("refresh")
 
     def fake_create(db, *, name, email=None, metadata=None, owner_sub=None):
         events.append(("create", name, metadata, owner_sub))
         return candidate
 
+    def fake_country(db, *, candidate, parsed_document, use_ai):
+        events.append(("country", candidate, parsed_document, use_ai))
+
     def fake_index(created_candidate, file_content, filename):
         events.append(("index", created_candidate, file_content, filename))
         return {"status": "COMPLETE", "ingestion_job_id": "job-123", "error": None}
 
+    monkeypatch.setattr(service, "extract_document", lambda *_args: parsed)
     monkeypatch.setattr(service.candidates_repository, "create_candidate", fake_create)
+    monkeypatch.setattr(service.candidate_country, "apply_country_inference", fake_country)
+    monkeypatch.setattr(service.candidate_country, "country_ai_enabled", lambda: False)
     monkeypatch.setattr(service, "index_candidate_document", fake_index)
 
     created, indexing = service.create_and_index_candidate(
-        object(),
+        FakeDb(),
         owner_sub="owner-1",
         original_filename="resume.pdf",
         file_content=b"pdf",
@@ -282,21 +302,40 @@ def test_create_and_index_candidate_preserves_create_before_index(monkeypatch):
         "ingestion_job_id": "job-123",
         "error": None,
     }
-    assert events == [
-        ("create", "resume", {"filename": "resume.pdf"}, "owner-1"),
-        ("index", candidate, b"pdf", "resume.pdf"),
-    ]
+    assert events[0] == ("create", "resume", {"filename": "resume.pdf"}, "owner-1")
+    assert events[1][0] == "country"
+    assert events[-1] == ("index", candidate, b"pdf", "resume.pdf")
 
 
 def test_create_and_index_candidate_does_not_swallow_index_failure(monkeypatch):
     candidate = _candidate(name="resume")
     events = []
+    parsed = SimpleNamespace(
+        filename="resume.pdf",
+        header_text="",
+        text="",
+        phone=None,
+    )
 
+    class FakeDb:
+        def commit(self):
+            return None
+
+        def refresh(self, _value):
+            return None
+
+    monkeypatch.setattr(service, "extract_document", lambda *_args: parsed)
     monkeypatch.setattr(
         service.candidates_repository,
         "create_candidate",
         lambda *args, **kwargs: events.append("create") or candidate,
     )
+    monkeypatch.setattr(
+        service.candidate_country,
+        "apply_country_inference",
+        lambda *args, **kwargs: events.append("country"),
+    )
+    monkeypatch.setattr(service.candidate_country, "country_ai_enabled", lambda: False)
 
     def fail_index(*args, **kwargs):
         events.append("index")
@@ -306,13 +345,13 @@ def test_create_and_index_candidate_does_not_swallow_index_failure(monkeypatch):
 
     with pytest.raises(RuntimeError, match="index failed"):
         service.create_and_index_candidate(
-            object(),
+            FakeDb(),
             owner_sub="owner-1",
             original_filename="resume.pdf",
             file_content=b"pdf",
         )
 
-    assert events == ["create", "index"]
+    assert events == ["create", "country", "index"]
 
 
 def test_candidate_download_requires_owner_and_uses_canonical_storage(monkeypatch):

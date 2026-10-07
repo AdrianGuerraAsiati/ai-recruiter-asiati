@@ -211,6 +211,36 @@ def test_assigning_candidate_to_job_persists_country_when_missing():
         db.refresh(candidate)
 
         assert candidate.country_code == "CO"
+        assert candidate.metadata_["country_source"] == "JOB_FALLBACK"
+        assert candidate.metadata_["country_review_status"] == "PENDING_CV_VERIFICATION"
+    finally:
+        db.close()
+        engine.dispose()
+
+
+def test_manual_country_marks_candidate_as_verified_manual():
+    from app.domains.candidates import repository as candidates_repository
+
+    engine, db = _db()
+    try:
+        candidate = Candidate(
+            name="Candidato manual",
+            owner_sub="owner-1",
+            metadata_={},
+        )
+        db.add(candidate)
+        db.commit()
+
+        candidates_repository.set_candidate_country(
+            db,
+            candidate,
+            country_code="cl",
+        )
+
+        assert candidate.country_code == "CL"
+        assert candidate.metadata_["country_source"] == "MANUAL"
+        assert candidate.metadata_["country_confidence"] == "HIGH"
+        assert candidate.metadata_["country_checked_at"]
     finally:
         db.close()
         engine.dispose()

@@ -505,6 +505,12 @@ def test_alembic_head_builds_current_postgres_schema():
         job_columns = {column["name"] for column in inspector.get_columns("jobs")}
         assert "work_mode" in job_columns
 
+        reevaluation_columns = {
+            column["name"]
+            for column in inspector.get_columns("job_reevaluation_tasks")
+        }
+        assert {"scope", "force_evaluation"}.issubset(reevaluation_columns)
+
         job_columns = {
             column["name"]
             for column in inspector.get_columns("jobs")
@@ -512,6 +518,6 @@ def test_alembic_head_builds_current_postgres_schema():
         assert "company_name" in job_columns
 
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
-        assert revision == "048"
+        assert revision == "049"
     finally:
         engine.dispose()

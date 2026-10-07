@@ -47,6 +47,7 @@ function Ranking() {
   const [rankingLoadedScope, setRankingLoadedScope] = useState(null);
   const [rankingMessage, setRankingMessage] = useState("");
   const rankingAbortRef = useRef(null);
+  const asyncRankingAbortRef = useRef(null);
   const analysisAbortRef = useRef(null);
 
   const [rankingInfo, setRankingInfo] = useState({
@@ -142,6 +143,7 @@ function Ranking() {
     loadJobs();
     return () => {
       rankingAbortRef.current?.abort();
+      asyncRankingAbortRef.current?.abort();
       analysisAbortRef.current?.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -283,6 +285,37 @@ async function loadRanking(
     }
 }
 
+async function waitForAsyncRankingTask(taskId, targetJob = selectedJob) {
+    asyncRankingAbortRef.current?.abort();
+    const controller = new AbortController();
+    asyncRankingAbortRef.current = controller;
+
+    try {
+      for (let attempt = 0; attempt < 450; attempt += 1) {
+        const { data } = await api.get(
+          `/jobs/${targetJob}/ranking/recalculate-async/${taskId}`,
+          { signal: controller.signal },
+        );
+        if (data.status === "COMPLETED" || data.status === "FAILED") {
+          return data;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+      return {
+        status: "FAILED",
+        last_error_message:
+          "La evaluación sigue ejecutándose en segundo plano. Usa «Actualizar ranking» en unos minutos para consultar el resultado.",
+      };
+    } catch (error) {
+      if (error?.code === "ERR_CANCELED") return null;
+      throw error;
+    } finally {
+      if (asyncRankingAbortRef.current === controller) {
+        asyncRankingAbortRef.current = null;
+      }
+    }
+}
+
 // ============================================================
 // EVALUAR CANDIDATOS
 // ============================================================
@@ -305,8 +338,8 @@ async function evaluateCandidates() {
       setActionFeedback(null);
       setRankingMessage("");
 
-      const response = await api.post(
-        `/jobs/${selectedJob}/ranking/recalculate`,
+      const { data: task } = await api.post(
+        `/jobs/${selectedJob}/ranking/recalculate-async`,
         null,
         {
           params: {
@@ -316,52 +349,55 @@ async function evaluateCandidates() {
         },
       );
 
-      const result = response.data;
-      setCostDialogOpen(false);
-      setCostEstimate(null);
-      setCostAccepted(false);
+      setActionFeedback({
+        type: "info",
+        message:
+          "Evaluación iniciada en segundo plano. Talent seguirá procesando los candidatos aunque cierres esta pantalla.",
+      });
+
+      const completedTask = await waitForAsyncRankingTask(task.task_id, selectedJob);
+      if (!completedTask) return;
+
+      if (completedTask.status === "FAILED") {
+        setActionFeedback({
+          type: "error",
+          message:
+            completedTask.last_error_message
+            || "No fue posible completar la evaluación del ranking.",
+        });
+        return;
+      }
 
       setPage(1);
       const refreshed = await loadRanking(1, pageSize, selectedJob, rankingScope);
 
       if (!refreshed.ok) {
-        if (refreshed.scopeMismatch) {
-          setActionFeedback({
-            type: "error",
-            message:
-              "El ranking guardado pertenece al alcance anterior. Recalcula para comparar esta vacante contra toda la base de candidatos de Talent.",
-          });
-        } else {
-          setActionFeedback({
-            type: "error",
-            message:
-              "Los candidatos fueron procesados, pero no fue posible actualizar la vista del ranking.",
-          });
-        }
+        setActionFeedback({
+          type: "error",
+          message: refreshed.scopeMismatch
+            ? "El ranking guardado pertenece al alcance anterior. Recalcula para comparar esta vacante contra toda la base de candidatos de Talent."
+            : "La evaluación terminó, pero no fue posible cargar el ranking actualizado. Usa «Actualizar ranking» para recuperarlo.",
+        });
         return;
       }
 
-      if (result.total_candidates === 0) {
-        const message = "No hay candidatos registrados en Talent para construir el ranking.";
+      if ((refreshed.data?.ranking_total ?? 0) === 0) {
         setActionFeedback({
           type: "info",
-          message,
+          message:
+            "La evaluación terminó, pero no hay candidatos elegibles para esta vacante según país y modalidad.",
         });
-      } else if (result.failed > 0) {
-        setActionFeedback({
-          type: "error",
-          message: `Evaluación completada: ${result.evaluated} candidatos procesados y ${result.failed} con error.`,
-        });
-      } else if (refreshed.data.ranking_total === 0 || refreshed.data.total === 0) {
+      } else if (completedTask.last_error_code === "PARTIAL_EVALUATION_FAILURES") {
         setActionFeedback({
           type: "error",
           message:
-            "La evaluación terminó, pero la consulta posterior no devolvió el ranking actualizado. No vuelvas a evaluar todavía; usa «Actualizar ranking» para recuperar los resultados guardados.",
+            completedTask.last_error_message
+            || "El ranking se generó, pero algunos candidatos no pudieron evaluarse.",
         });
       } else {
         setActionFeedback({
           type: "success",
-          message: `Evaluación completada: ${result.evaluated} candidatos procesados.`,
+          message: "Evaluación completada y ranking actualizado.",
         });
       }
     } catch (error) {
@@ -369,10 +405,11 @@ async function evaluateCandidates() {
         type: "error",
         message:
           getApiErrorMessage(error, {
-          action: "evaluar los candidatos",
-          resource: "ranking",
-          fallback: "La evaluación masiva no quedó confirmada. Consulta el ranking antes de volver a ejecutarla para evitar procesar candidatos dos veces.",
-        }),
+            action: "iniciar la evaluación de candidatos",
+            resource: "ranking",
+            fallback:
+              "No fue posible iniciar la evaluación en segundo plano. Vuelve a intentarlo.",
+          }),
       });
     } finally {
       setIsEvaluatingCandidates(false);
@@ -508,8 +545,8 @@ async function recalculateRanking() {
       setActionFeedback(null);
       setRankingMessage("");
 
-      const response = await api.post(
-        `/jobs/${selectedJob}/ranking/recalculate`,
+      const { data: task } = await api.post(
+        `/jobs/${selectedJob}/ranking/recalculate-async`,
         null,
         {
           params: {
@@ -519,47 +556,53 @@ async function recalculateRanking() {
         },
       );
 
-      const result = response.data;
+      setCostDialogOpen(false);
+      setCostEstimate(null);
+      setCostAccepted(false);
+      setActionFeedback({
+        type: "info",
+        message:
+          "Recálculo iniciado en segundo plano. Talent continuará aunque cierres esta pantalla.",
+      });
+
+      const completedTask = await waitForAsyncRankingTask(task.task_id, selectedJob);
+      if (!completedTask) return;
+
+      if (completedTask.status === "FAILED") {
+        setActionFeedback({
+          type: "error",
+          message:
+            completedTask.last_error_message
+            || "No fue posible completar el recálculo del ranking.",
+        });
+        return;
+      }
 
       setPage(1);
       const refreshed = await loadRanking(1, pageSize, selectedJob, rankingScope);
 
       if (!refreshed.ok) {
-        if (refreshed.scopeMismatch) {
-          setActionFeedback({
-            type: "error",
-            message:
-              "El ranking guardado pertenece al alcance anterior. Recalcula para comparar esta vacante contra toda la base de candidatos de Talent.",
-          });
-        } else {
-          setActionFeedback({
-            type: "error",
-            message:
-              "El recálculo terminó, pero la consulta posterior no devolvió la nueva versión del ranking. No recalcules otra vez todavía; usa «Actualizar ranking» para recuperar los resultados guardados.",
-          });
-        }
+        setActionFeedback({
+          type: "error",
+          message: refreshed.scopeMismatch
+            ? "El ranking guardado pertenece al alcance anterior. Recalcula para comparar esta vacante contra toda la base de candidatos de Talent."
+            : "El recálculo terminó, pero no fue posible cargar la nueva versión. Usa «Actualizar ranking» para recuperarla.",
+        });
         return;
       }
 
-      if (result.total_candidates > 0 && (refreshed.data.ranking_total === 0 || refreshed.data.total === 0)) {
+      if ((refreshed.data?.ranking_total ?? 0) === 0) {
+        setActionFeedback({
+          type: "info",
+          message:
+            "El recálculo terminó, pero no hay candidatos elegibles para esta vacante según país y modalidad.",
+        });
+      } else if (completedTask.last_error_code === "PARTIAL_EVALUATION_FAILURES") {
         setActionFeedback({
           type: "error",
           message:
-            "El recálculo terminó, pero la consulta posterior no devolvió la nueva versión del ranking. No recalcules otra vez todavía; usa «Actualizar ranking» para recuperar los resultados guardados.",
-        });
-        return;
-      }
-
-      if (result.total_candidates === 0) {
-        const message = "No hay candidatos registrados en Talent para construir el ranking.";
-        setActionFeedback({
-          type: "info",
-          message,
-        });
-      } else if (result.failed > 0) {
-        setActionFeedback({
-          type: "error",
-          message: `Ranking recalculado, pero ${result.failed} candidato(s) no pudieron evaluarse.`,
+            completedTask.last_error_message
+            || "El ranking se generó, pero algunos candidatos no pudieron evaluarse.",
         });
       } else {
         setActionFeedback({
@@ -572,10 +615,11 @@ async function recalculateRanking() {
         type: "error",
         message:
           getApiErrorMessage(error, {
-          action: "recalcular el ranking",
-          resource: "ranking de candidatos",
-          fallback: "El nuevo ranking no quedó confirmado. Consulta la versión actual antes de volver a recalcular para evitar trabajo duplicado.",
-        }),
+            action: "iniciar el recálculo del ranking",
+            resource: "ranking de candidatos",
+            fallback:
+              "No fue posible iniciar el recálculo en segundo plano. Vuelve a intentarlo.",
+          }),
       });
     } finally {
       setIsRecalculating(false);

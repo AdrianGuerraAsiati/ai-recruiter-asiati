@@ -4,6 +4,7 @@ import os
 
 from sqlalchemy.orm import Session
 
+from app.domains.candidates import country as candidate_country
 from app.domains.candidates import repository as candidates_repository
 from app.domains.candidates.exceptions import (
     CandidateNotFound,
@@ -347,6 +348,11 @@ def create_and_index_candidate(
     file_content: bytes,
 ):
     safe_filename = _legacy_pdf_filename(original_filename)
+    try:
+        parsed = extract_document(file_content, safe_filename)
+    except DocumentImportError as exc:
+        raise LegacyCandidateUploadError("LEGACY_UPLOAD_INVALID_PDF") from exc
+
     name = os.path.splitext(safe_filename)[0]
     candidate = candidates_repository.create_candidate(
         db,
@@ -354,6 +360,15 @@ def create_and_index_candidate(
         metadata={"filename": safe_filename},
         owner_sub=owner_sub,
     )
+    candidate_country.apply_country_inference(
+        db,
+        candidate=candidate,
+        parsed_document=parsed,
+        use_ai=candidate_country.country_ai_enabled(),
+    )
+    db.commit()
+    db.refresh(candidate)
+
     indexing = index_candidate_document(
         candidate,
         file_content,
