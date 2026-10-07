@@ -59,10 +59,14 @@ def _ranking_candidates(db: Session, *, job, scope: str):
     country_code = str(getattr(job, "country_code", None) or "").strip().upper()
 
     if work_mode == "REMOTE":
-        return candidates_repository.list_candidates(
-            db,
-            owner_sub=None,
-        )
+        return [
+            candidate
+            for candidate in candidates_repository.list_candidates(
+                db,
+                owner_sub=None,
+            )
+            if not candidate.is_banned
+        ]
 
     if country_code:
         return candidates_repository.list_candidates_for_country(
