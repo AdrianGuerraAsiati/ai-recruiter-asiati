@@ -80,7 +80,7 @@ def _exact_address_id(
         rows = client.search_read(
             "res.partner",
             domain,
-            fields=["id", "city"],
+            fields=["id", "city", "country_id"],
             limit=20,
         )
     except OdooClientError:
@@ -92,9 +92,111 @@ def _exact_address_id(
         if str(row.get("city") or "").strip().casefold()
         == normalized_city.casefold()
     ]
-    if len(exact) != 1:
+    if not exact:
         return None
-    return int(exact[0]["id"])
+
+    # Several contacts may share the same office/city. For hr.job, address_id
+    # is only used as the public job location, so choose deterministically
+    # instead of discarding the country merely because multiple contacts exist.
+    return min(int(row["id"]) for row in exact)
+
+
+def _country_record(client, country_code: str | None) -> dict | None:
+    normalized = str(country_code or "").strip().upper()
+    if not normalized:
+        return None
+    try:
+        rows = client.search_read(
+            "res.country",
+            [["code", "=ilike", normalized]],
+            fields=["id", "name", "code"],
+            limit=5,
+        )
+    except OdooClientError as exc:
+        raise OdooJobDeliveryError(
+            f"Could not resolve Odoo country for code {normalized}."
+        ) from exc
+
+    exact = [
+        row
+        for row in rows
+        if str(row.get("code") or "").strip().upper() == normalized
+    ]
+    if len(exact) != 1:
+        raise OdooJobDeliveryError(
+            f"Odoo country code {normalized} is missing or ambiguous."
+        )
+    return dict(exact[0])
+
+
+def _ensure_location_address_id(
+    client,
+    *,
+    city: str | None,
+    country_code: str | None,
+) -> int | None:
+    """Return an Odoo job-location partner that always carries Talent's country."""
+
+    normalized_city = str(city or "").strip()
+    normalized_country = str(country_code or "").strip().upper()
+
+    existing = _exact_address_id(
+        client,
+        city=normalized_city,
+        country_code=normalized_country,
+    )
+    if existing is not None:
+        return existing
+
+    # Without a country we cannot create a location that supports Odoo's
+    # country filter / flag. Preserve the previous remote/unspecified behavior.
+    if not normalized_country:
+        return None
+
+    country = _country_record(client, normalized_country)
+    country_id = int(country["id"])
+    country_name = str(country.get("name") or normalized_country).strip()
+    location_label = (
+        f"ASIATI Talent · {normalized_city} · {country_name}"
+        if normalized_city
+        else f"ASIATI Talent · {country_name}"
+    )
+
+    domain = [
+        ["name", "=", location_label],
+        ["country_id", "=", country_id],
+    ]
+    if normalized_city:
+        domain.append(["city", "=ilike", normalized_city])
+
+    try:
+        rows = client.search_read(
+            "res.partner",
+            domain,
+            fields=["id", "name", "city", "country_id"],
+            limit=5,
+        )
+    except OdooClientError as exc:
+        raise OdooJobDeliveryError(
+            f"Could not resolve Odoo job location for {normalized_country}."
+        ) from exc
+
+    if rows:
+        return min(int(row["id"]) for row in rows)
+
+    values = {
+        "name": location_label,
+        "country_id": country_id,
+    }
+    if normalized_city:
+        values["city"] = normalized_city
+
+    try:
+        return int(client.create("res.partner", values))
+    except OdooClientError as exc:
+        raise OdooJobDeliveryError(
+            f"Could not create Odoo job location for {normalized_country}."
+        ) from exc
 
 
 def _company_id(client, company_name: str | None) -> int | None:
@@ -301,14 +403,17 @@ def build_hr_job_values(client, payload: dict) -> tuple[dict, str]:
         if company_id is not None:
             values["company_id"] = company_id
 
-    if "address_id" in writable and str(job.get("city") or "").strip():
-        address_id = _exact_address_id(
+    if "address_id" in writable and (
+        str(job.get("city") or "").strip()
+        or str(job.get("country_code") or "").strip()
+    ):
+        address_id = _ensure_location_address_id(
             client,
             city=job.get("city"),
             country_code=job.get("country_code"),
         )
-        # An unresolved Talent location is safer as remote/unspecified than
-        # allowing Odoo to apply the last-used office as a misleading default.
+        # Odoo's website recruitment country filter and the ASIATI flag both
+        # derive from hr.job.address_id.country_id.
         values["address_id"] = address_id or False
 
     if "contract_type_id" in writable:
