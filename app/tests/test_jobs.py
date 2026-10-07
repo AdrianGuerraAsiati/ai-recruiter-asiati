@@ -322,3 +322,36 @@ class TestJobStatus:
         )
 
         assert response.status_code == 422
+
+
+class TestJobCompanyPersistence:
+    def test_create_and_update_job_persist_company_name(self, client, db_session):
+        created = client.post(
+            "/api/jobs",
+            json={
+                "title": "KAM Colombia",
+                "description": "Gestión de cuentas estratégicas.",
+                "country_code": "CO",
+                "company_name": "ASIATI Colombia",
+                "city": "Bogotá",
+            },
+        )
+        assert created.status_code == 201
+        job_id = created.json()["job_id"]
+
+        db_session.expire_all()
+        job = db_session.query(Job).filter(Job.id == job_id).one()
+        assert job.company_name == "ASIATI Colombia"
+
+        updated = client.put(
+            f"/api/jobs/{job_id}",
+            json={
+                "title": "KAM Colombia",
+                "company_name": "ASIATI Corp Colombia",
+            },
+        )
+        assert updated.status_code == 200
+
+        db_session.expire_all()
+        job = db_session.query(Job).filter(Job.id == job_id).one()
+        assert job.company_name == "ASIATI Corp Colombia"
