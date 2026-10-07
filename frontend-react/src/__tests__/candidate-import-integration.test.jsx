@@ -98,6 +98,11 @@ describe("candidate import page integration", () => {
       ).toBe(true);
     });
 
-    expect(screen.getByDisplayValue("Data Engineer")).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", {
+        name: "Data Engineer · 1 candidato",
+        selected: true,
+      }),
+    ).toBeInTheDocument();
   });
 });
