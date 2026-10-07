@@ -171,7 +171,11 @@ def schedule_reevaluation(
         target_evaluation_version=target_version,
     )
     if existing is not None:
-        if restart_terminal and existing.status == "PENDING":
+        if (
+            restart_terminal
+            and existing.status == "PENDING"
+            and existing.processing_token is None
+        ):
             # A queued task can safely adopt the manual ranking scope before the
             # shared worker claims it; keep its dispatch marker to avoid duplicates.
             existing.scope = normalized_scope
