@@ -323,23 +323,28 @@ def apply_country_inference(
         else infer_country_deterministic(parsed_document)
     )
 
+    previous_code = str(getattr(candidate, "country_code", None) or "").strip().upper()
     if inference.country_code:
+        if previous_code and previous_code != inference.country_code:
+            metadata["country_previous_code"] = previous_code
         candidate.country_code = inference.country_code
+        metadata["country_source"] = inference.source
+        metadata["country_confidence"] = inference.confidence
+        metadata["country_review_status"] = "RESOLVED"
+    elif previous_code:
+        # Keep a previously known job/historical country when the CV cannot
+        # establish current residence, but mark the lower-confidence provenance.
+        metadata["country_source"] = current_source or "LEGACY_FALLBACK"
+        metadata["country_confidence"] = str(
+            metadata.get("country_confidence") or "LOW"
+        ).upper()
+        metadata["country_review_status"] = f"{inference.source}_FALLBACK"
+    else:
+        metadata["country_source"] = inference.source
+        metadata["country_confidence"] = inference.confidence
+        metadata["country_review_status"] = inference.source
 
-    metadata["country_source"] = (
-        inference.source
-        if inference.country_code
-        else (current_source or "CV_UNRESOLVED")
-    )
-    metadata["country_confidence"] = (
-        inference.confidence
-        if inference.country_code
-        else str(metadata.get("country_confidence") or "LOW").upper()
-    )
     metadata["country_checked_at"] = datetime.now(timezone.utc).isoformat()
-    metadata["country_review_status"] = (
-        "RESOLVED" if inference.country_code else inference.source
-    )
     if inference.evidence_type:
         metadata["country_evidence_type"] = inference.evidence_type
     candidate.metadata_ = metadata
