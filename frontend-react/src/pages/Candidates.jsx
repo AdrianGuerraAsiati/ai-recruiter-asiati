@@ -17,7 +17,7 @@ function Candidates() {
   const { hasPermission } = useSession();
   const { notify } = useNotice();
   const canRestrictCandidates = hasPermission("candidates.restrict");
-  const canCreateCandidates = hasPermission("candidates.create");
+  const canCreateCandidates = hasPermission("candidates.manage");
   const [candidates, setCandidates] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState({});
