@@ -17,6 +17,7 @@ function Candidates() {
   const { hasPermission } = useSession();
   const { notify } = useNotice();
   const canRestrictCandidates = hasPermission("candidates.restrict");
+  const canCreateCandidates = hasPermission("candidates.create");
   const [candidates, setCandidates] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState({});
@@ -32,6 +33,7 @@ function Candidates() {
   const [restrictionMode, setRestrictionMode] = useState("ban");
   const [restrictionReason, setRestrictionReason] = useState("");
   const [restrictionSaving, setRestrictionSaving] = useState(false);
+  const [odooImporting, setOdooImporting] = useState(false);
 
   const requestedJobId = searchParams.get("job_id") || "";
   const requestedSort = searchParams.get("sort") || "created_desc";
@@ -102,6 +104,39 @@ function Candidates() {
     else next.set("sort", nextSort);
     setSearchParams(next, { replace: true });
     setPage(1);
+  }
+
+  async function importCandidatesFromOdoo() {
+    if (odooImporting) return;
+    setOdooImporting(true);
+    try {
+      const { data } = await api.post("/odoo/applicants/import");
+      const created = Number(data?.created || 0);
+      const existing = Number(data?.existing || 0);
+      const withResume = Number(data?.with_resume || 0);
+      const withoutResume = Number(data?.without_resume || 0);
+      notify({
+        tone: withoutResume > 0 ? "warning" : "success",
+        title: "Candidatos de Odoo actualizados",
+        message:
+          `${created} nuevos · ${existing} ya conocidos · ${withResume} con CV`
+          + (withoutResume > 0 ? ` · ${withoutResume} sin CV para revisión` : ""),
+      });
+      setPage(1);
+      await loadData(1);
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "No se actualizaron los candidatos de Odoo",
+        message: getApiErrorMessage(error, {
+          action: "importar postulantes desde Odoo",
+          resource: "Odoo Recruitment",
+          fallback: "No fue posible traer los candidatos. Los datos existentes en Talent no fueron modificados.",
+        }),
+      });
+    } finally {
+      setOdooImporting(false);
+    }
   }
 
   async function evaluate(candidateId) {
@@ -303,14 +338,26 @@ function Candidates() {
         title="Candidatos"
         description="Centraliza CVs, asigna perfiles a vacantes y ejecuta evaluaciones asistidas por IA."
         actions={(
-          <button
-            type="button"
-            className="btn btn-primary candidate-add-button"
-            onClick={openCreateCandidateModal}
-          >
-            <Icon name="plus" size={17} />
-            Agregar candidato
-          </button>
+          <div className="ui-actions">
+            {canCreateCandidates && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={importCandidatesFromOdoo}
+                disabled={odooImporting}
+              >
+                {odooImporting ? "Actualizando Odoo…" : "Actualizar desde Odoo"}
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-primary candidate-add-button"
+              onClick={openCreateCandidateModal}
+            >
+              <Icon name="plus" size={17} />
+              Agregar candidato
+            </button>
+          </div>
         )}
       />
 
