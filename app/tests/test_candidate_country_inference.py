@@ -80,6 +80,30 @@ def test_ai_fallback_accepts_high_confidence_alpha2(monkeypatch):
     assert result.confidence == "HIGH"
 
 
+def test_ai_country_without_literal_cv_evidence_is_rejected(monkeypatch):
+    monkeypatch.setattr(
+        country,
+        "get_llm",
+        lambda: RunnableLambda(lambda value: value),
+    )
+    monkeypatch.setattr(
+        country,
+        "invoke_json_prompt",
+        lambda *_args, **_kwargs: {
+            "country_code": "CO",
+            "confidence": "HIGH",
+            "evidence": "Bogotá, Colombia",
+        },
+    )
+
+    result = country.infer_country_with_ai(
+        _parsed(header="Ana Test", text="Ana Test\\nIngeniera de sistemas")
+    )
+
+    assert result.country_code is None
+    assert result.source == "CV_UNRESOLVED"
+
+
 def test_ai_low_confidence_does_not_assign_country(monkeypatch):
     monkeypatch.setattr(country, "get_llm", lambda: RunnableLambda(lambda value: value))
     monkeypatch.setattr(
