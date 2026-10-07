@@ -501,6 +501,8 @@ def test_alembic_head_builds_current_postgres_schema():
             for column in inspector.get_columns("user_profiles")
         }
         assert {"country_code", "company_name"}.issubset(employee_columns)
+        job_columns = {column["name"] for column in inspector.get_columns("jobs")}
+        assert "work_mode" in job_columns
 
         job_columns = {
             column["name"]
@@ -509,6 +511,6 @@ def test_alembic_head_builds_current_postgres_schema():
         assert "company_name" in job_columns
 
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
-        assert revision == "046"
+        assert revision == "047"
     finally:
         engine.dispose()
