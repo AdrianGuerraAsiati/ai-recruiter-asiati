@@ -29,6 +29,7 @@ class Candidate(Base):
     )
     name = Column(Text, nullable=False)
     email = Column(Text, nullable=True)
+    country_code = Column(Text, nullable=True)
     owner_sub = Column(Text, nullable=True)
     created_at = Column(
         DateTime(timezone=True),
