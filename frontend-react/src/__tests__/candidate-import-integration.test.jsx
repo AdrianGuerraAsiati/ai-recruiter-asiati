@@ -38,7 +38,7 @@ const jobs = [
   { job_id: "job-2", title: "Data Engineer", candidate_count: 1 },
 ];
 
-function emptyRanking(scope = "assigned") {
+function emptyRanking(scope = "all") {
   return {
     data: {
       candidates: [],
@@ -93,14 +93,14 @@ describe("candidate import page integration", () => {
         api.get.mock.calls.some(
           ([url, config]) =>
             url === "/jobs/job-2/ranking" &&
-            config?.params?.scope === "assigned",
+            config?.params?.scope === "all",
         ),
       ).toBe(true);
     });
 
     expect(
       screen.getByRole("option", {
-        name: "Data Engineer · 1 candidato",
+        name: "Data Engineer · 1 postulante directo",
         selected: true,
       }),
     ).toBeInTheDocument();
