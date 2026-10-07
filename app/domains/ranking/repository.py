@@ -52,6 +52,27 @@ def get_ranking_items(db: Session, ranking_id: str) -> list[RankingItem]:
     return db.query(RankingItem).filter(RankingItem.ranking_id == ranking_id).order_by(RankingItem.position).all()
 
 
+def delete_ranking_for_job(
+    db: Session,
+    *,
+    job_id: str,
+    commit: bool = True,
+) -> None:
+    ranking_ids = [
+        ranking_id
+        for (ranking_id,) in db.query(Ranking.id).filter(Ranking.job_id == job_id).all()
+    ]
+    if ranking_ids:
+        db.query(RankingItem).filter(
+            RankingItem.ranking_id.in_(ranking_ids)
+        ).delete(synchronize_session=False)
+    db.query(Ranking).filter(Ranking.job_id == job_id).delete(
+        synchronize_session=False
+    )
+    if commit:
+        db.commit()
+
+
 def build_ranking_response(
     db: Session,
     job_id: str,
