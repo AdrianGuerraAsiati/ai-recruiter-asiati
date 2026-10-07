@@ -193,6 +193,42 @@ describe("Ranking page", () => {
     expect(screen.getByRole("option", { name: "Vacante con candidatos · 2 postulantes directos" })).toBeInTheDocument();
   });
 
+  it("shows the evaluable country pool even with zero direct applicants", async () => {
+    api.get.mockImplementation((url, config) => {
+      if (url === "/jobs") {
+        return Promise.resolve({
+          data: [{
+            job_id: "job-bde",
+            title: "BDE",
+            candidate_count: 0,
+            status: "ACTIVE",
+            work_mode: "ONSITE",
+            country_code: "CO",
+          }],
+        });
+      }
+      if (url.includes("/cost-estimate")) {
+        expect(config?.params).toEqual({ mode: "fast", scope: "all" });
+        return Promise.resolve({
+          data: {
+            ...COST_ESTIMATE.data,
+            available_candidate_count: 433,
+          },
+        });
+      }
+      if (url.includes("/ranking")) return Promise.resolve(EMPTY_RANKING);
+      return Promise.resolve({ data: [] });
+    });
+
+    renderRanking();
+
+    expect(await screen.findByText(/433 elegibles/)).toBeInTheDocument();
+    expect(screen.getAllByText("433").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/Los postulantes directos no limitan el ranking/),
+    ).toBeInTheDocument();
+  });
+
   it("shows active jobs when candidate_count is missing and hides paused jobs", async () => {
     api.get.mockImplementation((url) => {
       if (url === "/jobs") {
