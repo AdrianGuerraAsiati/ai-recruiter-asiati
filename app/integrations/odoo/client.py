@@ -175,12 +175,18 @@ class OdooXmlRpcClient:
         *,
         fields: Sequence[str] | None = None,
         limit: int | None = None,
+        offset: int | None = None,
+        order: str | None = None,
     ) -> list[dict]:
         kwargs: dict[str, Any] = {}
         if fields is not None:
             kwargs["fields"] = list(fields)
         if limit is not None:
             kwargs["limit"] = int(limit)
+        if offset is not None:
+            kwargs["offset"] = max(0, int(offset))
+        if order:
+            kwargs["order"] = str(order)
         result = self.execute_kw(model, "search_read", [list(domain)], kwargs)
         return list(result or [])
 
