@@ -845,7 +845,7 @@ async function recalculateRanking() {
               className="btn btn-primary"
               onClick={evaluateCandidates}
               disabled={!canRunCandidateActions || loading || rankingActionBusy}
-              title="Procesa candidatos pendientes de esta vacante."
+              title="Evalúa contra esta vacante los candidatos de Talent que aún estén pendientes."
             >
               {isEvaluatingCandidates && <span className="ranking-spinner" />}
               {isEvaluatingCandidates ? "Evaluando candidatos..." : "Evaluar candidatos"}
@@ -863,7 +863,7 @@ async function recalculateRanking() {
               className="btn ranking-btn-recalculate"
               onClick={openRecalculationDisclaimer}
               disabled={!canRunCandidateActions || loading || rankingActionBusy}
-              title="Vuelve a evaluar todos los candidatos de esta vacante."
+              title="Vuelve a evaluar toda la base de candidatos de Talent contra esta vacante."
             >
               {isRecalculating && <span className="ranking-spinner" />}
               {isRecalculating ? "Recalculando ranking..." : "Recalcular ranking"}
@@ -1297,8 +1297,8 @@ async function recalculateRanking() {
                   <strong>Importante</strong>
                   <p>{costEstimate.disclaimer}</p>
                   <p>
-                    Esta confirmación usa la cantidad real de candidatos elegibles para
-                    el alcance seleccionado. El cálculo es informativo y no constituye
+                    Esta confirmación usa la cantidad real de candidatos elegibles de
+                    toda la base de Talent. El cálculo es informativo y no constituye
                     una factura ni un tope garantizado de AWS.
                   </p>
                 </div>
