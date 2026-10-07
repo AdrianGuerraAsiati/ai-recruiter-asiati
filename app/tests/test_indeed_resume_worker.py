@@ -90,6 +90,32 @@ def test_pipeline_happy_path_downloads_stores_ingests_evaluates_and_ranks(db_ses
             sha256="a" * 64,
         ),
     )
+    parsed = type(
+        "Parsed",
+        (),
+        {
+            "filename": "ana.pdf",
+            "header_text": "Ana Perez\\nBogotá, Colombia",
+            "text": "Ana Perez\\nBogotá, Colombia",
+            "phone": "+57 300 1234567",
+        },
+    )()
+    country_calls = []
+    monkeypatch.setattr(
+        indeed_resumes.documents,
+        "extract_document",
+        lambda *_args, **_kwargs: parsed,
+    )
+    monkeypatch.setattr(
+        indeed_resumes.candidate_country,
+        "country_ai_enabled",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        indeed_resumes.candidate_country,
+        "apply_country_inference",
+        lambda _db, **kwargs: country_calls.append(kwargs),
+    )
     monkeypatch.setattr(
         indeed_resumes.storage,
         "write_canonical_candidate_document",
@@ -128,6 +154,10 @@ def test_pipeline_happy_path_downloads_stores_ingests_evaluates_and_ranks(db_ses
         assert persisted.canonical_s3_key == f"documents/cv-{candidate.id}.pdf"
         assert persisted.bedrock_ingestion_job_id == "bedrock-1"
         assert persisted.completed_at is not None
+    assert len(country_calls) == 1
+    assert country_calls[0]["candidate"].id == candidate.id
+    assert country_calls[0]["parsed_document"] is parsed
+    assert country_calls[0]["use_ai"] is True
     assert evaluated == [{"candidate_id": candidate.id, "job_id": job.id, "owner_sub": "owner-1"}]
     assert ranked == [{"job_id": job.id, "owner_sub": "owner-1", "scope": "assigned"}]
 
