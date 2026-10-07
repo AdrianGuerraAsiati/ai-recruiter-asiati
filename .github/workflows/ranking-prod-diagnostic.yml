@@ -1,0 +1,136 @@
+name: Ranking production diagnostic
+
+on:
+  push:
+    branches: ["diag/ranking-prod-500"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      AWS_REGION: us-east-2
+      INSTANCE_NAME: ai-recruiter-micro-prod
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::890876258895:role/AiRecruiterGithubDeployRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Open temporary SSH
+        run: |
+          set -euo pipefail
+          RUNNER_PUBLIC_IP=$(curl -fsS https://checkip.amazonaws.com | tr -d '[:space:]')
+          echo "RUNNER_PUBLIC_IP=$RUNNER_PUBLIC_IP" >> "$GITHUB_ENV"
+          chmod +x scripts/manage-lightsail-ssh-firewall.sh
+          INSTANCE_NAME="$INSTANCE_NAME" AWS_REGION="$AWS_REGION" \
+            scripts/manage-lightsail-ssh-firewall.sh open "$RUNNER_PUBLIC_IP"
+
+      - name: Acquire SSH credentials
+        run: |
+          set -euo pipefail
+          ACCESS_JSON=$(aws lightsail get-instance-access-details --instance-name "$INSTANCE_NAME" --protocol ssh --region "$AWS_REGION")
+          KEY_FILE=/tmp/lightsail-key
+          CERT_FILE="${KEY_FILE}-cert.pub"
+          echo "$ACCESS_JSON" | jq -er '.accessDetails.privateKey' > "$KEY_FILE"
+          echo "$ACCESS_JSON" | jq -er '.accessDetails.certKey' > "$CERT_FILE"
+          chmod 600 "$KEY_FILE" "$CERT_FILE"
+          echo "KEY_FILE=$KEY_FILE" >> "$GITHUB_ENV"
+          echo "SSH_USER=$(echo "$ACCESS_JSON" | jq -er '.accessDetails.username')" >> "$GITHUB_ENV"
+          echo "INSTANCE_IP=$(echo "$ACCESS_JSON" | jq -er '.accessDetails.ipAddress')" >> "$GITHUB_ENV"
+
+      - name: Read ranking production state
+        run: |
+          set -euo pipefail
+          SSH=(-i "$KEY_FILE" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/ranking-known-hosts)
+          ssh "${SSH[@]}" "$SSH_USER@$INSTANCE_IP" 'sudo docker exec ai-recruiter-api python -c "
+          import json
+          from sqlalchemy import func, inspect, text
+          from app.db import SessionLocal, get_engine
+          from app.models import Job, JobCandidate, JobReevaluationTask
+          from app.domains.candidates import repository as candidates_repository
+
+          engine = get_engine()
+          inspector = inspect(engine)
+          columns = sorted(c[\"name\"] for c in inspector.get_columns(\"job_reevaluation_tasks\"))
+          with engine.connect() as conn:
+              revision = conn.execute(text(\"select version_num from alembic_version\")).scalar_one_or_none()
+
+          out = {\"alembic_revision\": revision, \"reevaluation_columns\": columns, \"jobs\": []}
+          with SessionLocal() as db:
+              jobs = db.query(Job).filter(func.lower(Job.title) == \"bde\").all()
+              for job in jobs:
+                  direct = db.query(JobCandidate).filter(JobCandidate.job_id == job.id).count()
+                  country = str(job.country_code or \"\").strip().upper()
+                  if str(job.work_mode or \"ONSITE\").upper() == \"REMOTE\":
+                      pool = candidates_repository.count_candidates(db, owner_sub=None, include_banned=False)
+                  elif country:
+                      pool = candidates_repository.count_candidates_for_country(
+                          db, country_code=country, owner_sub=None, include_banned=False
+                      )
+                  else:
+                      pool = candidates_repository.count_candidates_for_job(
+                          db, job_id=job.id, owner_sub=None, include_banned=False
+                      )
+                  tasks = (
+                      db.query(JobReevaluationTask)
+                      .filter(JobReevaluationTask.job_id == job.id)
+                      .order_by(JobReevaluationTask.created_at.desc())
+                      .limit(5)
+                      .all()
+                  )
+                  out[\"jobs\"].append({
+                      \"id\": str(job.id),
+                      \"status\": str(job.status),
+                      \"country_code\": country,
+                      \"work_mode\": str(job.work_mode),
+                      \"evaluation_version\": int(job.evaluation_version or 1),
+                      \"direct_applicants\": int(direct),
+                      \"eligible_pool\": int(pool),
+                      \"tasks\": [{
+                          \"id\": str(t.id),
+                          \"status\": str(t.status),
+                          \"scope\": str(t.scope),
+                          \"force_evaluation\": bool(t.force_evaluation),
+                          \"attempt_count\": int(t.attempt_count or 0),
+                          \"last_error_code\": t.last_error_code,
+                          \"last_error_message\": t.last_error_message,
+                          \"queue_dispatched_at\": t.queue_dispatched_at.isoformat() if t.queue_dispatched_at else None,
+                          \"created_at\": t.created_at.isoformat() if t.created_at else None,
+                          \"completed_at\": t.completed_at.isoformat() if t.completed_at else None,
+                      } for t in tasks],
+                  })
+          print(\"RANKING_DIAGNOSTIC_JSON=\" + json.dumps(out, ensure_ascii=False, sort_keys=True))
+          "'
+
+      - name: Read sanitized recent logs
+        run: |
+          set -euo pipefail
+          SSH=(-i "$KEY_FILE" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/ranking-known-hosts)
+          ssh "${SSH[@]}" "$SSH_USER@$INSTANCE_IP" '
+            echo "=== API RANKING LOGS ==="
+            sudo docker logs --since 4h ai-recruiter-api 2>&1 \
+              | grep -Ei "ranking|reevaluation|Internal Server Error|Traceback|UndefinedColumn|ProgrammingError|IntegrityError" \
+              | tail -n 220 || true
+            echo "=== WORKER RANKING LOGS ==="
+            sudo docker logs --since 4h ai-recruiter-worker 2>&1 \
+              | grep -Ei "ranking|reevaluation|Traceback|ERROR|ProgrammingError|IntegrityError|job reevaluation" \
+              | tail -n 220 || true
+          '
+
+      - name: Close temporary SSH
+        if: always()
+        run: |
+          chmod +x scripts/manage-lightsail-ssh-firewall.sh
+          INSTANCE_NAME="$INSTANCE_NAME" AWS_REGION="$AWS_REGION" \
+            scripts/manage-lightsail-ssh-firewall.sh close
+
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/lightsail-key /tmp/lightsail-key-cert.pub /tmp/ranking-known-hosts
