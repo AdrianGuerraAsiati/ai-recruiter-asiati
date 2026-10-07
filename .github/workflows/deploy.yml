@@ -309,6 +309,10 @@ jobs:
             test "\$API_STATUS" = running
             echo "\$API_IMAGE" | grep -q ':${{ github.sha }}$'
             echo "BACKEND_IMAGE_OK=\$API_IMAGE"
+            if ! sudo docker exec ai-recruiter-api python -m app.scripts.seed_requested_vacancies_20261007; then
+              echo REQUESTED_VACANCY_SEED_FAILED
+              exit 1
+            fi
             if ! sudo docker exec ai-recruiter-api python -m app.scripts.sync_odoo_jobs; then
               echo ODOO_JOB_BACKFILL_DEFERRED
             fi
