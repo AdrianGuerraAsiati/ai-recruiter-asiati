@@ -283,8 +283,48 @@ class ComputrabajoBrowserUse:
             state = await self._page_state(cdp)
         if await self._requires_human(cdp):
             raise RuntimeError("COMPUTRABAJO_HUMAN_REQUIRED")
+
         if not state.get("hasPassword"):
-            return "ALREADY_AUTHENTICATED"
+            body = str(state.get("body") or "").casefold()
+            dashboard_markers = (
+                "mis ofertas",
+                "buscar candidatos",
+                "reclutamiento",
+                "publicar una oferta",
+            )
+            if sum(marker in body for marker in dashboard_markers) >= 2:
+                return "ALREADY_AUTHENTICATED"
+
+            login_url = await self._evaluate(
+                cdp,
+                r"""(() => {
+  const visible = (el) => !!el && el.offsetParent !== null;
+  const anchors = Array.from(document.querySelectorAll('a[href]')).filter(visible);
+  const candidate = anchors.find((a) =>
+    /reclutadores|empresas|ingresar|iniciar sesi[oó]n|login/i.test(
+      String(a.innerText || a.textContent || '')
+    )
+  );
+  return candidate?.href || '';
+})()""",
+            )
+            if login_url:
+                await self._navigate(cdp, str(login_url))
+                state = await self._page_state(cdp)
+
+        if await self._requires_human(cdp):
+            raise RuntimeError("COMPUTRABAJO_HUMAN_REQUIRED")
+        if not state.get("hasPassword"):
+            body = str(state.get("body") or "").casefold()
+            dashboard_markers = (
+                "mis ofertas",
+                "buscar candidatos",
+                "reclutamiento",
+                "publicar una oferta",
+            )
+            if sum(marker in body for marker in dashboard_markers) >= 2:
+                return "ALREADY_AUTHENTICATED"
+            raise RuntimeError("COMPUTRABAJO_LOGIN_FORM_CHANGED")
 
         username, password = read_computrabajo_credentials()
         username_json = json.dumps(username)
