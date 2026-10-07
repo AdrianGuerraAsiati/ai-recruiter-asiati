@@ -97,11 +97,20 @@ def _uuid():
     return str(uuid.uuid4())
 
 
-def _seed_job(db, job_id=None, title="Dev Python"):
+def _seed_job(
+    db,
+    job_id=None,
+    title="Dev Python",
+    *,
+    country_code=None,
+    work_mode="REMOTE",
+):
     job = Job(
         id=job_id or _uuid(),
         title=title,
         owner_sub="test-user-123",
+        country_code=country_code,
+        work_mode=work_mode,
     )
     db.add(job)
     db.commit()
@@ -509,6 +518,128 @@ def test_ranking_filters_before_pagination(
     assert result["candidates"][0][
         "match_score"
     ] == 29.0
+
+
+def test_recalculate_scope_all_for_onsite_job_filters_to_same_country(
+    client,
+    db_session,
+    monkeypatch,
+):
+    import app.evaluation as evaluation_module
+
+    target = _seed_job(
+        db_session,
+        title="Operaciones Colombia",
+        country_code="CO",
+        work_mode="ONSITE",
+    )
+    colombia_job = _seed_job(
+        db_session,
+        title="Histórica Colombia",
+        country_code="CO",
+        work_mode="ONSITE",
+    )
+    chile_job = _seed_job(
+        db_session,
+        title="Histórica Chile",
+        country_code="CL",
+        work_mode="ONSITE",
+    )
+
+    colombia_candidate = _seed_candidate(db_session, name="Candidato Colombia")
+    chile_candidate = _seed_candidate(db_session, name="Candidato Chile")
+    unknown_candidate = _seed_candidate(db_session, name="Candidato sin país")
+
+    db_session.add_all([
+        JobCandidate(job_id=colombia_job.id, candidate_id=colombia_candidate.id),
+        JobCandidate(job_id=chile_job.id, candidate_id=chile_candidate.id),
+    ])
+    db_session.commit()
+
+    monkeypatch.setattr(
+        evaluation_module,
+        "retrieve_candidate",
+        lambda **kwargs: [{"content": {"text": "CV de prueba"}}],
+    )
+    monkeypatch.setattr(
+        evaluation_module,
+        "evaluate_candidate",
+        lambda **kwargs: {
+            "status": "COMPLETED",
+            "match_score": 60,
+            "recommendation": "GOOD_MATCH",
+            "summary": "x" * 120,
+            "strengths": [],
+            "gaps": [],
+        },
+    )
+
+    response = client.post(
+        f"/api/jobs/{target.id}/ranking/recalculate",
+        params={"mode": "full", "scope": "all"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total_candidates"] == 1
+
+    ranking = client.get(
+        f"/api/jobs/{target.id}/ranking",
+        params={"scope": "all"},
+    ).json()
+    candidate_ids = {candidate["candidate_id"] for candidate in ranking["candidates"]}
+    assert colombia_candidate.id in candidate_ids
+    assert chile_candidate.id not in candidate_ids
+    assert unknown_candidate.id not in candidate_ids
+
+
+def test_recalculate_scope_all_for_remote_job_includes_all_countries(
+    client,
+    db_session,
+    monkeypatch,
+):
+    import app.evaluation as evaluation_module
+
+    target = _seed_job(
+        db_session,
+        title="Remote Global",
+        country_code="CO",
+        work_mode="REMOTE",
+    )
+    colombia_job = _seed_job(db_session, title="CO", country_code="CO", work_mode="ONSITE")
+    chile_job = _seed_job(db_session, title="CL", country_code="CL", work_mode="ONSITE")
+    colombia_candidate = _seed_candidate(db_session, name="Colombia")
+    chile_candidate = _seed_candidate(db_session, name="Chile")
+    db_session.add_all([
+        JobCandidate(job_id=colombia_job.id, candidate_id=colombia_candidate.id),
+        JobCandidate(job_id=chile_job.id, candidate_id=chile_candidate.id),
+    ])
+    db_session.commit()
+
+    monkeypatch.setattr(
+        evaluation_module,
+        "retrieve_candidate",
+        lambda **kwargs: [{"content": {"text": "CV de prueba"}}],
+    )
+    monkeypatch.setattr(
+        evaluation_module,
+        "evaluate_candidate",
+        lambda **kwargs: {
+            "status": "COMPLETED",
+            "match_score": 60,
+            "recommendation": "GOOD_MATCH",
+            "summary": "x" * 120,
+            "strengths": [],
+            "gaps": [],
+        },
+    )
+
+    response = client.post(
+        f"/api/jobs/{target.id}/ranking/recalculate",
+        params={"mode": "full", "scope": "all"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total_candidates"] == 2
 
 
 def test_recalculate_scope_all_includes_unassigned(
