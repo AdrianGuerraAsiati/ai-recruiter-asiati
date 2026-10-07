@@ -384,7 +384,7 @@ def _prepare_batch_documents(db: Session, batch) -> None:
                 db,
                 candidate=candidate,
                 parsed_document=parsed,
-                use_ai=True,
+                use_ai=candidate_country.country_ai_enabled(),
             )
 
             hash_is_old = (
