@@ -263,6 +263,18 @@ def create_candidate_pending(
     return candidate
 
 
+def set_candidate_country(
+    db: Session,
+    candidate: Candidate,
+    *,
+    country_code: str | None,
+) -> Candidate:
+    candidate.country_code = str(country_code or "").strip().upper() or None
+    db.commit()
+    db.refresh(candidate)
+    return candidate
+
+
 def update_candidate_document_metadata(
     db: Session,
     candidate: Candidate,
