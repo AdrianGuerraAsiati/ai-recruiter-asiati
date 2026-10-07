@@ -4,11 +4,14 @@ function JobsListToolbar({
   sort,
   pageSize,
   pageSizeOptions,
+  country,
+  countryOptions,
   onSearchValueChange,
   onSearchSubmit,
   onClearSearch,
   onSortChange,
   onPageSizeChange,
+  onCountryChange,
 }) {
   return (
     <div className="jobs-list-toolbar">
@@ -36,6 +39,19 @@ function JobsListToolbar({
       </form>
 
       <div className="jobs-list-filters">
+        <label className="jobs-filter">
+          <span>País</span>
+          <select
+            aria-label="Filtrar vacantes por país"
+            value={country}
+            onChange={(event) => onCountryChange(event.target.value)}
+          >
+            <option value="">Todos los países</option>
+            {countryOptions.map((item) => (
+              <option key={item.code} value={item.code}>{item.name}</option>
+            ))}
+          </select>
+        </label>
         <label className="jobs-filter">
           <span>Ordenar por</span>
           <select
