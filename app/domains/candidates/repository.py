@@ -270,6 +270,12 @@ def set_candidate_country(
     country_code: str | None,
 ) -> Candidate:
     candidate.country_code = str(country_code or "").strip().upper() or None
+    metadata = dict(candidate.metadata_ or {})
+    metadata["country_source"] = "MANUAL"
+    metadata["country_confidence"] = "HIGH"
+    metadata["country_review_status"] = "MANUAL"
+    metadata["country_checked_at"] = datetime.now(timezone.utc).isoformat()
+    candidate.metadata_ = metadata
     db.commit()
     db.refresh(candidate)
     return candidate
@@ -306,6 +312,11 @@ def ensure_candidate_assigned_to_job(
         job_country = str(job.country_code or "").strip().upper()
         if not candidate_country and job_country:
             candidate.country_code = job_country
+            metadata = dict(candidate.metadata_ or {})
+            metadata["country_source"] = "JOB_FALLBACK"
+            metadata["country_confidence"] = "LOW"
+            metadata["country_review_status"] = "PENDING_CV_VERIFICATION"
+            candidate.metadata_ = metadata
             db.flush()
 
     existing = (
