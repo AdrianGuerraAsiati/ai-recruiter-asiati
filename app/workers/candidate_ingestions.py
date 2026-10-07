@@ -13,6 +13,7 @@ from app.config import get_import_lease_timeout_seconds
 from app.db import SessionLocal
 from app.domains.candidate_ingestion import job_resolution, repository
 from app.domains.candidates import identity as candidate_identity
+from app.domains.candidates import country as candidate_country
 from app.domains.candidates import repository as candidates_repository
 from app.domains.evaluations import service as evaluations_service
 from app.domains.ranking import service as ranking_service
@@ -147,6 +148,15 @@ def _prepare_document(db: Session, event) -> str | None:
             code="IDENTITY_CONFLICT",
             message="Las identidades del documento coinciden con candidatos diferentes.",
         )
+
+    # Country belongs to the candidate master record. Verify it from the CV
+    # before any job-based fallback can fill the field.
+    candidate_country.apply_country_inference(
+        db,
+        candidate=candidate,
+        parsed_document=parsed,
+        use_ai=True,
+    )
 
     written = storage.write_canonical_candidate_document(
         candidate_id=candidate.id,
