@@ -374,8 +374,9 @@ async function evaluateCandidates() {
       if (!refreshed.ok) {
         setActionFeedback({
           type: "error",
-          message:
-            "La evaluación terminó, pero no fue posible cargar el ranking actualizado. Usa «Actualizar ranking» para recuperarlo.",
+          message: refreshed.scopeMismatch
+            ? "El ranking guardado pertenece al alcance anterior. Recalcula para comparar esta vacante contra toda la base de candidatos de Talent."
+            : "La evaluación terminó, pero no fue posible cargar el ranking actualizado. Usa «Actualizar ranking» para recuperarlo.",
         });
         return;
       }
@@ -583,8 +584,9 @@ async function recalculateRanking() {
       if (!refreshed.ok) {
         setActionFeedback({
           type: "error",
-          message:
-            "El recálculo terminó, pero no fue posible cargar la nueva versión. Usa «Actualizar ranking» para recuperarla.",
+          message: refreshed.scopeMismatch
+            ? "El ranking guardado pertenece al alcance anterior. Recalcula para comparar esta vacante contra toda la base de candidatos de Talent."
+            : "El recálculo terminó, pero no fue posible cargar la nueva versión. Usa «Actualizar ranking» para recuperarla.",
         });
         return;
       }
