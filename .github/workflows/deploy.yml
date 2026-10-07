@@ -319,6 +319,57 @@ jobs:
               echo ODOO_EMPLOYEE_BACKFILL_DEFERRED
             fi
 
+            # One-shot destructive maintenance: remove all Talent vacancies while
+            # preserving candidate master records. The exact confirmation value is
+            # required in S3 so an accidental object cannot trigger the purge.
+            JOB_PURGE_KEY="admin/job-purge/pending.json"
+            JOB_PURGE_RESULT_KEY="admin/job-purge/latest-result.json"
+            if AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws s3api head-object \
+              --bucket "$IMPORT_STAGING_BUCKET" \
+              --key "\$JOB_PURGE_KEY" \
+              --profile ai-recruiter-bedrock >/dev/null 2>&1; then
+              AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws s3api get-object \
+                --bucket "$IMPORT_STAGING_BUCKET" \
+                --key "\$JOB_PURGE_KEY" \
+                --profile ai-recruiter-bedrock \
+                /tmp/job-purge.json >/dev/null
+              JOB_PURGE_CONFIRM=\$(jq -er '.confirm' /tmp/job-purge.json)
+              test "\$JOB_PURGE_CONFIRM" = "KEEP_CANDIDATES_DELETE_ALL_JOBS"
+
+              JOB_PURGE_OK=0
+              if sudo docker exec ai-recruiter-api \
+                python -m app.scripts.purge_jobs_keep_candidates \
+                --confirm "\$JOB_PURGE_CONFIRM" \
+                --result /tmp/job-purge-result.json; then
+                JOB_PURGE_OK=1
+              fi
+
+              sudo docker cp ai-recruiter-api:/tmp/job-purge-result.json /tmp/job-purge-result.json || true
+              if [ -f /tmp/job-purge-result.json ]; then
+                AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws s3api put-object \
+                  --bucket "$IMPORT_STAGING_BUCKET" \
+                  --key "\$JOB_PURGE_RESULT_KEY" \
+                  --body /tmp/job-purge-result.json \
+                  --server-side-encryption AES256 \
+                  --profile ai-recruiter-bedrock >/dev/null
+              fi
+
+              if [ "\$JOB_PURGE_OK" != "1" ]; then
+                echo JOB_PURGE_FAILED
+                exit 1
+              fi
+
+              AWS_CONFIG_FILE=/opt/ai-recruiter/aws/config aws s3api delete-object \
+                --bucket "$IMPORT_STAGING_BUCKET" \
+                --key "\$JOB_PURGE_KEY" \
+                --profile ai-recruiter-bedrock >/dev/null
+              sudo rm -f /tmp/job-purge-result.json
+              rm -f /tmp/job-purge.json
+              echo JOB_PURGE_KEEP_CANDIDATES_OK
+            else
+              echo JOB_PURGE_NOT_PENDING
+            fi
+
             # One-shot private reconciliation for biometric-clock employee IDs.
             BIOMETRIC_SYNC_KEY="admin/biometric-employee-sync/pending.json"
             BIOMETRIC_RESULT_KEY="admin/biometric-employee-sync/latest-result.json"
