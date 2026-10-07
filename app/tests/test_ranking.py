@@ -118,12 +118,20 @@ def _seed_job(
     return job
 
 
-def _seed_candidate(db, candidate_id=None, name="Ana García", email=None, owner_sub="test-user-123"):
+def _seed_candidate(
+    db,
+    candidate_id=None,
+    name="Ana García",
+    email=None,
+    owner_sub="test-user-123",
+    country_code=None,
+):
     cand = Candidate(
         id=candidate_id or _uuid(),
         name=name,
         email=email,
         owner_sub=owner_sub,
+        country_code=country_code,
     )
     db.add(cand)
     db.commit()
@@ -518,6 +526,65 @@ def test_ranking_filters_before_pagination(
     assert result["candidates"][0][
         "match_score"
     ] == 29.0
+
+
+def test_recalculate_onsite_uses_persisted_candidate_country_without_job_links(
+    client,
+    db_session,
+    monkeypatch,
+):
+    import app.evaluation as evaluation_module
+
+    target = _seed_job(
+        db_session,
+        title="Vacante Colombia",
+        country_code="CO",
+        work_mode="ONSITE",
+    )
+    colombia_candidate = _seed_candidate(
+        db_session,
+        name="Histórico Colombia",
+        country_code="CO",
+    )
+    chile_candidate = _seed_candidate(
+        db_session,
+        name="Histórico Chile",
+        country_code="CL",
+    )
+
+    monkeypatch.setattr(
+        evaluation_module,
+        "retrieve_candidate",
+        lambda **kwargs: [{"content": {"text": "CV de prueba"}}],
+    )
+    monkeypatch.setattr(
+        evaluation_module,
+        "evaluate_candidate",
+        lambda **kwargs: {
+            "status": "COMPLETED",
+            "match_score": 75,
+            "recommendation": "GOOD_MATCH",
+            "summary": "x" * 120,
+            "strengths": [],
+            "gaps": [],
+        },
+    )
+
+    response = client.post(
+        f"/api/jobs/{target.id}/ranking/recalculate",
+        params={"mode": "full", "scope": "all"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total_candidates"] == 1
+
+    ranking = client.get(
+        f"/api/jobs/{target.id}/ranking",
+        params={"scope": "all"},
+    ).json()
+    candidate_ids = {candidate["candidate_id"] for candidate in ranking["candidates"]}
+    assert colombia_candidate.id in candidate_ids
+    assert chile_candidate.id not in candidate_ids
 
 
 def test_recalculate_scope_all_for_onsite_job_filters_to_same_country(
