@@ -355,3 +355,40 @@ class TestJobCompanyPersistence:
         db_session.expire_all()
         job = db_session.query(Job).filter(Job.id == job_id).one()
         assert job.company_name == "ASIATI Corp Colombia"
+
+
+
+class TestJobsPageStatusFilter:
+    def test_filters_active_and_paused_vacancies(self, client, db_session):
+        active = Job(
+            id=_uid(),
+            title="Vacante activa",
+            description="Activa",
+            owner_sub="user-a",
+            status="ACTIVE",
+        )
+        paused = Job(
+            id=_uid(),
+            title="Vacante pausada",
+            description="Pausada",
+            owner_sub="user-a",
+            status="PAUSED",
+        )
+        db_session.add_all([active, paused])
+        db_session.commit()
+
+        active_response = client.get("/api/jobs/page", params={"status": "ACTIVE"})
+        assert active_response.status_code == 200
+        active_payload = active_response.json()
+        assert active_payload["total"] == 1
+        assert [item["title"] for item in active_payload["items"]] == ["Vacante activa"]
+
+        paused_response = client.get("/api/jobs/page", params={"status": "PAUSED"})
+        assert paused_response.status_code == 200
+        paused_payload = paused_response.json()
+        assert paused_payload["total"] == 1
+        assert [item["title"] for item in paused_payload["items"]] == ["Vacante pausada"]
+
+    def test_rejects_unknown_vacancy_status_filter(self, client):
+        response = client.get("/api/jobs/page", params={"status": "CLOSED"})
+        assert response.status_code == 422

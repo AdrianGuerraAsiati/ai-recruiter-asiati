@@ -67,6 +67,7 @@ def list_jobs_page(
     ] = Query("created_desc"),
     q: str = Query("", max_length=120),
     country_code: str = Query("", max_length=2),
+    status: Literal["ACTIVE", "PAUSED"] | None = Query(None),
 ):
     rows, total = service.list_jobs_page(
         db,
@@ -76,6 +77,7 @@ def list_jobs_page(
         sort=sort,
         q=q,
         country_code=country_code,
+        status=status,
     )
     return {
         "items": [

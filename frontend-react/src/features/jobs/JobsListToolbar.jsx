@@ -6,12 +6,14 @@ function JobsListToolbar({
   pageSizeOptions,
   country,
   countryOptions,
+  status,
   onSearchValueChange,
   onSearchSubmit,
   onClearSearch,
   onSortChange,
   onPageSizeChange,
   onCountryChange,
+  onStatusChange,
 }) {
   return (
     <div className="jobs-list-toolbar">
@@ -50,6 +52,18 @@ function JobsListToolbar({
             {countryOptions.map((item) => (
               <option key={item.code} value={item.code}>{item.name}</option>
             ))}
+          </select>
+        </label>
+        <label className="jobs-filter">
+          <span>Estado</span>
+          <select
+            aria-label="Filtrar vacantes por estado"
+            value={status}
+            onChange={(event) => onStatusChange(event.target.value)}
+          >
+            <option value="">Todas</option>
+            <option value="ACTIVE">Activas</option>
+            <option value="PAUSED">Pausadas</option>
           </select>
         </label>
         <label className="jobs-filter">

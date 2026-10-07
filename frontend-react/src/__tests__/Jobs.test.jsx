@@ -88,12 +88,36 @@ describe("Jobs page", () => {
           sort: "title_asc",
           q: "",
           country_code: undefined,
+          status: undefined,
         },
       });
     });
   });
 
 
+
+
+  it("filters vacancies by active status", async () => {
+    renderJobs();
+    await screen.findByText("Backend Developer");
+
+    fireEvent.change(screen.getByLabelText("Filtrar vacantes por estado"), {
+      target: { value: "ACTIVE" },
+    });
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith("/jobs/page", {
+        params: {
+          page: 1,
+          page_size: 12,
+          sort: "created_desc",
+          q: "",
+          country_code: undefined,
+          status: "ACTIVE",
+        },
+      });
+    });
+  });
 
   it("opens vacancy creation as a popup instead of an inline section", async () => {
     renderJobs();
