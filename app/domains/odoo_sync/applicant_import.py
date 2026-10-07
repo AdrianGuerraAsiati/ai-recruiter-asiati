@@ -537,11 +537,17 @@ def _sync_job(
     storage,
     page_size: int,
 ) -> dict:
+    owner_sub = str(job.owner_sub or "").strip()
+    if not owner_sub:
+        raise OdooApplicantImportError(
+            f"Talent job {job.id} has no owner_sub and cannot ingest candidates safely."
+        )
+
     odoo_job_id = int(str(sync.odoo_record_id))
     source_account = _source_account(database=database, odoo_job_id=odoo_job_id)
     cursor = ingestion_repository.get_cursor(
         db,
-        owner_sub=job.owner_sub,
+        owner_sub=owner_sub,
         source=SOURCE,
         provider=PROVIDER,
         source_account=source_account,
@@ -590,7 +596,7 @@ def _sync_job(
         cursor_value = _encode_cursor(rows[-1])
         ingestion_repository.upsert_cursor(
             db,
-            owner_sub=job.owner_sub,
+            owner_sub=owner_sub,
             source=SOURCE,
             provider=PROVIDER,
             source_account=source_account,
