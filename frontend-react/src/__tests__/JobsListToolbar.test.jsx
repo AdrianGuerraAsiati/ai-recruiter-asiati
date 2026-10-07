@@ -12,11 +12,17 @@ function renderToolbar(overrides = {}) {
     sort: "created_desc",
     pageSize: 12,
     pageSizeOptions: [12, 24, 48],
+    country: "",
+    countryOptions: [
+      { code: "CO", name: "Colombia" },
+      { code: "CL", name: "Chile" },
+    ],
     onSearchValueChange: vi.fn(),
     onSearchSubmit: vi.fn((event) => event.preventDefault()),
     onClearSearch: vi.fn(),
     onSortChange: vi.fn(),
     onPageSizeChange: vi.fn(),
+    onCountryChange: vi.fn(),
     ...overrides,
   };
 
@@ -29,6 +35,7 @@ describe("JobsListToolbar", () => {
     renderToolbar();
 
     expect(screen.getByLabelText("Buscar vacante")).toHaveValue("backend");
+    expect(screen.getByLabelText("Filtrar vacantes por país")).toHaveValue("");
     expect(screen.getByLabelText("Ordenar por")).toHaveValue("created_desc");
     expect(screen.getByLabelText("Vacantes por página")).toHaveValue("12");
     expect(screen.getByRole("button", { name: "Limpiar" })).toBeInTheDocument();
@@ -48,9 +55,12 @@ describe("JobsListToolbar", () => {
     expect(props.onClearSearch).toHaveBeenCalledTimes(1);
   });
 
-  it("delegates sort and page-size changes", () => {
+  it("delegates country, sort and page-size changes", () => {
     const props = renderToolbar();
 
+    fireEvent.change(screen.getByLabelText("Filtrar vacantes por país"), {
+      target: { value: "CO" },
+    });
     fireEvent.change(screen.getByLabelText("Ordenar por"), {
       target: { value: "candidates_desc" },
     });
@@ -58,6 +68,7 @@ describe("JobsListToolbar", () => {
       target: { value: "24" },
     });
 
+    expect(props.onCountryChange).toHaveBeenCalledWith("CO");
     expect(props.onSortChange).toHaveBeenCalledWith("candidates_desc");
     expect(props.onPageSizeChange).toHaveBeenCalledWith("24");
   });
