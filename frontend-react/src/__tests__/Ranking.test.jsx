@@ -164,6 +164,7 @@ describe("Ranking page", () => {
       if (url === "/jobs") {
         return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
       }
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) {
         return Promise.resolve(EMPTY_RANKING);
       }
@@ -181,6 +182,7 @@ describe("Ranking page", () => {
           ],
         });
       }
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) return Promise.resolve(EMPTY_RANKING);
       return Promise.resolve({ data: [] });
     });
@@ -202,6 +204,7 @@ describe("Ranking page", () => {
           ],
         });
       }
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) return Promise.resolve(EMPTY_RANKING);
       return Promise.resolve({ data: [] });
     });
@@ -223,6 +226,7 @@ describe("Ranking page", () => {
           ],
         });
       }
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) return Promise.resolve(EMPTY_RANKING);
       return Promise.resolve({ data: [] });
     });
@@ -261,13 +265,13 @@ describe("Ranking page", () => {
   // ============================================================
 
   it("sends correct POST when clicking Evaluar candidatos", async () => {
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 2, evaluated: 2, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 2, evaluated: 2, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Evaluar candidatos" })).not.toBeDisabled(); });
     fireEvent.click(screen.getByRole("button", { name: "Evaluar candidatos" }));
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith(
-        "/jobs/job-1/ranking/recalculate",
+        "/jobs/job-1/ranking/recalculate-async",
         null,
         { params: { mode: "incremental", scope: "all" } },
       );
@@ -282,16 +286,17 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) return Promise.resolve({ data: { candidates: [], ranking_generated_at: null, ranking_version: null, ranking_scope: "all", ranking_total: 0, total: 0, total_pages: 0, page: 1, page_size: 10, pending_candidates: 0 } });
       return Promise.resolve({ data: [] });
     });
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 3, evaluated: 3, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 3, evaluated: 3, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Evaluar candidatos" })).not.toBeDisabled(); });
     fireEvent.click(screen.getByRole("button", { name: "Evaluar candidatos" }));
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith(
-        "/jobs/job-1/ranking/recalculate",
+        "/jobs/job-1/ranking/recalculate-async",
         null,
         { params: { mode: "incremental", scope: "all" } },
       );
@@ -327,6 +332,7 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) return Promise.resolve({ data: { candidates: [], ranking_generated_at: null, ranking_version: null, ranking_scope: "all", ranking_total: 0, total: 0, total_pages: 0, page: 1, page_size: 10, pending_candidates: 0 } });
       return Promise.resolve({ data: [] });
     });
@@ -366,13 +372,13 @@ describe("Ranking page", () => {
   // ============================================================
 
   it("sends correct POST when confirming Recalcular ranking", async () => {
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 1, evaluated: 1, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 1, evaluated: 1, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled(); });
     await confirmRecalculation();
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith(
-        "/jobs/job-1/ranking/recalculate",
+        "/jobs/job-1/ranking/recalculate-async",
         null,
         { params: { mode: "full", scope: "all" } },
       );
@@ -387,16 +393,17 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) return Promise.resolve({ data: { candidates: [], ranking_generated_at: null, ranking_version: null, ranking_scope: "all", ranking_total: 0, total: 0, total_pages: 0, page: 1, page_size: 10, pending_candidates: 0 } });
       return Promise.resolve({ data: [] });
     });
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 1, evaluated: 1, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 1, evaluated: 1, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled(); });
     await confirmRecalculation();
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith(
-        "/jobs/job-1/ranking/recalculate",
+        "/jobs/job-1/ranking/recalculate-async",
         null,
         { params: { mode: "full", scope: "all" } },
       );
@@ -413,6 +420,7 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) return Promise.resolve(EMPTY_RANKING);
       return Promise.resolve({ data: [] });
     });
@@ -425,7 +433,7 @@ describe("Ranking page", () => {
     });
     expect(screen.getByRole("button", { name: "Actualizar ranking" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Recalcular ranking" })).toBeDisabled();
-    resolvePost({ data: { total_candidates: 0, evaluated: 0, failed: 0 } });
+    resolvePost({ data: { task_id: "task-1", status: "PENDING", total_candidates: 0, evaluated: 0, failed: 0 } });
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Evaluar candidatos" })).not.toBeDisabled();
     });
@@ -441,6 +449,7 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) {
         rankingCount += 1;
         if (rankingCount <= 1) {
@@ -474,6 +483,7 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) return Promise.resolve(EMPTY_RANKING);
       return Promise.resolve({ data: [] });
     });
@@ -486,7 +496,7 @@ describe("Ranking page", () => {
     });
     expect(screen.getByRole("button", { name: "Evaluar candidatos" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Actualizar ranking" })).toBeDisabled();
-    resolvePost({ data: { total_candidates: 1, evaluated: 1, failed: 0 } });
+    resolvePost({ data: { task_id: "task-1", status: "PENDING", total_candidates: 1, evaluated: 1, failed: 0 } });
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled();
     });
@@ -501,6 +511,7 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -508,7 +519,7 @@ describe("Ranking page", () => {
       }
       return Promise.resolve({ data: [] });
     });
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 1, evaluated: 1, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 1, evaluated: 1, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Evaluar candidatos" })).not.toBeDisabled(); });
     fireEvent.click(screen.getByRole("button", { name: "Evaluar candidatos" }));
@@ -528,6 +539,7 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -535,7 +547,7 @@ describe("Ranking page", () => {
       }
       return Promise.resolve({ data: [] });
     });
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 1, evaluated: 1, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 1, evaluated: 1, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled(); });
     await confirmRecalculation();
@@ -551,7 +563,7 @@ describe("Ranking page", () => {
   // ============================================================
 
   it("does not show mode modal after clicking Actualizar or Recalcular", async () => {
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 1, evaluated: 1, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 1, evaluated: 1, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Actualizar ranking" })).not.toBeDisabled(); });
     fireEvent.click(screen.getByRole("button", { name: "Actualizar ranking" }));
@@ -572,6 +584,7 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -579,16 +592,16 @@ describe("Ranking page", () => {
       }
       return Promise.resolve({ data: [] });
     });
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 2, evaluated: 2, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 2, evaluated: 2, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Evaluar candidatos" })).not.toBeDisabled(); });
     fireEvent.click(screen.getByRole("button", { name: "Evaluar candidatos" }));
-    await waitFor(() => { expect(screen.getByText("Evaluación completada: 2 candidatos procesados.")).toBeInTheDocument(); });
+    await waitFor(() => { expect(screen.getByText("Evaluación completada y ranking actualizado.")).toBeInTheDocument(); });
 
     fireEvent.click(screen.getByRole("button", { name: "Actualizar ranking" }));
     await waitFor(() => { expect(screen.getByText("Ranking actualizado.")).toBeInTheDocument(); });
 
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 1, evaluated: 1, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 1, evaluated: 1, failed: 0 } });
     await confirmRecalculation();
     await waitFor(() => { expect(screen.getByText("Ranking recalculado correctamente.")).toBeInTheDocument(); });
   });
@@ -602,6 +615,7 @@ describe("Ranking page", () => {
         });
       }
 
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) {
         const scope = config?.params?.scope || "assigned";
 
@@ -641,16 +655,17 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) return Promise.resolve(ALL_CANDIDATES_RANKING);
       return Promise.resolve({ data: [] });
     });
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 5, evaluated: 5, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 5, evaluated: 5, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled(); });
     await confirmRecalculation();
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith(
-        "/jobs/job-1/ranking/recalculate",
+        "/jobs/job-1/ranking/recalculate-async",
         null,
         { params: { mode: "full", scope: "all" } },
       );
@@ -662,16 +677,17 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) return Promise.resolve(ALL_CANDIDATES_RANKING);
       return Promise.resolve({ data: [] });
     });
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 5, evaluated: 5, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 5, evaluated: 5, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Evaluar candidatos" })).not.toBeDisabled(); });
     fireEvent.click(screen.getByRole("button", { name: "Evaluar candidatos" }));
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith(
-        "/jobs/job-1/ranking/recalculate",
+        "/jobs/job-1/ranking/recalculate-async",
         null,
         { params: { mode: "incremental", scope: "all" } },
       );
@@ -684,6 +700,7 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -691,7 +708,7 @@ describe("Ranking page", () => {
       }
       return Promise.resolve({ data: [] });
     });
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 5, evaluated: 5, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 5, evaluated: 5, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled(); });
     await confirmRecalculation();
@@ -704,6 +721,7 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -711,7 +729,7 @@ describe("Ranking page", () => {
       }
       return Promise.resolve({ data: [] });
     });
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 5, evaluated: 5, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 5, evaluated: 5, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled(); });
     // Change scope to "all" to trigger scope_mismatch (ranking was generated for "assigned")
@@ -744,6 +762,7 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -751,13 +770,13 @@ describe("Ranking page", () => {
       }
       return Promise.resolve({ data: [] });
     });
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 5, evaluated: 5, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 5, evaluated: 5, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled(); });
     await confirmRecalculation();
     await waitFor(() => {
       expect(screen.queryByText("Ranking recalculado correctamente.")).not.toBeInTheDocument();
-      expect(screen.getByText(/El recálculo terminó, pero la consulta posterior no devolvió la nueva versión del ranking/i)).toBeInTheDocument();
+      expect(screen.getByText(/El recálculo terminó, pero no hay candidatos elegibles para esta vacante según país y modalidad/i)).toBeInTheDocument();
     });
   });
 
@@ -767,6 +786,7 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -774,12 +794,12 @@ describe("Ranking page", () => {
       }
       return Promise.resolve({ data: [] });
     });
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 0, evaluated: 0, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 0, evaluated: 0, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled(); });
     await confirmRecalculation();
     await waitFor(() => {
-      expect(screen.getByText("No hay candidatos registrados en Talent para construir el ranking.")).toBeInTheDocument();
+      expect(screen.getByText("El recálculo terminó, pero no hay candidatos elegibles para esta vacante según país y modalidad.")).toBeInTheDocument();
     });
   });
 
@@ -789,6 +809,7 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -796,12 +817,12 @@ describe("Ranking page", () => {
       }
       return Promise.resolve({ data: [] });
     });
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 0, evaluated: 0, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 0, evaluated: 0, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled(); });
     await confirmRecalculation();
     await waitFor(() => {
-      expect(screen.getByText("No hay candidatos registrados en Talent para construir el ranking.")).toBeInTheDocument();
+      expect(screen.getByText("El recálculo terminó, pero no hay candidatos elegibles para esta vacante según país y modalidad.")).toBeInTheDocument();
     });
   });
 
@@ -810,6 +831,7 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url, config) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) {
         const scope = config?.params?.scope || "assigned";
         if (scope === "all") return Promise.resolve(SCOPE_MISMATCH_RANKING);
@@ -833,6 +855,7 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -852,6 +875,7 @@ describe("Ranking page", () => {
     api.get.mockImplementation((url) => {
       if (url.includes("/cost-estimate")) return Promise.resolve(COST_ESTIMATE);
       if (url === "/jobs") return Promise.resolve({ data: [{ job_id: "job-1", title: "Dev Python", candidate_count: 1, work_mode: "REMOTE" }] });
+      if (url.includes("/ranking/recalculate-async/")) return Promise.resolve({ data: { task_id: "task-1", status: "COMPLETED", last_error_code: null } });
       if (url.includes("/ranking")) {
         rankingCalls += 1;
         if (rankingCalls <= 1) return Promise.resolve(EMPTY_RANKING);
@@ -859,7 +883,7 @@ describe("Ranking page", () => {
       }
       return Promise.resolve({ data: [] });
     });
-    api.post.mockResolvedValueOnce({ data: { total_candidates: 25, evaluated: 25, failed: 0 } });
+    api.post.mockResolvedValueOnce({ data: { task_id: "task-1", status: "PENDING", total_candidates: 25, evaluated: 25, failed: 0 } });
     renderRanking();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled(); });
     await confirmRecalculation();
