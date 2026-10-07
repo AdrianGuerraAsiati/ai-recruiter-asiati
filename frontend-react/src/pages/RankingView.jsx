@@ -1058,6 +1058,11 @@ async function recalculateRanking() {
               <h3>Vacante activa sin candidatos</h3>
               <p>La posición seguirá visible en Ranking IA. Cuando llegue la primera postulación podrás evaluarla desde aquí.</p>
             </>
+          ) : rankingMessage ? (
+            <>
+              <h3>El alcance del ranking cambió</h3>
+              <p>{rankingMessage}</p>
+            </>
           ) : rankingInfo.pending > 0 ? (
             <>
               <h3>Hay candidatos pendientes de evaluación</h3>
