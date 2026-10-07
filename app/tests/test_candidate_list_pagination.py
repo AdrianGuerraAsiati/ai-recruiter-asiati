@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 import app.models  # noqa: F401
 from app.db import Base
 from app.domains.candidates import router as candidates_router
-from app.models import Candidate
+from app.models import Candidate, Job, JobCandidate
 
 
 def _db():
@@ -34,6 +34,7 @@ def test_candidates_endpoint_returns_fixed_page_of_20_with_metadata():
             page=2,
             page_size=20,
             db=db,
+            country_code="",
             _user={"sub": "owner-1"},
         )
 
@@ -63,6 +64,7 @@ def test_candidates_endpoint_supports_alphabetical_name_sort():
             page=1,
             page_size=20,
             sort="name_asc",
+            country_code="",
             db=db,
             _user={"sub": "owner-1"},
         )
@@ -76,6 +78,7 @@ def test_candidates_endpoint_supports_alphabetical_name_sort():
             page=1,
             page_size=20,
             sort="name_desc",
+            country_code="",
             db=db,
             _user={"sub": "owner-1"},
         )
@@ -84,6 +87,57 @@ def test_candidates_endpoint_supports_alphabetical_name_sort():
             "Carlos",
             "Ana",
         ]
+    finally:
+        db.close()
+        engine.dispose()
+
+
+def test_candidates_endpoint_filters_by_assigned_job_country_without_duplicates():
+    engine, db = _db()
+    try:
+        colombia = Job(
+            title="Colombia Role",
+            description="CO",
+            country_code="CO",
+            owner_sub="owner-1",
+        )
+        colombia_two = Job(
+            title="Second Colombia Role",
+            description="CO2",
+            country_code="CO",
+            owner_sub="owner-1",
+        )
+        chile = Job(
+            title="Chile Role",
+            description="CL",
+            country_code="CL",
+            owner_sub="owner-1",
+        )
+        ana = Candidate(name="Ana Colombia", owner_sub="owner-1", metadata_={})
+        betty = Candidate(name="Betty Chile", owner_sub="owner-1", metadata_={})
+        unassigned = Candidate(name="Sin asignar", owner_sub="owner-1", metadata_={})
+        db.add_all([colombia, colombia_two, chile, ana, betty, unassigned])
+        db.flush()
+        db.add_all(
+            [
+                JobCandidate(job_id=colombia.id, candidate_id=ana.id),
+                JobCandidate(job_id=colombia_two.id, candidate_id=ana.id),
+                JobCandidate(job_id=chile.id, candidate_id=betty.id),
+            ]
+        )
+        db.commit()
+
+        payload = candidates_router.list_candidates(
+            page=1,
+            page_size=20,
+            sort="name_asc",
+            country_code="co",
+            db=db,
+            _user={"sub": "owner-1"},
+        )
+
+        assert payload["total"] == 1
+        assert [item["name"] for item in payload["items"]] == ["Ana Colombia"]
     finally:
         db.close()
         engine.dispose()
