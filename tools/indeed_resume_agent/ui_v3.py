@@ -5,11 +5,12 @@ import re
 import threading
 
 from .api_client import QueueStats
+from .credential_store import write_computrabajo_credentials
 from .sync_services import CandidateSyncService, VacancySyncReport, VacancySyncService
 from .ui_v2 import LayoutSpec, UiState, _vacancy_summary, build_ui_state
 from .worker import WorkerSnapshot
 
-_SAFE_CODE = re.compile(r"^(?:GMAIL|INDEED|RESUME)_[A-Z0-9_]{2,100}$")
+_SAFE_CODE = re.compile(r"^(?:GMAIL|INDEED|RESUME|COMPUTRABAJO|CANDIDATE)_[A-Z0-9_]{2,100}$")
 
 _UI = {
     "bg": "#F4F7FB",
@@ -112,16 +113,16 @@ def _candidate_summary(report) -> str:
     )
 
 
-def run_ui(*, worker, api, browser) -> None:
+def run_ui(*, worker, api, browser, computrabajo=None) -> None:
     import tkinter as tk
-    from tkinter import ttk
+    from tkinter import messagebox, simpledialog, ttk
 
     worker.pause()
     vacancy_service = VacancySyncService(api=api, browser=browser)
     candidate_service = CandidateSyncService(api=api)
 
     root = tk.Tk()
-    root.title("ASIATI Resume Agent")
+    root.title("ASIATI Candidate Agent")
     root.geometry("980x640")
     root.minsize(720, 540)
     root.configure(background=_UI["bg"])
@@ -248,10 +249,10 @@ def run_ui(*, worker, api, browser) -> None:
     header.columnconfigure(0, weight=1)
     title_box = ttk.Frame(header, style="App.TFrame")
     title_box.grid(row=0, column=0, sticky="ew")
-    ttk.Label(title_box, text="ASIATI Resume Agent", style="AgentTitle.TLabel").pack(anchor="w")
+    ttk.Label(title_box, text="ASIATI Candidate Agent", style="AgentTitle.TLabel").pack(anchor="w")
     ttk.Label(
         title_box,
-        text="Indeed · vacantes, postulaciones y CVs",
+        text="Indeed + Computrabajo · vacantes, postulaciones y CVs",
         style="AgentSubtitle.TLabel",
     ).pack(anchor="w", pady=(1, 0))
 
@@ -268,7 +269,7 @@ def run_ui(*, worker, api, browser) -> None:
     session_box.grid(row=0, column=1, sticky="e", padx=(10, 0))
     session_heading_widget = tk.Label(
         session_box,
-        text="SESIÓN INDEED",
+        text="COLA DE CANDIDATOS",
         background=_UI["surface"],
         foreground=_UI["muted"],
         font=("Segoe UI", 8, "bold"),
@@ -395,6 +396,37 @@ def run_ui(*, worker, api, browser) -> None:
         pause_button.configure(state="normal")
         commands.put("resume")
 
+    def configure_computrabajo() -> None:
+        username = simpledialog.askstring(
+            "Computrabajo",
+            "Usuario corporativo de Computrabajo:",
+            parent=root,
+        )
+        if not username:
+            return
+        password = simpledialog.askstring(
+            "Computrabajo",
+            "Clave de Computrabajo:",
+            show="*",
+            parent=root,
+        )
+        if not password:
+            return
+        try:
+            write_computrabajo_credentials(username, password)
+        except Exception:
+            messagebox.showerror(
+                "Computrabajo",
+                "No fue posible guardar las credenciales en Windows Credential Manager.",
+                parent=root,
+            )
+            return
+        messagebox.showinfo(
+            "Computrabajo",
+            "Credenciales guardadas de forma local en Windows Credential Manager.",
+            parent=root,
+        )
+
     action_card = ttk.LabelFrame(shell, text="Sincronización", style="Section.TLabelframe", padding=9)
     action_card.pack(fill="x", pady=(0, 8))
     sync_all_button = ttk.Button(
@@ -411,11 +443,22 @@ def run_ui(*, worker, api, browser) -> None:
     )
     sync_candidates_button = ttk.Button(
         action_card,
-        text="Actualizar candidatos",
+        text="Actualizar candidatos Indeed",
         style="Secondary.TButton",
         command=lambda: commands.put("sync_candidates"),
     )
-    sync_buttons = [sync_all_button, sync_jobs_button, sync_candidates_button]
+    sync_computrabajo_button = ttk.Button(
+        action_card,
+        text="Importar Computrabajo",
+        style="Secondary.TButton",
+        command=lambda: commands.put("sync_computrabajo"),
+    )
+    sync_buttons = [
+        sync_all_button,
+        sync_jobs_button,
+        sync_candidates_button,
+        sync_computrabajo_button,
+    ]
 
     operations = ttk.LabelFrame(shell, text="Operación", style="Section.TLabelframe", padding=9)
     operations.pack(fill="x", pady=(0, 8))
@@ -449,12 +492,32 @@ def run_ui(*, worker, api, browser) -> None:
         style="Secondary.TButton",
         command=lambda: commands.put("open"),
     )
+    open_computrabajo_button = ttk.Button(
+        operations,
+        text=(
+            f"Abrir Computrabajo ({computrabajo.browser_label})"
+            if computrabajo is not None
+            else "Abrir Computrabajo"
+        ),
+        style="Secondary.TButton",
+        command=lambda: commands.put("open_computrabajo"),
+        state="normal" if computrabajo is not None else "disabled",
+    )
+    configure_computrabajo_button = ttk.Button(
+        operations,
+        text="Configurar Computrabajo",
+        style="Secondary.TButton",
+        command=configure_computrabajo,
+        state="normal" if computrabajo is not None else "disabled",
+    )
     operation_buttons = [
         pause_button,
         resume_button,
         retry_attention_button,
         retry_failed_button,
         open_button,
+        open_computrabajo_button,
+        configure_computrabajo_button,
     ]
 
     tools = ttk.LabelFrame(shell, text="Diagnóstico", style="Section.TLabelframe", padding=8)
@@ -533,7 +596,9 @@ def run_ui(*, worker, api, browser) -> None:
         sync_all_button,
         sync_jobs_button,
         sync_candidates_button,
+        sync_computrabajo_button,
         open_button,
+        open_computrabajo_button,
         diagnostic_start_button,
     ]
 
@@ -733,6 +798,99 @@ def run_ui(*, worker, api, browser) -> None:
                                 f"{vacancy_detail} · Candidatos detenidos: INDEED_CANDIDATE_SYNC_FAILED",
                             )
                             publish(diagnostic_snapshot, last_stats)
+
+                    elif command == "sync_computrabajo":
+                        if computrabajo is None or worker.snapshot.state == "DOWNLOADING":
+                            continue
+                        worker.pause()
+                        publish_phase(
+                            "COMPUTRABAJO_SYNCING",
+                            last_stats,
+                            "Leyendo candidatos visibles en la página actual de Computrabajo…",
+                        )
+                        try:
+                            result = computrabajo.sync_current_page(api)
+                            detail = (
+                                "Computrabajo: "
+                                f"{result.discovered} detectados · "
+                                f"{result.imported} nuevos · "
+                                f"{result.existing} existentes · "
+                                f"{result.skipped} omitidos · "
+                                f"{result.failed} fallidos."
+                            )
+                            last_stats = api.stats()
+                            diagnostic_snapshot = WorkerSnapshot(
+                                "COMPUTRABAJO_SYNC_COMPLETED",
+                                None,
+                                worker.snapshot.processed_session,
+                                detail,
+                            )
+                        except RuntimeError as exc:
+                            code = _safe_code(exc, "COMPUTRABAJO_SYNC_FAILED")
+                            detail = (
+                                "Computrabajo requiere intervención manual en Chrome."
+                                if code == "COMPUTRABAJO_HUMAN_REQUIRED"
+                                else f"Computrabajo detenido: {code}"
+                            )
+                            diagnostic_snapshot = WorkerSnapshot(
+                                "COMPUTRABAJO_SYNC_ATTENTION",
+                                None,
+                                worker.snapshot.processed_session,
+                                detail,
+                            )
+                        except Exception:
+                            diagnostic_snapshot = WorkerSnapshot(
+                                "COMPUTRABAJO_SYNC_ATTENTION",
+                                None,
+                                worker.snapshot.processed_session,
+                                "Computrabajo detenido: COMPUTRABAJO_SYNC_FAILED",
+                            )
+                        publish(diagnostic_snapshot, last_stats)
+
+                    elif command == "open_computrabajo":
+                        if computrabajo is None:
+                            continue
+                        worker.pause()
+                        try:
+                            outcome = computrabajo.open()
+                            if outcome == "CREDENTIALS_REQUIRED":
+                                detail = (
+                                    "Configura el acceso de Computrabajo y vuelve a abrirlo."
+                                )
+                                state = "COMPUTRABAJO_SYNC_ATTENTION"
+                            elif outcome == "ALREADY_AUTHENTICATED":
+                                detail = "Computrabajo abierto con la sesión persistente del agente."
+                                state = "COMPUTRABAJO_BROWSER_READY"
+                            else:
+                                detail = "Computrabajo autenticado y listo."
+                                state = "COMPUTRABAJO_BROWSER_READY"
+                            diagnostic_snapshot = WorkerSnapshot(
+                                state,
+                                None,
+                                worker.snapshot.processed_session,
+                                detail,
+                            )
+                        except RuntimeError as exc:
+                            code = _safe_code(exc, "COMPUTRABAJO_OPEN_FAILED")
+                            detail = (
+                                "Computrabajo requiere resolver CAPTCHA o verificación manual en Chrome."
+                                if code == "COMPUTRABAJO_HUMAN_REQUIRED"
+                                else f"No fue posible abrir Computrabajo: {code}"
+                            )
+                            diagnostic_snapshot = WorkerSnapshot(
+                                "COMPUTRABAJO_SYNC_ATTENTION",
+                                None,
+                                worker.snapshot.processed_session,
+                                detail,
+                            )
+                        except Exception:
+                            diagnostic_snapshot = WorkerSnapshot(
+                                "COMPUTRABAJO_SYNC_ATTENTION",
+                                None,
+                                worker.snapshot.processed_session,
+                                "No fue posible abrir Computrabajo.",
+                            )
+                        publish(diagnostic_snapshot, last_stats)
 
                     elif command == "retry_failed":
                         if browser.diagnostic_active:
