@@ -54,6 +54,7 @@ class EvaluationProfile(BaseModel):
 class JobEnrichmentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    mode: Literal["enrich", "improve"] = "enrich"
     title: str = Field(min_length=1, max_length=MAX_JOB_TITLE_CHARS)
     description: str | None = Field(default=None, max_length=MAX_JOB_DESCRIPTION_CHARS)
     country_code: str | None = None
