@@ -109,6 +109,31 @@ jobs:
           print(\"RANKING_DIAGNOSTIC_JSON=\" + json.dumps(out, ensure_ascii=False, sort_keys=True))
           "'
 
+      - name: Verify BDE task scheduling without persisting
+        run: |
+          set -euo pipefail
+          SSH=(-i "$KEY_FILE" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/ranking-known-hosts)
+          ssh "${SSH[@]}" "$SSH_USER@$INSTANCE_IP" 'sudo docker exec ai-recruiter-api python -c "
+          from sqlalchemy import func
+          from app.db import SessionLocal
+          from app.models import Job
+          from app.domains.jobs import reevaluation as reevaluation_repository
+
+          with SessionLocal() as db:
+              job = db.query(Job).filter(func.lower(Job.title) == \"bde\").one()
+              task = reevaluation_repository.schedule_reevaluation(
+                  db,
+                  job=job,
+                  owner_sub=job.owner_sub or \"diagnostic\",
+                  scope=\"all\",
+                  force_evaluation=False,
+                  restart_terminal=True,
+              )
+              db.flush()
+              print(\"SCHEDULE_DRY_RUN_OK task_status=\" + str(task.status) + \" scope=\" + str(task.scope))
+              db.rollback()
+          "'
+
       - name: Read sanitized recent logs
         run: |
           set -euo pipefail
@@ -116,12 +141,12 @@ jobs:
           ssh "${SSH[@]}" "$SSH_USER@$INSTANCE_IP" '
             echo "=== API RANKING LOGS ==="
             sudo docker logs --since 4h ai-recruiter-api 2>&1 \
-              | grep -Ei "ranking|reevaluation|Internal Server Error|Traceback|UndefinedColumn|ProgrammingError|IntegrityError" \
-              | tail -n 220 || true
+              | grep -Ei "500|POST|recalculate-async|ranking|reevaluation|exception|error|traceback|programmingerror|integrityerror" \
+              | tail -n 350 || true
             echo "=== WORKER RANKING LOGS ==="
             sudo docker logs --since 4h ai-recruiter-worker 2>&1 \
-              | grep -Ei "ranking|reevaluation|Traceback|ERROR|ProgrammingError|IntegrityError|job reevaluation" \
-              | tail -n 220 || true
+              | grep -Ei "500|ranking|reevaluation|exception|error|traceback|job reevaluation" \
+              | tail -n 350 || true
           '
 
       - name: Close temporary SSH
