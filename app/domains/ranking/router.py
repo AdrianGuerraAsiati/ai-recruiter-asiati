@@ -1,11 +1,16 @@
 """Ranking router — FastAPI endpoints for job rankings."""
 
+from datetime import datetime, timezone
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_permission
 from app import crud
 from app.domains.candidates import repository as candidates_repository
+from app.domains.jobs import reevaluation as reevaluation_repository
+from app.infrastructure.imports import queue
 from app.domains.ranking.costs import estimate_mass_evaluation_cost
 from app.domains.ranking.service import recalculate_ranking, build_latest_ranking
 from app.domains.ranking.exceptions import (
@@ -15,6 +20,7 @@ from app.domains.ranking.exceptions import (
 )
 
 router = APIRouter(prefix="/api/jobs", tags=["ranking"])
+logger = logging.getLogger(__name__)
 
 
 def _require_job(db: Session, job_id: str, owner_sub: str):
@@ -171,6 +177,72 @@ def recalculate_ranking_endpoint(
         raise HTTPException(status_code=409, detail=exc.message)
     except RankingJobNotFound as exc:
         raise HTTPException(status_code=404, detail=exc.message)
+
+
+def _async_task_payload(task) -> dict:
+    return {
+        "task_id": task.id,
+        "job_id": task.job_id,
+        "status": task.status,
+        "scope": str(getattr(task, "scope", None) or "assigned"),
+        "force_evaluation": bool(getattr(task, "force_evaluation", False)),
+        "attempt_count": int(task.attempt_count or 0),
+        "last_error_code": task.last_error_code,
+        "last_error_message": task.last_error_message,
+        "created_at": task.created_at.isoformat() if task.created_at else None,
+        "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+    }
+
+
+@router.post("/{job_id}/ranking/recalculate-async", status_code=202)
+def recalculate_ranking_async_endpoint(
+    job_id: str,
+    mode: str = Query("incremental", pattern=r"^(full|incremental)$"),
+    scope: str = Query("all", pattern=r"^(assigned|all)$"),
+    db: Session = Depends(get_db),
+    _user: dict = Depends(require_permission("ranking.recalculate")),
+):
+    """Queue a durable ranking run so the browser request never holds the LLM loop."""
+    job = _require_job(db, job_id, _user["sub"])
+    task = reevaluation_repository.schedule_reevaluation(
+        db,
+        job=job,
+        owner_sub=getattr(job, "owner_sub", None) or _user["sub"],
+        scope=scope,
+        force_evaluation=(mode == "full"),
+        restart_terminal=True,
+    )
+    db.commit()
+    db.refresh(task)
+
+    if task.status == "PENDING" and task.queue_dispatched_at is None:
+        try:
+            queue.send_job_reevaluation(task.id)
+        except Exception:
+            # The shared worker repairs undispatched durable tasks every cycle.
+            logger.exception("Async ranking queue dispatch deferred for task %s", task.id)
+            db.rollback()
+            task = reevaluation_repository.get_reevaluation_task_by_id(db, task.id)
+        else:
+            task.queue_dispatched_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(task)
+
+    return _async_task_payload(task)
+
+
+@router.get("/{job_id}/ranking/recalculate-async/{task_id}")
+def get_recalculate_ranking_async_status(
+    job_id: str,
+    task_id: str,
+    db: Session = Depends(get_db),
+    _user: dict = Depends(require_permission("ranking.read")),
+):
+    _require_job(db, job_id, _user["sub"])
+    task = reevaluation_repository.get_reevaluation_task_by_id(db, task_id)
+    if task is None or str(task.job_id) != str(job_id):
+        raise HTTPException(status_code=404, detail="Proceso de ranking no encontrado.")
+    return _async_task_payload(task)
 
 
 @router.get("/{job_id}/ranking/latest")
