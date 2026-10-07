@@ -665,9 +665,16 @@ def test_recalculate_all_then_get_all_returns_all_candidates(
     assert get_data["total"] == 2
     assert len(get_data["candidates"]) == 2
 
-    candidate_ids = {c["candidate_id"] for c in get_data["candidates"]}
-    assert assigned.id in candidate_ids
-    assert unassigned.id in candidate_ids
+    candidates_by_id = {
+        candidate["candidate_id"]: candidate
+        for candidate in get_data["candidates"]
+    }
+    assert assigned.id in candidates_by_id
+    assert unassigned.id in candidates_by_id
+    assert candidates_by_id[assigned.id]["applied_to_job"] is True
+    assert candidates_by_id[assigned.id]["application_status"] == "APPLIED"
+    assert candidates_by_id[unassigned.id]["applied_to_job"] is False
+    assert candidates_by_id[unassigned.id]["application_status"] is None
 
 
 def test_recalculate_assigned_then_get_assigned_returns_only_assigned(
