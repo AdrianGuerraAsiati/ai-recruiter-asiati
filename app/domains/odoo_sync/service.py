@@ -7,6 +7,8 @@ successful even when Odoo is unavailable.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -222,6 +224,32 @@ def ensure_applicant_sync(
         sync.attempt_count = 0
         sync.last_error = None
         sync.synced_at = None
+    db.flush()
+    return sync
+
+
+def bind_imported_applicant(
+    db: Session,
+    *,
+    candidate: Candidate,
+    job: Job,
+    application: JobCandidate,
+    odoo_job_id: int,
+    odoo_applicant_id: int,
+) -> OdooApplicantSync:
+    """Bind an Odoo-origin application so later Talent updates modify it in place."""
+
+    sync = ensure_applicant_sync(
+        db,
+        candidate=candidate,
+        job=job,
+        application=application,
+    )
+    sync.odoo_job_id = str(int(odoo_job_id))
+    sync.odoo_applicant_id = str(int(odoo_applicant_id))
+    sync.status = SYNC_SYNCED
+    sync.last_error = None
+    sync.synced_at = datetime.now(timezone.utc)
     db.flush()
     return sync
 
