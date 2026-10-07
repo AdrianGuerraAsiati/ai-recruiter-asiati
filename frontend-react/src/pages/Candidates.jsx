@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
-import { COUNTRY_OPTIONS, countryFlag, countryName } from "../data/countries";
+import { ALL_COUNTRY_OPTIONS, COUNTRY_OPTIONS, countryFlag, countryName } from "../data/countries";
 import { useSession } from "../context/SessionContext";
 import { useNotice } from "../context/noticeStore";
 import PageHeader from "../components/ui/PageHeader";
@@ -519,10 +519,19 @@ function Candidates() {
                   disabled={countrySavingId === candidate.candidate_id}
                 >
                   <option value="">Sin definir</option>
-                  {COUNTRY_OPTIONS.map((item) => (
+                  {ALL_COUNTRY_OPTIONS.map((item) => (
                     <option key={item.code} value={item.code}>{item.name}</option>
                   ))}
                 </select>
+                <small className="muted">
+                  {candidate.metadata?.country_source === "MANUAL"
+                    ? "Definido manualmente"
+                    : candidate.metadata?.country_source?.startsWith("CV_")
+                      ? "Verificado desde el CV"
+                      : candidate.metadata?.country_source === "JOB_FALLBACK"
+                        ? "Tomado de la vacante; pendiente de validar con CV"
+                        : "Se valida automáticamente al procesar el CV"}
+                </small>
               </label>
             )}
 
