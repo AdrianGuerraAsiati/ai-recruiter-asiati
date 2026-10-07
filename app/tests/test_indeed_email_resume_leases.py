@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import uuid
 
 import pytest
 from sqlalchemy import create_engine
@@ -43,6 +44,7 @@ def _task(
     attempt_count: int = 0,
 ) -> IndeedEmailResumeTask:
     event = CandidateIngestionEvent(
+        id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"indeed-email-event:{suffix}")),
         owner_sub=owner_sub,
         source="EMAIL",
         provider="INDEED",
@@ -54,6 +56,7 @@ def _task(
     db.add(event)
     db.flush()
     task = IndeedEmailResumeTask(
+        id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"indeed-email-task:{suffix}")),
         owner_sub=owner_sub,
         ingestion_event_id=event.id,
         candidate_name=f"Candidate {suffix}",
