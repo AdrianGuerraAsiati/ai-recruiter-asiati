@@ -51,12 +51,38 @@ def test_common_surname_is_not_treated_as_colombian_city():
     assert result.country_code is None
 
 
+def test_labeled_location_outside_header_resolves_ambiguous_city():
+    result = country.infer_country_deterministic(
+        _parsed(
+            header="María Pereira\\nIngeniera industrial",
+            text=(
+                "María Pereira\nIngeniera industrial\n"
+                "Perfil profesional\nLugar de residencia: Pereira, Risaralda"
+            ),
+        )
+    )
+
+    assert result.country_code == "CO"
+    assert result.source == "CV_LOCATION_LABEL"
+    assert result.confidence == "HIGH"
+
+
 def test_phone_prefix_is_medium_confidence_fallback():
     result = country.infer_country_deterministic(
         _parsed(header="Ana Test\nIngeniera", phone="+56 9 1234 5678")
     )
     assert result.country_code == "CL"
     assert result.source == "CV_PHONE"
+    assert result.confidence == "MEDIUM"
+
+
+def test_local_colombian_mobile_is_medium_confidence_fallback():
+    result = country.infer_country_deterministic(
+        _parsed(header="Ana Test\nIngeniera", phone="300 123 4567")
+    )
+
+    assert result.country_code == "CO"
+    assert result.source == "CV_PHONE_LOCAL"
     assert result.confidence == "MEDIUM"
 
 
@@ -172,6 +198,10 @@ def test_manual_country_is_never_overwritten(monkeypatch):
     assert candidate.country_code == "CL"
     assert candidate.metadata_["country_source"] == "MANUAL"
     assert candidate.metadata_["country_review_status"] == "MANUAL_PRESERVED"
+    assert (
+        candidate.metadata_["country_inference_version"]
+        == country.COUNTRY_INFERENCE_VERSION
+    )
     assert db.flushed == 1
 
 
@@ -203,6 +233,39 @@ def test_cv_country_replaces_non_manual_fallback(monkeypatch):
     assert candidate.metadata_["country_previous_code"] == "CL"
     assert candidate.metadata_["country_source"] == "CV_EXPLICIT"
     assert candidate.metadata_["country_review_status"] == "RESOLVED"
+    assert (
+        candidate.metadata_["country_inference_version"]
+        == country.COUNTRY_INFERENCE_VERSION
+    )
+
+
+def test_needs_country_recheck_only_retries_stale_unresolved_records():
+    stale_unresolved = SimpleNamespace(
+        country_code=None,
+        metadata_={
+            "country_source": "CV_UNRESOLVED",
+            "country_checked_at": "2026-10-07T00:00:00+00:00",
+        },
+    )
+    stale_resolved = SimpleNamespace(
+        country_code="CO",
+        metadata_={
+            "country_source": "CV_EXPLICIT",
+            "country_checked_at": "2026-10-07T00:00:00+00:00",
+        },
+    )
+    current_unresolved = SimpleNamespace(
+        country_code=None,
+        metadata_={
+            "country_source": "CV_UNRESOLVED",
+            "country_checked_at": "2026-10-07T00:00:00+00:00",
+            "country_inference_version": country.COUNTRY_INFERENCE_VERSION,
+        },
+    )
+
+    assert country.needs_country_recheck(stale_unresolved) is True
+    assert country.needs_country_recheck(stale_resolved) is False
+    assert country.needs_country_recheck(current_unresolved) is False
 
 
 def test_unresolved_cv_preserves_existing_country(monkeypatch):
