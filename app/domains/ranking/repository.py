@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import Job, Ranking, RankingItem, Evaluation
+from app.models import Job, JobCandidate, Ranking, RankingItem, Evaluation
 from app.domains.evaluations.repository import is_evaluation_complete
 
 
@@ -120,6 +120,21 @@ def build_ranking_response(
         for evaluation in evaluations:
             latest_evaluation_by_candidate.setdefault(evaluation.candidate_id, evaluation)
 
+    application_status_by_candidate: dict[str, str] = {}
+    if candidate_ids:
+        application_rows = (
+            db.query(JobCandidate.candidate_id, JobCandidate.application_status)
+            .filter(
+                JobCandidate.job_id == job_id,
+                JobCandidate.candidate_id.in_(candidate_ids),
+            )
+            .all()
+        )
+        application_status_by_candidate = {
+            candidate_id: application_status
+            for candidate_id, application_status in application_rows
+        }
+
     candidates = []
     for item in items:
         evaluation = latest_evaluation_by_candidate.get(item.candidate_id)
@@ -131,6 +146,8 @@ def build_ranking_response(
                 "candidate_id": item.candidate_id,
                 "match_score": evaluation.match_score,
                 "candidate_name": candidate_name,
+                "applied_to_job": item.candidate_id in application_status_by_candidate,
+                "application_status": application_status_by_candidate.get(item.candidate_id),
                 "is_banned": bool(item.candidate.is_banned) if item.candidate else False,
                 "banned_reason": item.candidate.banned_reason if item.candidate else None,
                 "recommendation": evaluation.recommendation,
@@ -145,6 +162,8 @@ def build_ranking_response(
                 "candidate_id": item.candidate_id,
                 "match_score": None,
                 "candidate_name": candidate_name,
+                "applied_to_job": item.candidate_id in application_status_by_candidate,
+                "application_status": application_status_by_candidate.get(item.candidate_id),
                 "is_banned": bool(item.candidate.is_banned) if item.candidate else False,
                 "banned_reason": item.candidate.banned_reason if item.candidate else None,
                 "recommendation": "EVALUATION_FAILED",
@@ -159,6 +178,8 @@ def build_ranking_response(
                 "candidate_id": item.candidate_id,
                 "match_score": None,
                 "candidate_name": candidate_name,
+                "applied_to_job": item.candidate_id in application_status_by_candidate,
+                "application_status": application_status_by_candidate.get(item.candidate_id),
                 "is_banned": bool(item.candidate.is_banned) if item.candidate else False,
                 "banned_reason": item.candidate.banned_reason if item.candidate else None,
                 "recommendation": "PENDING",
