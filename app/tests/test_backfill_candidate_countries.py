@@ -150,3 +150,48 @@ def test_backfill_no_ai_and_limit_are_forwarded(monkeypatch):
 
     assert result["total_candidates"] == 1
     assert observed == {"candidate_id": "one", "use_ai": False}
+
+
+
+def test_backfill_rechecks_stale_unresolved_country_after_inference_upgrade(monkeypatch):
+    candidate = _candidate(
+        "stale-unresolved",
+        metadata={
+            "country_source": "CV_UNRESOLVED",
+            "country_checked_at": "2026-10-07T00:00:00+00:00",
+        },
+    )
+    db = _Db([candidate])
+    monkeypatch.setattr(script, "SessionLocal", lambda: db)
+    monkeypatch.setattr(
+        script.storage,
+        "read_existing_canonical_document_with_filename",
+        lambda _candidate_id: (b"doc", "cv.pdf"),
+    )
+    parsed = SimpleNamespace(
+        header_text="Ana Test",
+        text="Lugar de residencia: Pereira, Risaralda",
+        phone=None,
+    )
+    monkeypatch.setattr(script.documents, "extract_document", lambda *_args: parsed)
+
+    def _apply(_db, *, candidate, parsed_document, use_ai):
+        assert parsed_document is parsed
+        assert use_ai is True
+        candidate.country_code = "CO"
+        candidate.metadata_ = {
+            **candidate.metadata_,
+            "country_source": "CV_LOCATION_LABEL",
+            "country_checked_at": "now",
+            "country_inference_version": script.candidate_country.COUNTRY_INFERENCE_VERSION,
+        }
+        return CountryInference("CO", "CV_LOCATION_LABEL", "HIGH")
+
+    monkeypatch.setattr(script.candidate_country, "apply_country_inference", _apply)
+
+    result = script.run()
+
+    assert result["scanned"] == 1
+    assert result["rechecked_for_inference_version"] == 1
+    assert result["resolved_from_cv"] == 1
+    assert result["by_country"]["CO"] == 1

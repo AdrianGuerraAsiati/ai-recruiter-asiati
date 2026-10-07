@@ -11,13 +11,15 @@ from sqlalchemy.orm import Session
 
 from app.config import get_import_lease_timeout_seconds
 from app.db import SessionLocal
+from app.domains.candidates import country as candidate_country
 from app.domains.evaluations import service as evaluations_service
 from app.domains.indeed import resume_repository
 from app.domains.indeed import resumes as resume_download
 from app.domains.indeed.resume_models import IndeedResumeIngestion
 from app.domains.ranking import service as ranking_service
 from app.domains.ranking.exceptions import RankingAlreadyRunning, RankingJobNotFound
-from app.infrastructure.imports import ingestion, queue, storage
+from app.infrastructure.imports import documents, ingestion, queue, storage
+from app.infrastructure.imports.documents import DocumentImportError
 from app.models import Candidate, IndeedCandidateLink, Job
 
 logger = logging.getLogger(__name__)
@@ -127,6 +129,30 @@ def _download_and_store(db: Session, task: IndeedResumeIngestion, link, candidat
     except resume_download.ResumeDownloadError as exc:
         _fail_task(db, task, code=exc.code, message=str(exc))
         return False
+
+    # Apply the same country enrichment used by bulk and email ingestion.
+    # Country extraction is best-effort and must never prevent storing a valid CV.
+    try:
+        with db.begin_nested():
+            parsed = documents.extract_document(downloaded.data, downloaded.filename)
+            candidate_country.apply_country_inference(
+                db,
+                candidate=candidate,
+                parsed_document=parsed,
+                use_ai=candidate_country.country_ai_enabled(),
+            )
+    except DocumentImportError:
+        metadata = dict(candidate.metadata_ or {})
+        metadata["country_review_status"] = "CV_PARSE_FAILED"
+        metadata["country_inference_version"] = (
+            candidate_country.COUNTRY_INFERENCE_VERSION
+        )
+        candidate.metadata_ = metadata
+    except Exception:
+        logger.exception(
+            "Country enrichment failed for Indeed candidate %s",
+            candidate.id,
+        )
 
     try:
         written = storage.write_canonical_candidate_document(

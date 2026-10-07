@@ -26,6 +26,7 @@ def _mark_without_inference(candidate, status: str) -> None:
         metadata["country_confidence"] = "LOW"
     metadata["country_checked_at"] = datetime.now(timezone.utc).isoformat()
     metadata["country_review_status"] = status
+    metadata["country_inference_version"] = candidate_country.COUNTRY_INFERENCE_VERSION
     candidate.metadata_ = metadata
 
 
@@ -50,12 +51,14 @@ def run(*, force: bool = False, use_ai: bool = True, limit: int | None = None) -
                 stats["manual_preserved"] += 1
                 by_country[str(candidate.country_code or "UNRESOLVED").upper()] += 1
                 continue
-            if checked_at and not force:
+            if not force and not candidate_country.needs_country_recheck(candidate):
                 stats["already_checked"] += 1
                 by_country[str(candidate.country_code or "UNRESOLVED").upper()] += 1
                 by_source[source or "UNKNOWN"] += 1
                 continue
 
+            if checked_at:
+                stats["rechecked_for_inference_version"] += 1
             stats["scanned"] += 1
             try:
                 stored = storage.read_existing_canonical_document_with_filename(
