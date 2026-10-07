@@ -78,7 +78,6 @@ CITY_COUNTRIES = {
     "cali": "CO",
     "barranquilla": "CO",
     "bucaramanga": "CO",
-    "pereira": "CO",
     "manizales": "CO",
     "ibague": "CO",
     "santiago de chile": "CL",
