@@ -141,3 +141,76 @@ def test_candidates_endpoint_filters_by_assigned_job_country_without_duplicates(
     finally:
         db.close()
         engine.dispose()
+
+
+def test_candidates_endpoint_filters_by_persisted_country_after_job_history_is_gone():
+    engine, db = _db()
+    try:
+        colombia = Candidate(
+            name="Histórico Colombia",
+            owner_sub="owner-1",
+            country_code="CO",
+            metadata_={},
+        )
+        chile = Candidate(
+            name="Histórico Chile",
+            owner_sub="owner-1",
+            country_code="CL",
+            metadata_={},
+        )
+        unknown = Candidate(
+            name="Sin país",
+            owner_sub="owner-1",
+            metadata_={},
+        )
+        db.add_all([colombia, chile, unknown])
+        db.commit()
+
+        payload = candidates_router.list_candidates(
+            page=1,
+            page_size=20,
+            sort="name_asc",
+            country_code="CO",
+            db=db,
+            _user={"sub": "owner-1"},
+        )
+
+        assert payload["total"] == 1
+        assert payload["items"][0]["candidate_id"] == colombia.id
+        assert payload["items"][0]["country_code"] == "CO"
+    finally:
+        db.close()
+        engine.dispose()
+
+
+def test_assigning_candidate_to_job_persists_country_when_missing():
+    from app.domains.candidates import repository as candidates_repository
+
+    engine, db = _db()
+    try:
+        job = Job(
+            title="Operaciones Colombia",
+            description="CO",
+            country_code="CO",
+            owner_sub="owner-1",
+        )
+        candidate = Candidate(
+            name="Nuevo candidato",
+            owner_sub="owner-1",
+            metadata_={},
+        )
+        db.add_all([job, candidate])
+        db.commit()
+
+        candidates_repository.ensure_candidate_assigned_to_job(
+            db,
+            job_id=job.id,
+            candidate_id=candidate.id,
+        )
+        db.commit()
+        db.refresh(candidate)
+
+        assert candidate.country_code == "CO"
+    finally:
+        db.close()
+        engine.dispose()
