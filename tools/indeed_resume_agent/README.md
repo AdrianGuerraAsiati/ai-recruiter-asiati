@@ -1,6 +1,6 @@
-# ASIATI Resume Agent
+# ASIATI Candidate Agent
 
-Cliente Windows local para descargar de forma controlada los CV enlazados desde correos de Indeed y entregarlos al AI Recruiter. Conserva el formato original compatible (**PDF o DOCX**) en lugar de forzar conversiones locales. El agente usa **Browser Use 0.13.10 + CDP** sobre una única sesión visible de **Google Chrome**, un perfil de navegador exclusivo y una credencial de máquina almacenada en **Windows Credential Manager**. La navegación crítica es determinística y no usa un LLM.
+Cliente Windows local para recolectar candidatos desde fuentes de reclutamiento y entregarlos al Candidate Ingestion Core de Talent. La primera fuente existente es Indeed y esta versión incorpora Computrabajo como segundo adaptador. Conserva el formato original compatible (**PDF o DOCX**) en lugar de forzar conversiones locales. El agente usa **Browser Use 0.13.10 + CDP** sobre una única sesión visible de **Google Chrome**, un perfil de navegador exclusivo y una credencial de máquina almacenada en **Windows Credential Manager**. La navegación crítica es determinística y no usa un LLM.
 
 ## Requisitos
 
@@ -10,7 +10,7 @@ Cliente Windows local para descargar de forma controlada los CV enlazados desde 
 - Acceso HTTPS a `https://dzcwl3yhv133t.cloudfront.net`.
 - Token de máquina emitido por el administrador. No lo guarde en archivos, capturas, tickets o chat.
 
-El agente no solicita ni almacena la contraseña de Indeed. Login, MFA y CAPTCHA se resuelven manualmente en la ventana visible de Chrome. Chrome es el navegador predeterminado; para pruebas de compatibilidad puede seleccionarse Edge con `ASIATI_RESUME_AGENT_BROWSER=edge`.
+El agente no solicita ni almacena la contraseña de Indeed. Login, MFA y CAPTCHA de Indeed se resuelven manualmente en la ventana visible de Chrome. Para Computrabajo, usuario y clave se guardan exclusivamente en Windows Credential Manager y nunca se envían al backend; CAPTCHA o verificaciones de seguridad siguen requiriendo intervención manual. Chrome es el navegador predeterminado; para pruebas de compatibilidad puede seleccionarse Edge con `ASIATI_RESUME_AGENT_BROWSER=edge`.
 
 ## Instalación para pruebas desde el repositorio
 
@@ -72,6 +72,27 @@ Las sincronizaciones de candidatos usan un timeout separado de 120 segundos porq
 - **Guardar diagnóstico**: guarda el JSON y la captura local en `%LOCALAPPDATA%\\ASIATI\\ResumeAgent\\diagnostics`.
 
 La interfaz nunca muestra tokens de máquina, lease tokens, URL temporal del CV, cookies ni errores backend sin sanitizar.
+
+## Computrabajo
+
+Computrabajo usa un **perfil de Chrome separado** en:
+
+```text
+%LOCALAPPDATA%\ASIATI\CandidateAgent\computrabajo-profile-chrome
+```
+
+Flujo inicial:
+
+1. Pulse **Configurar Computrabajo** y guarde el usuario corporativo y la clave. Se almacenan únicamente en Windows Credential Manager.
+2. Pulse **Abrir Computrabajo**. El agente reutiliza la sesión persistente y completa el formulario de acceso solo cuando aparece.
+3. Si Computrabajo muestra CAPTCHA o una verificación de seguridad, resuélvala manualmente en Chrome.
+4. Navegue a la vacante o página que contiene el listado de postulantes.
+5. Pulse **Importar Computrabajo**. El adaptador identifica enlaces de detalle de CV de Computrabajo, genera un PDF desde la vista autorizada del reclutador y lo entrega a `/api/agents/candidate-source/candidate`.
+6. El backend deduplica por `provider + source_account + external_id`; luego usa el mismo pipeline de identidad, vacante, país, Bedrock, evaluación y ranking que el resto de candidatos.
+
+La primera versión importa la **página de postulantes que esté visible**. Esto evita depender de rutas privadas no documentadas de Computrabajo y permite calibrar cambios de DOM sin comprometer la ingesta compartida.
+
+No guarde credenciales de Computrabajo en `.env`, scripts, GitHub Actions, tickets o logs. Para borrar el acceso local se puede ejecutar `delete_computrabajo_credentials()` desde `credential_store.py`.
 
 ## Build Windows
 
