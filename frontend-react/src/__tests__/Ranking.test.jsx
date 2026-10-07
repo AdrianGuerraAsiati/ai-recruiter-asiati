@@ -620,10 +620,11 @@ describe("Ranking page", () => {
 
     renderRanking();
 
-    await screen.findByRole(
-      "button",
-      { name: "Actualizar ranking" },
-    );
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Actualizar ranking" }),
+      ).not.toBeDisabled();
+    });
 
     fireEvent.change(
       screen.getByDisplayValue("Solo esta vacante"),
