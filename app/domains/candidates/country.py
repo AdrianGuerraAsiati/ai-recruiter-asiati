@@ -7,6 +7,7 @@ prefers contact-header signals and returns unresolved instead of guessing.
 
 from __future__ import annotations
 
+import os
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -118,6 +119,13 @@ CITY_COUNTRIES = {
 }
 
 SUPPORTED_COUNTRY_CODES = frozenset(COUNTRY_NAMES)
+
+
+def country_ai_enabled() -> bool:
+    return str(
+        os.getenv("CANDIDATE_COUNTRY_AI_ENABLED", "false")
+    ).strip().casefold() in {"1", "true", "yes", "on"}
+
 
 COUNTRY_PROMPT = ChatPromptTemplate.from_messages(
     [
