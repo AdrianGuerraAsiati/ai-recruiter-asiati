@@ -66,6 +66,7 @@ def list_jobs_page(
         "title_desc",
     ] = Query("created_desc"),
     q: str = Query("", max_length=120),
+    country_code: str = Query("", max_length=2),
 ):
     rows, total = service.list_jobs_page(
         db,
@@ -74,6 +75,7 @@ def list_jobs_page(
         page_size=page_size,
         sort=sort,
         q=q,
+        country_code=country_code,
     )
     return {
         "items": [
