@@ -11,6 +11,7 @@ from app.config import CORS_ORIGINS, api_docs_enabled, get_database_url
 from app.access_control import ensure_rbac_catalog
 from app.db import SessionLocal
 from app.domains.candidate_imports.router import router as candidate_imports_router
+from app.domains.candidate_ingestion.candidate_agent_router import router as candidate_agent_router
 from app.domains.candidate_ingestion.indeed_agent_router import router as indeed_agent_router
 from app.domains.candidate_ingestion.router import router as candidate_ingestion_router
 from app.domains.candidates.router import assign_router, router as candidates_router
@@ -76,6 +77,7 @@ def create_app() -> FastAPI:
     app.include_router(candidate_ingestion_router)
     app.include_router(indeed_router)
     app.include_router(indeed_agent_router)
+    app.include_router(candidate_agent_router)
 
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
