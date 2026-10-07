@@ -4567,10 +4567,10 @@ select { appearance: none; padding-right: 42px; background-image: linear-gradien
 .profile-detail-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
 .profile-detail { min-width: 0; padding: 16px 17px; border: 1px solid var(--border); border-radius: 13px; background: var(--surface-soft); }
 .profile-detail span { display: block; color: var(--ink-faint); font-size: .68rem; font-weight: 700; }
-.profile-detail strong { display: block; margin-top: 7px; font-family: "Manrope",sans-serif; font-size: .95rem; overflow-wrap: anywhere; }
+.profile-detail strong { display: block; margin-top: 7px; font-family: var(--font-display); font-size: .95rem; overflow-wrap: anywhere; }
 .profile-detail strong.is-empty { color: var(--ink-faint); font-weight: 600; }
 .profile-onboarding-card { align-self: stretch; padding: 20px; border: 1px solid var(--border); border-radius: 15px; background: var(--surface-soft); }
-.profile-onboarding-card > strong { display: block; margin-top: 6px; font-family: "Manrope",sans-serif; font-size: 1.25rem; }
+.profile-onboarding-card > strong { display: block; margin-top: 6px; font-family: var(--font-display); font-size: 1.25rem; }
 .profile-onboarding-card > p { margin-top: 9px; color: var(--ink-soft); font-size: .8rem; line-height: 1.55; }
 [data-theme="dark"] .profile-avatar { background: var(--blue); }
 @media (max-width: 900px) { .profile-content-grid { grid-template-columns: 1fr; } .profile-detail-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
