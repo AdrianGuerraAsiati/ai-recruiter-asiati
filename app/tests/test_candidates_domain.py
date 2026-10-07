@@ -20,6 +20,7 @@ def _candidate(**overrides):
         "id": "candidate-1",
         "name": "Ana Test",
         "email": "ana@example.com",
+        "country_code": None,
         "created_at": None,
         "metadata_": {"filename": "ana.pdf"},
         "is_banned": False,
