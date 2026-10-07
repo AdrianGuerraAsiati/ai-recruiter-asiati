@@ -33,6 +33,55 @@ status_order = {
 }
 
 
+def _ranking_candidates(db: Session, *, job, scope: str):
+    """Resolve the eligible ranking pool.
+
+    UI scope=all means:
+    - REMOTE vacancies: all Talent candidates.
+    - ONSITE/HYBRID vacancies with country: candidates with application history
+      in the same country.
+    - ONSITE/HYBRID vacancies without country: direct applicants only, which
+      avoids cross-country matches until the vacancy location is completed.
+
+    Legacy scope=assigned remains available for compatibility.
+    """
+    if scope != "all":
+        candidates, _ = candidates_repository.list_candidates_for_job(
+            db,
+            job.id,
+            page=1,
+            page_size=100000,
+            owner_sub=None,
+        )
+        return [candidate for candidate in candidates if not candidate.is_banned]
+
+    work_mode = str(getattr(job, "work_mode", None) or "ONSITE").upper()
+    country_code = str(getattr(job, "country_code", None) or "").strip().upper()
+
+    if work_mode == "REMOTE":
+        return candidates_repository.list_candidates(
+            db,
+            owner_sub=None,
+        )
+
+    if country_code:
+        return candidates_repository.list_candidates_for_country(
+            db,
+            country_code=country_code,
+            owner_sub=None,
+            include_banned=False,
+        )
+
+    candidates, _ = candidates_repository.list_candidates_for_job(
+        db,
+        job.id,
+        page=1,
+        page_size=100000,
+        owner_sub=None,
+    )
+    return [candidate for candidate in candidates if not candidate.is_banned]
+
+
 def recalculate_ranking(
     db: Session,
     *,
@@ -84,22 +133,7 @@ def recalculate_ranking(
             scope=scope,
         )
 
-        if scope == "all":
-            ranking_candidates = candidates_repository.list_candidates(db)
-        else:
-            ranking_candidates, _ = candidates_repository.list_candidates_for_job(
-                db,
-                job_id,
-                page=1,
-                page_size=100000,
-                owner_sub=None,
-            )
-
-        ranking_candidates = [
-            candidate
-            for candidate in ranking_candidates
-            if not candidate.is_banned
-        ]
+        ranking_candidates = _ranking_candidates(db, job=job, scope=scope)
 
         evaluated_count = 0
         failed_count = 0
@@ -237,25 +271,7 @@ def materialize_ranking_from_evaluations(
             scope=scope,
         )
 
-        if scope == "all":
-            ranking_candidates = candidates_repository.list_candidates(
-                db,
-                owner_sub=None,
-            )
-        else:
-            ranking_candidates, _ = candidates_repository.list_candidates_for_job(
-                db,
-                job_id,
-                page=1,
-                page_size=100000,
-                owner_sub=None,
-            )
-
-        ranking_candidates = [
-            candidate
-            for candidate in ranking_candidates
-            if not candidate.is_banned
-        ]
+        ranking_candidates = _ranking_candidates(db, job=job, scope=scope)
 
         evaluated_count = 0
         failed_count = 0
