@@ -281,7 +281,6 @@ class Evaluation(Base):
         default=lambda: datetime.now(timezone.utc),
     )
 
-
 class JobReevaluationTask(Base):
     """Durable asynchronous reevaluation request for one job version."""
 
