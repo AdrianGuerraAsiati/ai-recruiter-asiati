@@ -32,6 +32,7 @@ def test_api_and_worker_receive_candidate_import_and_rag_environment():
             "IMPORT_STAGING_BUCKET",
             "IMPORT_QUEUE_URL",
             "IMPORT_EVALUATION_CONCURRENCY",
+            "CANDIDATE_COUNTRY_AI_ENABLED",
             "S3_BUCKET",
             "KNOWLEDGE_BASE_ID",
             "DATA_SOURCE_ID",
@@ -90,8 +91,9 @@ def test_migration_and_backfill_run_before_existing_api_is_replaced():
     workflow = _read(WORKFLOW)
     migrate = workflow.index("python -m app.scripts.migrate_candidate_import")
     backfill = workflow.index("python -m app.scripts.backfill_candidate_identities")
+    country_backfill = workflow.index("python -m app.scripts.backfill_candidate_countries")
     api_deploy = workflow.index("/tmp/ai-recruiter-deploy-api.sh")
-    assert migrate < backfill < api_deploy
+    assert migrate < backfill < country_backfill < api_deploy
 
 
 def test_workflow_does_not_inline_worker_docker_run():
