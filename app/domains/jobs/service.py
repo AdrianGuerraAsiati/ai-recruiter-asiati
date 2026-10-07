@@ -84,6 +84,7 @@ def list_jobs_page(
     sort: str,
     q: str = "",
     country_code: str = "",
+    status: str | None = None,
 ):
     return repository.list_jobs_page(
         db,
@@ -93,6 +94,7 @@ def list_jobs_page(
         sort=sort,
         q=q,
         country_code=country_code,
+        status=status,
     )
 
 
