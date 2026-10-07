@@ -4,6 +4,7 @@ from collections.abc import Callable
 
 from .api_client import AgentApiClient
 from .browser_use_driver import IndeedBrowserUse
+from .computrabajo_browser import ComputrabajoBrowserUse
 from .config import load_config
 from .credential_store import (
     AgentCredentialMissing,
@@ -79,6 +80,7 @@ def main() -> None:
 
     api = AgentApiClient(config, token)
     browser = IndeedBrowserUse(config)
+    computrabajo = ComputrabajoBrowserUse(config)
     install_download_capture_compat(browser)
     install_runtime_compat(browser)
     install_jobs_listing_compat()
@@ -100,12 +102,15 @@ def main() -> None:
         start_paused=True,
     )
     try:
-        run_ui(worker=worker, api=api, browser=browser)
+        run_ui(worker=worker, api=api, browser=browser, computrabajo=computrabajo)
     finally:
         try:
-            browser.close()
+            computrabajo.close()
         finally:
-            api.close()
+            try:
+                browser.close()
+            finally:
+                api.close()
 
 
 if __name__ == "__main__":
