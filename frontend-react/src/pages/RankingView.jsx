@@ -9,6 +9,8 @@ import PageHeader from "../components/ui/PageHeader";
 import { LoadingState } from "../components/ui/StatePanel";
 import "./Ranking.css";
 
+const RANKING_SCOPE = "all";
+
 function Ranking() {
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState("");
@@ -25,7 +27,7 @@ function Ranking() {
   const [minScore, setMinScore] = useState(0);
   const [maxScore, setMaxScore] = useState(100);
   const [recommendationFilter, setRecommendationFilter] = useState("");
-  const [rankingScope, setRankingScope] = useState("assigned");
+  const rankingScope = RANKING_SCOPE;
 
   const [rankingGeneratedAt, setRankingGeneratedAt] = useState(null);
   const [rankingVersion, setRankingVersion] = useState(null);
@@ -67,16 +69,14 @@ function Ranking() {
   const selectedJobData =
     jobs.find((job) => job.job_id === selectedJob) || null;
 
-  const assignedCandidateCount =
-    selectedJobData?.candidate_count ?? rankingBaseTotal ?? rankingInfo.total ?? 0;
+  const directApplicantCount = Number(selectedJobData?.candidate_count || 0);
+  const evaluableCandidateCount =
+    rankingVersion != null ? Number(rankingBaseTotal || rankingInfo.total || 0) : null;
 
   const bestScore =
     rankingInfo.maximum != null ? Number(rankingInfo.maximum) : null;
 
-  const hasAssignedCandidates = Number(assignedCandidateCount || 0) > 0;
-  const canRunCandidateActions =
-    Boolean(selectedJob)
-    && (rankingScope === "all" || hasAssignedCandidates);
+  const canRunCandidateActions = Boolean(selectedJob);
   const selectedJobLocation = [
     selectedJobData?.city,
     selectedJobData?.country_code,
@@ -195,9 +195,7 @@ async function loadRanking(
       if (data.scope_mismatch) {
         setRanking([]);
         setRankingMessage(
-          targetScope === "all"
-            ? "El ranking actual fue generado solo para los candidatos asignados. Recalcula usando «Todos mis candidatos» para incluir toda tu base."
-            : "El ranking actual fue generado para todos tus candidatos. Recalcula usando «Solo esta vacante» para reconstruir este alcance.",
+          "El ranking guardado pertenece al alcance anterior. Recalcula para comparar esta vacante contra toda la base de candidatos de Talent.",
         );
         setRankingGeneratedAt(data.ranking_generated_at || null);
         setRankingVersion(data.ranking_version ?? null);
@@ -317,9 +315,7 @@ async function evaluateCandidates() {
           setActionFeedback({
             type: "error",
             message:
-              rankingScope === "all"
-                ? "El ranking actual fue generado solo para los candidatos asignados. Recalcula usando «Todos mis candidatos» para incluir toda tu base."
-                : "El ranking actual fue generado para todos tus candidatos. Recalcula usando «Solo esta vacante» para reconstruir este alcance.",
+              "El ranking guardado pertenece al alcance anterior. Recalcula para comparar esta vacante contra toda la base de candidatos de Talent.",
           });
         } else {
           setActionFeedback({
@@ -332,10 +328,7 @@ async function evaluateCandidates() {
       }
 
       if (result.total_candidates === 0) {
-        const message =
-          rankingScope === "all"
-            ? "No hay candidatos registrados en tu cuenta."
-            : "No hay candidatos asignados a esta vacante.";
+        const message = "No hay candidatos registrados en Talent para construir el ranking.";
         setActionFeedback({
           type: "info",
           message,
@@ -409,9 +402,7 @@ async function refreshRanking() {
           setActionFeedback({
             type: "error",
             message:
-              rankingScope === "all"
-                ? "El ranking actual fue generado solo para los candidatos asignados. Recalcula usando «Todos mis candidatos» para incluir toda tu base."
-                : "El ranking actual fue generado para todos tus candidatos. Recalcula usando «Solo esta vacante» para reconstruir este alcance.",
+              "El ranking guardado pertenece al alcance anterior. Recalcula para comparar esta vacante contra toda la base de candidatos de Talent.",
           });
         }
         return;
@@ -524,9 +515,7 @@ async function recalculateRanking() {
           setActionFeedback({
             type: "error",
             message:
-              rankingScope === "all"
-                ? "El ranking actual fue generado solo para los candidatos asignados. Recalcula usando «Todos mis candidatos» para incluir toda tu base."
-                : "El ranking actual fue generado para todos tus candidatos. Recalcula usando «Solo esta vacante» para reconstruir este alcance.",
+              "El ranking guardado pertenece al alcance anterior. Recalcula para comparar esta vacante contra toda la base de candidatos de Talent.",
           });
         } else {
           setActionFeedback({
@@ -548,10 +537,7 @@ async function recalculateRanking() {
       }
 
       if (result.total_candidates === 0) {
-        const message =
-          rankingScope === "all"
-            ? "No hay candidatos registrados en tu cuenta."
-            : "No hay candidatos asignados a esta vacante.";
+        const message = "No hay candidatos registrados en Talent para construir el ranking.";
         setActionFeedback({
           type: "info",
           message,
@@ -638,15 +624,6 @@ async function recalculateRanking() {
     }
 
     await loadRanking(1, pageSize, nextJob, rankingScope);
-  }
-
-  async function handleScopeChange(event) {
-    const nextScope = event.target.value;
-    setRankingScope(nextScope);
-    setPage(1);
-    setRankingMessage("");
-    if (!selectedJob) return;
-    await loadRanking(1, pageSize, selectedJob, nextScope);
   }
 
   // ============================================================
@@ -794,14 +771,14 @@ async function recalculateRanking() {
               const count = Number(job.candidate_count || 0);
               return (
                 <option key={job.job_id} value={job.job_id}>
-                  {job.title}{count === 0 ? " · Sin candidatos" : ` · ${count} candidato${count === 1 ? "" : "s"}`}
+                  {job.title}{count === 0 ? " · 0 postulantes directos" : ` · ${count} postulante${count === 1 ? "" : "s"} directo${count === 1 ? "" : "s"}`}
                 </option>
               );
             })}
           </select>
           <p className="ranking-job-hint">
             {selectedJob
-              ? `${assignedCandidateCount} candidato${assignedCandidateCount === 1 ? "" : "s"} asignado${assignedCandidateCount === 1 ? "" : "s"} · ${evaluatedCount} evaluado${evaluatedCount === 1 ? "" : "s"} · ${rankingInfo.pending} pendiente${rankingInfo.pending === 1 ? "" : "s"}`
+              ? `Se compara contra toda la base de Talent · ${directApplicantCount} postulante${directApplicantCount === 1 ? "" : "s"} directo${directApplicantCount === 1 ? "" : "s"}`
               : "Selecciona una vacante para comenzar"}
           </p>
         </section>
@@ -824,8 +801,8 @@ async function recalculateRanking() {
                   <strong>{selectedJobLocation}</strong>
                 </div>
                 <div>
-                  <span>Candidatos</span>
-                  <strong>{assignedCandidateCount}</strong>
+                  <span>Postulantes directos</span>
+                  <strong>{directApplicantCount}</strong>
                 </div>
               </div>
               <p className="ranking-profile-copy">
@@ -861,9 +838,7 @@ async function recalculateRanking() {
           <p className="ranking-actions-help">
             {!selectedJob
               ? "Selecciona una vacante para habilitar las acciones."
-              : rankingScope === "assigned" && !hasAssignedCandidates
-                ? "Esta vacante está activa, pero todavía no tiene candidatos asignados."
-                : "Evalúa pendientes, consulta resultados guardados o recalcula todo el ranking."}
+              : "Talent compara esta vacante contra toda la base de candidatos. Evalúa nuevos perfiles o recalcula todo el ranking cuando cambie el perfil del cargo."}
           </p>
           <div className="ranking-job-actions">
             <button
@@ -908,10 +883,14 @@ async function recalculateRanking() {
           </div>
           <div className="ranking-metrics">
             <div className="ranking-metric">
-              <span className="ranking-metric-label">Candidatos asignados</span>
-              <span className="ranking-metric-value">{assignedCandidateCount}</span>
+              <span className="ranking-metric-label">Base evaluable</span>
+              <span className="ranking-metric-value">
+                {evaluableCandidateCount != null ? evaluableCandidateCount : "—"}
+              </span>
               <span className="ranking-metric-detail">
-                {hasAssignedCandidates ? "Disponibles para esta vacante" : "Aún sin postulaciones"}
+                {evaluableCandidateCount != null
+                  ? "Candidatos comparados contra esta vacante"
+                  : "Se calcula al generar el ranking"}
               </span>
             </div>
             <div className="ranking-metric">
@@ -981,13 +960,6 @@ async function recalculateRanking() {
 
           <div className="ranking-filter-grid">
             <div>
-              <label>Fuente de candidatos</label>
-              <select value={rankingScope} onChange={handleScopeChange}>
-                <option value="assigned">Solo esta vacante</option>
-                <option value="all">Todos mis candidatos</option>
-              </select>
-            </div>
-            <div>
               <label>Puntaje mínimo</label>
               <input type="number" min="0" max="100" value={minScore} onChange={(e) => setMinScore(Number(e.target.value))} />
             </div>
@@ -1053,12 +1025,7 @@ async function recalculateRanking() {
       {!loading && selectedJob && ranking.length === 0 && (
         <div className="ranking-empty">
           <div className="ranking-empty-icon">📋</div>
-          {rankingScope === "assigned" && !hasAssignedCandidates ? (
-            <>
-              <h3>Vacante activa sin candidatos</h3>
-              <p>La posición seguirá visible en Ranking IA. Cuando llegue la primera postulación podrás evaluarla desde aquí.</p>
-            </>
-          ) : rankingMessage ? (
+          {rankingMessage ? (
             <>
               <h3>El alcance del ranking cambió</h3>
               <p>{rankingMessage}</p>
@@ -1068,15 +1035,15 @@ async function recalculateRanking() {
               <h3>Hay candidatos pendientes de evaluación</h3>
               <p>Usa "Evaluar candidatos" para procesar los candidatos asignados a esta vacante.</p>
             </>
-          ) : !hasRanking && hasAssignedCandidates ? (
+          ) : !hasRanking ? (
             <>
-              <h3>Candidatos listos para evaluar</h3>
-              <p>Esta vacante ya tiene postulantes, pero todavía no existe un ranking. Usa "Evaluar candidatos" para generarlo.</p>
+              <h3>Ranking listo para generar</h3>
+              <p>Talent comparará esta vacante contra toda la base de candidatos disponible. Usa "Evaluar candidatos" para procesar los perfiles que aún no tengan evaluación.</p>
             </>
           ) : (
             <>
               <h3>No hay candidatos con estos filtros</h3>
-              <p>{rankingMessage || "Ajusta los filtros o cambia la fuente de candidatos para ver resultados."}</p>
+              <p>{rankingMessage || "Ajusta los filtros para encontrar los perfiles que quieres revisar."}</p>
             </>
           )}
         </div>
@@ -1111,6 +1078,9 @@ async function recalculateRanking() {
                   <div className="ranking-candidate-header-left">
                     <span className="ranking-candidate-position">#{position}</span>
                     <span className="ranking-candidate-name">{candidate.candidate_name}</span>
+                    {candidate.applied_to_job && (
+                      <span className="ranking-applied-chip">Aplicó a esta vacante</span>
+                    )}
                     {candidate.is_banned && (
                       <span className="ranking-banned-chip">Vetado</span>
                     )}
