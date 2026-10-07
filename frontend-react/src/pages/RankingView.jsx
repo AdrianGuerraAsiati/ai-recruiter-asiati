@@ -47,6 +47,7 @@ function Ranking() {
   const [rankingLoadedScope, setRankingLoadedScope] = useState(null);
   const [rankingMessage, setRankingMessage] = useState("");
   const rankingAbortRef = useRef(null);
+  const asyncRankingAbortRef = useRef(null);
   const analysisAbortRef = useRef(null);
 
   const [rankingInfo, setRankingInfo] = useState({
@@ -142,6 +143,7 @@ function Ranking() {
     loadJobs();
     return () => {
       rankingAbortRef.current?.abort();
+      asyncRankingAbortRef.current?.abort();
       analysisAbortRef.current?.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
