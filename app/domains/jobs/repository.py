@@ -28,6 +28,7 @@ def list_jobs_page(
     page_size: int,
     sort: str,
     q: str = "",
+    country_code: str = "",
 ):
     """Return one globally sorted page of jobs with candidate counts."""
 
@@ -37,6 +38,10 @@ def list_jobs_page(
     search = str(q or "").strip()
     if search:
         filters.append(Job.title.ilike(f"%{search}%"))
+
+    normalized_country = str(country_code or "").strip().upper()
+    if normalized_country:
+        filters.append(func.upper(Job.country_code) == normalized_country)
 
     total = int(db.query(func.count(Job.id)).filter(*filters).scalar() or 0)
     candidate_count = func.count(Candidate.id).label("candidate_count")
