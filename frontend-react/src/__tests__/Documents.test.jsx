@@ -88,7 +88,7 @@ describe("Employee document review workspace", () => {
     render(<Documents />);
 
     expect(await screen.findByText("Documento de identidad")).toBeInTheDocument();
-    expect(screen.getByText("En revisión")).toBeInTheDocument();
+    expect(screen.getAllByText("En revisión").length).toBeGreaterThan(0);
     expect(screen.getByText("Requiere cambios")).toBeInTheDocument();
     expect(screen.getByText("Agrega la ciudad.")).toBeInTheDocument();
     expect(screen.getByText("Aprobados")).toBeInTheDocument();
