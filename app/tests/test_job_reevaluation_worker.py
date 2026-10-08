@@ -307,6 +307,79 @@ def test_dispatch_repair_marks_timestamp_only_after_queue_success(monkeypatch):
         db.close()
         engine.dispose()
 
+def test_isolated_ranking_evaluation_persists_after_db_free_model_call(monkeypatch):
+    engine, db = _db()
+    try:
+        job = Job(
+            title="Platform Engineer",
+            description="AWS, Python y automatización.",
+            owner_sub="owner-1",
+            evaluation_version=3,
+        )
+        candidate = Candidate(
+            name="Parallel Candidate",
+            owner_sub="owner-1",
+        )
+        db.add_all([job, candidate])
+        db.commit()
+        job_id = job.id
+        candidate_id = candidate.id
+
+        monkeypatch.setattr(
+            job_reevaluations,
+            "SessionLocal",
+            lambda: Session(engine),
+        )
+        calls = []
+
+        def fake_evidence(*, candidate_id, evaluation_text):
+            calls.append((candidate_id, evaluation_text))
+            return {
+                "match_score": 91,
+                "recommendation": "STRONG_MATCH",
+                "summary": (
+                    "La persona candidata cumple ampliamente los requisitos "
+                    "principales de la vacante evaluada."
+                ),
+                "strengths": ["AWS"],
+                "gaps": [],
+                "requirements": [],
+                "status": "COMPLETED",
+                "error_message": None,
+            }, None
+
+        monkeypatch.setattr(
+            job_reevaluations.evaluations_service,
+            "evaluate_candidate_evidence",
+            fake_evidence,
+        )
+
+        completed = job_reevaluations._evaluate_candidate_in_isolated_session(
+            candidate_id=candidate_id,
+            job_id=job_id,
+            owner_sub="owner-1",
+            force_evaluation=False,
+        )
+
+        assert completed is True
+        assert calls and calls[0][0] == candidate_id
+        db.expire_all()
+        evaluation = (
+            db.query(Evaluation)
+            .filter(
+                Evaluation.job_id == job_id,
+                Evaluation.candidate_id == candidate_id,
+            )
+            .one()
+        )
+        assert evaluation.status == "COMPLETED"
+        assert evaluation.match_score == 91
+        assert evaluation.job_evaluation_version == 3
+    finally:
+        db.close()
+        engine.dispose()
+
+
 def test_parallel_ranking_evaluations_use_batches_of_at_most_ten(monkeypatch):
     engine, db = _db()
     try:
