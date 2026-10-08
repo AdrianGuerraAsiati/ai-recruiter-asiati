@@ -13,10 +13,17 @@ PRESIGNED_UPLOAD_EXPIRY_SECONDS = 3600
 PRESIGNED_DOWNLOAD_EXPIRY_SECONDS = 900
 MAX_EMPLOYEE_DOCUMENT_BYTES = 15 * 1024 * 1024
 
+CURRENT_DOCUMENT_PREFIX = "training/employee-documents"
+LEGACY_DOCUMENT_PREFIX = "employees/documents"
+
 ALLOWED_DOCUMENT_TYPES = {
     "application/pdf": {".pdf"},
     "image/jpeg": {".jpg", ".jpeg"},
     "image/png": {".png"},
+    "application/msword": {".doc"},
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+        ".docx"
+    },
 }
 
 
@@ -34,7 +41,7 @@ def _validate_upload(*, filename: str, content_type: str, size_bytes: int) -> st
     normalized_type = str(content_type or "").split(";", 1)[0].strip().casefold()
     allowed_extensions = ALLOWED_DOCUMENT_TYPES.get(normalized_type)
     if not allowed_extensions:
-        raise ValueError("Formato no soportado. Usa PDF, JPG o PNG.")
+        raise ValueError("Formato no soportado. Usa PDF, JPG, PNG, DOC o DOCX.")
     if size_bytes <= 0 or size_bytes > MAX_EMPLOYEE_DOCUMENT_BYTES:
         raise ValueError("El documento debe pesar máximo 15 MB.")
 
@@ -42,6 +49,19 @@ def _validate_upload(*, filename: str, content_type: str, size_bytes: int) -> st
     if suffix not in allowed_extensions:
         raise ValueError("La extensión del archivo no coincide con su tipo.")
     return normalized_type
+
+
+def _employee_prefixes(employee_id: str) -> tuple[str, str]:
+    return (
+        f"{CURRENT_DOCUMENT_PREFIX}/{employee_id}/",
+        f"{LEGACY_DOCUMENT_PREFIX}/{employee_id}/",
+    )
+
+
+def _is_document_key(key: str) -> bool:
+    return str(key or "").startswith(
+        (f"{CURRENT_DOCUMENT_PREFIX}/", f"{LEGACY_DOCUMENT_PREFIX}/")
+    )
 
 
 def create_document_upload(
@@ -57,7 +77,10 @@ def create_document_upload(
         size_bytes=size_bytes,
     )
     safe_name = _safe_filename(filename)
-    key = f"employees/documents/{employee_id}/{uuid.uuid4().hex}-{safe_name}"
+    key = (
+        f"{CURRENT_DOCUMENT_PREFIX}/{employee_id}/"
+        f"{uuid.uuid4().hex}-{safe_name}"
+    )
     upload = _s3_client().generate_presigned_post(
         Bucket=get_training_content_bucket(),
         Key=key,
@@ -84,8 +107,7 @@ def verify_document_object(
     expected_content_type: str,
     expected_size_bytes: int,
 ) -> dict:
-    prefix = f"employees/documents/{employee_id}/"
-    if not key.startswith(prefix):
+    if not str(key or "").startswith(_employee_prefixes(employee_id)):
         raise ValueError("El archivo no pertenece al empleado autenticado.")
 
     normalized_type = str(expected_content_type or "").split(";", 1)[0].strip().casefold()
@@ -108,7 +130,7 @@ def verify_document_object(
 
 
 def create_document_download_url(key: str, *, filename: str) -> str:
-    if not key.startswith("employees/documents/"):
+    if not _is_document_key(key):
         raise ValueError("Clave de documento inválida.")
     safe_name = _safe_filename(filename)
     return _s3_client().generate_presigned_url(
@@ -123,6 +145,6 @@ def create_document_download_url(key: str, *, filename: str) -> str:
 
 
 def delete_document_object(key: str) -> None:
-    if not key.startswith("employees/documents/"):
+    if not _is_document_key(key):
         raise ValueError("Clave de documento inválida.")
     _s3_client().delete_object(Bucket=get_training_content_bucket(), Key=key)
