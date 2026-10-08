@@ -463,7 +463,7 @@ function Documents() {
     <div className="page employee-documents-page">
       <PageHeader
         eyebrow="Ingreso y vinculación"
-        title="Documentos de ingreso"
+        title="Documentos"
         description="Cada requisito debe ser enviado por el nuevo empleado y revisado individualmente por un administrador antes de quedar aprobado."
         className="split-header"
       />
