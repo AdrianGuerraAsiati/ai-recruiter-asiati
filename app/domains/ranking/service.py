@@ -34,56 +34,28 @@ status_order = {
 
 
 def resolve_ranking_candidates(db: Session, *, job, scope: str):
-    """Resolve the eligible ranking pool.
+    """Evaluate the global talent pool, filtered by country for onsite roles.
 
-    UI scope=all means:
-    - REMOTE vacancies: all Talent candidates.
-    - ONSITE/HYBRID vacancies with country: candidates with application history
-      in the same country.
-    - ONSITE/HYBRID vacancies without country: direct applicants only, which
-      avoids cross-country matches until the vacancy location is completed.
-
-    Legacy scope=assigned remains available for compatibility.
+    Formal job applications never determine eligibility for a ranking.
+    The legacy assigned scope remains available only for explicit consumers.
     """
-    if scope != "all":
+    if scope == "assigned":
         candidates, _ = candidates_repository.list_candidates_for_job(
-            db,
-            job.id,
-            page=1,
-            page_size=100000,
-            owner_sub=None,
+            db, job.id, page=1, page_size=100000, owner_sub=None,
         )
         return [candidate for candidate in candidates if not candidate.is_banned]
 
     work_mode = str(getattr(job, "work_mode", None) or "ONSITE").upper()
     country_code = str(getattr(job, "country_code", None) or "").strip().upper()
-
-    if work_mode == "REMOTE":
-        return [
-            candidate
-            for candidate in candidates_repository.list_candidates(
-                db,
-                owner_sub=None,
-            )
-            if not candidate.is_banned
-        ]
-
-    if country_code:
+    if work_mode != "REMOTE" and country_code:
         return candidates_repository.list_candidates_for_country(
-            db,
-            country_code=country_code,
-            owner_sub=None,
-            include_banned=False,
+            db, country_code=country_code, owner_sub=None, include_banned=False,
         )
 
-    candidates, _ = candidates_repository.list_candidates_for_job(
-        db,
-        job.id,
-        page=1,
-        page_size=100000,
-        owner_sub=None,
-    )
-    return [candidate for candidate in candidates if not candidate.is_banned]
+    return [
+        candidate for candidate in candidates_repository.list_candidates(db, owner_sub=None)
+        if not candidate.is_banned
+    ]
 
 
 def recalculate_ranking(
