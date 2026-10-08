@@ -396,8 +396,11 @@ def test_admin_can_review_employee_documents_in_chromium(app_page: Page) -> None
 
     page.get_by_label("Empleado a consultar").select_option("employee-1")
     expect(page.get_by_text("certificado-bancario-ana.pdf")).to_be_visible()
-    expect(page.get_by_text("En revisión", exact=True)).to_be_visible()
-    page.get_by_role("button", name="✓ Dar visto bueno").click()
-    expect(page.get_by_text("Aprobado", exact=True)).to_be_visible()
+    document_card = page.get_by_role("article").filter(
+        has_text="certificado-bancario-ana.pdf"
+    )
+    expect(document_card.get_by_text("En revisión", exact=True)).to_be_visible()
+    document_card.get_by_role("button", name="✓ Dar visto bueno").click()
+    expect(document_card.get_by_text("Aprobado", exact=True)).to_be_visible()
     _assert_accessible_controls(page)
     _assert_layout_fits_viewport(page)
