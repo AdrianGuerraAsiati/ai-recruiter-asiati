@@ -181,6 +181,35 @@ class ComputrabajoBrowserUse:
             await self._discard_browser_session()
             return await self._ensure_started_once()
 
+    async def _logout_async(self) -> None:
+        """Forget credentials in Computrabajo's isolated browser profile.
+
+        Local logout does not revoke sessions on the provider's servers.
+        """
+        if self._browser is None:
+            return
+        cdp = await self._ensure_started()
+        origins = (
+            "https://empresa.co.computrabajo.com",
+            "https://co.computrabajo.com",
+            "https://secure.computrabajo.com",
+            "https://candidato.co.computrabajo.com",
+        )
+        try:
+            await cdp.cdp_client.send.Network.clearBrowserCookies(
+                session_id=cdp.session_id
+            )
+            for origin in origins:
+                await cdp.cdp_client.send.Storage.clearDataForOrigin(
+                    params={"origin": origin, "storageTypes": "all"},
+                    session_id=cdp.session_id,
+                )
+        finally:
+            await self._discard_browser_session()
+
+    def logout(self) -> None:
+        self._call(self._logout_async(), timeout=45.0)
+
     async def _discard_browser_session(self) -> None:
         browser = self._browser
         self._browser = None
@@ -324,6 +353,56 @@ class ComputrabajoBrowserUse:
 
     def open_vacancies(self) -> None:
         self.open_portal("https://empresa.co.computrabajo.com/Company/Offers")
+
+    async def _discover_visible_candidates_async(self) -> list[dict]:
+        """Read candidate links on the currently open employer listing page.
+
+        Does not navigate, bypass pagination, or send candidates anywhere.
+        """
+        cdp = await self._ensure_started()
+        data = await self._evaluate(cdp, """(() => {
+            if (location.hostname !== 'empresa.co.computrabajo.com' ||
+                !location.pathname.toLowerCase().includes('/company/offers/match')) {
+                return {error: 'COMPUTRABAJO_LIST_REQUIRED'};
+            }
+            const seen = new Set();
+            return [...document.querySelectorAll('a.js-o-link.nom[href*="/MatchCvDetail/MatchDetail"]')]
+                .slice(0, 100)
+                .map(a => {
+                    const url = new URL(a.href);
+                    const id = url.searchParams.get('ims') || '';
+                    const job = url.searchParams.get('oi') || '';
+                    if (!/^[A-Fa-f0-9]{16,64}$/.test(id) ||
+                        !/^[A-Fa-f0-9]{16,64}$/.test(job) || seen.has(id)) {
+                        return null;
+                    }
+                    seen.add(id);
+                    const name = (a.querySelector('strong, b, h3, h4')?.textContent ||
+                        a.textContent || '').split('\\n')[0].trim().slice(0, 180);
+                    return {external_id: id, external_job_id: job,
+                            candidate_name: name, detail_url: url.href};
+                }).filter(Boolean);
+        })()""")
+        if isinstance(data, dict) and data.get("error"):
+            raise ValueError(data["error"])
+        if not isinstance(data, list):
+            raise RuntimeError("COMPUTRABAJO_CANDIDATES_INVALID")
+        candidates = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            url = str(item.get("detail_url") or "")
+            parsed = urlparse(url)
+            if (parsed.scheme != "https" or parsed.hostname != "empresa.co.computrabajo.com"
+                    or parsed.path.casefold() != "/company/matchcvdetail/matchdetail"):
+                continue
+            if not str(item.get("external_id") or "").strip():
+                continue
+            candidates.append(item)
+        return candidates
+
+    def discover_visible_candidates(self) -> list[dict]:
+        return self._call(self._discover_visible_candidates_async(), timeout=30.0)
 
     async def _save_visible_profile_pdf_async(self) -> str:
         """Export a user-opened Computrabajo profile, without bulk collection."""
