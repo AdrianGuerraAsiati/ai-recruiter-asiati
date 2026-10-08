@@ -13,7 +13,6 @@ from app.config import (
     get_import_lease_timeout_seconds,
     get_ranking_evaluation_batch_size,
     get_ranking_evaluation_concurrency,
-    get_ranking_parallel_batches,
 )
 from app.db import SessionLocal
 from app.domains.candidates import repository as candidates_repository
@@ -168,11 +167,8 @@ def _run_parallel_candidate_evaluations(
     if not batches:
         return failures
 
-    parallel_batches = min(len(batches), get_ranking_parallel_batches())
-    max_workers = min(
-        len(candidate_ids),
-        parallel_batches * min(batch_size, workers_per_batch),
-    )
+    parallel_batches = len(batches)
+    max_workers = sum(min(len(batch), workers_per_batch) for batch in batches)
     logger.info(
         "Ranking concurrent batches started task=%s batches=%s parallel_batches=%s workers=%s",
         task_id,
@@ -181,8 +177,8 @@ def _run_parallel_candidate_evaluations(
         max_workers,
     )
 
-    # Submit all batches immediately. A single executor bounds active calls,
-    # while a completed candidate frees its slot regardless of batch number.
+    # Submit every batch immediately with up to ten calls per group.
+    # Provider throttling can still restrict realized concurrency.
     remaining_by_batch = {index: len(batch) for index, batch in enumerate(batches, start=1)}
     failures_by_batch = {index: 0 for index in remaining_by_batch}
     with ThreadPoolExecutor(
