@@ -422,11 +422,6 @@ def test_parallel_ranking_evaluations_use_batches_of_at_most_ten(monkeypatch):
         )
         monkeypatch.setattr(
             job_reevaluations,
-            "get_ranking_parallel_batches",
-            lambda: 10,
-        )
-        monkeypatch.setattr(
-            job_reevaluations,
             "_evaluate_candidate_in_isolated_session",
             lambda **kwargs: evaluated.append(kwargs["candidate_id"]) or True,
         )
