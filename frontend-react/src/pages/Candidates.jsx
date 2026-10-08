@@ -4,13 +4,14 @@ import { useSearchParams } from "react-router-dom";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
+import { ALL_COUNTRY_OPTIONS, COUNTRY_OPTIONS, countryFlag, countryName } from "../data/countries";
 import { useSession } from "../context/SessionContext";
 import { useNotice } from "../context/noticeStore";
 import PageHeader from "../components/ui/PageHeader";
 import Icon from "../components/ui/Icon";
 import { EmptyState, FeedbackMessage, ProgressBar } from "../components/ui/StatePanel";
-import CandidateImportModal from "../features/candidate-import/CandidateImportModal.jsx";
 import CandidateCreateUserModal from "../components/CandidateCreateUserModal.jsx";
+import CandidateImportModal from "../features/candidate-import/CandidateImportModal.jsx";
 
 const PAGE_SIZE = 20;
 
@@ -19,6 +20,7 @@ function Candidates() {
   const { notify } = useNotice();
   const canRestrictCandidates = hasPermission("candidates.restrict");
   const canCreateUsers = hasPermission("employees.create");
+  const canManageCandidates = hasPermission("candidates.manage");
   const [candidates, setCandidates] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState({});
@@ -31,29 +33,31 @@ function Candidates() {
   const [pages, setPages] = useState(0);
   const [searchParams, setSearchParams] = useSearchParams();
   const [restrictionTarget, setRestrictionTarget] = useState(null);
+  const [userTarget, setUserTarget] = useState(null);
+  const [query, setQuery] = useState("");
   const [restrictionMode, setRestrictionMode] = useState("ban");
   const [restrictionReason, setRestrictionReason] = useState("");
   const [restrictionSaving, setRestrictionSaving] = useState(false);
-  const [query, setQuery] = useState("");
-  const [userTarget, setUserTarget] = useState(null);
+  const [odooImporting, setOdooImporting] = useState(false);
+  const [countrySavingId, setCountrySavingId] = useState("");
 
   const requestedJobId = searchParams.get("job_id") || "";
   const requestedSort = searchParams.get("sort") || "created_desc";
   const candidateSort = ["created_desc", "name_asc", "name_desc"].includes(requestedSort)
     ? requestedSort
     : "created_desc";
+  const requestedCountry = String(searchParams.get("country") || "").trim().toUpperCase();
+  const countryFilter = COUNTRY_OPTIONS.some((item) => item.code === requestedCountry)
+    ? requestedCountry
+    : "";
 
   const loadData = useCallback(async (targetPage = page) => {
     setLoadError("");
     try {
-      const candidateUrl = [
-        `/candidates?page=${targetPage}&page_size=${PAGE_SIZE}`,
-        candidateSort === "created_desc" ? "" : `&sort=${candidateSort}`,
-        query.trim() ? `&q=${encodeURIComponent(query.trim())}` : "",
-      ].join("");
-
       const [candidatesResponse, jobsResponse] = await Promise.all([
-        api.get(candidateUrl),
+        api.get(
+          `/candidates?page=${targetPage}&page_size=${PAGE_SIZE}${candidateSort === "created_desc" ? "" : `&sort=${candidateSort}`}${countryFilter ? `&country_code=${encodeURIComponent(countryFilter)}` : ""}${query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ""}`,
+        ),
         api.get("/jobs"),
       ]);
 
@@ -76,20 +80,19 @@ function Candidates() {
         fallback: "No se pudo completar el directorio porque candidatos o vacantes no respondieron. Recarga la página antes de asignar perfiles.",
       }));
     }
-  }, [candidateSort, page, query]);
+  }, [candidateSort, countryFilter, page, query]);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      void loadData(page);
-    }, query.trim() ? 250 : 0);
-    return () => window.clearTimeout(timeoutId);
-  }, [loadData, page, query]);
+    // The initial request synchronizes this view with the API.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadData(page);
+  }, [loadData, page]);
 
   useEffect(() => {
     if (!requestedJobId) return;
-    // Schedule the deep-link modal without synchronously updating state in an effect.
-    const timeoutId = window.setTimeout(() => setShowCreateModal(true), 0);
-    return () => window.clearTimeout(timeoutId);
+    // A job deep link intentionally opens the durable import surface.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setShowCreateModal(true);
   }, [requestedJobId]);
 
   function openCreateCandidateModal() {
@@ -111,6 +114,78 @@ function Candidates() {
     else next.set("sort", nextSort);
     setSearchParams(next, { replace: true });
     setPage(1);
+  }
+
+  function changeCandidateCountry(nextCountry) {
+    const next = new URLSearchParams(searchParams);
+    if (nextCountry) next.set("country", nextCountry);
+    else next.delete("country");
+    setSearchParams(next, { replace: true });
+    setPage(1);
+  }
+
+  async function importCandidatesFromOdoo() {
+    if (odooImporting) return;
+    setOdooImporting(true);
+    try {
+      const { data } = await api.post("/odoo/applicants/import");
+      const created = Number(data?.created || 0);
+      const existing = Number(data?.existing || 0);
+      const withResume = Number(data?.with_resume || 0);
+      const withoutResume = Number(data?.without_resume || 0);
+      notify({
+        tone: withoutResume > 0 ? "warning" : "success",
+        title: "Candidatos de Odoo actualizados",
+        message:
+          `${created} nuevos · ${existing} ya conocidos · ${withResume} con CV`
+          + (withoutResume > 0 ? ` · ${withoutResume} sin CV para revisión` : ""),
+      });
+      setPage(1);
+      await loadData(1);
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "No se actualizaron los candidatos de Odoo",
+        message: getApiErrorMessage(error, {
+          action: "importar postulantes desde Odoo",
+          resource: "Odoo Recruitment",
+          fallback: "No fue posible traer los candidatos. Los datos existentes en Talent no fueron modificados.",
+        }),
+      });
+    } finally {
+      setOdooImporting(false);
+    }
+  }
+
+  async function updateCandidateCountry(candidateId, countryCode) {
+    setCountrySavingId(candidateId);
+    try {
+      const { data } = await api.put(`/candidates/${candidateId}/country`, {
+        country_code: countryCode || null,
+      });
+      setCandidates((current) => current.map((candidate) =>
+        candidate.candidate_id === candidateId ? { ...candidate, ...data } : candidate
+      ));
+      notify({
+        tone: "success",
+        title: "País del candidato actualizado",
+        message: countryCode
+          ? `El perfil quedó asociado a ${countryName(countryCode)} para los rankings geográficos.`
+          : "El candidato quedó sin país definido.",
+      });
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "No se actualizó el país",
+        message: getApiErrorMessage(error, {
+          action: "actualizar el país del candidato",
+          resource: "candidato",
+          fallback: "No fue posible guardar el país. Intenta nuevamente.",
+        }),
+      });
+    } finally {
+      setCountrySavingId("");
+    }
   }
 
   async function evaluate(candidateId) {
@@ -312,14 +387,26 @@ function Candidates() {
         title="Candidatos"
         description="Centraliza CVs, asigna perfiles a vacantes y ejecuta evaluaciones asistidas por IA."
         actions={(
-          <button
-            type="button"
-            className="btn btn-primary candidate-add-button"
-            onClick={openCreateCandidateModal}
-          >
-            <Icon name="plus" size={17} />
-            Agregar candidato
-          </button>
+          <div className="ui-actions">
+            {canManageCandidates && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={importCandidatesFromOdoo}
+                disabled={odooImporting}
+              >
+                {odooImporting ? "Trayendo desde Odoo…" : "Actualizar desde Odoo"}
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-primary candidate-add-button"
+              onClick={openCreateCandidateModal}
+            >
+              <Icon name="plus" size={17} />
+              Agregar candidato
+            </button>
+          </div>
         )}
       />
 
@@ -342,19 +429,24 @@ function Candidates() {
               : "perfiles disponibles"}
           </p>
         </div>
-        <div className="candidate-directory-toolbar-controls">
-          <label className="candidate-search-control">
-            <span>Buscar</span>
-            <input
-              type="search"
-              value={query}
-              placeholder="Nombre o correo…"
-              aria-label="Buscar candidatos"
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setPage(1);
-              }}
-            />
+        <div className="ui-actions">
+          <label className="candidate-sort-control">
+            <span>Buscar candidatos</span>
+            <input type="search" className="select" aria-label="Buscar candidatos" placeholder="Nombre o correo" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} />
+          </label>
+          <label className="candidate-sort-control">
+            <span>País</span>
+            <select
+              className="select"
+              aria-label="Filtrar candidatos por país"
+              value={countryFilter}
+              onChange={(event) => changeCandidateCountry(event.target.value)}
+            >
+              <option value="">Todos los países</option>
+              {COUNTRY_OPTIONS.map((item) => (
+                <option key={item.code} value={item.code}>{item.name}</option>
+              ))}
+            </select>
           </label>
           <label className="candidate-sort-control">
             <span>Ordenar por</span>
@@ -384,7 +476,11 @@ function Candidates() {
             <div className="candidate-header candidate-directory-header">
               <div>
                 <h2>{candidate.name}</h2>
-                <p className="muted candidate-directory-subtitle">Candidato registrado</p>
+                <p className="muted candidate-directory-subtitle">
+                  Candidato registrado · {candidate.country_code
+                    ? `${countryFlag(candidate.country_code)} ${countryName(candidate.country_code)}`
+                    : "País por definir"}
+                </p>
                 {candidate.is_banned && (
                   <div className="candidate-ban-alert" role="alert">
                     <strong>⚠ Candidato vetado</strong>
@@ -403,15 +499,7 @@ function Candidates() {
                   Ver CV
                 </button>
                 {canCreateUsers && (
-                  <button
-                    className="btn btn-primary"
-                    type="button"
-                    onClick={() => setUserTarget(candidate)}
-                    disabled={candidate.is_banned}
-                    title={candidate.is_banned ? "Quita el veto antes de crear el usuario." : undefined}
-                  >
-                    Crear usuario
-                  </button>
+                  <button className="btn btn-primary" type="button" disabled={candidate.is_banned} onClick={() => setUserTarget(candidate)}>Crear usuario</button>
                 )}
                 {canRestrictCandidates && (
                   <button
@@ -430,6 +518,39 @@ function Candidates() {
               </span>
               <strong>{getDisplayFilename(candidate)}</strong>
             </div>
+
+            {canManageCandidates && (
+              <label className="candidate-country-editor">
+                <span>País para ranking</span>
+                <select
+                  className="select"
+                  aria-label={`País para ${candidate.name || "candidato"}`}
+                  value={candidate.country_code || ""}
+                  onChange={(event) => updateCandidateCountry(candidate.candidate_id, event.target.value)}
+                  disabled={countrySavingId === candidate.candidate_id}
+                >
+                  <option value="">Sin definir</option>
+                  {candidate.country_code
+                    && !ALL_COUNTRY_OPTIONS.some((item) => item.code === candidate.country_code) && (
+                      <option value={candidate.country_code}>
+                        {countryName(candidate.country_code)}
+                      </option>
+                    )}
+                  {ALL_COUNTRY_OPTIONS.map((item) => (
+                    <option key={item.code} value={item.code}>{item.name}</option>
+                  ))}
+                </select>
+                <small className="muted">
+                  {candidate.metadata?.country_source === "MANUAL"
+                    ? "Definido manualmente"
+                    : candidate.metadata?.country_source?.startsWith("CV_")
+                      ? "Verificado desde el CV"
+                      : candidate.metadata?.country_source === "JOB_FALLBACK"
+                        ? "Tomado de la vacante; pendiente de validar con CV"
+                        : "Se valida automáticamente al procesar el CV"}
+                </small>
+              </label>
+            )}
 
             <div className="controls candidate-directory-controls">
               <select
@@ -497,13 +618,7 @@ function Candidates() {
         </div>
       )}
 
-      <CandidateCreateUserModal
-        open={Boolean(userTarget)}
-        candidateId={userTarget?.candidate_id}
-        candidate={userTarget}
-        onClose={() => setUserTarget(null)}
-      />
-
+      <CandidateCreateUserModal open={Boolean(userTarget)} candidateId={userTarget?.candidate_id} candidate={userTarget} onClose={() => setUserTarget(null)} />
       {showCreateModal && (
         <CandidateImportModal
           open
