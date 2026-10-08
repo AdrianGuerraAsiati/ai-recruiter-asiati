@@ -181,6 +181,35 @@ class ComputrabajoBrowserUse:
             await self._discard_browser_session()
             return await self._ensure_started_once()
 
+    async def _logout_async(self) -> None:
+        """Forget credentials in Computrabajo's isolated browser profile.
+
+        Local logout does not revoke sessions on the provider's servers.
+        """
+        if self._browser is None:
+            return
+        cdp = await self._ensure_started()
+        origins = (
+            "https://empresa.co.computrabajo.com",
+            "https://co.computrabajo.com",
+            "https://secure.computrabajo.com",
+            "https://candidato.co.computrabajo.com",
+        )
+        try:
+            await cdp.cdp_client.send.Network.clearBrowserCookies(
+                session_id=cdp.session_id
+            )
+            for origin in origins:
+                await cdp.cdp_client.send.Storage.clearDataForOrigin(
+                    params={"origin": origin, "storageTypes": "all"},
+                    session_id=cdp.session_id,
+                )
+        finally:
+            await self._discard_browser_session()
+
+    def logout(self) -> None:
+        self._call(self._logout_async(), timeout=45.0)
+
     async def _discard_browser_session(self) -> None:
         browser = self._browser
         self._browser = None
