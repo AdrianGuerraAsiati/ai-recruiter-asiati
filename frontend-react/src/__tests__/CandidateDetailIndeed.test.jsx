@@ -279,3 +279,43 @@ describe("CandidateDetail Indeed canonical resume", () => {
     expect(document.body).not.toHaveTextContent("resume.invalid");
   });
 });
+
+
+describe("CandidateDetail global evaluation and explicit selection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.post.mockResolvedValue({ data: { assigned: 1, skipped: 0 } });
+  });
+
+  it("shows a global evaluation without a linked selection process and starts one explicitly", async () => {
+    let linked = false;
+    api.get.mockImplementation((url) => {
+      if (url === "/candidates/candidate-1") return Promise.resolve(candidateResponse());
+      if (url === "/jobs/job-1/candidates/candidate-1") return Promise.resolve(evaluationResponse());
+      if (url === "/jobs/job-1/candidates/candidate-1/process") {
+        return Promise.resolve({ data: { has_process: linked, status: linked ? "APPLIED" : null } });
+      }
+      if (url === "/jobs/job-1/candidates/candidate-1/integrations/indeed") {
+        return Promise.reject({ response: { status: 404 } });
+      }
+      return Promise.reject(new Error(`Unexpected URL ${url}`));
+    });
+    api.post.mockImplementation(async (url) => {
+      if (url === "/jobs/job-1/candidates") linked = true;
+      return { data: { assigned: 1, skipped: 0 } };
+    });
+
+    renderDetail();
+    await screen.findByText("88%");
+    await screen.findByText(/aún no ha sido agregado al proceso/i);
+    expect(screen.queryByText(/Candidato no encontrado en esta vacante/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Empezar contratación" }));
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith("/jobs/job-1/candidates", {
+        candidate_ids: ["candidate-1"],
+      });
+    });
+    await screen.findByRole("button", { name: /Calificación inicial/i });
+    expect(screen.queryByRole("button", { name: "Empezar contratación" })).not.toBeInTheDocument();
+  });
+});

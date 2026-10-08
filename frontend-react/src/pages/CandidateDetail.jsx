@@ -45,6 +45,10 @@ function CandidateDetail() {
   const [appointmentSaving, setAppointmentSaving] = useState(false);
   const [appointmentError, setAppointmentError] = useState("");
   const [appointmentNotice, setAppointmentNotice] = useState("");
+  const [hasSelectionProcess, setHasSelectionProcess] = useState(false);
+  const [processRefresh, setProcessRefresh] = useState(0);
+  const [startingHiring, setStartingHiring] = useState(false);
+  const [hiringError, setHiringError] = useState("");
   const [appointmentForm, setAppointmentForm] = useState(() => ({
     kind: "PHONE_CALL",
     starts_at: defaultAppointmentStart(),
@@ -118,6 +122,24 @@ function CandidateDetail() {
       cancelled = true;
     };
   }, [candidate_id, jobId]);
+
+  async function startHiring() {
+    if (!jobId || startingHiring || candidate?.is_banned) return;
+    setStartingHiring(true);
+    setHiringError("");
+    try {
+      await api.post(`/jobs/${jobId}/candidates`, { candidate_ids: [candidate_id] });
+      setHasSelectionProcess(true);
+      setProcessRefresh((count) => count + 1);
+    } catch (err) {
+      setHiringError(getApiErrorMessage(err, {
+        action: "iniciar la contratación",
+        fallback: "No fue posible iniciar el proceso de contratación.",
+      }));
+    } finally {
+      setStartingHiring(false);
+    }
+  }
 
   async function openResume() {
     setOpeningResume(true);
@@ -251,6 +273,11 @@ function CandidateDetail() {
               Agendar cita
             </button>
           )}
+          {jobId && !hasSelectionProcess && !candidate.is_banned && (
+            <button type="button" className="btn btn-secondary" onClick={startHiring} disabled={startingHiring}>
+              {startingHiring ? "Iniciando…" : "Empezar contratación"}
+            </button>
+          )}
           {canOpenResume && (
             <button
               type="button"
@@ -267,6 +294,7 @@ function CandidateDetail() {
         </div>
       </header>
 
+      {hiringError && <div className="alert" role="alert">{hiringError}</div>}
       {appointmentNotice && (
         <div className="candidate-appointment-notice" role="status">{appointmentNotice}</div>
       )}
@@ -281,7 +309,7 @@ function CandidateDetail() {
         </div>
       )}
 
-      {jobId && <RecruitmentFlow jobId={jobId} candidateId={candidate_id} />}
+      {jobId && <RecruitmentFlow jobId={jobId} candidateId={candidate_id} activated={processRefresh} onProcessChange={setHasSelectionProcess} />}
 
       {!evaluationCompleted ? (
         <EmptyState

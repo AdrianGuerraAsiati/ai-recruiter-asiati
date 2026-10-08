@@ -214,7 +214,7 @@ def get_job_ranking(
     max_score: float = Query(100, ge=0, le=100),
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
-    scope: str = Query("assigned", pattern=r"^(assigned|all)$"),
+    scope: str = Query("all", pattern=r"^(assigned|all)$"),
     recommendation: str | None = Query(None),
     db: Session = Depends(get_db),
     _user: dict = Depends(require_permission("ranking.read")),
@@ -243,7 +243,7 @@ def get_job_ranking(
 def recalculate_ranking_endpoint(
     job_id: str,
     mode: str = Query("full", pattern=r"^(full|incremental)$"),
-    scope: str = Query("assigned", pattern=r"^(assigned|all)$"),
+    scope: str = Query("all", pattern=r"^(assigned|all)$"),
     db: Session = Depends(get_db),
     _user: dict = Depends(require_permission("ranking.recalculate")),
 ):

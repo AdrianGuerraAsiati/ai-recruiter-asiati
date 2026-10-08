@@ -402,3 +402,8 @@ __all__ = [
     "get_candidate_restriction_history",
     "create_and_index_candidate",
 ]
+
+
+def get_selection_process(db, *, job_id: str, candidate_id: str):
+    """Read the optional formal application through the candidate domain service."""
+    return candidates_repository.get_job_candidate(db, job_id=job_id, candidate_id=candidate_id, owner_sub=None)

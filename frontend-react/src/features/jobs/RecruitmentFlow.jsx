@@ -20,28 +20,40 @@ const LEGACY_STAGE = {
   HIRED: "CONTRACT_SIGNED",
 };
 
-export default function RecruitmentFlow({ jobId, candidateId, onContractSigned }) {
-  const [status, setStatus] = useState("APPLIED");
+export default function RecruitmentFlow({ jobId, candidateId, onContractSigned, activated = 0, onProcessChange }) {
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!jobId || !candidateId) return;
-    api.get(`/jobs/${jobId}/candidates?page=1&page_size=100`)
+    let cancelled = false;
+    api.get(`/jobs/${jobId}/candidates/${candidateId}/process`)
       .then(({ data }) => {
-        const row = (Array.isArray(data) ? data : data?.items || []).find(
-          (item) => item.candidate_id === candidateId || item.id === candidateId
-        );
-        if (row?.application_status) setStatus(LEGACY_STAGE[row.application_status] || row.application_status);
+        if (cancelled) return;
+        const next = data.has_process
+          ? (LEGACY_STAGE[data.status] || data.status || "APPLIED")
+          : null;
+        setStatus(next);
+        onProcessChange?.(Boolean(data.has_process));
       })
-      .catch(() => {});
-  }, [jobId, candidateId]);
+      .catch((err) => {
+        if (!cancelled) {
+          setError(getApiErrorMessage(err, { fallback: "No fue posible consultar el proceso de selección." }));
+          setStatus(null);
+          onProcessChange?.(false);
+        }
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [jobId, candidateId, activated]);
 
   if (!jobId) return null;
   const currentIndex = Math.max(0, STAGES.findIndex((stage) => stage.status === status));
 
   async function moveTo(stage) {
-    if (saving || stage.status === status) return;
+    if (saving || !status || stage.status === status) return;
     setSaving(true);
     setError("");
     try {
@@ -60,7 +72,7 @@ export default function RecruitmentFlow({ jobId, candidateId, onContractSigned }
   }
 
   async function reject() {
-    if (saving) return;
+    if (saving || !status) return;
     setSaving(true);
     setError("");
     try {
@@ -81,14 +93,16 @@ export default function RecruitmentFlow({ jobId, candidateId, onContractSigned }
           <h2>Pipeline sincronizado con Odoo</h2>
           <p className="muted">Las etapas corresponden directamente a hr.applicant de Odoo.</p>
         </div>
-        {status !== "REJECTED" && (
+        {status && status !== "REJECTED" && (
           <button type="button" className="btn btn-secondary btn-sm" disabled={saving} onClick={reject}>
             Descartar
           </button>
         )}
       </div>
       {error && <div className="alert" role="alert">{error}</div>}
-      {status === "REJECTED" ? (
+      {loading ? <p className="muted">Consultando el proceso de selección…</p> : !status ? (
+        <p className="muted" role="status">Este candidato aún no ha sido agregado al proceso de esta vacante. Puedes evaluar su perfil libremente e iniciar la contratación desde el encabezado.</p>
+      ) : status === "REJECTED" ? (
         <div className="candidate-ban-alert candidate-ban-alert--detail"><strong>Candidato descartado</strong><span>El historial se conserva.</span></div>
       ) : (
         <div className="recruitment-flow__stages">
@@ -107,9 +121,9 @@ export default function RecruitmentFlow({ jobId, candidateId, onContractSigned }
           ))}
         </div>
       )}
-      <p className="muted recruitment-flow__hint">
+      {status && <p className="muted recruitment-flow__hint">
         Al llegar a “Contrato firmado”, completa la contratación para crear el empleado, enviarlo a Odoo y asignar su onboarding.
-      </p>
+      </p>}
     </section>
   );
 }
