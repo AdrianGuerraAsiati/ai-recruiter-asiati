@@ -1,4 +1,6 @@
-"""Request schemas for private employee document uploads."""
+"""Request schemas for employee intake submissions and review."""
+
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -12,3 +14,13 @@ class CreateEmployeeDocumentUploadRequest(BaseModel):
 
 class FinalizeEmployeeDocumentUploadRequest(CreateEmployeeDocumentUploadRequest):
     key: str = Field(..., min_length=1, max_length=1000)
+
+
+class SaveEmployeeDocumentValueRequest(BaseModel):
+    document_type: str = Field(..., min_length=1, max_length=80)
+    value: str = Field(..., min_length=1, max_length=2000)
+
+
+class ReviewEmployeeDocumentRequest(BaseModel):
+    status: Literal["APPROVED", "CHANGES_REQUESTED"]
+    comment: str | None = Field(default=None, max_length=2000)
