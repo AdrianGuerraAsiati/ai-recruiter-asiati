@@ -311,7 +311,7 @@ class ComputrabajoBrowserUse:
                 vacancy_links: has('a[href*="/Offers/Match?"]'),
                 cv_download_links: has('a.js_download_file[href*="/CvDownloader/"]'),
                 has_filters: !!document.querySelector('[name="MultifiltersDataModel.SearchName"]'),
-                title: (document.title || '').slice(0, 120)
+                inspected: true
               };
             })()""",
         )
