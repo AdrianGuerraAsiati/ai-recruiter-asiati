@@ -35,6 +35,7 @@ PRINCIPAL = {
         "employee_documents.read_own",
         "employee_documents.upload_own",
         "employee_documents.read_all",
+        "employee_documents.review",
     ],
     "profile": {
         "id": "admin-1",
@@ -107,18 +108,41 @@ def _api_contract(route: Route) -> None:
         _json(
             route,
             {
+                "employee": {
+                    "id": "admin-1",
+                    "email": "admin@asiati.com.co",
+                    "first_name": "Katherine",
+                    "last_name": "Admin",
+                },
                 "items": [
                     {
                         "id": "doc-admin",
                         "employee_id": "admin-1",
                         "document_type": "IDENTITY",
+                        "label": "Documento de identidad",
+                        "kind": "FILE",
+                        "description": "Copia legible del documento de identidad.",
                         "original_filename": "cedula-admin.pdf",
                         "content_type": "application/pdf",
                         "size_bytes": 1200,
+                        "value_text": None,
                         "uploaded_at": "2026-10-08T12:00:00+00:00",
+                        "review_status": "PENDING_REVIEW",
+                        "review_comment": None,
+                        "reviewed_at": None,
                     }
                 ],
-                "total": 1,
+                "total": 13,
+                "summary": {
+                    "total": 13,
+                    "submitted": 1,
+                    "approved": 0,
+                    "pending_review": 1,
+                    "changes_requested": 0,
+                    "missing": 12,
+                    "approval_percent": 0,
+                    "status": "PENDING_REVIEW",
+                },
             },
         )
         return
@@ -126,18 +150,83 @@ def _api_contract(route: Route) -> None:
         _json(
             route,
             {
+                "employee": {
+                    "id": "employee-1",
+                    "email": "ana@asiati.com.co",
+                    "first_name": "Ana",
+                    "last_name": "Pérez",
+                },
                 "items": [
                     {
                         "id": "doc-employee",
                         "employee_id": "employee-1",
                         "document_type": "BANK_CERTIFICATE",
+                        "label": "Certificación bancaria",
+                        "kind": "FILE",
+                        "description": "Certificación bancaria vigente para el pago de nómina.",
                         "original_filename": "certificado-bancario-ana.pdf",
                         "content_type": "application/pdf",
                         "size_bytes": 2400,
+                        "value_text": None,
                         "uploaded_at": "2026-10-08T12:30:00+00:00",
+                        "review_status": "PENDING_REVIEW",
+                        "review_comment": None,
+                        "reviewed_at": None,
                     }
                 ],
-                "total": 1,
+                "total": 13,
+                "summary": {
+                    "total": 13,
+                    "submitted": 1,
+                    "approved": 0,
+                    "pending_review": 1,
+                    "changes_requested": 0,
+                    "missing": 12,
+                    "approval_percent": 0,
+                    "status": "PENDING_REVIEW",
+                },
+            },
+        )
+        return
+    if path == "/api/employee-documents/doc-employee/review" and method == "POST":
+        _json(
+            route,
+            {
+                "employee": {
+                    "id": "employee-1",
+                    "email": "ana@asiati.com.co",
+                    "first_name": "Ana",
+                    "last_name": "Pérez",
+                },
+                "items": [
+                    {
+                        "id": "doc-employee",
+                        "employee_id": "employee-1",
+                        "document_type": "BANK_CERTIFICATE",
+                        "label": "Certificación bancaria",
+                        "kind": "FILE",
+                        "description": "Certificación bancaria vigente para el pago de nómina.",
+                        "original_filename": "certificado-bancario-ana.pdf",
+                        "content_type": "application/pdf",
+                        "size_bytes": 2400,
+                        "value_text": None,
+                        "uploaded_at": "2026-10-08T12:30:00+00:00",
+                        "review_status": "APPROVED",
+                        "review_comment": None,
+                        "reviewed_at": "2026-10-08T14:30:00+00:00",
+                    }
+                ],
+                "total": 13,
+                "summary": {
+                    "total": 13,
+                    "submitted": 1,
+                    "approved": 1,
+                    "pending_review": 0,
+                    "changes_requested": 0,
+                    "missing": 12,
+                    "approval_percent": 8,
+                    "status": "PENDING_REVIEW",
+                },
             },
         )
         return
@@ -307,5 +396,8 @@ def test_admin_can_review_employee_documents_in_chromium(app_page: Page) -> None
 
     page.get_by_label("Empleado a consultar").select_option("employee-1")
     expect(page.get_by_text("certificado-bancario-ana.pdf")).to_be_visible()
+    expect(page.get_by_text("En revisión", exact=True)).to_be_visible()
+    page.get_by_role("button", name="✓ Dar visto bueno").click()
+    expect(page.get_by_text("Aprobado", exact=True)).to_be_visible()
     _assert_accessible_controls(page)
     _assert_layout_fits_viewport(page)
