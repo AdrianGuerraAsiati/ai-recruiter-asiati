@@ -32,6 +32,9 @@ PRINCIPAL = {
         "training.assign",
         "training.results.read",
         "profile.read_own",
+        "employee_documents.read_own",
+        "employee_documents.upload_own",
+        "employee_documents.read_all",
     ],
     "profile": {
         "id": "admin-1",
@@ -73,6 +76,70 @@ def _api_contract(route: Route) -> None:
         return
     if path == "/api/candidates":
         _json(route, [])
+        return
+    if path == "/api/employees" and method == "GET":
+        _json(
+            route,
+            {
+                "items": [
+                    {
+                        "id": "admin-1",
+                        "email": "admin@asiati.com.co",
+                        "first_name": "Katherine",
+                        "last_name": "Admin",
+                        "status": "ACTIVE",
+                        "roles": ["ADMIN"],
+                    },
+                    {
+                        "id": "employee-1",
+                        "email": "ana@asiati.com.co",
+                        "first_name": "Ana",
+                        "last_name": "Pérez",
+                        "status": "ACTIVE",
+                        "roles": ["EMPLOYEE"],
+                    },
+                ],
+                "total": 2,
+            },
+        )
+        return
+    if path == "/api/employee-documents/me" and method == "GET":
+        _json(
+            route,
+            {
+                "items": [
+                    {
+                        "id": "doc-admin",
+                        "employee_id": "admin-1",
+                        "document_type": "IDENTITY",
+                        "original_filename": "cedula-admin.pdf",
+                        "content_type": "application/pdf",
+                        "size_bytes": 1200,
+                        "uploaded_at": "2026-10-08T12:00:00+00:00",
+                    }
+                ],
+                "total": 1,
+            },
+        )
+        return
+    if path == "/api/employee-documents/employees/employee-1" and method == "GET":
+        _json(
+            route,
+            {
+                "items": [
+                    {
+                        "id": "doc-employee",
+                        "employee_id": "employee-1",
+                        "document_type": "BANK_CERTIFICATE",
+                        "original_filename": "certificado-bancario-ana.pdf",
+                        "content_type": "application/pdf",
+                        "size_bytes": 2400,
+                        "uploaded_at": "2026-10-08T12:30:00+00:00",
+                    }
+                ],
+                "total": 1,
+            },
+        )
         return
     if path == "/api/employees/summary":
         _json(
@@ -228,3 +295,17 @@ def test_mobile_navigation_has_no_horizontal_overflow(app_page: Page) -> None:
     _assert_layout_fits_viewport(page)
     _assert_accessible_controls(page)
     page.screenshot(path=str(ARTIFACT_DIR / "dashboard-mobile.png"), full_page=True)
+
+
+def test_admin_can_review_employee_documents_in_chromium(app_page: Page) -> None:
+    page = app_page
+    _login(page)
+
+    page.get_by_role("link", name="Documentos").click()
+    expect(page.get_by_role("heading", name="Documentos", exact=True)).to_be_visible()
+    expect(page.get_by_text("cedula-admin.pdf")).to_be_visible()
+
+    page.get_by_label("Empleado a consultar").select_option("employee-1")
+    expect(page.get_by_text("certificado-bancario-ana.pdf")).to_be_visible()
+    _assert_accessible_controls(page)
+    _assert_layout_fits_viewport(page)
