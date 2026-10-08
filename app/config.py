@@ -290,7 +290,7 @@ def get_ranking_evaluation_concurrency() -> int:
         1,
         min(
             40,
-            int(os.getenv("RANKING_EVALUATION_CONCURRENCY", "10")),
+            int(os.getenv("RANKING_EVALUATION_CONCURRENCY", "40")),
         ),
     )
 
