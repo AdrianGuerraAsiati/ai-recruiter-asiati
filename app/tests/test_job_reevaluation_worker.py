@@ -472,3 +472,48 @@ def test_sequential_batch_continues_after_candidate_failure(monkeypatch):
     )
     assert evaluated == ["first", "second", "third", "fourth"]
     assert failures == ["second", "third"]
+
+
+def test_ranking_40_parallel_blocks_of_10_remain_sequential_within_each_block(monkeypatch):
+    import threading
+    import time
+
+    active = 0
+    peak = 0
+    seen = []
+    lock = threading.Lock()
+    barrier = threading.Barrier(40, timeout=10)
+
+    def fake_evaluate(**kwargs):
+        nonlocal active, peak
+        with lock:
+            active += 1
+            peak = max(peak, active)
+            seen.append(kwargs["candidate_id"])
+        try:
+            if kwargs["candidate_id"].endswith("-00"):
+                barrier.wait()
+            time.sleep(0.001)
+            return True
+        finally:
+            with lock:
+                active -= 1
+
+    monkeypatch.setattr(job_reevaluations, "_evaluate_candidate_in_isolated_session", fake_evaluate)
+    monkeypatch.setattr(job_reevaluations, "get_ranking_evaluation_batch_size", lambda: 10)
+    monkeypatch.setattr(job_reevaluations, "get_ranking_evaluation_concurrency", lambda: 40)
+
+    candidate_ids = [f"candidate-{block:02d}-{item:02d}" for block in range(40) for item in range(10)]
+    failures = job_reevaluations._run_parallel_candidate_evaluations(
+        None, task_id="40-block-test", processing_token=None,
+        job_id="job-1", owner_sub="owner-1",
+        candidate_ids=candidate_ids, force_evaluation=False,
+    )
+    assert failures == []
+    assert len(seen) == 400
+    assert set(seen) == set(candidate_ids)
+    assert peak == 40
+    for block in range(40):
+        block_ids = [f"candidate-{block:02d}-{item:02d}" for item in range(10)]
+        observed = [value for value in seen if value.startswith(f"candidate-{block:02d}-")]
+        assert observed == block_ids
