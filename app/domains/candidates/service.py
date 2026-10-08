@@ -85,6 +85,7 @@ def list_candidates_page(
     page_size: int = 20,
     sort: str = "created_desc",
     country_code: str = "",
+    q: str = "",
 ):
     return candidates_repository.list_candidates_page(
         db,
@@ -93,6 +94,7 @@ def list_candidates_page(
         page_size=page_size,
         sort=sort,
         country_code=country_code,
+        q=q,
     )
 
 
