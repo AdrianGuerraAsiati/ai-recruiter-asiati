@@ -48,7 +48,7 @@ function Dashboard() {
           const requests = [
             api.get("/jobs"),
             api.get("/candidates"),
-            api.get("/jobs/coverage/summary"),
+            api.get("/jobs/coverage/summary").catch(() => ({ data: null })),
           ];
           if (canManageEmployees) {
             requests.push(api.get("/employees/summary"));
@@ -157,6 +157,14 @@ function Dashboard() {
 
   const activeJobs = jobs.filter((job) => (job.status || "ACTIVE") === "ACTIVE");
   const coverage = coverageSummary?.coverage_percent;
+  const coverageJobs = coverageSummary?.jobs || [];
+  const coverageGroups = [
+    { key: "critical", title: "Críticas", description: "Sin candidatos viables" },
+    { key: "low", title: "En riesgo", description: "Uno o dos candidatos viables" },
+    { key: "pending", title: "Sin evaluar", description: "Ranking pendiente o desactualizado" },
+    { key: "covered", title: "Cubiertas", description: "Tres o más candidatos viables" },
+    { key: "strong", title: "Cobertura fuerte", description: "Tres o más candidatos con puntuación de 80+" },
+  ];
 
   return (
     <div className="page dashboard-page">
@@ -176,6 +184,38 @@ function Dashboard() {
         <MetricCard icon="users" label="Candidatos registrados" value={candidateTotal} detail="Perfiles centralizados" tone="cyan" live />
         <MetricCard icon="ranking" label="Cobertura de talento" value={coverage == null ? "Sin datos" : `${coverage}%`} detail={coverageSummary ? `${coverageSummary.covered_jobs} de ${coverageSummary.total_active_jobs} cubiertas · ${coverageSummary.counts.low} en riesgo · ${coverageSummary.counts.critical} críticas · ${coverageSummary.counts.pending} sin evaluar` : "Evaluaciones pendientes de consulta"} tone="violet" />
       </section>
+
+      {coverageSummary && activeJobs.length > 0 && (
+        <section className="panel" aria-label="Cobertura de talento por vacante">
+          <div className="panel-heading">
+            <div>
+              <span className="eyebrow">Pipeline de talento</span>
+              <h2>Cobertura por vacante</h2>
+              <p>Profundidad del pipeline: {coverageSummary.pipeline_depth} candidatos viables por vacante activa.</p>
+            </div>
+            <Link to="/ranking">Ir a Ranking IA <span aria-hidden="true">→</span></Link>
+          </div>
+          <div className="onboarding-summary-grid">
+            {coverageGroups.map((group) => {
+              const groupJobs = coverageJobs.filter((job) => job.status === group.key);
+              return (
+                <div key={group.key}>
+                  <span title={group.description}>{group.title}</span>
+                  <strong>{groupJobs.length}</strong>
+                  {groupJobs.slice(0, 4).map((job) => (
+                    <div key={job.job_id}>
+                      <Link to={`/ranking?job_id=${encodeURIComponent(job.job_id)}`}>
+                        {job.title} ({job.viable})
+                      </Link>
+                    </div>
+                  ))}
+                  {groupJobs.length > 4 && <small>Y {groupJobs.length - 4} vacantes más</small>}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {canManageEmployees && employeeSummary && (
         <section className="panel onboarding-summary-panel">
