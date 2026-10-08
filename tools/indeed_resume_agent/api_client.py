@@ -9,6 +9,7 @@ import httpx
 from .config import AgentConfig
 
 BASE_PATH = "/api/agents/indeed-resume"
+CANDIDATE_SOURCE_PATH = "/api/agents/candidate-source"
 _SAFE_CODE = re.compile(r"^[A-Z0-9_]{3,120}$")
 
 
@@ -291,6 +292,49 @@ class AgentApiClient:
             reconcile_covered=latest["reconcile_covered"],
             reconcile_queued=totals["reconcile_queued"],
         )
+
+    def ingest_source_candidate(
+        self,
+        *,
+        provider: str,
+        source_account: str,
+        external_id: str,
+        candidate_name: str,
+        job_title: str,
+        filename: str,
+        data: bytes,
+        content_type: str = "application/pdf",
+        external_job_id: str | None = None,
+        location: str | None = None,
+        applied_at: str | None = None,
+    ) -> dict:
+        """Send one provider candidate to the shared backend ingestion pipeline."""
+        form = {
+            "provider": str(provider),
+            "source_account": str(source_account),
+            "external_id": str(external_id),
+            "candidate_name": str(candidate_name),
+            "job_title": str(job_title),
+        }
+        for key, value in {
+            "external_job_id": external_job_id,
+            "location": location,
+            "applied_at": applied_at,
+        }.items():
+            if value is not None and str(value).strip():
+                form[key] = str(value).strip()
+
+        response = self._request(
+            "POST",
+            f"{CANDIDATE_SOURCE_PATH}/candidate",
+            data=form,
+            files={"file": (filename, data, str(content_type))},
+            timeout=max(
+                self._config.request_timeout_seconds,
+                self._config.sync_request_timeout_seconds,
+            ),
+        )
+        return dict(response.json())
 
     def stats(self) -> QueueStats:
         payload = self._request("GET", f"{BASE_PATH}/stats").json()

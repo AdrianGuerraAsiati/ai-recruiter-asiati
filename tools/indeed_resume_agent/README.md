@@ -130,3 +130,8 @@ Eliminar la credencial no borra el perfil de Chrome ni los estados durables del 
 6. Solo después liberar el backlog mayor.
 
 Para pasar de un PC de pruebas al PC de Katherine se genera un token nuevo y se reemplaza su SHA-256 en AWS. El token anterior queda invalidado.
+
+
+## API de ingesta de candidatos por plataforma
+
+El agente dispone de `POST /api/agents/candidate-source/candidate` para entregar CV de Computrabajo a la misma canalización de ingesta que utiliza Talent. Requiere token de máquina válido; admite PDF/DOCX y deduplica por origen, cuenta e identificador externo. El cliente expone el envío mediante `AgentApiClient` y permite mantener las credenciales de Computrabajo en el almacén seguro del sistema operativo. La interfaz y el navegador Computrabajo existentes se mantienen sin sustitución. La integración del flujo de captura con este endpoint debe validarse antes de habilitar importación masiva.
