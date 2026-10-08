@@ -27,7 +27,6 @@ def get_talent_coverage_summary(
     _user: dict = Depends(require_permission("ranking.read")),
 ):
     """Read-only coverage from valid stored evaluations; never invokes AI."""
-    from sqlalchemy import and_
     from app.models import Job, Candidate, Evaluation
 
     jobs = db.query(Job).filter(Job.status == "ACTIVE").all()
