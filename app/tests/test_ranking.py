@@ -1360,3 +1360,49 @@ def test_recalculate_releases_lock_on_unexpected_exception(client, db_session, m
     # Lock should still be released exactly once
     assert lock_calls["acquire"] == 1
     assert lock_calls["release"] == 1
+
+
+def test_global_ranking_does_not_require_application(db_session):
+    from app.domains.ranking.service import resolve_ranking_candidates
+
+    job = _seed_job(db_session, country_code="CO", work_mode="ONSITE")
+    colombian = _seed_candidate(db_session, country_code="CO", name="Colombia")
+    _seed_candidate(db_session, country_code="MX", name="Mexico")
+
+    result = resolve_ranking_candidates(db_session, job=job, scope="all")
+    assert [candidate.id for candidate in result] == [colombian.id]
+    assert db_session.query(JobCandidate).count() == 0
+
+
+def test_remote_global_ranking_includes_other_countries(db_session):
+    from app.domains.ranking.service import resolve_ranking_candidates
+
+    job = _seed_job(db_session, country_code="CO", work_mode="REMOTE")
+    colombian = _seed_candidate(db_session, country_code="CO", name="Colombia")
+    mexican = _seed_candidate(db_session, country_code="MX", name="Mexico")
+
+    result = resolve_ranking_candidates(db_session, job=job, scope="all")
+    assert {candidate.id for candidate in result} == {colombian.id, mexican.id}
+    assert db_session.query(JobCandidate).count() == 0
+
+
+def test_selection_process_is_optional_until_explicit_assignment(client, db_session):
+    job = _seed_job(db_session)
+    candidate = _seed_candidate(db_session)
+    endpoint = f"/api/jobs/{job.id}/candidates/{candidate.id}/process"
+
+    initial = client.get(endpoint)
+    assert initial.status_code == 200
+    assert initial.json() == {
+        "has_process": False, "status": None, "status_changed_at": None,
+    }
+
+    assigned = client.post(
+        f"/api/jobs/{job.id}/candidates",
+        json={"candidate_ids": [candidate.id]},
+    )
+    assert assigned.status_code == 200
+    assert client.get(endpoint).json()["has_process"] is True
+    assert db_session.query(JobCandidate).filter_by(
+        job_id=job.id, candidate_id=candidate.id
+    ).count() == 1
