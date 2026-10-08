@@ -404,6 +404,84 @@ class ComputrabajoBrowserUse:
     def discover_visible_candidates(self) -> list[dict]:
         return self._call(self._discover_visible_candidates_async(), timeout=30.0)
 
+    async def _collect_candidate_async(self, candidate: dict) -> dict:
+        """Navigate to one discovered profile and obtain CV bytes within browser session.
+
+        Prefer the provider attachment; PDF fallback only on unsupported/missing file.
+        """
+        detail_url = str(candidate.get("detail_url") or "")
+        parsed = urlparse(detail_url)
+        if (parsed.scheme != "https" or parsed.hostname != "empresa.co.computrabajo.com"
+                or parsed.path.lower() != "/company/matchcvdetail/matchdetail"):
+            raise ValueError("COMPUTRABAJO_INVALID_CANDIDATE_URL")
+        cdp = await self._ensure_started()
+        await cdp.cdp_client.send.Page.navigate(
+            params={"url": detail_url}, session_id=cdp.session_id,
+        )
+        await self._wait_ready(cdp)
+        info = await self._evaluate(cdp, """(() => {
+            if (location.hostname !== 'empresa.co.computrabajo.com' ||
+                location.pathname.toLowerCase() !== '/company/matchcvdetail/matchdetail') {
+                return {error: 'COMPUTRABAJO_PROFILE_REQUIRED'};
+            }
+            const links = [...document.querySelectorAll('a.js_download_file[href]')];
+            const valid = links.map(a => new URL(a.href)).filter(u =>
+                u.origin === location.origin &&
+                u.pathname === '/Company/CvDownloader/Company/CvDetail/Download' &&
+                u.searchParams.has('ims'));
+            const name = (document.querySelector('h1.fs22, h1')?.textContent || '').trim();
+            return {name: name.slice(0, 180),
+                    attachment_url: valid[0]?.href || ''};
+        })()""")
+        if not isinstance(info, dict) or info.get("error"):
+            raise RuntimeError("COMPUTRABAJO_PROFILE_INVALID")
+        name = str(candidate.get("candidate_name") or info.get("name") or "").strip()
+        if not name:
+            raise RuntimeError("COMPUTRABAJO_NAME_MISSING")
+        if info.get("attachment_url"):
+            encoded = json.dumps(str(info["attachment_url"]))
+            result = await self._evaluate(cdp, """(async () => {
+                const url = """ + encoded + """;
+                try {
+                    const response = await fetch(url, {credentials: 'same-origin'});
+                    const type = response.headers.get('content-type') || '';
+                    if (!response.ok || /text\\/html|application\\/json/i.test(type))
+                        return {unsupported: true};
+                    const buffer = await response.arrayBuffer();
+                    if (buffer.byteLength < 8 || buffer.byteLength > 15 * 1024 * 1024)
+                        return {unsupported: true};
+                    const view = new Uint8Array(buffer);
+                    let raw = '';
+                    for (let i=0; i<view.length; i+=8192)
+                        raw += String.fromCharCode(...view.subarray(i, i+8192));
+                    return {content: btoa(raw), type};
+                } catch (_) { return {unsupported: true}; }
+            })()""")
+            if isinstance(result, dict) and result.get("content"):
+                raw = base64.b64decode(result["content"], validate=True)
+                if raw.lstrip().startswith(b"%PDF-"):
+                    return dict(name=name, data=raw, filename="computrabajo-cv.pdf",
+                                content_type="application/pdf", kind="attached")
+                if raw.startswith(b"PK") and len(raw) <= 15 * 1024 * 1024:
+                    return dict(name=name, data=raw, filename="computrabajo-cv.docx",
+                                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                kind="attached")
+        response = await cdp.cdp_client.send.Page.printToPDF(
+            params={"printBackground": True, "preferCSSPageSize": True},
+            session_id=cdp.session_id,
+        )
+        encoded = response.get("data") if isinstance(response, dict) else None
+        if not encoded:
+            raise RuntimeError("COMPUTRABAJO_PRINT_EMPTY")
+        raw = base64.b64decode(encoded, validate=True)
+        if not raw.startswith(b"%PDF-") or len(raw) > 15 * 1024 * 1024:
+            raise RuntimeError("COMPUTRABAJO_PRINT_INVALID")
+        return dict(name=name, data=raw, filename="computrabajo-profile.pdf",
+                    content_type="application/pdf", kind="profile")
+
+    def collect_candidate(self, candidate: dict) -> dict:
+        return self._call(self._collect_candidate_async(candidate), timeout=90.0)
+
     async def _save_visible_profile_pdf_async(self) -> str:
         """Export a user-opened Computrabajo profile, without bulk collection."""
         cdp = await self._ensure_started()
