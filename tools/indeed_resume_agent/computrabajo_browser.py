@@ -325,6 +325,40 @@ class ComputrabajoBrowserUse:
     def open_vacancies(self) -> None:
         self.open_portal("https://empresa.co.computrabajo.com/Company/Offers")
 
+    async def _save_visible_profile_pdf_async(self) -> str:
+        """Export a user-opened Computrabajo profile, without bulk collection."""
+        cdp = await self._ensure_started()
+        page = await self._page_metadata(cdp)
+        url = str(page.get("url") or "")
+        parsed = urlparse(url)
+        if (
+            parsed.hostname != "empresa.co.computrabajo.com"
+            or parsed.path.casefold() not in (
+                "/company/matchcvdetail/matchdetail",
+                "/company/matchcvdetail/matchprint",
+            )
+        ):
+            raise ValueError("COMPUTRABAJO_PROFILE_REQUIRED")
+        response = await cdp.cdp_client.send.Page.printToPDF(
+            params={"printBackground": True, "preferCSSPageSize": True},
+            session_id=cdp.session_id,
+        )
+        encoded = response.get("data") if isinstance(response, dict) else None
+        if not encoded:
+            raise RuntimeError("COMPUTRABAJO_PDF_EMPTY")
+        data = base64.b64decode(encoded, validate=True)
+        if not data.startswith(b"%PDF-") or len(data) > 20 * 1024 * 1024:
+            raise RuntimeError("COMPUTRABAJO_PDF_INVALID")
+        folder = self._profile_dir.parent / "exports" / "computrabajo"
+        folder.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        destination = folder / f"profile-{stamp}.pdf"
+        destination.write_bytes(data)
+        return str(destination)
+
+    def save_visible_profile_pdf(self) -> str:
+        return self._call(self._save_visible_profile_pdf_async(), timeout=60.0)
+
     async def _page_metadata(self, cdp) -> dict:
         value = await self._evaluate(
             cdp,
