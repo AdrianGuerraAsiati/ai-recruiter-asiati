@@ -324,6 +324,7 @@ def test_isolated_ranking_evaluation_persists_after_db_free_model_call(monkeypat
         db.commit()
         job_id = job.id
         candidate_id = candidate.id
+        db.rollback()
 
         monkeypatch.setattr(
             job_reevaluations,
