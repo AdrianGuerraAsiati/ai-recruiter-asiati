@@ -5,6 +5,10 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import Ranking from "../pages/Ranking";
 
+vi.mock("../context/SessionContext", () => ({
+  useSession: () => ({ hasPermission: () => false }),
+}));
+
 vi.mock("../api/client", () => ({
   default: {
     get: vi.fn(),

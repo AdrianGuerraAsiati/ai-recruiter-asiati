@@ -10,6 +10,7 @@ import { useNotice } from "../context/noticeStore";
 import PageHeader from "../components/ui/PageHeader";
 import Icon from "../components/ui/Icon";
 import { EmptyState, FeedbackMessage, ProgressBar } from "../components/ui/StatePanel";
+import CandidateCreateUserModal from "../components/CandidateCreateUserModal.jsx";
 import CandidateImportModal from "../features/candidate-import/CandidateImportModal.jsx";
 
 const PAGE_SIZE = 20;
@@ -18,6 +19,7 @@ function Candidates() {
   const { hasPermission } = useSession();
   const { notify } = useNotice();
   const canRestrictCandidates = hasPermission("candidates.restrict");
+  const canCreateUsers = hasPermission("employees.create");
   const canManageCandidates = hasPermission("candidates.manage");
   const [candidates, setCandidates] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -31,6 +33,8 @@ function Candidates() {
   const [pages, setPages] = useState(0);
   const [searchParams, setSearchParams] = useSearchParams();
   const [restrictionTarget, setRestrictionTarget] = useState(null);
+  const [userTarget, setUserTarget] = useState(null);
+  const [query, setQuery] = useState("");
   const [restrictionMode, setRestrictionMode] = useState("ban");
   const [restrictionReason, setRestrictionReason] = useState("");
   const [restrictionSaving, setRestrictionSaving] = useState(false);
@@ -52,7 +56,7 @@ function Candidates() {
     try {
       const [candidatesResponse, jobsResponse] = await Promise.all([
         api.get(
-          `/candidates?page=${targetPage}&page_size=${PAGE_SIZE}${candidateSort === "created_desc" ? "" : `&sort=${candidateSort}`}${countryFilter ? `&country_code=${encodeURIComponent(countryFilter)}` : ""}`,
+          `/candidates?page=${targetPage}&page_size=${PAGE_SIZE}${candidateSort === "created_desc" ? "" : `&sort=${candidateSort}`}${countryFilter ? `&country_code=${encodeURIComponent(countryFilter)}` : ""}${query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ""}`,
         ),
         api.get("/jobs"),
       ]);
@@ -76,7 +80,7 @@ function Candidates() {
         fallback: "No se pudo completar el directorio porque candidatos o vacantes no respondieron. Recarga la página antes de asignar perfiles.",
       }));
     }
-  }, [candidateSort, countryFilter, page]);
+  }, [candidateSort, countryFilter, page, query]);
 
   useEffect(() => {
     // The initial request synchronizes this view with the API.
@@ -427,6 +431,10 @@ function Candidates() {
         </div>
         <div className="ui-actions">
           <label className="candidate-sort-control">
+            <span>Buscar candidatos</span>
+            <input type="search" className="select" aria-label="Buscar candidatos" placeholder="Nombre o correo" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} />
+          </label>
+          <label className="candidate-sort-control">
             <span>País</span>
             <select
               className="select"
@@ -490,6 +498,9 @@ function Candidates() {
                   <Icon name="applications" size={16} />
                   Ver CV
                 </button>
+                {canCreateUsers && (
+                  <button className="btn btn-primary" type="button" disabled={candidate.is_banned} onClick={() => setUserTarget(candidate)}>Crear usuario</button>
+                )}
                 {canRestrictCandidates && (
                   <button
                     className={`btn ${candidate.is_banned ? "btn-secondary" : "btn-danger"}`}
@@ -607,6 +618,7 @@ function Candidates() {
         </div>
       )}
 
+      <CandidateCreateUserModal open={Boolean(userTarget)} candidateId={userTarget?.candidate_id} candidate={userTarget} onClose={() => setUserTarget(null)} />
       {showCreateModal && (
         <CandidateImportModal
           open
