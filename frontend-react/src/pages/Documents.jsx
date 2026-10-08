@@ -58,10 +58,6 @@ function Documents() {
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    if (!selectedEmployeeId && ownEmployeeId) setSelectedEmployeeId(ownEmployeeId);
-  }, [ownEmployeeId, selectedEmployeeId]);
-
-  useEffect(() => {
     if (!canReadAll) return undefined;
     let active = true;
     api.get("/employees")
@@ -104,7 +100,10 @@ function Documents() {
   }, [selectedEmployeeId, viewingOwn]);
 
   useEffect(() => {
-    void loadDocuments();
+    const timeoutId = window.setTimeout(() => {
+      void loadDocuments();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [loadDocuments]);
 
   function onFileChange(event) {
