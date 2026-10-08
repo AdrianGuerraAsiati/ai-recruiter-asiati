@@ -292,6 +292,39 @@ class ComputrabajoBrowserUse:
     def start(self) -> None:
         self._call(self._ensure_started())
 
+    async def _inspect_current_page_async(self) -> dict:
+        """Read-only inventory of the authenticated page; never extract PII."""
+        cdp = await self._ensure_started()
+        payload = await self._evaluate(
+            cdp,
+            """(() => {
+              const path = location.pathname.toLowerCase();
+              const has = (selector) => document.querySelectorAll(selector).length;
+              const home = /\\/company\\/(default|home|inicio)?$/.test(path);
+              const listing = path.includes('/offers/match');
+              const detail = path.includes('/matchcvdetail/matchdetail');
+              const offers = path.includes('/company/offers') && !listing;
+              return {
+                page: detail ? 'candidate_detail' : listing ? 'candidate_list' :
+                      offers ? 'vacancies' : home ? 'home' : 'other',
+                candidate_links: has('a[href*="/MatchCvDetail/MatchDetail"]'),
+                vacancy_links: has('a[href*="/Offers/Match?"]'),
+                cv_download_links: has('a.js_download_file[href*="/CvDownloader/"]'),
+                has_filters: !!document.querySelector('[name="MultifiltersDataModel.SearchName"]'),
+                inspected: true
+              };
+            })()""",
+        )
+        if not isinstance(payload, dict):
+            raise RuntimeError("COMPUTRABAJO_PAGE_INSPECTION_FAILED")
+        return payload
+
+    def inspect_current_page(self) -> dict:
+        return self._call(self._inspect_current_page_async(), timeout=30.0)
+
+    def open_vacancies(self) -> None:
+        self.open_portal("https://empresa.co.computrabajo.com/Company/Offers")
+
     async def _page_metadata(self, cdp) -> dict:
         value = await self._evaluate(
             cdp,
