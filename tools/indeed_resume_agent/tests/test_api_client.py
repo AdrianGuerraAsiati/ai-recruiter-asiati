@@ -334,3 +334,45 @@ def test_timeout_is_reported_as_safe_machine_code(tmp_path):
 
     assert exc.value.status_code == 504
     assert exc.value.code == "RESUME_AGENT_API_TIMEOUT"
+
+
+def test_external_candidate_upload_uses_provider_neutral_agent_route(tmp_path):
+    seen = {}
+
+    def handler(request):
+        seen["path"] = request.url.path
+        seen["headers"] = request.headers
+        seen["body"] = request.read()
+        return httpx.Response(
+            200,
+            json={
+                "event_id": "event-1",
+                "provider": "COMPUTRABAJO",
+                "status": "STORED",
+                "existing": False,
+                "queued": True,
+            },
+        )
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://agent.test",
+    )
+    api = AgentApiClient(config(tmp_path), "a" * 40, http_client=client)
+
+    result = api.ingest_source_candidate(
+        provider="COMPUTRABAJO",
+        source_account="corporate-recruiting",
+        external_id="ids:42",
+        candidate_name="Ada Lovelace",
+        job_title="Ingeniera de software",
+        filename="ada.pdf",
+        data=b"%PDF-test",
+        location="Bogotá",
+    )
+
+    assert seen["path"] == "/api/agents/candidate-source/candidate"
+    assert seen["headers"]["X-ASIATI-Agent-Token"] == "a" * 40
+    assert b"COMPUTRABAJO" in seen["body"]
+    assert b"%PDF-test" in seen["body"]
+    assert result["queued"] is True
