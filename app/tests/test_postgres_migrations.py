@@ -540,6 +540,6 @@ def test_alembic_head_builds_current_postgres_schema():
         assert "company_name" in job_columns
 
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
-        assert revision == "050"
+        assert revision == "051"
     finally:
         engine.dispose()
