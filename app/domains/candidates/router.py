@@ -16,6 +16,7 @@ from app.domains.candidates.exceptions import (
 )
 from app.domains.candidates.schemas import (
     ApplicationStatusRequest,
+    CandidateCountryRequest,
     CandidateRestrictionRequest,
 )
 from app.domains.jobs.schemas import AssignCandidatesRequest
@@ -138,6 +139,27 @@ def get_job_candidates(
     return payload
 
 
+@assign_router.get("/{job_id}/candidates/{candidate_id}/process")
+def get_candidate_selection_process(
+    job_id: str,
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    _user: dict = Depends(require_permission("candidates.read")),
+):
+    """Return the optional formal selection process, independently of evaluation."""
+    _require_job(db, job_id, _user["sub"])
+    _require_candidate(db, candidate_id, _user["sub"])
+    link = service.get_selection_process(db, job_id=job_id, candidate_id=candidate_id)
+    return {
+        "has_process": link is not None,
+        "status": link.application_status if link is not None else None,
+        "status_changed_at": (
+            link.status_changed_at.isoformat()
+            if link is not None and link.status_changed_at else None
+        ),
+    }
+
+
 @assign_router.put("/{job_id}/candidates/{candidate_id}/status")
 def update_application_status(
     job_id: str,
@@ -227,6 +249,7 @@ def list_candidates(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=20, le=20),
     sort: Literal["created_desc", "name_asc", "name_desc"] = Query("created_desc"),
+    country_code: str = Query("", max_length=2),
     q: str = Query("", max_length=120),
     db: Session = Depends(get_db),
     _user: dict = Depends(require_permission("candidates.read")),
@@ -237,6 +260,7 @@ def list_candidates(
         page=page,
         page_size=page_size,
         sort=sort,
+        country_code=country_code,
         q=q,
     )
     pages = (total + page_size - 1) // page_size if total else 0
@@ -375,6 +399,25 @@ async def upload_candidates_bulk(
         "candidates": results,
         "errors": errors,
     }
+
+
+@router.put("/{candidate_id}/country")
+def update_candidate_country(
+    candidate_id: str,
+    body: CandidateCountryRequest,
+    db: Session = Depends(get_db),
+    _user: dict = Depends(require_permission("candidates.manage")),
+):
+    try:
+        candidate = service.set_candidate_country(
+            db,
+            candidate_id=candidate_id,
+            owner_sub=_user["sub"],
+            country_code=body.country_code,
+        )
+    except CandidateNotFound:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado.")
+    return presenter.candidate_to_dict(candidate)
 
 
 @router.post("/{candidate_id}/ban")
