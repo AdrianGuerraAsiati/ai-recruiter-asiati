@@ -884,7 +884,6 @@ class EmployeeScoreEvent(Base):
 from app.domains.odoo_sync.models import (  # noqa: E402,F401
     OdooApplicantSync, OdooContractSync, OdooEmployeeSync, OdooJobSync,
 )
-
 # Training ORM models remain re-exported for compatibility with services/Alembic.
 from app.domains.training.models import (  # noqa: E402,F401
     TrainingAssignment,
