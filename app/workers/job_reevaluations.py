@@ -149,6 +149,37 @@ def _evaluate_candidate_in_isolated_session(
     )
 
 
+def _evaluate_sequential_batch(
+    *,
+    candidate_batch: list[str],
+    job_id: str,
+    owner_sub: str,
+    force_evaluation: bool,
+) -> list[str]:
+    """Evaluate one ten-candidate block sequentially, preserving candidate order."""
+    failures: list[str] = []
+    for candidate_id in candidate_batch:
+        try:
+            completed = bool(
+                _evaluate_candidate_in_isolated_session(
+                    candidate_id=candidate_id,
+                    job_id=job_id,
+                    owner_sub=owner_sub,
+                    force_evaluation=force_evaluation,
+                )
+            )
+        except Exception:
+            logger.exception(
+                "Sequential candidate reevaluation failed job=%s candidate=%s",
+                job_id,
+                candidate_id,
+            )
+            completed = False
+        if not completed:
+            failures.append(candidate_id)
+    return failures
+
+
 def _run_parallel_candidate_evaluations(
     db: Session,
     *,
@@ -159,78 +190,65 @@ def _run_parallel_candidate_evaluations(
     candidate_ids: list[str],
     force_evaluation: bool,
 ) -> list[str]:
-    """Schedule all batches without barriers, using bounded global concurrency."""
-    failures: list[str] = []
-    batch_size = get_ranking_evaluation_batch_size()
-    workers_per_batch = get_ranking_evaluation_concurrency()
-    batches = _candidate_batches(candidate_ids, batch_size=batch_size)
+    """Process ten-candidate blocks concurrently, sequentially within each block."""
+    batches = _candidate_batches(
+        candidate_ids,
+        batch_size=get_ranking_evaluation_batch_size(),
+    )
     if not batches:
-        return failures
+        return []
 
-    parallel_batches = len(batches)
-    # Safety cap: unbounded threads on the small production host can exhaust
-    # memory and PostgreSQL connections, bringing down the API behind nginx.
-    # Keep all batches submitted, but bound the active workers globally.
-    max_workers = min(len(candidate_ids), workers_per_batch, 10)
+    # One thread per active block, not per candidate. Bound concurrent blocks
+    # on the shared host to avoid recreating the 502/resource exhaustion risk.
+    max_workers = min(len(batches), get_ranking_evaluation_concurrency(), 10)
     logger.info(
-        "Ranking concurrent batches started task=%s batches=%s parallel_batches=%s workers=%s",
+        "Ranking sequential blocks started task=%s blocks=%s active_blocks=%s",
         task_id,
         len(batches),
-        parallel_batches,
         max_workers,
     )
-
-    # Schedule all batches without per-batch wait barriers while bounding total
-    # active Bedrock requests and database sessions on the shared host.
-    remaining_by_batch = {index: len(batch) for index, batch in enumerate(batches, start=1)}
-    failures_by_batch = {index: 0 for index in remaining_by_batch}
+    failures: list[str] = []
     with ThreadPoolExecutor(
         max_workers=max_workers,
-        thread_name_prefix="ranking-eval",
+        thread_name_prefix="ranking-block",
     ) as executor:
-        futures = {}
-        for batch_number, candidate_batch in enumerate(batches, start=1):
-            for candidate_id in candidate_batch:
-                future = executor.submit(
-                    _evaluate_candidate_in_isolated_session,
-                    candidate_id=candidate_id,
-                    job_id=job_id,
-                    owner_sub=owner_sub,
-                    force_evaluation=force_evaluation,
-                )
-                futures[future] = (batch_number, candidate_id)
-
+        futures = {
+            executor.submit(
+                _evaluate_sequential_batch,
+                candidate_batch=candidate_batch,
+                job_id=job_id,
+                owner_sub=owner_sub,
+                force_evaluation=force_evaluation,
+            ): (batch_number, len(candidate_batch))
+            for batch_number, candidate_batch in enumerate(batches, start=1)
+        }
         for future in as_completed(futures):
-            batch_number, candidate_id = futures[future]
+            batch_number, batch_count = futures[future]
             try:
-                completed = bool(future.result())
+                batch_failures = future.result()
             except Exception:
                 logger.exception(
-                    "Parallel candidate reevaluation failed job=%s candidate=%s",
-                    job_id,
-                    candidate_id,
-                )
-                completed = False
-            if not completed:
-                failures.append(candidate_id)
-                failures_by_batch[batch_number] += 1
-
-            remaining_by_batch[batch_number] -= 1
-            if remaining_by_batch[batch_number] == 0:
-                if processing_token:
-                    reevaluation_repository.heartbeat_reevaluation_task(
-                        db,
-                        task_id=task_id,
-                        token=processing_token,
-                    )
-                logger.info(
-                    "Ranking evaluation batch completed task=%s batch=%s candidates=%s failures=%s",
+                    "Ranking block crashed task=%s block=%s",
                     task_id,
                     batch_number,
-                    len(batches[batch_number - 1]),
-                    failures_by_batch[batch_number],
                 )
-
+                # Preserve partial success and let a future retry resume
+                # candidates still missing a completed evaluation.
+                batch_failures = batches[batch_number - 1]
+            failures.extend(batch_failures)
+            if processing_token:
+                reevaluation_repository.heartbeat_reevaluation_task(
+                    db,
+                    task_id=task_id,
+                    token=processing_token,
+                )
+            logger.info(
+                "Ranking sequential block completed task=%s block=%s candidates=%s failures=%s",
+                task_id,
+                batch_number,
+                batch_count,
+                len(batch_failures),
+            )
     return failures
 
 
