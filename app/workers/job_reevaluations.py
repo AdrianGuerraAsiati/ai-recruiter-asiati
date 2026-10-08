@@ -13,6 +13,7 @@ from app.config import (
     get_import_lease_timeout_seconds,
     get_ranking_evaluation_batch_size,
     get_ranking_evaluation_concurrency,
+    get_ranking_parallel_batches,
 )
 from app.db import SessionLocal
 from app.domains.candidates import repository as candidates_repository
@@ -159,70 +160,77 @@ def _run_parallel_candidate_evaluations(
     candidate_ids: list[str],
     force_evaluation: bool,
 ) -> list[str]:
-    """Evaluate candidates in parallel batches of at most 10."""
+    """Run multiple ten-person batches concurrently with bounded total workers."""
     failures: list[str] = []
     batch_size = get_ranking_evaluation_batch_size()
-    concurrency = get_ranking_evaluation_concurrency()
+    workers_per_batch = get_ranking_evaluation_concurrency()
+    batches = _candidate_batches(candidate_ids, batch_size=batch_size)
+    if not batches:
+        return failures
 
-    for batch_number, candidate_batch in enumerate(
-        _candidate_batches(candidate_ids, batch_size=batch_size),
-        start=1,
-    ):
-        max_workers = min(
-            len(candidate_batch),
-            max(1, int(concurrency)),
-            10,
-        )
-        logger.info(
-            "Ranking evaluation batch started task=%s batch=%s candidates=%s workers=%s",
-            task_id,
-            batch_number,
-            len(candidate_batch),
-            max_workers,
-        )
+    parallel_batches = min(len(batches), get_ranking_parallel_batches())
+    max_workers = min(
+        len(candidate_ids),
+        parallel_batches * min(batch_size, workers_per_batch),
+    )
+    logger.info(
+        "Ranking concurrent batches started task=%s batches=%s parallel_batches=%s workers=%s",
+        task_id,
+        len(batches),
+        parallel_batches,
+        max_workers,
+    )
 
-        with ThreadPoolExecutor(
-            max_workers=max_workers,
-            thread_name_prefix="ranking-eval",
-        ) as executor:
-            futures = {
-                executor.submit(
+    # Submit all batches immediately. A single executor bounds active calls,
+    # while a completed candidate frees its slot regardless of batch number.
+    remaining_by_batch = {index: len(batch) for index, batch in enumerate(batches, start=1)}
+    failures_by_batch = {index: 0 for index in remaining_by_batch}
+    with ThreadPoolExecutor(
+        max_workers=max_workers,
+        thread_name_prefix="ranking-eval",
+    ) as executor:
+        futures = {}
+        for batch_number, candidate_batch in enumerate(batches, start=1):
+            for candidate_id in candidate_batch:
+                future = executor.submit(
                     _evaluate_candidate_in_isolated_session,
                     candidate_id=candidate_id,
                     job_id=job_id,
                     owner_sub=owner_sub,
                     force_evaluation=force_evaluation,
-                ): candidate_id
-                for candidate_id in candidate_batch
-            }
-            for future in as_completed(futures):
-                candidate_id = futures[future]
-                try:
-                    completed = bool(future.result())
-                except Exception:
-                    logger.exception(
-                        "Parallel candidate reevaluation failed job=%s candidate=%s",
-                        job_id,
-                        candidate_id,
+                )
+                futures[future] = (batch_number, candidate_id)
+
+        for future in as_completed(futures):
+            batch_number, candidate_id = futures[future]
+            try:
+                completed = bool(future.result())
+            except Exception:
+                logger.exception(
+                    "Parallel candidate reevaluation failed job=%s candidate=%s",
+                    job_id,
+                    candidate_id,
+                )
+                completed = False
+            if not completed:
+                failures.append(candidate_id)
+                failures_by_batch[batch_number] += 1
+
+            remaining_by_batch[batch_number] -= 1
+            if remaining_by_batch[batch_number] == 0:
+                if processing_token:
+                    reevaluation_repository.heartbeat_reevaluation_task(
+                        db,
+                        task_id=task_id,
+                        token=processing_token,
                     )
-                    completed = False
-                if not completed:
-                    failures.append(candidate_id)
-
-        if processing_token:
-            reevaluation_repository.heartbeat_reevaluation_task(
-                db,
-                task_id=task_id,
-                token=processing_token,
-            )
-
-        logger.info(
-            "Ranking evaluation batch completed task=%s batch=%s candidates=%s failures=%s",
-            task_id,
-            batch_number,
-            len(candidate_batch),
-            sum(candidate_id in failures for candidate_id in candidate_batch),
-        )
+                logger.info(
+                    "Ranking evaluation batch completed task=%s batch=%s candidates=%s failures=%s",
+                    task_id,
+                    batch_number,
+                    len(batches[batch_number - 1]),
+                    failures_by_batch[batch_number],
+                )
 
     return failures
 
