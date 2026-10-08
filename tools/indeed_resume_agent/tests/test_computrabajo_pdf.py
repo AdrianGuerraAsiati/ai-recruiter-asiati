@@ -13,10 +13,11 @@ from tools.indeed_resume_agent.computrabajo_browser import ComputrabajoBrowserUs
 def make_browser(tmp_path, url):
     instance = object.__new__(ComputrabajoBrowserUse)
     instance._profile_dir = tmp_path / "browser-profile-chrome-computrabajo"
+    pdf_command = SimpleNamespace(printToPDF=AsyncMock(return_value={
+        "data": base64.b64encode(b"%PDF-1.7\\nexample").decode()
+    }))
     instance._ensure_started = AsyncMock(return_value=SimpleNamespace(
-        cdp_client=SimpleNamespace(send=AsyncMock(return_value={
-            "data": base64.b64encode(b"%PDF-1.7\nexample").decode()
-        })),
+        cdp_client=SimpleNamespace(send=SimpleNamespace(Page=pdf_command)),
         session_id="session",
     ))
     instance._page_metadata = AsyncMock(return_value={"url": url})
