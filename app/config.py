@@ -295,6 +295,17 @@ def get_ranking_evaluation_concurrency() -> int:
     )
 
 
+def get_ranking_parallel_batches() -> int:
+    """Return the number of ten-person batches allowed to run at once."""
+    return max(
+        1,
+        min(
+            10,
+            int(os.getenv("RANKING_PARALLEL_BATCHES", "10")),
+        ),
+    )
+
+
 def get_ranking_evaluation_batch_size() -> int:
     """Return ranking evaluation batch size, hard-capped at 10 candidates."""
     return max(
