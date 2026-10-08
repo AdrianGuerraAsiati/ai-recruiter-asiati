@@ -99,6 +99,11 @@ def run_self_test() -> int:
     keyring = None
 
     try:
+        import psutil
+        import psutil._psutil_windows
+        if not psutil.cpu_count():
+            return 11
+
         import keyring as loaded_keyring
 
         keyring = loaded_keyring

@@ -225,6 +225,16 @@ jobs:
         shell: powershell
         run: .\tools\indeed_resume_agent\build.ps1
 
+      - name: Verify bundled psutil native DLL
+        shell: powershell
+        run: |
+          $Root = ".\\dist\\ASIATI Resume Agent"
+          $Files = @(Get-ChildItem -Path $Root -File -Recurse -Filter "*_psutil_windows*.pyd")
+          if ($Files.Count -lt 1) {
+            throw "Missing psutil._psutil_windows native extension in packaged app"
+          }
+          Write-Host "Validated psutil binary:" $Files[0].FullName
+
       - name: Execute packaged binary self-test
         shell: powershell
         run: |

@@ -16,6 +16,8 @@ if (-not (Test-Path $Python) -or -not (Test-Path $PyInstaller)) {
   --onedir `
   --paths $RepoRoot `
   --collect-all playwright `
+  --collect-all psutil `
+  --hidden-import psutil._psutil_windows `
   --collect-submodules browser_use.browser `
   --collect-data browser_use `
   --collect-all cdp_use `
