@@ -81,12 +81,16 @@ def test_worker_evaluates_only_stale_owned_candidates_and_materializes_once(monk
     engine, db = _db()
     try:
         job, current, stale, outsider, task = _seed_job_with_candidates(db)
+        expected_job_id = job.id
+        stale_id = stale.id
+        outsider_id = outsider.id
+        task_id = task.id
         evaluated = []
         ranked = []
 
         def fake_evaluate(*, candidate_id, job_id, owner_sub, force_evaluation):
             evaluated.append(candidate_id)
-            assert job_id == job.id
+            assert job_id == expected_job_id
             assert owner_sub == "owner-1"
             assert force_evaluation is False
             return True
@@ -102,12 +106,12 @@ def test_worker_evaluates_only_stale_owned_candidates_and_materializes_once(monk
             lambda _db, **kwargs: ranked.append(kwargs) or {"ranking_version": 3},
         )
 
-        outcome = job_reevaluations.process_job_reevaluation(db, task_id=task.id)
+        outcome = job_reevaluations.process_job_reevaluation(db, task_id=task_id)
 
         assert outcome == "COMPLETED"
-        assert evaluated == [stale.id]
-        assert outsider.id not in evaluated
-        assert ranked == [{"job_id": job.id, "owner_sub": "owner-1", "scope": "assigned"}]
+        assert evaluated == [stale_id]
+        assert outsider_id not in evaluated
+        assert ranked == [{"job_id": expected_job_id, "owner_sub": "owner-1", "scope": "assigned"}]
         db.refresh(task)
         assert task.status == "COMPLETED"
         assert task.completed_at is not None
@@ -140,6 +144,10 @@ def test_manual_async_ranking_uses_all_scope_and_force_flag(monkeypatch):
         )
         db.add(task)
         db.commit()
+        expected_job_id = job.id
+        first_id = first.id
+        second_id = second.id
+        task_id = task.id
 
         evaluated = []
         ranked = []
@@ -150,7 +158,7 @@ def test_manual_async_ranking_uses_all_scope_and_force_flag(monkeypatch):
         )
 
         def fake_evaluate(*, candidate_id, job_id, owner_sub, force_evaluation):
-            assert job_id == job.id
+            assert job_id == expected_job_id
             assert owner_sub == "owner-1"
             evaluated.append((candidate_id, force_evaluation))
             return True
@@ -166,9 +174,9 @@ def test_manual_async_ranking_uses_all_scope_and_force_flag(monkeypatch):
             lambda _db, **kwargs: ranked.append(kwargs) or {"ranking_version": 1},
         )
 
-        assert job_reevaluations.process_job_reevaluation(db, task_id=task.id) == "COMPLETED"
-        assert sorted(evaluated) == sorted([(first.id, True), (second.id, True)])
-        assert ranked == [{"job_id": job.id, "owner_sub": "owner-1", "scope": "all"}]
+        assert job_reevaluations.process_job_reevaluation(db, task_id=task_id) == "COMPLETED"
+        assert sorted(evaluated) == sorted([(first_id, True), (second_id, True)])
+        assert ranked == [{"job_id": expected_job_id, "owner_sub": "owner-1", "scope": "all"}]
     finally:
         db.close()
         engine.dispose()
@@ -178,10 +186,14 @@ def test_worker_retry_does_not_duplicate_current_evaluations(monkeypatch):
     engine, db = _db()
     try:
         job, _current, stale, _outsider, task = _seed_job_with_candidates(db)
+        expected_job_id = job.id
+        expected_job_version = job.evaluation_version
+        stale_id = stale.id
+        task_id = task.id
         calls = []
 
         def fake_evaluate(*, candidate_id, job_id, owner_sub, force_evaluation):
-            assert job_id == job.id
+            assert job_id == expected_job_id
             assert owner_sub == "owner-1"
             assert force_evaluation is False
             calls.append(candidate_id)
@@ -198,19 +210,19 @@ def test_worker_retry_does_not_duplicate_current_evaluations(monkeypatch):
             lambda *_args, **_kwargs: {"ranking_version": 1},
         )
 
-        assert job_reevaluations.process_job_reevaluation(db, task_id=task.id) == "COMPLETED"
+        assert job_reevaluations.process_job_reevaluation(db, task_id=task_id) == "COMPLETED"
         stale_evaluation = (
             db.query(Evaluation)
-            .filter(Evaluation.job_id == job.id, Evaluation.candidate_id == stale.id)
+            .filter(Evaluation.job_id == expected_job_id, Evaluation.candidate_id == stale_id)
             .one()
         )
-        stale_evaluation.job_evaluation_version = job.evaluation_version
+        stale_evaluation.job_evaluation_version = expected_job_version
         db.commit()
         task.status = "PENDING"
         task.completed_at = None
         db.commit()
-        assert job_reevaluations.process_job_reevaluation(db, task_id=task.id) == "COMPLETED"
-        assert calls == [stale.id]
+        assert job_reevaluations.process_job_reevaluation(db, task_id=task_id) == "COMPLETED"
+        assert calls == [stale_id]
     finally:
         db.close()
         engine.dispose()
