@@ -149,11 +149,7 @@ def get_candidate_selection_process(
     """Return the optional formal selection process, independently of evaluation."""
     _require_job(db, job_id, _user["sub"])
     _require_candidate(db, candidate_id, _user["sub"])
-    from app.domains.candidates import repository as candidates_repository
-
-    link = candidates_repository.get_job_candidate(
-        db, job_id=job_id, candidate_id=candidate_id, owner_sub=None
-    )
+    link = service.get_selection_process(db, job_id=job_id, candidate_id=candidate_id)
     return {
         "has_process": link is not None,
         "status": link.application_status if link is not None else None,
