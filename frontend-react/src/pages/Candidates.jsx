@@ -87,9 +87,9 @@ function Candidates() {
 
   useEffect(() => {
     if (!requestedJobId) return;
-    // A job deep link intentionally opens the durable import surface.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setShowCreateModal(true);
+    // Schedule the deep-link modal without synchronously updating state in an effect.
+    const timeoutId = window.setTimeout(() => setShowCreateModal(true), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [requestedJobId]);
 
   function openCreateCandidateModal() {
