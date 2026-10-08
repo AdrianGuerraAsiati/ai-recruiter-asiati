@@ -196,6 +196,14 @@ def run_computrabajo_ui(*, browser) -> None:
             except queue.Empty:
                 continue
 
+            if command == "inspect":
+                try:
+                    info = browser.inspect_current_page()
+                    updates.put(("ready", str(info)))
+                except Exception:
+                    updates.put(("error", "No se pudo analizar la pantalla."))
+                continue
+
             if command == "open":
                 updates.put(
                     (
