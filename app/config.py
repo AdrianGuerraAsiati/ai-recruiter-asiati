@@ -285,11 +285,11 @@ def get_import_evaluation_concurrency() -> int:
 
 
 def get_ranking_evaluation_concurrency() -> int:
-    """Return ranking evaluation workers, capped at the 10-person batch size."""
+    """Return maximum concurrently active ranking blocks (up to 40)."""
     return max(
         1,
         min(
-            10,
+            40,
             int(os.getenv("RANKING_EVALUATION_CONCURRENCY", "10")),
         ),
     )
