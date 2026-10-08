@@ -6,6 +6,7 @@ validation, and persistence while keeping HTTP concerns in the router.
 """
 
 import logging
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -39,6 +40,105 @@ def _safe_failure_code(value: object) -> str:
     ):
         return candidate
     return "EVALUATION_FAILED"
+
+
+def evaluate_candidate_evidence(
+    *,
+    candidate_id: str,
+    evaluation_text: str,
+) -> tuple[dict[str, Any], str | None]:
+    """Run retrieval + LLM evaluation without holding a database session."""
+    from app import evaluation as evaluation_backend
+
+    try:
+        results = evaluation_backend.retrieve_candidate(
+            candidate_id=candidate_id,
+            question=evaluation_text,
+        )
+        llm_result = evaluation_backend.evaluate_candidate(
+            candidate_id=candidate_id,
+            job_description=evaluation_text,
+            results=results,
+        )
+
+        if llm_result.get("status", "COMPLETED") == "FAILED":
+            return {
+                "match_score": 0.0,
+                "recommendation": llm_result.get(
+                    "recommendation",
+                    "EVALUATION_FAILED",
+                ),
+                "summary": llm_result.get(
+                    "summary",
+                    FAILED_EVALUATION_PUBLIC_MESSAGE,
+                ),
+                "strengths": [],
+                "gaps": [],
+                "requirements": [],
+                "status": "FAILED",
+                "error_message": _safe_failure_code(
+                    llm_result.get("error_message", "EVALUATION_FAILED")
+                ),
+            }, None
+
+        is_valid, error_msg = validate_completed_evaluation_result(llm_result)
+        if not is_valid:
+            raise ValueError(error_msg)
+
+        normalized = normalize_completed_evaluation_result(llm_result)
+        return {
+            "match_score": normalized["match_score"],
+            "recommendation": normalized["recommendation"],
+            "summary": normalized["summary"],
+            "strengths": normalized["strengths"],
+            "gaps": normalized["gaps"],
+            "requirements": normalized["requirements"],
+            "status": "COMPLETED",
+            "error_message": None,
+        }, None
+
+    except Exception as exc:
+        logger.error(
+            "LLM evaluation failed for candidate %s: %s",
+            candidate_id,
+            exc,
+            exc_info=True,
+        )
+        return {
+            "match_score": 0.0,
+            "recommendation": "EVALUATION_FAILED",
+            "summary": FAILED_EVALUATION_PUBLIC_MESSAGE,
+            "strengths": [],
+            "gaps": [],
+            "requirements": [],
+            "status": "FAILED",
+            "error_message": INTERNAL_EVALUATION_ERROR_CODE,
+        }, str(exc)
+
+
+def persist_candidate_evaluation(
+    db: Session,
+    *,
+    candidate_id: str,
+    job_id: str,
+    job_evaluation_version: int,
+    result: dict[str, Any],
+):
+    """Persist one normalized evaluation payload."""
+    return evaluations_repository.create_evaluation(
+        db,
+        candidate_id=candidate_id,
+        job_id=job_id,
+        job_evaluation_version=int(job_evaluation_version),
+        match_score=result["match_score"],
+        recommendation=result["recommendation"],
+        summary=result["summary"],
+        strengths=result["strengths"],
+        gaps=result["gaps"],
+        requirements=result["requirements"],
+        status=result["status"],
+        error_message=result["error_message"],
+    )
 
 
 def evaluate_candidate_for_owner(
@@ -85,13 +185,7 @@ def evaluate_candidate_for_job(
     job,
     force: bool = False,
 ) -> tuple[object, bool, str | None]:
-    """Evaluate a candidate for a specific job only when the result is stale.
-
-    A complete evaluation produced from the current ``job.evaluation_version``
-    is returned directly. This freshness check is centralized here so manual
-    evaluation, imports, Gmail ingestion, Indeed ingestion, and reevaluation
-    workers all share the same no-op behavior for unchanged vacancies.
-    """
+    """Evaluate a candidate only when its result is stale for this job version."""
     current_job_version = int(getattr(job, "evaluation_version", 1) or 1)
     existing = evaluations_repository.get_evaluation_for_job_candidate(
         db,
@@ -105,92 +199,15 @@ def evaluate_candidate_for_job(
     ):
         return existing, False, None
 
-    # Import at execution time to allow monkeypatching in tests.
-    from app import evaluation as evaluation_backend
-
-    retrieve_candidate = evaluation_backend.retrieve_candidate
-    llm_evaluate = evaluation_backend.evaluate_candidate
-    evaluation_text = build_evaluation_text(job)
-
-    internal_error = None
-
-    try:
-        results = retrieve_candidate(
-            candidate_id=candidate.id,
-            question=evaluation_text,
-        )
-
-        llm_result = llm_evaluate(
-            candidate_id=candidate.id,
-            job_description=evaluation_text,
-            results=results,
-        )
-
-        eval_status = llm_result.get("status", "COMPLETED")
-
-        if eval_status == "FAILED":
-            evaluation = evaluations_repository.create_evaluation(
-                db,
-                candidate_id=candidate.id,
-                job_id=job.id,
-                job_evaluation_version=current_job_version,
-                match_score=0.0,
-                recommendation=llm_result.get("recommendation", "EVALUATION_FAILED"),
-                summary=llm_result.get("summary", FAILED_EVALUATION_PUBLIC_MESSAGE),
-                strengths=[],
-                gaps=[],
-                requirements=[],
-                status="FAILED",
-                error_message=_safe_failure_code(
-                    llm_result.get("error_message", "EVALUATION_FAILED")
-                ),
-            )
-            return evaluation, True, None
-
-        is_valid, error_msg = validate_completed_evaluation_result(llm_result)
-        if not is_valid:
-            raise ValueError(error_msg)
-
-        normalized = normalize_completed_evaluation_result(llm_result)
-
-        evaluation = evaluations_repository.create_evaluation(
-            db,
-            candidate_id=candidate.id,
-            job_id=job.id,
-            job_evaluation_version=current_job_version,
-            match_score=normalized["match_score"],
-            recommendation=normalized["recommendation"],
-            summary=normalized["summary"],
-            strengths=normalized["strengths"],
-            gaps=normalized["gaps"],
-            requirements=normalized["requirements"],
-            status="COMPLETED",
-            error_message=None,
-        )
-        return evaluation, True, None
-
-    except Exception as exc:
-        logger.error(
-            "LLM evaluation failed for candidate %s: %s",
-            candidate.id,
-            exc,
-            exc_info=True,
-        )
-
-        internal_error = str(exc)
-
-        evaluation = evaluations_repository.create_evaluation(
-            db,
-            candidate_id=candidate.id,
-            job_id=job.id,
-            job_evaluation_version=current_job_version,
-            match_score=0.0,
-            recommendation="EVALUATION_FAILED",
-            summary=FAILED_EVALUATION_PUBLIC_MESSAGE,
-            strengths=[],
-            gaps=[],
-            requirements=[],
-            status="FAILED",
-            error_message=INTERNAL_EVALUATION_ERROR_CODE,
-        )
-        return evaluation, True, internal_error
+    result, internal_error = evaluate_candidate_evidence(
+        candidate_id=candidate.id,
+        evaluation_text=build_evaluation_text(job),
+    )
+    evaluation = persist_candidate_evaluation(
+        db,
+        candidate_id=candidate.id,
+        job_id=job.id,
+        job_evaluation_version=current_job_version,
+        result=result,
+    )
+    return evaluation, True, internal_error

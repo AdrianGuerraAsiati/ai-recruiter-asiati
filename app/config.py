@@ -284,6 +284,28 @@ def get_import_evaluation_concurrency() -> int:
     return int(os.getenv("IMPORT_EVALUATION_CONCURRENCY", "3"))
 
 
+def get_ranking_evaluation_concurrency() -> int:
+    """Return ranking evaluation workers, capped at the 10-person batch size."""
+    return max(
+        1,
+        min(
+            10,
+            int(os.getenv("RANKING_EVALUATION_CONCURRENCY", "10")),
+        ),
+    )
+
+
+def get_ranking_evaluation_batch_size() -> int:
+    """Return ranking evaluation batch size, hard-capped at 10 candidates."""
+    return max(
+        1,
+        min(
+            10,
+            int(os.getenv("RANKING_EVALUATION_BATCH_SIZE", "10")),
+        ),
+    )
+
+
 def get_import_lease_timeout_seconds() -> int:
     """Return the stale-worker lease timeout used for crash recovery."""
     return int(os.getenv("IMPORT_LEASE_TIMEOUT_SECONDS", "300"))

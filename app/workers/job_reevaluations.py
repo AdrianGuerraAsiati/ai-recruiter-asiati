@@ -4,17 +4,23 @@ from __future__ import annotations
 
 import logging
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from app.config import get_import_lease_timeout_seconds
+from app.config import (
+    get_import_lease_timeout_seconds,
+    get_ranking_evaluation_batch_size,
+    get_ranking_evaluation_concurrency,
+)
 from app.db import SessionLocal
 from app.domains.candidates import repository as candidates_repository
 from app.domains.evaluations import repository as evaluations_repository
 from app.domains.evaluations import service as evaluations_service
 from app.domains.jobs import reevaluation as reevaluation_repository
 from app.domains.jobs import repository as jobs_repository
+from app.domains.jobs.profile import build_evaluation_text
 from app.domains.ranking import service as ranking_service
 from app.infrastructure.imports import queue
 
@@ -61,6 +67,164 @@ def dispatch_undispatched_job_reevaluations(db: Session) -> int:
         db.commit()
         dispatched += 1
     return dispatched
+
+
+def _candidate_batches(
+    candidate_ids: list[str],
+    *,
+    batch_size: int,
+) -> list[list[str]]:
+    """Split candidate IDs into stable batches capped by configuration."""
+    normalized_batch_size = max(1, min(int(batch_size), 10))
+    return [
+        candidate_ids[offset : offset + normalized_batch_size]
+        for offset in range(0, len(candidate_ids), normalized_batch_size)
+    ]
+
+
+def _evaluate_candidate_in_isolated_session(
+    *,
+    candidate_id: str,
+    job_id: str,
+    owner_sub: str,
+    force_evaluation: bool,
+) -> bool:
+    """Evaluate one candidate without holding a DB connection during Bedrock I/O."""
+    with SessionLocal() as read_db:
+        job = jobs_repository.get_job(
+            read_db,
+            job_id,
+            owner_sub=owner_sub,
+        )
+        candidate = candidates_repository.get_candidate(
+            read_db,
+            candidate_id,
+            owner_sub=None,
+        )
+        if job is None or candidate is None or bool(getattr(candidate, "is_banned", False)):
+            return False
+
+        current_version = int(getattr(job, "evaluation_version", 1) or 1)
+        existing = evaluations_repository.get_evaluation_for_job_candidate(
+            read_db,
+            job.id,
+            candidate.id,
+        )
+        if not evaluations_repository.needs_evaluation(
+            existing,
+            current_job_version=current_version,
+            force=force_evaluation,
+        ):
+            return True
+
+        evaluation_text = build_evaluation_text(job)
+
+    result, internal_error = evaluations_service.evaluate_candidate_evidence(
+        candidate_id=candidate_id,
+        evaluation_text=evaluation_text,
+    )
+
+    with SessionLocal() as write_db:
+        current_job = jobs_repository.get_job(
+            write_db,
+            job_id,
+            owner_sub=owner_sub,
+        )
+        if current_job is None:
+            return False
+        if int(getattr(current_job, "evaluation_version", 1) or 1) != current_version:
+            return True
+
+        evaluation = evaluations_service.persist_candidate_evaluation(
+            write_db,
+            candidate_id=candidate_id,
+            job_id=job_id,
+            job_evaluation_version=current_version,
+            result=result,
+        )
+
+    return (
+        getattr(evaluation, "status", None) == "COMPLETED"
+        and not internal_error
+    )
+
+
+def _run_parallel_candidate_evaluations(
+    db: Session,
+    *,
+    task_id: str,
+    processing_token: str | None,
+    job_id: str,
+    owner_sub: str,
+    candidate_ids: list[str],
+    force_evaluation: bool,
+) -> list[str]:
+    """Evaluate candidates in parallel batches of at most 10."""
+    failures: list[str] = []
+    batch_size = get_ranking_evaluation_batch_size()
+    concurrency = get_ranking_evaluation_concurrency()
+
+    for batch_number, candidate_batch in enumerate(
+        _candidate_batches(candidate_ids, batch_size=batch_size),
+        start=1,
+    ):
+        max_workers = min(
+            len(candidate_batch),
+            max(1, int(concurrency)),
+            10,
+        )
+        logger.info(
+            "Ranking evaluation batch started task=%s batch=%s candidates=%s workers=%s",
+            task_id,
+            batch_number,
+            len(candidate_batch),
+            max_workers,
+        )
+
+        with ThreadPoolExecutor(
+            max_workers=max_workers,
+            thread_name_prefix="ranking-eval",
+        ) as executor:
+            futures = {
+                executor.submit(
+                    _evaluate_candidate_in_isolated_session,
+                    candidate_id=candidate_id,
+                    job_id=job_id,
+                    owner_sub=owner_sub,
+                    force_evaluation=force_evaluation,
+                ): candidate_id
+                for candidate_id in candidate_batch
+            }
+            for future in as_completed(futures):
+                candidate_id = futures[future]
+                try:
+                    completed = bool(future.result())
+                except Exception:
+                    logger.exception(
+                        "Parallel candidate reevaluation failed job=%s candidate=%s",
+                        job_id,
+                        candidate_id,
+                    )
+                    completed = False
+                if not completed:
+                    failures.append(candidate_id)
+
+        if processing_token:
+            reevaluation_repository.heartbeat_reevaluation_task(
+                db,
+                task_id=task_id,
+                token=processing_token,
+            )
+
+        logger.info(
+            "Ranking evaluation batch completed task=%s batch=%s candidates=%s failures=%s",
+            task_id,
+            batch_number,
+            len(candidate_batch),
+            sum(candidate_id in failures for candidate_id in candidate_batch),
+        )
+
+    return failures
 
 
 def process_job_reevaluation(db: Session, *, task_id: str) -> str:
@@ -126,47 +290,67 @@ def process_job_reevaluation(db: Session, *, task_id: str) -> str:
             owner_sub=task.owner_sub,
         )
 
-    failures: list[str] = []
+    candidate_ids_to_evaluate: list[str] = []
     for candidate in candidates:
         existing = evaluations_repository.get_evaluation_for_job_candidate(
             db,
             job.id,
             candidate.id,
         )
-        if not evaluations_repository.needs_evaluation(
+        if evaluations_repository.needs_evaluation(
             existing,
             current_job_version=current_version,
             force=force_evaluation,
         ):
-            continue
+            candidate_ids_to_evaluate.append(candidate.id)
 
-        try:
-            evaluation, _newly_evaluated, internal_error = (
-                evaluations_service.evaluate_candidate_for_job(
-                    db,
-                    candidate=candidate,
-                    job=job,
-                    force=force_evaluation,
-                )
-            )
-        except Exception as exc:
-            logger.exception(
-                "Candidate reevaluation failed job=%s candidate=%s",
-                job.id,
-                candidate.id,
-            )
-            failures.append(candidate.id)
-            continue
+    failures: list[str] = []
+    if candidate_ids_to_evaluate:
+        coordinator_task_id = task.id
+        processing_token = task.processing_token
+        job_id = job.id
+        owner_sub = task.owner_sub
 
-        if getattr(evaluation, "status", None) != "COMPLETED" or internal_error:
-            failures.append(candidate.id)
-
-        if task.processing_token:
-            reevaluation_repository.heartbeat_reevaluation_task(
+        # Release the coordinator transaction before child sessions write.
+        db.rollback()
+        failures = _run_parallel_candidate_evaluations(
+            db,
+            task_id=coordinator_task_id,
+            processing_token=processing_token,
+            job_id=job_id,
+            owner_sub=owner_sub,
+            candidate_ids=candidate_ids_to_evaluate,
+            force_evaluation=force_evaluation,
+        )
+        db.expire_all()
+        task = reevaluation_repository.get_reevaluation_task_by_id(
+            db,
+            coordinator_task_id,
+        )
+        if task is None:
+            return "MISSING"
+        job = jobs_repository.get_job(
+            db,
+            job_id,
+            owner_sub=owner_sub,
+        )
+        if job is None:
+            return _fail_task(
                 db,
-                task_id=task.id,
-                token=task.processing_token,
+                task,
+                code="JOB_CONTEXT_MISSING",
+                message="La vacante ya no esta disponible para este tenant.",
             )
+        current_version = int(getattr(job, "evaluation_version", 1) or 1)
+        if current_version > target_version:
+            task.status = "COMPLETED"
+            task.completed_at = _now()
+            task.last_error_code = "SUPERSEDED_BY_NEWER_JOB_VERSION"
+            task.last_error_message = (
+                "La vacante cambio nuevamente durante esta reevaluacion."
+            )
+            db.commit()
+            return "SUPERSEDED"
 
     task.status = "RANKING"
     db.commit()
