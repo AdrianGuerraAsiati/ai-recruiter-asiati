@@ -1,14 +1,15 @@
-"""Employee document domain tests."""
+"""Employee document intake and review domain tests."""
 
 import pytest
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.access_control import EMPLOYEE, ROLE_PERMISSION_MATRIX
+from app.access_control import ADMIN, EMPLOYEE, ROLE_PERMISSION_MATRIX
 from app.db import Base
 from app.domains.employee_documents import service
 from app.domains.employee_documents.models import EmployeeDocument
+from app.domains.employee_documents.requirements import EMPLOYEE_DOCUMENT_REQUIREMENTS
 from app.models import UserProfile
 
 
@@ -33,14 +34,123 @@ def _employee(db, email="employee@asiati.com.co"):
     return employee
 
 
-def test_employee_role_can_read_and_upload_own_documents():
+def test_employee_role_can_submit_own_documents_but_not_review():
     permissions = ROLE_PERMISSION_MATRIX[EMPLOYEE]
     assert "employee_documents.read_own" in permissions
     assert "employee_documents.upload_own" in permissions
     assert "employee_documents.read_all" not in permissions
+    assert "employee_documents.review" not in permissions
+    assert "employee_documents.review" in ROLE_PERMISSION_MATRIX[ADMIN]
 
 
-def test_finalize_document_replaces_same_type_without_duplicate(monkeypatch):
+def test_portfolio_exposes_exact_required_intake_checklist():
+    engine, db = _db()
+    employee = _employee(db)
+
+    payload = service.portfolio_payload(db, employee.id)
+
+    assert payload["total"] == 13
+    assert payload["summary"] == {
+        "total": 13,
+        "submitted": 0,
+        "approved": 0,
+        "pending_review": 0,
+        "changes_requested": 0,
+        "missing": 13,
+        "approval_percent": 0,
+        "status": "INCOMPLETE",
+    }
+    assert [item["label"] for item in payload["items"]] == [
+        item["label"] for item in EMPLOYEE_DOCUMENT_REQUIREMENTS
+    ]
+    assert {item["kind"] for item in payload["items"]} == {"FILE", "TEXT"}
+
+    db.close()
+    engine.dispose()
+
+
+def test_text_requirement_goes_to_review_and_can_be_approved():
+    engine, db = _db()
+    employee = _employee(db)
+
+    submission = service.save_value(
+        db,
+        employee_id=employee.id,
+        uploaded_by_sub=employee.cognito_sub,
+        document_type="RESIDENCE_ADDRESS",
+        value=" Calle 100 # 10 - 20 ",
+    )
+
+    assert submission.value_text == "Calle 100 # 10 - 20"
+    assert submission.storage_key is None
+    assert submission.review_status == "PENDING_REVIEW"
+
+    reviewed = service.review_document(
+        db,
+        document_id=submission.id,
+        status="APPROVED",
+        comment="Información validada.",
+        reviewed_by_sub="admin-sub",
+    )
+    assert reviewed.review_status == "APPROVED"
+    assert reviewed.review_comment == "Información validada."
+    assert reviewed.reviewed_by_sub == "admin-sub"
+    assert reviewed.reviewed_at is not None
+
+    payload = service.portfolio_payload(db, employee.id)
+    assert payload["summary"]["approved"] == 1
+    assert payload["summary"]["missing"] == 12
+
+    db.close()
+    engine.dispose()
+
+
+def test_changes_requested_requires_comment_and_resubmission_returns_to_pending():
+    engine, db = _db()
+    employee = _employee(db)
+    submission = service.save_value(
+        db,
+        employee_id=employee.id,
+        uploaded_by_sub=employee.cognito_sub,
+        document_type="EMERGENCY_CONTACT",
+        value="María Pérez, madre, 3000000000",
+    )
+
+    with pytest.raises(ValueError, match="comentario"):
+        service.review_document(
+            db,
+            document_id=submission.id,
+            status="CHANGES_REQUESTED",
+            comment="",
+            reviewed_by_sub="admin-sub",
+        )
+
+    reviewed = service.review_document(
+        db,
+        document_id=submission.id,
+        status="CHANGES_REQUESTED",
+        comment="Incluye el indicativo del número.",
+        reviewed_by_sub="admin-sub",
+    )
+    assert reviewed.review_status == "CHANGES_REQUESTED"
+
+    resubmitted = service.save_value(
+        db,
+        employee_id=employee.id,
+        uploaded_by_sub=employee.cognito_sub,
+        document_type="EMERGENCY_CONTACT",
+        value="María Pérez, madre, +57 3000000000",
+    )
+    assert resubmitted.id == submission.id
+    assert resubmitted.review_status == "PENDING_REVIEW"
+    assert resubmitted.reviewed_at is None
+    assert resubmitted.review_comment == "Incluye el indicativo del número."
+
+    db.close()
+    engine.dispose()
+
+
+def test_file_requirement_replaces_same_type_and_resets_review(monkeypatch):
     engine, db = _db()
     employee = _employee(db)
     deleted = []
@@ -66,17 +176,25 @@ def test_finalize_document_replaces_same_type_without_duplicate(monkeypatch):
         uploaded_by_sub=employee.cognito_sub,
         document_type="IDENTITY",
         filename="cedula.pdf",
-        key=f"employees/documents/{employee.id}/first-cedula.pdf",
+        key=f"training/employee-documents/{employee.id}/first-cedula.pdf",
         content_type="application/pdf",
         size_bytes=100,
     )
+    service.review_document(
+        db,
+        document_id=first.id,
+        status="CHANGES_REQUESTED",
+        comment="La imagen está cortada.",
+        reviewed_by_sub="admin-sub",
+    )
+
     second = service.finalize_upload(
         db,
         employee_id=employee.id,
         uploaded_by_sub=employee.cognito_sub,
         document_type="IDENTITY",
         filename="cedula-nueva.pdf",
-        key=f"employees/documents/{employee.id}/second-cedula.pdf",
+        key=f"training/employee-documents/{employee.id}/second-cedula.pdf",
         content_type="application/pdf",
         size_bytes=150,
     )
@@ -84,7 +202,30 @@ def test_finalize_document_replaces_same_type_without_duplicate(monkeypatch):
     assert first.id == second.id
     assert db.query(EmployeeDocument).count() == 1
     assert second.original_filename == "cedula-nueva.pdf"
-    assert deleted == [f"employees/documents/{employee.id}/first-cedula.pdf"]
+    assert second.review_status == "PENDING_REVIEW"
+    assert second.reviewed_at is None
+    assert second.review_comment == "La imagen está cortada."
+    assert deleted == [
+        f"training/employee-documents/{employee.id}/first-cedula.pdf"
+    ]
+
+    db.close()
+    engine.dispose()
+
+
+def test_rejects_file_upload_for_text_requirement(monkeypatch):
+    engine, db = _db()
+    employee = _employee(db)
+
+    with pytest.raises(ValueError, match="información"):
+        service.create_upload(
+            db,
+            employee_id=employee.id,
+            document_type="MARITAL_STATUS",
+            filename="estado.pdf",
+            content_type="application/pdf",
+            size_bytes=100,
+        )
 
     db.close()
     engine.dispose()
@@ -97,7 +238,7 @@ def test_download_payload_uses_private_presigned_url(monkeypatch):
         employee_id=employee.id,
         document_type="BANK_CERTIFICATE",
         original_filename="banco.pdf",
-        storage_key=f"employees/documents/{employee.id}/banco.pdf",
+        storage_key=f"training/employee-documents/{employee.id}/banco.pdf",
         content_type="application/pdf",
         size_bytes=200,
         uploaded_by_sub=employee.cognito_sub,
@@ -161,7 +302,7 @@ def test_storage_presigned_upload_verify_download_and_delete(monkeypatch):
         size_bytes=321,
     )
 
-    assert upload["key"].startswith("employees/documents/employee-1/")
+    assert upload["key"].startswith("training/employee-documents/employee-1/")
     assert upload["key"].endswith("-cedula.pdf")
     assert fake.posts[0]["Bucket"] == "private-bucket"
     assert fake.posts[0]["Conditions"][-1] == ["content-length-range", 321, 321]
@@ -190,6 +331,21 @@ def test_storage_presigned_upload_verify_download_and_delete(monkeypatch):
     assert fake.deleted == [{"Bucket": "private-bucket", "Key": upload["key"]}]
 
 
+def test_storage_keeps_legacy_documents_downloadable(monkeypatch):
+    from app.infrastructure.storage import employee_documents as storage
+
+    fake = FakeS3()
+    monkeypatch.setattr(storage, "_s3_client", lambda: fake)
+    monkeypatch.setattr(storage, "get_training_content_bucket", lambda: "private-bucket")
+
+    url = storage.create_document_download_url(
+        "employees/documents/employee-1/cedula.pdf",
+        filename="cedula.pdf",
+    )
+
+    assert url == "https://s3.example/download?signed=1"
+
+
 @pytest.mark.parametrize(
     ("filename", "content_type", "size_bytes", "message"),
     [
@@ -216,7 +372,7 @@ def test_storage_verify_rejects_foreign_employee_key():
     with pytest.raises(ValueError, match="no pertenece"):
         storage.verify_document_object(
             employee_id="employee-1",
-            key="employees/documents/employee-2/cedula.pdf",
+            key="training/employee-documents/employee-2/cedula.pdf",
             expected_content_type="application/pdf",
             expected_size_bytes=321,
         )
