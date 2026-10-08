@@ -140,13 +140,16 @@ def run_computrabajo_ui(*, browser) -> None:
         pady=4,
     )
 
+    inspect_button = ttk.Button(actions, text="Analizar pantalla actual", command=lambda: commands.put("inspect"))
+    inspect_button.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(5, 0))
+
     sync_button = ttk.Button(
         actions,
         text="Sincronizar candidatos",
         state="disabled",
     )
     sync_button.grid(
-        row=1,
+        row=2,
         column=0,
         columnspan=3,
         sticky="ew",
