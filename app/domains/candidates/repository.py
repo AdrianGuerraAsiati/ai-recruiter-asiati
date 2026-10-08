@@ -30,6 +30,73 @@ def list_candidates(db: Session, owner_sub: str | None = None) -> list[Candidate
     return query.order_by(Candidate.created_at.desc()).all()
 
 
+def list_candidates_for_country(
+    db: Session,
+    *,
+    country_code: str,
+    owner_sub: str | None = None,
+    include_banned: bool = False,
+) -> list[Candidate]:
+    """Return candidates with at least one application in the requested country."""
+    normalized_country = str(country_code or "").strip().upper()
+    if not normalized_country:
+        return []
+
+    country_assignment_exists = (
+        db.query(JobCandidate.id)
+        .join(Job, Job.id == JobCandidate.job_id)
+        .filter(
+            JobCandidate.candidate_id == Candidate.id,
+            func.upper(Job.country_code) == normalized_country,
+        )
+        .exists()
+    )
+    query = db.query(Candidate).filter(
+        or_(
+            func.upper(Candidate.country_code) == normalized_country,
+            country_assignment_exists,
+        )
+    )
+    if owner_sub is not None:
+        query = query.filter(Candidate.owner_sub == owner_sub)
+    if not include_banned:
+        query = query.filter(Candidate.is_banned.is_(False))
+    return query.order_by(Candidate.created_at.desc(), Candidate.id.desc()).all()
+
+
+def count_candidates_for_country(
+    db: Session,
+    *,
+    country_code: str,
+    owner_sub: str | None = None,
+    include_banned: bool = False,
+) -> int:
+    normalized_country = str(country_code or "").strip().upper()
+    if not normalized_country:
+        return 0
+
+    country_assignment_exists = (
+        db.query(JobCandidate.id)
+        .join(Job, Job.id == JobCandidate.job_id)
+        .filter(
+            JobCandidate.candidate_id == Candidate.id,
+            func.upper(Job.country_code) == normalized_country,
+        )
+        .exists()
+    )
+    query = db.query(Candidate).filter(
+        or_(
+            func.upper(Candidate.country_code) == normalized_country,
+            country_assignment_exists,
+        )
+    )
+    if owner_sub is not None:
+        query = query.filter(Candidate.owner_sub == owner_sub)
+    if not include_banned:
+        query = query.filter(Candidate.is_banned.is_(False))
+    return int(query.count() or 0)
+
+
 def list_candidates_page(
     db: Session,
     *,
@@ -37,21 +104,36 @@ def list_candidates_page(
     page: int = 1,
     page_size: int = 20,
     sort: str = "created_desc",
+    country_code: str = "",
     q: str = "",
 ) -> tuple[list[Candidate], int]:
     """Return one stable candidate page and its total count."""
     query = db.query(Candidate)
     if owner_sub is not None:
         query = query.filter(Candidate.owner_sub == owner_sub)
+
+    normalized_country = str(country_code or "").strip().upper()
+    if normalized_country:
+        country_assignment_exists = (
+            db.query(JobCandidate.id)
+            .join(Job, Job.id == JobCandidate.job_id)
+            .filter(
+                JobCandidate.candidate_id == Candidate.id,
+                func.upper(Job.country_code) == normalized_country,
+            )
+            .exists()
+        )
+        query = query.filter(
+            or_(
+                func.upper(Candidate.country_code) == normalized_country,
+                country_assignment_exists,
+            )
+        )
+
     normalized_q = q.strip() if isinstance(q, str) else ""
     if normalized_q:
         pattern = f"%{normalized_q}%"
-        query = query.filter(
-            or_(
-                Candidate.name.ilike(pattern),
-                Candidate.email.ilike(pattern),
-            )
-        )
+        query = query.filter(or_(Candidate.name.ilike(pattern), Candidate.email.ilike(pattern)))
     total = query.count() or 0
     if sort == "name_asc":
         query = query.order_by(func.lower(Candidate.name).asc(), Candidate.id.asc())
@@ -186,6 +268,24 @@ def create_candidate_pending(
     return candidate
 
 
+def set_candidate_country(
+    db: Session,
+    candidate: Candidate,
+    *,
+    country_code: str | None,
+) -> Candidate:
+    candidate.country_code = str(country_code or "").strip().upper() or None
+    metadata = dict(candidate.metadata_ or {})
+    metadata["country_source"] = "MANUAL"
+    metadata["country_confidence"] = "HIGH"
+    metadata["country_review_status"] = "MANUAL"
+    metadata["country_checked_at"] = datetime.now(timezone.utc).isoformat()
+    candidate.metadata_ = metadata
+    db.commit()
+    db.refresh(candidate)
+    return candidate
+
+
 def update_candidate_document_metadata(
     db: Session,
     candidate: Candidate,
@@ -209,7 +309,21 @@ def ensure_candidate_assigned_to_job(
     job_id: str,
     candidate_id: str,
 ) -> JobCandidate:
-    """Idempotently assign a candidate to a job inside the caller transaction."""
+    """Idempotently assign a candidate and persist reliable country context."""
+    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).one_or_none()
+    job = db.query(Job).filter(Job.id == job_id).one_or_none()
+    if candidate is not None and job is not None:
+        candidate_country = str(candidate.country_code or "").strip().upper()
+        job_country = str(job.country_code or "").strip().upper()
+        if not candidate_country and job_country:
+            candidate.country_code = job_country
+            metadata = dict(candidate.metadata_ or {})
+            metadata["country_source"] = "JOB_FALLBACK"
+            metadata["country_confidence"] = "LOW"
+            metadata["country_review_status"] = "PENDING_CV_VERIFICATION"
+            candidate.metadata_ = metadata
+            db.flush()
+
     existing = (
         db.query(JobCandidate)
         .filter(
@@ -391,19 +505,22 @@ def assign_candidates_to_job(
             skipped += 1
             continue
 
-        existing = db.query(JobCandidate).filter(JobCandidate.job_id == job_id, JobCandidate.candidate_id == cid).first()
+        existing = db.query(JobCandidate).filter(
+            JobCandidate.job_id == job_id,
+            JobCandidate.candidate_id == cid,
+        ).first()
         if existing:
             skipped += 1
             continue
 
-        savepoint = db.begin_nested()
         try:
-            db.add(JobCandidate(job_id=job_id, candidate_id=cid))
-            db.flush()
-            savepoint.commit()
+            ensure_candidate_assigned_to_job(
+                db,
+                job_id=job_id,
+                candidate_id=cid,
+            )
             assigned += 1
         except IntegrityError:
-            savepoint.rollback()
             skipped += 1
 
     db.commit()
