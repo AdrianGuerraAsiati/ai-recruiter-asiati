@@ -4,6 +4,7 @@ import os
 
 from sqlalchemy.orm import Session
 
+from app.domains.candidates import country as candidate_country
 from app.domains.candidates import repository as candidates_repository
 from app.domains.candidates.exceptions import (
     CandidateNotFound,
@@ -83,7 +84,7 @@ def list_candidates_page(
     page: int = 1,
     page_size: int = 20,
     sort: str = "created_desc",
-    q: str = "",
+    country_code: str = "",
 ):
     return candidates_repository.list_candidates_page(
         db,
@@ -91,7 +92,7 @@ def list_candidates_page(
         page=page,
         page_size=page_size,
         sort=sort,
-        q=q,
+        country_code=country_code,
     )
 
 
@@ -283,6 +284,21 @@ def set_candidate_ban(
     )
 
 
+def set_candidate_country(
+    db: Session,
+    *,
+    candidate_id: str,
+    owner_sub: str,
+    country_code: str | None,
+):
+    candidate = require_candidate(db, candidate_id, owner_sub)
+    return candidates_repository.set_candidate_country(
+        db,
+        candidate,
+        country_code=country_code,
+    )
+
+
 def get_candidate_restriction_history(
     db: Session,
     *,
@@ -332,6 +348,11 @@ def create_and_index_candidate(
     file_content: bytes,
 ):
     safe_filename = _legacy_pdf_filename(original_filename)
+    try:
+        parsed = extract_document(file_content, safe_filename)
+    except DocumentImportError as exc:
+        raise LegacyCandidateUploadError("LEGACY_UPLOAD_INVALID_PDF") from exc
+
     name = os.path.splitext(safe_filename)[0]
     candidate = candidates_repository.create_candidate(
         db,
@@ -339,6 +360,15 @@ def create_and_index_candidate(
         metadata={"filename": safe_filename},
         owner_sub=owner_sub,
     )
+    candidate_country.apply_country_inference(
+        db,
+        candidate=candidate,
+        parsed_document=parsed,
+        use_ai=candidate_country.country_ai_enabled(),
+    )
+    db.commit()
+    db.refresh(candidate)
+
     indexing = index_candidate_document(
         candidate,
         file_content,
@@ -368,6 +398,12 @@ __all__ = [
     "delete_candidate",
     "delete_all_candidates",
     "set_candidate_ban",
+    "set_candidate_country",
     "get_candidate_restriction_history",
     "create_and_index_candidate",
 ]
+
+
+def get_selection_process(db, *, job_id: str, candidate_id: str):
+    """Read the optional formal application through the candidate domain service."""
+    return candidates_repository.get_job_candidate(db, job_id=job_id, candidate_id=candidate_id, owner_sub=None)
