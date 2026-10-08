@@ -108,10 +108,10 @@ def test_employee_creation_document_upload_and_onboarding(monkeypatch):
         documents_service.storage,
         "create_document_upload",
         lambda **kwargs: {
-            "key": f"employees/documents/{employee.id}/e2e-cedula.pdf",
+            "key": f"training/employee-documents/{employee.id}/e2e-cedula.pdf",
             "upload": {
                 "url": "https://s3.example/upload",
-                "fields": {"key": f"employees/documents/{employee.id}/e2e-cedula.pdf"},
+                "fields": {"key": f"training/employee-documents/{employee.id}/e2e-cedula.pdf"},
             },
             "expires_in": 3600,
             "max_size_bytes": 15 * 1024 * 1024,
@@ -137,7 +137,7 @@ def test_employee_creation_document_upload_and_onboarding(monkeypatch):
         db=db,
         principal=employee_principal,
     )
-    assert upload["key"].startswith(f"employees/documents/{employee.id}/")
+    assert upload["key"].startswith(f"training/employee-documents/{employee.id}/")
 
     stored = documents_router.complete_my_document_upload(
         FinalizeEmployeeDocumentUploadRequest(
@@ -150,12 +150,21 @@ def test_employee_creation_document_upload_and_onboarding(monkeypatch):
         db=db,
         principal=employee_principal,
     )
-    assert stored["employee_id"] == employee.id
-    assert stored["original_filename"] == "cedula.pdf"
+    assert stored["employee"]["id"] == employee.id
+    stored_identity = next(
+        item for item in stored["items"] if item["document_type"] == "IDENTITY"
+    )
+    assert stored_identity["original_filename"] == "cedula.pdf"
+    assert stored_identity["review_status"] == "PENDING_REVIEW"
 
     my_documents = documents_router.my_documents(db=db, principal=employee_principal)
-    assert my_documents["total"] == 1
-    assert my_documents["items"][0]["document_type"] == "IDENTITY"
+    assert my_documents["total"] == 13
+    identity = next(
+        item for item in my_documents["items"] if item["document_type"] == "IDENTITY"
+    )
+    assert identity["original_filename"] == "cedula.pdf"
+    assert my_documents["summary"]["pending_review"] == 1
+    assert my_documents["summary"]["missing"] == 12
 
     onboarding = training_router.my_training(db=db, principal=employee_principal)
     assert onboarding["total"] == 1
