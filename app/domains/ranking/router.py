@@ -20,6 +20,88 @@ from app.domains.ranking.exceptions import (
 )
 
 router = APIRouter(prefix="/api/jobs", tags=["ranking"])
+
+@router.get("/coverage/summary")
+def get_talent_coverage_summary(
+    db: Session = Depends(get_db),
+    _user: dict = Depends(require_permission("ranking.read")),
+):
+    """Read-only coverage from valid stored evaluations; never invokes AI."""
+    from app.models import Job, Candidate, Evaluation
+
+    jobs = db.query(Job).filter(Job.status == "ACTIVE").all()
+    by_job = {job.id: {"job_id": job.id, "title": job.title, "viable": 0,
+                        "strong": 0, "evaluated": 0, "last_evaluated_at": None}
+              for job in jobs}
+    if jobs:
+        rows = (
+            db.query(Evaluation, Candidate, Job)
+            .join(Candidate, Evaluation.candidate_id == Candidate.id)
+            .join(Job, Evaluation.job_id == Job.id)
+            .filter(
+                Job.status == "ACTIVE",
+                Candidate.is_banned.is_(False),
+                Evaluation.status == "COMPLETED",
+                Evaluation.job_evaluation_version == Job.evaluation_version,
+            )
+            .all()
+        )
+        for evaluation, candidate, job in rows:
+            if job.work_mode != "REMOTE" and (
+                not job.country_code
+                or not candidate.country_code
+                or job.country_code.upper() != candidate.country_code.upper()
+            ):
+                continue
+            item = by_job[job.id]
+            item["evaluated"] += 1
+            score = float(evaluation.match_score or 0)
+            if score >= 70:
+                item["viable"] += 1
+            if score >= 80:
+                item["strong"] += 1
+            evaluated_at = evaluation.created_at
+            if evaluated_at and (
+                item["last_evaluated_at"] is None
+                or evaluated_at > item["last_evaluated_at"]
+            ):
+                item["last_evaluated_at"] = evaluated_at
+
+    counts = {"covered": 0, "strong": 0, "low": 0, "critical": 0, "pending": 0}
+    total_viable = 0
+    for item in by_job.values():
+        total_viable += item["viable"]
+        if item["evaluated"] == 0:
+            state = "pending"
+        elif item["strong"] >= 3:
+            state = "strong"
+        elif item["viable"] >= 3:
+            state = "covered"
+        elif item["viable"] >= 1:
+            state = "low"
+        else:
+            state = "critical"
+        item["status"] = state
+        counts[state] += 1
+        if state == "strong":
+            counts["covered"] += 1
+        if item["last_evaluated_at"]:
+            item["last_evaluated_at"] = item["last_evaluated_at"].isoformat()
+
+    total = len(jobs)
+    covered = counts["covered"]
+    return {
+        "total_active_jobs": total,
+        "covered_jobs": covered,
+        "coverage_percent": round(covered * 100 / total) if total else 0,
+        "pipeline_depth": round(total_viable / total, 1) if total else 0,
+        "counts": counts,
+        "jobs": sorted(by_job.values(), key=lambda row: (
+            {"critical": 0, "low": 1, "pending": 2, "covered": 3, "strong": 4}[row["status"]],
+            row["title"].lower(),
+        )),
+    }
+
 logger = logging.getLogger(__name__)
 
 
