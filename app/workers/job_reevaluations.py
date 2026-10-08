@@ -200,7 +200,7 @@ def _run_parallel_candidate_evaluations(
 
     # One thread per active block, not per candidate. Bound concurrent blocks
     # on the shared host to avoid recreating the 502/resource exhaustion risk.
-    max_workers = min(len(batches), get_ranking_evaluation_concurrency(), 10)
+    max_workers = min(len(batches), get_ranking_evaluation_concurrency(), 40)
     logger.info(
         "Ranking sequential blocks started task=%s blocks=%s active_blocks=%s",
         task_id,
