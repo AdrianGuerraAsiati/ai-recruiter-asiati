@@ -1,4 +1,4 @@
-"""HTTP routes for private employee documents."""
+"""HTTP routes for private employee intake submissions and review."""
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -8,6 +8,8 @@ from app.domains.employee_documents import service
 from app.domains.employee_documents.schemas import (
     CreateEmployeeDocumentUploadRequest,
     FinalizeEmployeeDocumentUploadRequest,
+    ReviewEmployeeDocumentRequest,
+    SaveEmployeeDocumentValueRequest,
 )
 
 router = APIRouter(prefix="/api/employee-documents", tags=["employee-documents"])
@@ -29,8 +31,7 @@ def my_documents(
     principal: dict = Depends(require_permission("employee_documents.read_own")),
 ):
     try:
-        items = service.list_documents(db, principal["profile"]["id"])
-        return {"items": items, "total": len(items)}
+        return service.portfolio_payload(db, principal["profile"]["id"])
     except Exception as exc:
         _translate(exc)
 
@@ -61,7 +62,7 @@ def complete_my_document_upload(
     principal: dict = Depends(require_permission("employee_documents.upload_own")),
 ):
     try:
-        document = service.finalize_upload(
+        service.finalize_upload(
             db,
             employee_id=principal["profile"]["id"],
             uploaded_by_sub=principal["sub"],
@@ -71,7 +72,26 @@ def complete_my_document_upload(
             content_type=body.content_type,
             size_bytes=body.size_bytes,
         )
-        return service.document_payload(document)
+        return service.portfolio_payload(db, principal["profile"]["id"])
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.put("/me/value")
+def save_my_document_value(
+    body: SaveEmployeeDocumentValueRequest,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("employee_documents.upload_own")),
+):
+    try:
+        service.save_value(
+            db,
+            employee_id=principal["profile"]["id"],
+            uploaded_by_sub=principal["sub"],
+            document_type=body.document_type,
+            value=body.value,
+        )
+        return service.portfolio_payload(db, principal["profile"]["id"])
     except Exception as exc:
         _translate(exc)
 
@@ -83,8 +103,7 @@ def employee_documents(
     _principal: dict = Depends(require_permission("employee_documents.read_all")),
 ):
     try:
-        items = service.list_documents(db, employee_id)
-        return {"items": items, "total": len(items)}
+        return service.portfolio_payload(db, employee_id)
     except Exception as exc:
         _translate(exc)
 
@@ -104,5 +123,25 @@ def download_document(
         return service.download_payload(db, document_id)
     except HTTPException:
         raise
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.post("/{document_id}/review")
+def review_document(
+    document_id: str,
+    body: ReviewEmployeeDocumentRequest,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("employee_documents.review")),
+):
+    try:
+        document = service.review_document(
+            db,
+            document_id=document_id,
+            status=body.status,
+            comment=body.comment,
+            reviewed_by_sub=principal["sub"],
+        )
+        return service.portfolio_payload(db, document.employee_id)
     except Exception as exc:
         _translate(exc)
