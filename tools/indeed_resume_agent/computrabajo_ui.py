@@ -17,7 +17,7 @@ def run_computrabajo_ui(*, browser) -> None:
 
     root = tk.Tk()
     root.title("ASIATI Recruiter Agent · Computrabajo")
-    root.geometry("760x520")
+    root.geometry("760x560")
     root.minsize(680, 440)
     root.configure(background="#F4F7FB")
 
@@ -149,6 +149,9 @@ def run_computrabajo_ui(*, browser) -> None:
     discover_button = ttk.Button(actions, text="Detectar candidatos de esta vacante", command=lambda: commands.put("discover"))
     discover_button.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(5, 0))
 
+    logout_button = ttk.Button(actions, text="Cerrar sesión", command=lambda: commands.put("logout"))
+    logout_button.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(5, 0))
+
     sync_button = ttk.Button(
         actions,
         text="Sincronizar candidatos",
@@ -200,6 +203,15 @@ def run_computrabajo_ui(*, browser) -> None:
             try:
                 command = commands.get(timeout=0.2)
             except queue.Empty:
+                continue
+
+            if command == "logout":
+                updates.put(("busy", "Cerrando sesión local de Computrabajo…"))
+                try:
+                    browser.logout()
+                    updates.put(("ready", "Sesión local cerrada. Al abrir Computrabajo necesitarás iniciar sesión."))
+                except Exception:
+                    updates.put(("error", "No se pudo limpiar la sesión. Cierra el navegador y vuelve a intentarlo."))
                 continue
 
             if command == "discover":
@@ -323,6 +335,7 @@ def run_computrabajo_ui(*, browser) -> None:
                 status_var.set(message)
                 busy = state in {"busy", "diagnostic_busy"}
                 discover_button.configure(state="disabled" if busy else "normal")
+                logout_button.configure(state="disabled" if busy else "normal")
                 open_button.configure(
                     state="disabled" if busy else "normal"
                 )
