@@ -159,7 +159,7 @@ def _run_parallel_candidate_evaluations(
     candidate_ids: list[str],
     force_evaluation: bool,
 ) -> list[str]:
-    """Run multiple ten-person batches concurrently with bounded total workers."""
+    """Schedule all batches without barriers, using bounded global concurrency."""
     failures: list[str] = []
     batch_size = get_ranking_evaluation_batch_size()
     workers_per_batch = get_ranking_evaluation_concurrency()
@@ -168,7 +168,10 @@ def _run_parallel_candidate_evaluations(
         return failures
 
     parallel_batches = len(batches)
-    max_workers = sum(min(len(batch), workers_per_batch) for batch in batches)
+    # Safety cap: unbounded threads on the small production host can exhaust
+    # memory and PostgreSQL connections, bringing down the API behind nginx.
+    # Keep all batches submitted, but bound the active workers globally.
+    max_workers = min(len(candidate_ids), workers_per_batch, 10)
     logger.info(
         "Ranking concurrent batches started task=%s batches=%s parallel_batches=%s workers=%s",
         task_id,
@@ -177,8 +180,8 @@ def _run_parallel_candidate_evaluations(
         max_workers,
     )
 
-    # Submit every batch immediately with up to ten calls per group.
-    # Provider throttling can still restrict realized concurrency.
+    # Schedule all batches without per-batch wait barriers while bounding total
+    # active Bedrock requests and database sessions on the shared host.
     remaining_by_batch = {index: len(batch) for index, batch in enumerate(batches, start=1)}
     failures_by_batch = {index: 0 for index in remaining_by_batch}
     with ThreadPoolExecutor(
