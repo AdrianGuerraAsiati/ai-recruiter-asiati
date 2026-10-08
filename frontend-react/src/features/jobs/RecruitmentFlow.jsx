@@ -29,7 +29,6 @@ export default function RecruitmentFlow({ jobId, candidateId, onContractSigned, 
   useEffect(() => {
     if (!jobId || !candidateId) return;
     let cancelled = false;
-    setLoading(true);
     api.get(`/jobs/${jobId}/candidates/${candidateId}/process`)
       .then(({ data }) => {
         if (cancelled) return;
