@@ -43,7 +43,7 @@ def list_candidates_page(
     query = db.query(Candidate)
     if owner_sub is not None:
         query = query.filter(Candidate.owner_sub == owner_sub)
-    normalized_q = q.strip()
+    normalized_q = q.strip() if isinstance(q, str) else ""
     if normalized_q:
         pattern = f"%{normalized_q}%"
         query = query.filter(
