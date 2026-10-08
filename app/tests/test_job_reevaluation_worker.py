@@ -381,27 +381,26 @@ def test_isolated_ranking_evaluation_persists_after_db_free_model_call(monkeypat
         engine.dispose()
 
 
-def test_parallel_ranking_evaluations_use_batches_of_at_most_ten(monkeypatch):
+def test_parallel_ranking_evaluations_use_sequential_blocks_of_at_most_ten(monkeypatch):
     engine, db = _db()
     try:
-        executor_batches = []
+        executors = []
         evaluated = []
 
         class RecordingExecutor:
             def __init__(self, *, max_workers, thread_name_prefix=None):
                 self.max_workers = max_workers
-                self.thread_name_prefix = thread_name_prefix
                 self.submissions = []
 
             def __enter__(self):
-                executor_batches.append(self)
+                executors.append(self)
                 return self
 
             def __exit__(self, exc_type, exc, tb):
                 return False
 
             def submit(self, fn, **kwargs):
-                self.submissions.append(kwargs["candidate_id"])
+                self.submissions.append(list(kwargs["candidate_batch"]))
                 future = Future()
                 try:
                     future.set_result(fn(**kwargs))
@@ -438,9 +437,8 @@ def test_parallel_ranking_evaluations_use_batches_of_at_most_ten(monkeypatch):
         )
 
         assert failures == []
-        assert [executor.max_workers for executor in executor_batches] == [23]
-        assert executor_batches[0].submissions == candidate_ids
-        assert job_reevaluations._candidate_batches(candidate_ids, batch_size=10) == [
+        assert [executor.max_workers for executor in executors] == [3]
+        assert executors[0].submissions == [
             candidate_ids[:10],
             candidate_ids[10:20],
             candidate_ids[20:],
@@ -450,3 +448,27 @@ def test_parallel_ranking_evaluations_use_batches_of_at_most_ten(monkeypatch):
         db.close()
         engine.dispose()
 
+
+def test_sequential_batch_continues_after_candidate_failure(monkeypatch):
+    evaluated = []
+
+    def fake_evaluation(**kwargs):
+        candidate_id = kwargs["candidate_id"]
+        evaluated.append(candidate_id)
+        if candidate_id == "second":
+            raise RuntimeError("model unavailable")
+        return candidate_id != "third"
+
+    monkeypatch.setattr(
+        job_reevaluations,
+        "_evaluate_candidate_in_isolated_session",
+        fake_evaluation,
+    )
+    failures = job_reevaluations._evaluate_sequential_batch(
+        candidate_batch=["first", "second", "third", "fourth"],
+        job_id="job-1",
+        owner_sub="owner-1",
+        force_evaluation=False,
+    )
+    assert evaluated == ["first", "second", "third", "fourth"]
+    assert failures == ["second", "third"]
