@@ -69,6 +69,13 @@ function JobCard({ job, onView, onEdit, onDelete, onToggleStatus, statusBusy = f
         >
           Agregar candidatos
         </Link>
+        <Link
+          className="btn btn-secondary"
+          to={`/ranking?job_id=${encodeURIComponent(job.job_id)}`}
+          aria-label={`Ver ranking de ${job.title}`}
+        >
+          Ver ranking
+        </Link>
         <button
           type="button"
           className="btn btn-secondary"
