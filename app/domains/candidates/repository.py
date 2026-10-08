@@ -105,6 +105,7 @@ def list_candidates_page(
     page_size: int = 20,
     sort: str = "created_desc",
     country_code: str = "",
+    q: str = "",
 ) -> tuple[list[Candidate], int]:
     """Return one stable candidate page and its total count."""
     query = db.query(Candidate)
@@ -129,6 +130,10 @@ def list_candidates_page(
             )
         )
 
+    normalized_q = q.strip() if isinstance(q, str) else ""
+    if normalized_q:
+        pattern = f"%{normalized_q}%"
+        query = query.filter(or_(Candidate.name.ilike(pattern), Candidate.email.ilike(pattern)))
     total = query.count() or 0
     if sort == "name_asc":
         query = query.order_by(func.lower(Candidate.name).asc(), Candidate.id.asc())
