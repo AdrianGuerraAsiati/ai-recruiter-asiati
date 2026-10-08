@@ -18,6 +18,7 @@ def test_platform_registry_exposes_indeed_and_computrabajo():
     assert platform_labels() == ("Indeed", "Computrabajo")
     assert get_platform("indeed").production_ready is True
     assert get_platform("Computrabajo").key == "computrabajo"
+    assert get_platform("computrabajo").portal_url == "https://empresa.co.computrabajo.com/"
     assert get_platform("computrabajo").production_ready is False
 
 
@@ -38,7 +39,7 @@ def test_selector_can_be_pinned_without_tkinter():
 
 
 def test_computrabajo_url_is_https_and_allowlisted():
-    assert safe_computrabajo_url() == "https://co.computrabajo.com/"
+    assert safe_computrabajo_url() == "https://empresa.co.computrabajo.com/"
     assert (
         safe_computrabajo_url("https://www.computrabajo.com.co/")
         == "https://www.computrabajo.com.co/"

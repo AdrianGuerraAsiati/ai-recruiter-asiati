@@ -17,7 +17,7 @@ from .browser_use_driver import (
 )
 from .config import AgentConfig
 
-_COMPUTRABAJO_PORTAL = "https://co.computrabajo.com/"
+_COMPUTRABAJO_PORTAL = "https://empresa.co.computrabajo.com/"
 _ALLOWED_HOST_SUFFIXES = ("computrabajo.com", "computrabajo.com.co")
 
 
