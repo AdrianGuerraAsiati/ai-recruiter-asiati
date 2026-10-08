@@ -42,6 +42,7 @@ PERMISSION_DEFINITIONS = {
     "employee_documents.read_own": "Consultar documentos propios.",
     "employee_documents.upload_own": "Cargar y reemplazar documentos propios.",
     "employee_documents.read_all": "Consultar documentos de todos los empleados.",
+    "employee_documents.review": "Aprobar documentos o solicitar correcciones a empleados.",
     "training.read": "Consultar el catálogo de capacitación.",
     "training.manage": "Crear y editar cursos, módulos y contenidos.",
     "training.assign": "Asignar capacitación a empleados.",
