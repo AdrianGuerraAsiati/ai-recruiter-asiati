@@ -5,6 +5,8 @@ import { Link } from "react-router-dom";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
+import CandidateCreateUserModal from "../components/CandidateCreateUserModal.jsx";
+import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
 import { LoadingState } from "../components/ui/StatePanel";
 import "./Ranking.css";
@@ -12,11 +14,14 @@ import "./Ranking.css";
 const RANKING_SCOPE = "all";
 
 function Ranking() {
+  const { hasPermission } = useSession();
+  const canCreateUsers = hasPermission("employees.create");
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState("");
   const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [userTarget, setUserTarget] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [requirements, setRequirements] = useState([]);
   const [analysisLoading, setAnalysisLoading] = useState(false);
@@ -1321,6 +1326,9 @@ async function recalculateRanking() {
                     Ver análisis
                   </button>
 
+                  {canCreateUsers && (
+                    <button className="btn btn-primary" type="button" disabled={candidate.is_banned} onClick={() => setUserTarget(candidate)}>Crear usuario</button>
+                  )}
                   <Link
                     className="btn btn-ghost ranking-profile-btn"
                     to={`/candidates/${candidate.candidate_id}?job_id=${selectedJob}`}
@@ -1335,6 +1343,7 @@ async function recalculateRanking() {
         </div>
       )}
 
+      <CandidateCreateUserModal open={Boolean(userTarget)} candidateId={userTarget?.candidate_id} candidate={userTarget} jobTitle={selectedJobData?.title || ""} onClose={() => setUserTarget(null)} />
       {/* 10. PAGINATION */}
       {rankingInfo.total > 0 && (
         <div className="ranking-pagination">
