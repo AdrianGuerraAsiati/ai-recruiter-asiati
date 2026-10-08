@@ -139,6 +139,31 @@ def get_job_candidates(
     return payload
 
 
+@assign_router.get("/{job_id}/candidates/{candidate_id}/process")
+def get_candidate_selection_process(
+    job_id: str,
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    _user: dict = Depends(require_permission("candidates.read")),
+):
+    """Return the optional formal selection process, independently of evaluation."""
+    _require_job(db, job_id, _user["sub"])
+    _require_candidate(db, candidate_id, _user["sub"])
+    from app.domains.candidates import repository as candidates_repository
+
+    link = candidates_repository.get_job_candidate(
+        db, job_id=job_id, candidate_id=candidate_id, owner_sub=None
+    )
+    return {
+        "has_process": link is not None,
+        "status": link.application_status if link is not None else None,
+        "status_changed_at": (
+            link.status_changed_at.isoformat()
+            if link is not None and link.status_changed_at else None
+        ),
+    }
+
+
 @assign_router.put("/{job_id}/candidates/{candidate_id}/status")
 def update_application_status(
     job_id: str,
