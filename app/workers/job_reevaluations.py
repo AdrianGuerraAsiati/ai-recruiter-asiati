@@ -20,6 +20,7 @@ from app.domains.evaluations import repository as evaluations_repository
 from app.domains.evaluations import service as evaluations_service
 from app.domains.jobs import reevaluation as reevaluation_repository
 from app.domains.jobs import repository as jobs_repository
+from app.domains.jobs.profile import build_evaluation_text
 from app.domains.ranking import service as ranking_service
 from app.infrastructure.imports import queue
 
@@ -88,15 +89,15 @@ def _evaluate_candidate_in_isolated_session(
     owner_sub: str,
     force_evaluation: bool,
 ) -> bool:
-    """Evaluate one ranking candidate with its own SQLAlchemy session."""
-    with SessionLocal() as task_db:
+    """Evaluate one candidate without holding a DB connection during Bedrock I/O."""
+    with SessionLocal() as read_db:
         job = jobs_repository.get_job(
-            task_db,
+            read_db,
             job_id,
             owner_sub=owner_sub,
         )
         candidate = candidates_repository.get_candidate(
-            task_db,
+            read_db,
             candidate_id,
             owner_sub=None,
         )
@@ -105,7 +106,7 @@ def _evaluate_candidate_in_isolated_session(
 
         current_version = int(getattr(job, "evaluation_version", 1) or 1)
         existing = evaluations_repository.get_evaluation_for_job_candidate(
-            task_db,
+            read_db,
             job.id,
             candidate.id,
         )
@@ -116,18 +117,36 @@ def _evaluate_candidate_in_isolated_session(
         ):
             return True
 
-        evaluation, _newly_evaluated, internal_error = (
-            evaluations_service.evaluate_candidate_for_job(
-                task_db,
-                candidate=candidate,
-                job=job,
-                force=force_evaluation,
-            )
+        evaluation_text = build_evaluation_text(job)
+
+    result, internal_error = evaluations_service.evaluate_candidate_evidence(
+        candidate_id=candidate_id,
+        evaluation_text=evaluation_text,
+    )
+
+    with SessionLocal() as write_db:
+        current_job = jobs_repository.get_job(
+            write_db,
+            job_id,
+            owner_sub=owner_sub,
         )
-        return (
-            getattr(evaluation, "status", None) == "COMPLETED"
-            and not internal_error
+        if current_job is None:
+            return False
+        if int(getattr(current_job, "evaluation_version", 1) or 1) != current_version:
+            return True
+
+        evaluation = evaluations_service.persist_candidate_evaluation(
+            write_db,
+            candidate_id=candidate_id,
+            job_id=job_id,
+            job_evaluation_version=current_version,
+            result=result,
         )
+
+    return (
+        getattr(evaluation, "status", None) == "COMPLETED"
+        and not internal_error
+    )
 
 
 def _run_parallel_candidate_evaluations(
@@ -322,6 +341,16 @@ def process_job_reevaluation(db: Session, *, task_id: str) -> str:
                 code="JOB_CONTEXT_MISSING",
                 message="La vacante ya no esta disponible para este tenant.",
             )
+        current_version = int(getattr(job, "evaluation_version", 1) or 1)
+        if current_version > target_version:
+            task.status = "COMPLETED"
+            task.completed_at = _now()
+            task.last_error_code = "SUPERSEDED_BY_NEWER_JOB_VERSION"
+            task.last_error_message = (
+                "La vacante cambio nuevamente durante esta reevaluacion."
+            )
+            db.commit()
+            return "SUPERSEDED"
 
     task.status = "RANKING"
     db.commit()
