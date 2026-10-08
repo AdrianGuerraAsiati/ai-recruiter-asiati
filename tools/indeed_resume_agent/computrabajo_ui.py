@@ -143,6 +143,9 @@ def run_computrabajo_ui(*, browser) -> None:
     inspect_button = ttk.Button(actions, text="Analizar pantalla actual", command=lambda: commands.put("inspect"))
     inspect_button.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(5, 0))
 
+    pdf_button = ttk.Button(actions, text="Guardar perfil abierto como PDF", command=lambda: commands.put("profile_pdf"))
+    pdf_button.grid(row=3, column=0, columnspan=3, sticky="ew", pady=(5, 0))
+
     sync_button = ttk.Button(
         actions,
         text="Sincronizar candidatos",
@@ -194,6 +197,14 @@ def run_computrabajo_ui(*, browser) -> None:
             try:
                 command = commands.get(timeout=0.2)
             except queue.Empty:
+                continue
+
+            if command == "profile_pdf":
+                try:
+                    path = browser.save_visible_profile_pdf()
+                    updates.put(("ready", "PDF guardado localmente: " + path))
+                except Exception:
+                    updates.put(("error", "Abre el detalle de un candidato antes de guardar su perfil como PDF."))
                 continue
 
             if command == "inspect":
