@@ -113,7 +113,7 @@ def _run_indeed(config) -> None:
 def _run_computrabajo(config) -> None:
     browser = ComputrabajoBrowserUse(config)
     try:
-        run_computrabajo_ui(browser=browser)
+        run_computrabajo_ui(browser=browser, api_factory=lambda: AgentApiClient(config, resolve_agent_token()))
     finally:
         browser.close()
 

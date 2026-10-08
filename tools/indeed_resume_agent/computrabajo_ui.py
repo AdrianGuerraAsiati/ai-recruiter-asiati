@@ -4,7 +4,7 @@ import queue
 import threading
 
 
-def run_computrabajo_ui(*, browser) -> None:
+def run_computrabajo_ui(*, browser, api_factory=None) -> None:
     """Computrabajo shell kept separate from the production Indeed workflow.
 
     The browser/session boundary is ready now. Automatic candidate and vacancy
@@ -13,11 +13,12 @@ def run_computrabajo_ui(*, browser) -> None:
     """
 
     import tkinter as tk
-    from tkinter import ttk
+    from tkinter import ttk, simpledialog, messagebox
+    from .computrabajo_sync import sync_visible_candidates
 
     root = tk.Tk()
     root.title("ASIATI Recruiter Agent · Computrabajo")
-    root.geometry("760x560")
+    root.geometry("760x590")
     root.minsize(680, 440)
     root.configure(background="#F4F7FB")
 
@@ -152,10 +153,35 @@ def run_computrabajo_ui(*, browser) -> None:
     logout_button = ttk.Button(actions, text="Cerrar sesión", command=lambda: commands.put("logout"))
     logout_button.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(5, 0))
 
+    def confirm_sync() -> None:
+        if api_factory is None:
+            return
+        account = simpledialog.askstring(
+            "Computrabajo", "Identificador de la cuenta de Computrabajo", parent=root
+        )
+        if not account:
+            return
+        job = simpledialog.askstring(
+            "Computrabajo", "Nombre de la vacante abierta", parent=root
+        )
+        if not job:
+            return
+        if not messagebox.askyesno(
+            "Confirmar sincronización",
+            "Se enviarán a Talent los candidatos visibles en esta página. "
+            "Se intentará descargar el CV adjunto o generar un PDF del perfil.",
+            parent=root,
+        ):
+            return
+        try:
+            api = api_factory()
+        except Exception:
+            status_var.set("No se pudo obtener la credencial de Talent.")
+            return
+        commands.put(("sync", api, account.strip(), job.strip()))
+
     sync_button = ttk.Button(
-        actions,
-        text="Sincronizar candidatos",
-        state="disabled",
+        actions, text="Agregar candidatos a Talent", command=confirm_sync,
     )
     sync_button.grid(
         row=2,
@@ -203,6 +229,28 @@ def run_computrabajo_ui(*, browser) -> None:
             try:
                 command = commands.get(timeout=0.2)
             except queue.Empty:
+                continue
+
+            if isinstance(command, tuple) and command[0] == "sync":
+                _, api, account, job = command
+                updates.put(("busy", "Sincronizando candidatos visibles con Talent…"))
+                try:
+                    report = sync_visible_candidates(
+                        browser=browser, api=api, source_account=account, job_title=job,
+                        stop_requested=stop_event.is_set,
+                        progress=lambda index, result: updates.put((
+                            "busy", f"Procesados {index}/{result['total']}: "
+                            f"{result['created']} nuevos, {result['existing']} existentes, "
+                            f"{result['failed']} fallidos"
+                        )),
+                    )
+                    updates.put(("ready", "Sincronización finalizada: "
+                        f"{report['created']} nuevos, {report['existing']} existentes, "
+                        f"{report['failed']} fallidos."))
+                except Exception:
+                    updates.put(("error", "No fue posible sincronizar. Revisa la vacante y conexión con Talent."))
+                finally:
+                    api.close()
                 continue
 
             if command == "logout":
@@ -335,6 +383,7 @@ def run_computrabajo_ui(*, browser) -> None:
                 status_var.set(message)
                 busy = state in {"busy", "diagnostic_busy"}
                 discover_button.configure(state="disabled" if busy else "normal")
+                sync_button.configure(state="disabled" if busy else "normal")
                 logout_button.configure(state="disabled" if busy else "normal")
                 open_button.configure(
                     state="disabled" if busy else "normal"
