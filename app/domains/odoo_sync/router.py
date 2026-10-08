@@ -70,6 +70,27 @@ def sync_jobs_to_odoo(
         )
 
 
+@router.get("/applicants/diagnostics")
+def diagnose_odoo_applicants(
+    sample_limit: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("candidates.manage")),
+):
+    """Inspect raw Odoo applicants versus Talent job mappings without writes."""
+    try:
+        return applicant_import.diagnose_applicant_sources(
+            db,
+            sample_limit=sample_limit,
+        )
+    except (integration.OdooDisabled, integration.OdooNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except applicant_import.OdooApplicantImportError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"No fue posible diagnosticar los postulantes de Odoo: {exc}",
+        )
+
+
 @router.post("/applicants/import")
 def import_applicants_from_odoo(
     dry_run: bool = Query(default=False),

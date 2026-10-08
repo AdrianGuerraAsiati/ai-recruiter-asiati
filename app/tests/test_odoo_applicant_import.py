@@ -377,3 +377,49 @@ def test_bounded_import_processes_only_requested_number(db, monkeypatch):
         if call["model"] == "hr.applicant"
     ]
     assert applicant_calls[0]["limit"] == 1
+
+
+def test_diagnostics_show_unmapped_odoo_job_ids(db):
+    job = _mapped_job(db)
+    client = FakeOdooClient(include_resume=False)
+
+    original = client.search_read
+
+    def search_read(model, domain, *, fields=None, limit=None, offset=None, order=None):
+        if model == "hr.applicant" and domain == []:
+            return [
+                {
+                    "id": 700,
+                    "partner_name": "Candidata Histórica",
+                    "email_from": "historica@example.com",
+                    "job_id": [999, "Vacante histórica"],
+                    "stage_id": [1, "New"],
+                    "create_date": "2026-09-01 10:00:00",
+                    "write_date": "2026-10-01 10:00:00",
+                    "active": True,
+                }
+            ]
+        return original(
+            model,
+            domain,
+            fields=fields,
+            limit=limit,
+            offset=offset,
+            order=order,
+        )
+
+    client.search_read = search_read
+
+    result = applicant_import.diagnose_applicant_sources(
+        db,
+        client=client,
+        sample_limit=20,
+    )
+
+    assert result["read_only"] is True
+    assert result["mapped_job_count"] == 1
+    assert result["mapped_jobs"][0]["talent_job_id"] == job.id
+    assert result["mapped_odoo_job_ids"] == [34]
+    assert result["sample_job_ids"] == [999]
+    assert result["sample_unmapped_job_ids"] == [999]
+    assert result["raw_applicant_sample"][0]["job_is_mapped"] is False

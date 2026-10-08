@@ -698,6 +698,100 @@ def _sync_job(
     }
 
 
+def diagnose_applicant_sources(
+    db: Session,
+    *,
+    client=None,
+    sample_limit: int = 20,
+) -> dict:
+    """Compare Talent-to-Odoo job mappings with raw Odoo applicants, read-only."""
+
+    transport = client or integration.build_odoo_client()
+    bounded_limit = max(1, min(int(sample_limit), 100))
+
+    try:
+        mapped = _mapped_jobs(db)
+        mapped_jobs = []
+        mapped_odoo_ids: set[int] = set()
+        for sync, job in mapped:
+            stored_id = str(sync.odoo_record_id or "").strip()
+            if not stored_id.isdigit():
+                continue
+            odoo_job_id = int(stored_id)
+            mapped_odoo_ids.add(odoo_job_id)
+            mapped_jobs.append(
+                {
+                    "talent_job_id": job.id,
+                    "talent_title": job.title,
+                    "odoo_job_id": odoo_job_id,
+                    "sync_status": sync.status,
+                }
+            )
+
+        fields = _applicant_fields(transport)
+        raw_rows = transport.search_read(
+            "hr.applicant",
+            [],
+            fields=[
+                name
+                for name in (
+                    "id",
+                    "partner_name",
+                    "name",
+                    "email_from",
+                    "job_id",
+                    "stage_id",
+                    "create_date",
+                    "write_date",
+                    "active",
+                )
+                if name == "id" or name in fields
+            ],
+            limit=bounded_limit,
+            order="write_date desc, id desc",
+        )
+
+        sample = []
+        raw_job_ids: set[int] = set()
+        for row in raw_rows:
+            odoo_job_id = _many2one_id(row.get("job_id"))
+            if odoo_job_id is not None:
+                raw_job_ids.add(odoo_job_id)
+            sample.append(
+                {
+                    "odoo_applicant_id": int(row["id"]),
+                    "candidate_name": _candidate_name(row),
+                    "candidate_email": _email(row.get("email_from")),
+                    "odoo_job_id": odoo_job_id,
+                    "odoo_job_title": _many2one_name(row.get("job_id")),
+                    "stage": _many2one_name(row.get("stage_id")),
+                    "created_at": _text(row.get("create_date")),
+                    "updated_at": _text(row.get("write_date")),
+                    "active": bool(row.get("active", True)),
+                    "job_is_mapped": odoo_job_id in mapped_odoo_ids
+                    if odoo_job_id is not None
+                    else False,
+                }
+            )
+
+        return {
+            "read_only": True,
+            "mapped_job_count": len(mapped_jobs),
+            "mapped_jobs": mapped_jobs,
+            "raw_applicant_sample_count": len(sample),
+            "raw_applicant_sample": sample,
+            "sample_job_ids": sorted(raw_job_ids),
+            "mapped_odoo_job_ids": sorted(mapped_odoo_ids),
+            "sample_unmapped_job_ids": sorted(raw_job_ids - mapped_odoo_ids),
+        }
+    except OdooApplicantImportError:
+        raise
+    except OdooClientError as exc:
+        raise OdooApplicantImportError(str(exc)) from exc
+    except Exception as exc:
+        raise OdooApplicantImportError("ODOO_APPLICANT_DIAGNOSTICS_FAILED") from exc
+
+
 def preview_applicants_from_odoo(
     db: Session,
     *,
