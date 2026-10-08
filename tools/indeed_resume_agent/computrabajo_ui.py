@@ -104,6 +104,7 @@ def run_computrabajo_ui(*, browser) -> None:
     actions.pack(fill="x", pady=(0, 10))
     actions.columnconfigure(0, weight=1)
     actions.columnconfigure(1, weight=1)
+    actions.columnconfigure(2, weight=1)
 
     open_button = ttk.Button(
         actions,
@@ -112,12 +113,45 @@ def run_computrabajo_ui(*, browser) -> None:
     )
     open_button.grid(row=0, column=0, sticky="ew", padx=(0, 5), pady=4)
 
+    diagnostic_start_button = ttk.Button(
+        actions,
+        text="Iniciar diagnóstico",
+        command=lambda: commands.put("diagnostic_start"),
+    )
+    diagnostic_start_button.grid(
+        row=0,
+        column=1,
+        sticky="ew",
+        padx=5,
+        pady=4,
+    )
+
+    diagnostic_stop_button = ttk.Button(
+        actions,
+        text="Guardar diagnóstico",
+        command=lambda: commands.put("diagnostic_stop"),
+        state="disabled",
+    )
+    diagnostic_stop_button.grid(
+        row=0,
+        column=2,
+        sticky="ew",
+        padx=(5, 0),
+        pady=4,
+    )
+
     sync_button = ttk.Button(
         actions,
         text="Sincronizar candidatos",
         state="disabled",
     )
-    sync_button.grid(row=0, column=1, sticky="ew", padx=(5, 0), pady=4)
+    sync_button.grid(
+        row=1,
+        column=0,
+        columnspan=3,
+        sticky="ew",
+        pady=(5, 0),
+    )
 
     note = tk.Frame(
         shell,
@@ -141,7 +175,8 @@ def run_computrabajo_ui(*, browser) -> None:
         text=(
             "Computrabajo ya usa una sesión de navegador separada de Indeed. "
             "La sincronización automática permanece bloqueada hasta validar el DOM "
-            "autenticado y definir selectores propios de vacantes, candidatos y descarga de CV."
+            "autenticado y definir selectores propios de vacantes, candidatos y "
+            "descarga de CV."
         ),
         background="#FFFAEB",
         foreground="#475467",
@@ -157,25 +192,88 @@ def run_computrabajo_ui(*, browser) -> None:
                 command = commands.get(timeout=0.2)
             except queue.Empty:
                 continue
-            if command != "open":
+
+            if command == "open":
+                updates.put(
+                    (
+                        "busy",
+                        "Abriendo la sesión persistente de Computrabajo…",
+                    )
+                )
+                try:
+                    browser.open_portal()
+                except Exception:
+                    updates.put(
+                        (
+                            "error",
+                            "No fue posible abrir Computrabajo. Revisa "
+                            "Chrome/Edge y vuelve a intentar.",
+                        )
+                    )
+                else:
+                    updates.put(
+                        (
+                            "ready",
+                            "Computrabajo está abierto. Inicia sesión "
+                            "manualmente en la ventana del navegador.",
+                        )
+                    )
                 continue
-            updates.put(("busy", "Abriendo la sesión persistente de Computrabajo…"))
-            try:
-                browser.open_portal()
-            except Exception:
+
+            if command == "diagnostic_start":
                 updates.put(
                     (
-                        "error",
-                        "No fue posible abrir Computrabajo. Revisa Chrome/Edge y vuelve a intentar.",
+                        "diagnostic_busy",
+                        "Iniciando diagnóstico de Computrabajo…",
                     )
                 )
-            else:
+                try:
+                    browser.start_diagnostic()
+                except Exception:
+                    updates.put(
+                        (
+                            "error",
+                            "No fue posible iniciar el diagnóstico de "
+                            "Computrabajo.",
+                        )
+                    )
+                else:
+                    updates.put(
+                        (
+                            "diagnostic",
+                            "Diagnóstico activo. Navega normalmente por "
+                            "vacantes y candidatos; al terminar pulsa "
+                            "Guardar diagnóstico.",
+                        )
+                    )
+                continue
+
+            if command == "diagnostic_stop":
                 updates.put(
                     (
-                        "ready",
-                        "Computrabajo está abierto. Inicia sesión manualmente en la ventana del navegador.",
+                        "diagnostic_busy",
+                        "Guardando diagnóstico local…",
                     )
                 )
+                try:
+                    path = browser.stop_diagnostic()
+                except Exception:
+                    path = None
+                if path:
+                    updates.put(
+                        (
+                            "ready",
+                            f"Diagnóstico guardado: {path}",
+                        )
+                    )
+                else:
+                    updates.put(
+                        (
+                            "error",
+                            "No fue posible guardar el diagnóstico de "
+                            "Computrabajo.",
+                        )
+                    )
 
     thread = threading.Thread(
         target=worker_loop,
@@ -189,8 +287,19 @@ def run_computrabajo_ui(*, browser) -> None:
             while True:
                 state, message = updates.get_nowait()
                 status_var.set(message)
+                busy = state in {"busy", "diagnostic_busy"}
                 open_button.configure(
-                    state="disabled" if state == "busy" else "normal"
+                    state="disabled" if busy else "normal"
+                )
+                diagnostic_start_button.configure(
+                    state=(
+                        "disabled"
+                        if busy or state == "diagnostic"
+                        else "normal"
+                    )
+                )
+                diagnostic_stop_button.configure(
+                    state="normal" if state == "diagnostic" else "disabled"
                 )
         except queue.Empty:
             pass
