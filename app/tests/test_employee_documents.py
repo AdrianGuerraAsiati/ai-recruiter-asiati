@@ -118,3 +118,103 @@ def test_download_payload_uses_private_presigned_url(monkeypatch):
 
     db.close()
     engine.dispose()
+
+
+class FakeS3:
+    def __init__(self):
+        self.posts = []
+        self.head = {
+            "ContentLength": 321,
+            "ContentType": "application/pdf",
+        }
+        self.urls = []
+        self.deleted = []
+
+    def generate_presigned_post(self, **kwargs):
+        self.posts.append(kwargs)
+        return {"url": "https://s3.example/upload", "fields": {"key": kwargs["Key"]}}
+
+    def head_object(self, **kwargs):
+        return dict(self.head)
+
+    def generate_presigned_url(self, operation, Params, ExpiresIn):
+        self.urls.append((operation, Params, ExpiresIn))
+        return "https://s3.example/download?signed=1"
+
+    def delete_object(self, **kwargs):
+        self.deleted.append(kwargs)
+
+
+def test_storage_presigned_upload_verify_download_and_delete(monkeypatch):
+    from app.infrastructure.storage import employee_documents as storage
+
+    fake = FakeS3()
+    monkeypatch.setattr(storage, "_s3_client", lambda: fake)
+    monkeypatch.setattr(storage, "get_training_content_bucket", lambda: "private-bucket")
+
+    upload = storage.create_document_upload(
+        employee_id="employee-1",
+        filename="cedula.pdf",
+        content_type="application/pdf",
+        size_bytes=321,
+    )
+
+    assert upload["key"].startswith("employees/documents/employee-1/")
+    assert upload["key"].endswith("-cedula.pdf")
+    assert fake.posts[0]["Bucket"] == "private-bucket"
+    assert fake.posts[0]["Conditions"][-1] == ["content-length-range", 321, 321]
+
+    verified = storage.verify_document_object(
+        employee_id="employee-1",
+        key=upload["key"],
+        expected_content_type="application/pdf",
+        expected_size_bytes=321,
+    )
+    assert verified == {
+        "key": upload["key"],
+        "content_type": "application/pdf",
+        "size_bytes": 321,
+    }
+
+    url = storage.create_document_download_url(
+        upload["key"],
+        filename="cedula.pdf",
+    )
+    assert url == "https://s3.example/download?signed=1"
+    assert fake.urls[0][0] == "get_object"
+    assert fake.urls[0][1]["ResponseContentDisposition"] == 'attachment; filename="cedula.pdf"'
+
+    storage.delete_document_object(upload["key"])
+    assert fake.deleted == [{"Bucket": "private-bucket", "Key": upload["key"]}]
+
+
+@pytest.mark.parametrize(
+    ("filename", "content_type", "size_bytes", "message"),
+    [
+        ("cedula.exe", "application/octet-stream", 100, "Formato no soportado"),
+        ("cedula.jpg", "image/jpeg", 0, "máximo 15 MB"),
+        ("cedula.png", "image/jpeg", 100, "extensión"),
+    ],
+)
+def test_storage_rejects_invalid_uploads(filename, content_type, size_bytes, message):
+    from app.infrastructure.storage import employee_documents as storage
+
+    with pytest.raises(ValueError, match=message):
+        storage.create_document_upload(
+            employee_id="employee-1",
+            filename=filename,
+            content_type=content_type,
+            size_bytes=size_bytes,
+        )
+
+
+def test_storage_verify_rejects_foreign_employee_key():
+    from app.infrastructure.storage import employee_documents as storage
+
+    with pytest.raises(ValueError, match="no pertenece"):
+        storage.verify_document_object(
+            employee_id="employee-1",
+            key="employees/documents/employee-2/cedula.pdf",
+            expected_content_type="application/pdf",
+            expected_size_bytes=321,
+        )
