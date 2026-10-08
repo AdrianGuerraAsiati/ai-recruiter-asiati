@@ -70,6 +70,7 @@ describe("Administrative dashboard", () => {
           },
         });
       }
+      if (url === "/jobs/coverage/summary") return Promise.resolve({ data: { coverage_percent: 50, covered_jobs: 1, total_active_jobs: 2, pipeline_depth: 1.5, counts: {low: 0, critical: 1, pending: 0}, jobs: [] } });
       if (url === "/employees/summary") {
         return Promise.resolve({
           data: {
@@ -101,6 +102,7 @@ describe("Administrative dashboard", () => {
 
   it("excludes paused vacancies from active count and coverage", async () => {
     api.get.mockImplementation((url) => {
+      if (url === "/jobs/coverage/summary") return Promise.resolve({ data: { coverage_percent: 0, covered_jobs: 0, total_active_jobs: 1, pipeline_depth: 0, counts: {low: 0, critical: 0, pending: 1}, jobs: [] } });
       if (url === "/jobs") {
         return Promise.resolve({
           data: [
