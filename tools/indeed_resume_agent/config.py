@@ -22,6 +22,8 @@ class AgentConfig:
     idle_poll_seconds: float = 10.0
     max_pdf_bytes: int = 15 * 1024 * 1024
     diagnostic_screenshots: bool = False
+    computrabajo_profile_dir: Path | None = None
+    computrabajo_base_url: str = "https://empresa.computrabajo.com.co/"
 
 
 def _env_float(env: Mapping[str, str], key: str, default: float) -> float:
@@ -55,6 +57,19 @@ def _normalize_api_base_url(raw: str) -> str:
     raise ValueError("ASIATI Resume Agent API URL must use HTTPS (except localhost development)")
 
 
+def _normalize_computrabajo_url(raw: str) -> str:
+    value = str(raw or "").strip().rstrip("/") + "/"
+    parsed = urlparse(value)
+    hostname = str(parsed.hostname or "").casefold()
+    if parsed.scheme != "https":
+        raise ValueError("Computrabajo URL must use HTTPS")
+    if hostname == "computrabajo.com.co" or hostname.endswith(".computrabajo.com.co"):
+        return value
+    if hostname == "computrabajo.com" or hostname.endswith(".computrabajo.com"):
+        return value
+    raise ValueError("Computrabajo URL must use an official computrabajo.com domain")
+
+
 def load_config(*, environ: Mapping[str, str] | None = None) -> AgentConfig:
     env = os.environ if environ is None else environ
     local_app_data = str(env.get("LOCALAPPDATA", "")).strip()
@@ -77,6 +92,18 @@ def load_config(*, environ: Mapping[str, str] | None = None) -> AgentConfig:
         / "ResumeAgent"
         / f"browser-profile-{browser_name}"
     )
+    computrabajo_profile_override = str(
+        env.get("ASIATI_CANDIDATE_AGENT_COMPUTRABAJO_PROFILE_DIR", "")
+    ).strip()
+    computrabajo_profile_dir = (
+        Path(computrabajo_profile_override).expanduser()
+        if computrabajo_profile_override
+        else Path(local_app_data)
+        / "ASIATI"
+        / "CandidateAgent"
+        / f"computrabajo-profile-{browser_name}"
+    )
+
     return AgentConfig(
         api_base_url=_normalize_api_base_url(
             env.get("ASIATI_RESUME_AGENT_API_BASE_URL", DEFAULT_API_BASE_URL)
@@ -99,5 +126,12 @@ def load_config(*, environ: Mapping[str, str] | None = None) -> AgentConfig:
             env,
             "ASIATI_RESUME_AGENT_DIAGNOSTIC_SCREENSHOTS",
             False,
+        ),
+        computrabajo_profile_dir=computrabajo_profile_dir,
+        computrabajo_base_url=_normalize_computrabajo_url(
+            env.get(
+                "ASIATI_CANDIDATE_AGENT_COMPUTRABAJO_URL",
+                "https://empresa.computrabajo.com.co/",
+            )
         ),
     )
