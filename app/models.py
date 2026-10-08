@@ -897,6 +897,4 @@ from app.domains.training.models import (  # noqa: E402,F401
     TrainingQuizQuestion,
 )
 from app.domains.talent_id import models as talent_id_models  # noqa: E402,F401
-
-# Employee document ORM model is re-exported for metadata/Alembic discovery.
 from app.domains.employee_documents.models import EmployeeDocument  # noqa: E402,F401
