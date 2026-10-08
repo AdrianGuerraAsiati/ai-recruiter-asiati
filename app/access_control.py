@@ -39,6 +39,9 @@ PERMISSION_DEFINITIONS = {
     "employees.disable": "Activar o desactivar empleados.",
     "employees.roles.manage": "Administrar roles de empleados.",
     "employees.credentials.manage": "Administrar usuarios y restablecer credenciales de empleados.",
+    "employee_documents.read_own": "Consultar documentos propios.",
+    "employee_documents.upload_own": "Cargar y reemplazar documentos propios.",
+    "employee_documents.read_all": "Consultar documentos de todos los empleados.",
     "training.read": "Consultar el catálogo de capacitación.",
     "training.manage": "Crear y editar cursos, módulos y contenidos.",
     "training.assign": "Asignar capacitación a empleados.",
@@ -65,6 +68,8 @@ _EMPLOYEE_PERMISSIONS = {
     "training.quiz.take",
     "training.progress.read_own",
     "profile.read_own",
+    "employee_documents.read_own",
+    "employee_documents.upload_own",
     "talent_id.attendance.read_own",
 }
 

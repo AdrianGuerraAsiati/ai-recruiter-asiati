@@ -18,6 +18,7 @@ const pageTitles = {
   "/training": "Capacitación",
   "/progress": "Mi progreso",
   "/profile": "Mi perfil",
+  "/documents": "Documentos",
   "/integrations": "Integraciones",
   "/forbidden": "Acceso restringido",
 };

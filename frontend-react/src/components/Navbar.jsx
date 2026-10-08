@@ -38,6 +38,13 @@ const navItems = [
     permission: "training.progress.read_own",
     roles: ["EMPLOYEE"],
   },
+  {
+    to: "/documents",
+    label: "Documentos",
+    icon: "applications",
+    section: "Cuenta",
+    permissionsAny: ["employee_documents.read_own", "employee_documents.read_all"],
+  },
   { to: "/profile", label: "Mi perfil", icon: "profile", section: "Cuenta", permission: "profile.read_own" },
   { to: "/integrations", label: "Integraciones", icon: "integrations", section: "Sistema", permission: "integrations.manage" },
 ];

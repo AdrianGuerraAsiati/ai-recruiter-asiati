@@ -25,6 +25,7 @@ CORE_TABLES = {
     "user_roles",
     "role_permissions",
     "employee_score_events",
+    "employee_documents",
     "training_courses",
     "training_modules",
     "training_lessons",
@@ -92,6 +93,7 @@ def test_alembic_head_builds_current_postgres_schema():
             "user_roles",
             "role_permissions",
             "employee_score_events",
+            "employee_documents",
             "training_courses",
             "training_modules",
             "training_lessons",
@@ -343,6 +345,21 @@ def test_alembic_head_builds_current_postgres_schema():
             "void_reason",
         }.issubset(score_event_columns)
 
+        employee_document_columns = {
+            column["name"]
+            for column in inspector.get_columns("employee_documents")
+        }
+        assert {
+            "employee_id",
+            "document_type",
+            "original_filename",
+            "storage_key",
+            "content_type",
+            "size_bytes",
+            "uploaded_by_sub",
+            "uploaded_at",
+        }.issubset(employee_document_columns)
+
         user_profile_columns = {
             column["name"]
             for column in inspector.get_columns("user_profiles")
@@ -518,6 +535,6 @@ def test_alembic_head_builds_current_postgres_schema():
         assert "company_name" in job_columns
 
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
-        assert revision == "049"
+        assert revision == "050"
     finally:
         engine.dispose()

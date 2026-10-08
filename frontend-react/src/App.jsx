@@ -24,6 +24,7 @@ import EmployeeScores from "./pages/EmployeeScores";
 import Applications from "./pages/Applications";
 import Progress from "./pages/Progress";
 import Profile from "./pages/Profile";
+import Documents from "./pages/Documents";
 import Forbidden from "./pages/Forbidden";
 import NotFound from "./pages/NotFound";
 import "./ui-system.css";
@@ -74,6 +75,14 @@ function AppRoutes() {
       <Route path="/training" element={<ProtectedPage permission="training.read"><Training /></ProtectedPage>} />
       <Route path="/progress" element={<ProtectedPage permission="training.progress.read_own"><Progress /></ProtectedPage>} />
       <Route path="/profile" element={<ProtectedPage permission="profile.read_own"><Profile /></ProtectedPage>} />
+      <Route
+        path="/documents"
+        element={(
+          <ProtectedPage permissionsAny={["employee_documents.read_own", "employee_documents.read_all"]}>
+            <Documents />
+          </ProtectedPage>
+        )}
+      />
       <Route path="/employees" element={<ProtectedPage permission="employees.read"><Employees /></ProtectedPage>} />
       <Route path="/access" element={<ProtectedPage permission="employees.credentials.manage"><AccessManagement /></ProtectedPage>} />
       <Route path="/talent-id" element={<Navigate to="/attendance" replace />} />
