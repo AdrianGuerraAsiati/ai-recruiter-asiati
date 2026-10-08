@@ -5,11 +5,13 @@ import { Link } from "react-router-dom";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
-import PageHeader from "../components/ui/PageHeader";
 import CandidateCreateUserModal from "../components/CandidateCreateUserModal.jsx";
 import { useSession } from "../context/SessionContext";
+import PageHeader from "../components/ui/PageHeader";
 import { LoadingState } from "../components/ui/StatePanel";
 import "./Ranking.css";
+
+const RANKING_SCOPE = "all";
 
 function Ranking() {
   const { hasPermission } = useSession();
@@ -19,18 +21,18 @@ function Ranking() {
   const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [userTarget, setUserTarget] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [requirements, setRequirements] = useState([]);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [requirementsLoading, setRequirementsLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [requirementsError, setRequirementsError] = useState("");
-  const [userTarget, setUserTarget] = useState(null);
 
   const [minScore, setMinScore] = useState(0);
   const [maxScore, setMaxScore] = useState(100);
   const [recommendationFilter, setRecommendationFilter] = useState("");
-  const [rankingScope, setRankingScope] = useState("assigned");
+  const rankingScope = RANKING_SCOPE;
 
   const [rankingGeneratedAt, setRankingGeneratedAt] = useState(null);
   const [rankingVersion, setRankingVersion] = useState(null);
@@ -49,7 +51,11 @@ function Ranking() {
   const [rankingBaseTotal, setRankingBaseTotal] = useState(0);
   const [rankingLoadedScope, setRankingLoadedScope] = useState(null);
   const [rankingMessage, setRankingMessage] = useState("");
+  const [eligiblePoolCount, setEligiblePoolCount] = useState(null);
+  const [eligiblePoolLoading, setEligiblePoolLoading] = useState(false);
   const rankingAbortRef = useRef(null);
+  const asyncRankingAbortRef = useRef(null);
+  const poolAbortRef = useRef(null);
   const analysisAbortRef = useRef(null);
 
   const [rankingInfo, setRankingInfo] = useState({
@@ -72,11 +78,42 @@ function Ranking() {
   const selectedJobData =
     jobs.find((job) => job.job_id === selectedJob) || null;
 
-  const assignedCandidateCount =
-    selectedJobData?.candidate_count ?? rankingBaseTotal ?? rankingInfo.total ?? 0;
+  const directApplicantCount = Number(selectedJobData?.candidate_count || 0);
+  const evaluableCandidateCount =
+    eligiblePoolCount != null
+      ? Number(eligiblePoolCount)
+      : rankingVersion != null
+        ? Number(rankingBaseTotal || rankingInfo.total || 0)
+        : null;
 
   const bestScore =
     rankingInfo.maximum != null ? Number(rankingInfo.maximum) : null;
+
+  const canRunCandidateActions = Boolean(selectedJob);
+  const selectedWorkMode = String(selectedJobData?.work_mode || "ONSITE").toUpperCase();
+  const selectedWorkModeLabel =
+    selectedWorkMode === "REMOTE"
+      ? "Remoto"
+      : selectedWorkMode === "HYBRID"
+        ? "Híbrido"
+        : "Presencial";
+  const selectedJobCountry = String(selectedJobData?.country_code || "").trim().toUpperCase();
+  const rankingPoolLabel =
+    selectedWorkMode === "REMOTE"
+      ? "Toda la base de Talent"
+      : selectedJobCountry
+        ? `Solo candidatos con historial en ${selectedJobCountry}`
+        : "Solo postulantes directos hasta definir país";
+  const selectedJobLocation = [
+    selectedJobData?.city,
+    selectedJobCountry,
+  ].filter(Boolean).join(" · ") || "Ubicación por definir";
+  const selectedJobDescription = String(
+    selectedJobData?.description
+    || selectedJobData?.ai_description
+    || selectedJobData?.indeed_description
+    || "",
+  ).trim();
 
   // ============================================================
   // LOAD JOBS
@@ -87,15 +124,22 @@ function Ranking() {
       const response = await api.get("/jobs");
       const data = response.data;
       const loadedJobs = Array.isArray(data) ? data : data.jobs || [];
-      const rankingJobs = loadedJobs.filter(
-        (job) => Number(job.candidate_count) > 0,
-      );
+      const rankingJobs = loadedJobs
+        .filter((job) => String(job.status || "ACTIVE").toUpperCase() === "ACTIVE")
+        .sort((a, b) => String(a.title || "").localeCompare(
+          String(b.title || ""),
+          "es",
+          { sensitivity: "base" },
+        ));
       setJobs(rankingJobs);
 
       if (!selectedJob && rankingJobs.length > 0) {
         const firstJobId = rankingJobs[0].job_id;
         setSelectedJob(firstJobId);
-        await loadRanking(1, pageSize, firstJobId, rankingScope);
+        await Promise.all([
+          loadRanking(1, pageSize, firstJobId, rankingScope),
+          loadEligiblePool(firstJobId),
+        ]);
       }
     } catch (error) {
       setActionFeedback({
@@ -114,10 +158,58 @@ function Ranking() {
     loadJobs();
     return () => {
       rankingAbortRef.current?.abort();
+      asyncRankingAbortRef.current?.abort();
+      poolAbortRef.current?.abort();
       analysisAbortRef.current?.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+// ============================================================
+// LOAD ELIGIBLE POOL
+// ============================================================
+
+async function loadEligiblePool(targetJob = selectedJob) {
+    poolAbortRef.current?.abort();
+
+    if (!targetJob) {
+      setEligiblePoolCount(null);
+      setEligiblePoolLoading(false);
+      return null;
+    }
+
+    const controller = new AbortController();
+    poolAbortRef.current = controller;
+    setEligiblePoolLoading(true);
+    setEligiblePoolCount(null);
+
+    try {
+      const { data } = await api.get(
+        `/jobs/${targetJob}/ranking/cost-estimate`,
+        {
+          params: {
+            mode: "fast",
+            scope: rankingScope,
+          },
+          signal: controller.signal,
+        },
+      );
+      const count = Number(data?.available_candidate_count);
+      const normalizedCount = Number.isFinite(count) ? count : null;
+      setEligiblePoolCount(normalizedCount);
+      return normalizedCount;
+    } catch (error) {
+      if (error?.code !== "ERR_CANCELED") {
+        setEligiblePoolCount(null);
+      }
+      return null;
+    } finally {
+      if (poolAbortRef.current === controller) {
+        poolAbortRef.current = null;
+        setEligiblePoolLoading(false);
+      }
+    }
+}
 
 // ============================================================
 // LOAD RANKING
@@ -181,9 +273,7 @@ async function loadRanking(
       if (data.scope_mismatch) {
         setRanking([]);
         setRankingMessage(
-          targetScope === "all"
-            ? "El ranking actual fue generado solo para los candidatos asignados. Recalcula usando «Todos mis candidatos» para incluir toda tu base."
-            : "El ranking actual fue generado para todos tus candidatos. Recalcula usando «Solo esta vacante» para reconstruir este alcance.",
+          "El ranking guardado pertenece al alcance anterior. Recalcula para comparar esta vacante contra toda la base de candidatos de Talent.",
         );
         setRankingGeneratedAt(data.ranking_generated_at || null);
         setRankingVersion(data.ranking_version ?? null);
@@ -257,6 +347,37 @@ async function loadRanking(
     }
 }
 
+async function waitForAsyncRankingTask(taskId, targetJob = selectedJob) {
+    asyncRankingAbortRef.current?.abort();
+    const controller = new AbortController();
+    asyncRankingAbortRef.current = controller;
+
+    try {
+      for (let attempt = 0; attempt < 450; attempt += 1) {
+        const { data } = await api.get(
+          `/jobs/${targetJob}/ranking/recalculate-async/${taskId}`,
+          { signal: controller.signal },
+        );
+        if (data.status === "COMPLETED" || data.status === "FAILED") {
+          return data;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+      return {
+        status: "FAILED",
+        last_error_message:
+          "La evaluación sigue ejecutándose en segundo plano. Usa «Actualizar ranking» en unos minutos para consultar el resultado.",
+      };
+    } catch (error) {
+      if (error?.code === "ERR_CANCELED") return null;
+      throw error;
+    } finally {
+      if (asyncRankingAbortRef.current === controller) {
+        asyncRankingAbortRef.current = null;
+      }
+    }
+}
+
 // ============================================================
 // EVALUAR CANDIDATOS
 // ============================================================
@@ -279,8 +400,8 @@ async function evaluateCandidates() {
       setActionFeedback(null);
       setRankingMessage("");
 
-      const response = await api.post(
-        `/jobs/${selectedJob}/ranking/recalculate`,
+      const { data: task } = await api.post(
+        `/jobs/${selectedJob}/ranking/recalculate-async`,
         null,
         {
           params: {
@@ -290,57 +411,55 @@ async function evaluateCandidates() {
         },
       );
 
-      const result = response.data;
-      setCostDialogOpen(false);
-      setCostEstimate(null);
-      setCostAccepted(false);
+      setActionFeedback({
+        type: "info",
+        message:
+          "Evaluación iniciada en segundo plano. Talent seguirá procesando los candidatos aunque cierres esta pantalla.",
+      });
+
+      const completedTask = await waitForAsyncRankingTask(task.task_id, selectedJob);
+      if (!completedTask) return;
+
+      if (completedTask.status === "FAILED") {
+        setActionFeedback({
+          type: "error",
+          message:
+            completedTask.last_error_message
+            || "No fue posible completar la evaluación del ranking.",
+        });
+        return;
+      }
 
       setPage(1);
       const refreshed = await loadRanking(1, pageSize, selectedJob, rankingScope);
 
       if (!refreshed.ok) {
-        if (refreshed.scopeMismatch) {
-          setActionFeedback({
-            type: "error",
-            message:
-              rankingScope === "all"
-                ? "El ranking actual fue generado solo para los candidatos asignados. Recalcula usando «Todos mis candidatos» para incluir toda tu base."
-                : "El ranking actual fue generado para todos tus candidatos. Recalcula usando «Solo esta vacante» para reconstruir este alcance.",
-          });
-        } else {
-          setActionFeedback({
-            type: "error",
-            message:
-              "Los candidatos fueron procesados, pero no fue posible actualizar la vista del ranking.",
-          });
-        }
+        setActionFeedback({
+          type: "error",
+          message: refreshed.scopeMismatch
+            ? "El ranking guardado pertenece al alcance anterior. Recalcula para comparar esta vacante contra toda la base de candidatos de Talent."
+            : "La evaluación terminó, pero no fue posible cargar el ranking actualizado. Usa «Actualizar ranking» para recuperarlo.",
+        });
         return;
       }
 
-      if (result.total_candidates === 0) {
-        const message =
-          rankingScope === "all"
-            ? "No hay candidatos registrados en tu cuenta."
-            : "No hay candidatos asignados a esta vacante.";
+      if ((refreshed.data?.ranking_total ?? 0) === 0) {
         setActionFeedback({
           type: "info",
-          message,
+          message:
+            "La evaluación terminó, pero no hay candidatos elegibles para esta vacante según país y modalidad.",
         });
-      } else if (result.failed > 0) {
-        setActionFeedback({
-          type: "error",
-          message: `Evaluación completada: ${result.evaluated} candidatos procesados y ${result.failed} con error.`,
-        });
-      } else if (refreshed.data.ranking_total === 0 || refreshed.data.total === 0) {
+      } else if (completedTask.last_error_code === "PARTIAL_EVALUATION_FAILURES") {
         setActionFeedback({
           type: "error",
           message:
-            "La evaluación terminó, pero la consulta posterior no devolvió el ranking actualizado. No vuelvas a evaluar todavía; usa «Actualizar ranking» para recuperar los resultados guardados.",
+            completedTask.last_error_message
+            || "El ranking se generó, pero algunos candidatos no pudieron evaluarse.",
         });
       } else {
         setActionFeedback({
           type: "success",
-          message: `Evaluación completada: ${result.evaluated} candidatos procesados.`,
+          message: "Evaluación completada y ranking actualizado.",
         });
       }
     } catch (error) {
@@ -348,10 +467,11 @@ async function evaluateCandidates() {
         type: "error",
         message:
           getApiErrorMessage(error, {
-          action: "evaluar los candidatos",
-          resource: "ranking",
-          fallback: "La evaluación masiva no quedó confirmada. Consulta el ranking antes de volver a ejecutarla para evitar procesar candidatos dos veces.",
-        }),
+            action: "iniciar la evaluación de candidatos",
+            resource: "ranking",
+            fallback:
+              "No fue posible iniciar la evaluación en segundo plano. Vuelve a intentarlo.",
+          }),
       });
     } finally {
       setIsEvaluatingCandidates(false);
@@ -395,9 +515,7 @@ async function refreshRanking() {
           setActionFeedback({
             type: "error",
             message:
-              rankingScope === "all"
-                ? "El ranking actual fue generado solo para los candidatos asignados. Recalcula usando «Todos mis candidatos» para incluir toda tu base."
-                : "El ranking actual fue generado para todos tus candidatos. Recalcula usando «Solo esta vacante» para reconstruir este alcance.",
+              "El ranking guardado pertenece al alcance anterior. Recalcula para comparar esta vacante contra toda la base de candidatos de Talent.",
           });
         }
         return;
@@ -489,8 +607,8 @@ async function recalculateRanking() {
       setActionFeedback(null);
       setRankingMessage("");
 
-      const response = await api.post(
-        `/jobs/${selectedJob}/ranking/recalculate`,
+      const { data: task } = await api.post(
+        `/jobs/${selectedJob}/ranking/recalculate-async`,
         null,
         {
           params: {
@@ -500,52 +618,53 @@ async function recalculateRanking() {
         },
       );
 
-      const result = response.data;
+      setCostDialogOpen(false);
+      setCostEstimate(null);
+      setCostAccepted(false);
+      setActionFeedback({
+        type: "info",
+        message:
+          "Recálculo iniciado en segundo plano. Talent continuará aunque cierres esta pantalla.",
+      });
+
+      const completedTask = await waitForAsyncRankingTask(task.task_id, selectedJob);
+      if (!completedTask) return;
+
+      if (completedTask.status === "FAILED") {
+        setActionFeedback({
+          type: "error",
+          message:
+            completedTask.last_error_message
+            || "No fue posible completar el recálculo del ranking.",
+        });
+        return;
+      }
 
       setPage(1);
       const refreshed = await loadRanking(1, pageSize, selectedJob, rankingScope);
 
       if (!refreshed.ok) {
-        if (refreshed.scopeMismatch) {
-          setActionFeedback({
-            type: "error",
-            message:
-              rankingScope === "all"
-                ? "El ranking actual fue generado solo para los candidatos asignados. Recalcula usando «Todos mis candidatos» para incluir toda tu base."
-                : "El ranking actual fue generado para todos tus candidatos. Recalcula usando «Solo esta vacante» para reconstruir este alcance.",
-          });
-        } else {
-          setActionFeedback({
-            type: "error",
-            message:
-              "El recálculo terminó, pero la consulta posterior no devolvió la nueva versión del ranking. No recalcules otra vez todavía; usa «Actualizar ranking» para recuperar los resultados guardados.",
-          });
-        }
+        setActionFeedback({
+          type: "error",
+          message: refreshed.scopeMismatch
+            ? "El ranking guardado pertenece al alcance anterior. Recalcula para comparar esta vacante contra toda la base de candidatos de Talent."
+            : "El recálculo terminó, pero no fue posible cargar la nueva versión. Usa «Actualizar ranking» para recuperarla.",
+        });
         return;
       }
 
-      if (result.total_candidates > 0 && (refreshed.data.ranking_total === 0 || refreshed.data.total === 0)) {
+      if ((refreshed.data?.ranking_total ?? 0) === 0) {
+        setActionFeedback({
+          type: "info",
+          message:
+            "El recálculo terminó, pero no hay candidatos elegibles para esta vacante según país y modalidad.",
+        });
+      } else if (completedTask.last_error_code === "PARTIAL_EVALUATION_FAILURES") {
         setActionFeedback({
           type: "error",
           message:
-            "El recálculo terminó, pero la consulta posterior no devolvió la nueva versión del ranking. No recalcules otra vez todavía; usa «Actualizar ranking» para recuperar los resultados guardados.",
-        });
-        return;
-      }
-
-      if (result.total_candidates === 0) {
-        const message =
-          rankingScope === "all"
-            ? "No hay candidatos registrados en tu cuenta."
-            : "No hay candidatos asignados a esta vacante.";
-        setActionFeedback({
-          type: "info",
-          message,
-        });
-      } else if (result.failed > 0) {
-        setActionFeedback({
-          type: "error",
-          message: `Ranking recalculado, pero ${result.failed} candidato(s) no pudieron evaluarse.`,
+            completedTask.last_error_message
+            || "El ranking se generó, pero algunos candidatos no pudieron evaluarse.",
         });
       } else {
         setActionFeedback({
@@ -558,10 +677,11 @@ async function recalculateRanking() {
         type: "error",
         message:
           getApiErrorMessage(error, {
-          action: "recalcular el ranking",
-          resource: "ranking de candidatos",
-          fallback: "El nuevo ranking no quedó confirmado. Consulta la versión actual antes de volver a recalcular para evitar trabajo duplicado.",
-        }),
+            action: "iniciar el recálculo del ranking",
+            resource: "ranking de candidatos",
+            fallback:
+              "No fue posible iniciar el recálculo en segundo plano. Vuelve a intentarlo.",
+          }),
       });
     } finally {
       setIsRecalculating(false);
@@ -611,28 +731,25 @@ async function recalculateRanking() {
     setPage(1);
     setRankingMessage("");
     setActionFeedback(null);
+    setEligiblePoolCount(null);
 
     if (!nextJob) {
+      poolAbortRef.current?.abort();
       setRanking([]);
       setRankingGeneratedAt(null);
       setRankingVersion(null);
       setRankingLoadedScope(null);
       setRankingBaseTotal(0);
+      setEligiblePoolLoading(false);
       setTotalPages(0);
       setRankingInfo({ total: 0, pending: 0, minimum: 0, maximum: 0 });
       return;
     }
 
-    await loadRanking(1, pageSize, nextJob, rankingScope);
-  }
-
-  async function handleScopeChange(event) {
-    const nextScope = event.target.value;
-    setRankingScope(nextScope);
-    setPage(1);
-    setRankingMessage("");
-    if (!selectedJob) return;
-    await loadRanking(1, pageSize, selectedJob, nextScope);
+    await Promise.all([
+      loadRanking(1, pageSize, nextJob, rankingScope),
+      loadEligiblePool(nextJob),
+    ]);
   }
 
   // ============================================================
@@ -760,43 +877,127 @@ async function recalculateRanking() {
         copyClassName="ranking-header-text"
       />
 
-      {/* 2. JOB PANEL + ACTIONS */}
-      <div className="ranking-job-panel">
-        <div className="ranking-job-panel-left">
-          <span className="ranking-job-label">Vacante activa</span>
+      {/* 2. RANKING WORKSPACE */}
+      <div className="ranking-control-grid">
+        <section className="ranking-control-card ranking-control-card--vacancy">
+          <div className="ranking-card-heading">
+            <div>
+              <span className="ranking-card-kicker">Vacante activa</span>
+              <h3>Selecciona la posición</h3>
+            </div>
+            <span className="ranking-active-count">{jobs.length} activas</span>
+          </div>
           <select
             className="ranking-job-select"
             value={selectedJob}
             onChange={handleJobChange}
           >
             <option value="">Seleccione vacante</option>
-            {jobs.map((job) => (
-              <option key={job.job_id} value={job.job_id}>{job.title}</option>
-            ))}
+            {jobs.map((job) => {
+              const count = Number(job.candidate_count || 0);
+              return (
+                <option key={job.job_id} value={job.job_id}>
+                  {job.title}{count === 0 ? " · 0 postulantes directos" : ` · ${count} postulante${count === 1 ? "" : "s"} directo${count === 1 ? "" : "s"}`}
+                </option>
+              );
+            })}
           </select>
           <p className="ranking-job-hint">
             {selectedJob
-              ? `${assignedCandidateCount} candidato${assignedCandidateCount === 1 ? "" : "s"} asignado${assignedCandidateCount === 1 ? "" : "s"} · ${evaluatedCount} evaluado${evaluatedCount === 1 ? "" : "s"} · ${rankingInfo.pending} pendiente${rankingInfo.pending === 1 ? "" : "s"}`
+              ? `${rankingPoolLabel} · ${
+                  eligiblePoolLoading
+                    ? "calculando base evaluable…"
+                    : evaluableCandidateCount != null
+                      ? `${evaluableCandidateCount} elegible${evaluableCandidateCount === 1 ? "" : "s"}`
+                      : "base evaluable por calcular"
+                } · ${directApplicantCount} postulante${directApplicantCount === 1 ? "" : "s"} directo${directApplicantCount === 1 ? "" : "s"}`
               : "Selecciona una vacante para comenzar"}
           </p>
-        </div>
-        <div className="ranking-job-panel-right">
-          {selectedJob && rankingInfo.pending > 0 && (
-            <span className="ranking-pending-badge ranking-pending-badge--warning">
-              {rankingInfo.pending} pendiente{rankingInfo.pending === 1 ? "" : "s"}
-            </span>
+        </section>
+
+        <section className="ranking-control-card ranking-control-card--profile">
+          <div className="ranking-card-heading">
+            <div>
+              <span className="ranking-card-kicker">Perfil</span>
+              <h3>{selectedJobData?.title || "Sin vacante seleccionada"}</h3>
+            </div>
+            {selectedJob && (
+              <span className="ranking-status-chip ranking-status-chip--active">Activa</span>
+            )}
+          </div>
+          {selectedJob ? (
+            <>
+              <div className="ranking-profile-facts">
+                <div>
+                  <span>Ubicación</span>
+                  <strong>{selectedJobLocation}</strong>
+                </div>
+                <div>
+                  <span>Modalidad</span>
+                  <strong>{selectedWorkModeLabel}</strong>
+                </div>
+                <div>
+                  <span>Base evaluable</span>
+                  <strong>
+                    {eligiblePoolLoading
+                      ? "…"
+                      : evaluableCandidateCount != null
+                        ? evaluableCandidateCount
+                        : "—"}
+                  </strong>
+                </div>
+                <div>
+                  <span>Postulantes directos</span>
+                  <strong>{directApplicantCount}</strong>
+                </div>
+              </div>
+              <p className="ranking-profile-copy">
+                {selectedJobDescription
+                  ? selectedJobDescription.slice(0, 220) + (selectedJobDescription.length > 220 ? "…" : "")
+                  : "La vacante todavía no tiene una descripción activa disponible."}
+              </p>
+            </>
+          ) : (
+            <p className="ranking-profile-copy">
+              Aquí verás el contexto de la posición y su estado antes de evaluar.
+            </p>
           )}
-          {selectedJob && rankingInfo.pending === 0 && rankingInfo.total > 0 && (
-            <span className="ranking-pending-badge ranking-pending-badge--success">
-              Evaluaciones al día
-            </span>
-          )}
+        </section>
+
+        <section className="ranking-control-card ranking-control-card--actions">
+          <div className="ranking-card-heading">
+            <div>
+              <span className="ranking-card-kicker">Acciones</span>
+              <h3>Evaluación y ranking</h3>
+            </div>
+            {selectedJob && rankingInfo.pending > 0 && (
+              <span className="ranking-pending-badge ranking-pending-badge--warning">
+                {rankingInfo.pending} pendiente{rankingInfo.pending === 1 ? "" : "s"}
+              </span>
+            )}
+            {selectedJob && rankingInfo.pending === 0 && rankingInfo.total > 0 && (
+              <span className="ranking-pending-badge ranking-pending-badge--success">
+                Evaluaciones al día
+              </span>
+            )}
+          </div>
+          <p className="ranking-actions-help">
+            {!selectedJob
+              ? "Selecciona una vacante para habilitar las acciones."
+              : selectedWorkMode === "REMOTE"
+                ? "Vacante remota: Talent compara contra toda la base de candidatos. Evalúa nuevos perfiles o recalcula todo el ranking cuando cambie el perfil del cargo."
+                : selectedJobCountry
+                  ? `Vacante ${selectedWorkModeLabel.toLowerCase()}: Talent rankea candidatos elegibles de ${selectedJobCountry}${evaluableCandidateCount != null ? ` (${evaluableCandidateCount} en la base actual)` : ""}. Los postulantes directos no limitan el ranking.`
+                  : "Define el país de esta vacante para ampliar el ranking más allá de sus postulantes directos."}
+          </p>
           <div className="ranking-job-actions">
             <button
               className="btn btn-primary"
               onClick={evaluateCandidates}
-              disabled={!selectedJob || loading || rankingActionBusy}
-              title="Procesa candidatos pendientes de esta vacante."
+              disabled={!canRunCandidateActions || loading || rankingActionBusy}
+              title={selectedWorkMode === "REMOTE"
+                ? "Evalúa los candidatos de toda la base de Talent que aún estén pendientes."
+                : "Evalúa candidatos elegibles del mismo país que aún estén pendientes."}
             >
               {isEvaluatingCandidates && <span className="ranking-spinner" />}
               {isEvaluatingCandidates ? "Evaluando candidatos..." : "Evaluar candidatos"}
@@ -813,42 +1014,66 @@ async function recalculateRanking() {
             <button
               className="btn ranking-btn-recalculate"
               onClick={openRecalculationDisclaimer}
-              disabled={!selectedJob || loading || rankingActionBusy}
-              title="Vuelve a evaluar todos los candidatos de esta vacante."
+              disabled={!canRunCandidateActions || loading || rankingActionBusy}
+              title={selectedWorkMode === "REMOTE"
+                ? "Vuelve a evaluar toda la base de candidatos de Talent contra esta vacante."
+                : "Vuelve a evaluar todos los candidatos elegibles del mismo país contra esta vacante."}
             >
               {isRecalculating && <span className="ranking-spinner" />}
               {isRecalculating ? "Recalculando ranking..." : "Recalcular ranking"}
             </button>
           </div>
-        </div>
+        </section>
       </div>
 
       {/* 3. METRICS */}
-      {selectedJob && rankingInfo.total > 0 && (
-        <div className="ranking-metrics">
-          <div className="ranking-metric">
-            <span className="ranking-metric-label">Candidatos</span>
-            <span className="ranking-metric-value">{rankingInfo.total}</span>
+      {selectedJob && (
+        <section className="ranking-section-card" aria-label="Indicadores del ranking">
+          <div className="ranking-section-heading">
+            <div>
+              <span className="ranking-card-kicker">Indicadores</span>
+              <h3>Estado de la evaluación</h3>
+            </div>
           </div>
-          <div className="ranking-metric">
-            <span className="ranking-metric-label">Evaluados</span>
-            <span className="ranking-metric-value">{evaluatedCount}</span>
+          <div className="ranking-metrics">
+            <div className="ranking-metric">
+              <span className="ranking-metric-label">Base evaluable</span>
+              <span className="ranking-metric-value">
+                {eligiblePoolLoading
+                  ? "…"
+                  : evaluableCandidateCount != null
+                    ? evaluableCandidateCount
+                    : "—"}
+              </span>
+              <span className="ranking-metric-detail">
+                {eligiblePoolLoading
+                  ? "Calculando candidatos elegibles"
+                  : evaluableCandidateCount != null
+                    ? rankingPoolLabel
+                    : "No se pudo precalcular la base; el ranking puede intentarse igualmente"}
+              </span>
+            </div>
+            <div className="ranking-metric">
+              <span className="ranking-metric-label">Evaluados</span>
+              <span className="ranking-metric-value">{evaluatedCount}</span>
+              <span className="ranking-metric-detail">Con resultado persistido</span>
+            </div>
+            <div className={`ranking-metric ${rankingInfo.pending > 0 ? "ranking-metric--attention" : ""}`}>
+              <span className="ranking-metric-label">Pendientes</span>
+              <span className="ranking-metric-value">{rankingInfo.pending}</span>
+              <span className="ranking-metric-detail">
+                {rankingInfo.pending > 0 ? "Requieren evaluación" : "Todo al día"}
+              </span>
+            </div>
+            <div className="ranking-metric ranking-metric--highlight">
+              <span className="ranking-metric-label">Mejor puntuación</span>
+              <span className="ranking-metric-value">
+                {bestScore != null ? `${bestScore}%` : "—"}
+              </span>
+              <span className="ranking-metric-detail">Mejor perfil disponible</span>
+            </div>
           </div>
-          <div className={`ranking-metric ${rankingInfo.pending > 0 ? "ranking-metric--attention" : ""}`}>
-            <span className="ranking-metric-label">Pendientes</span>
-            <span className="ranking-metric-value">{rankingInfo.pending}</span>
-            <span className="ranking-metric-detail">
-              {rankingInfo.pending > 0 ? "Requieren evaluación" : "Todo al día"}
-            </span>
-          </div>
-          <div className="ranking-metric ranking-metric--highlight">
-            <span className="ranking-metric-label">Mejor puntuación</span>
-            <span className="ranking-metric-value">
-              {bestScore != null ? `${bestScore}%` : "—"}
-            </span>
-            <span className="ranking-metric-detail">Mejor perfil visible</span>
-          </div>
-        </div>
+        </section>
       )}
 
       {/* 4. FILTERS */}
@@ -894,13 +1119,6 @@ async function recalculateRanking() {
           <div className="ranking-filter-divider" />
 
           <div className="ranking-filter-grid">
-            <div>
-              <label>Fuente de candidatos</label>
-              <select value={rankingScope} onChange={handleScopeChange}>
-                <option value="assigned">Solo esta vacante</option>
-                <option value="all">Todos mis candidatos</option>
-              </select>
-            </div>
             <div>
               <label>Puntaje mínimo</label>
               <input type="number" min="0" max="100" value={minScore} onChange={(e) => setMinScore(Number(e.target.value))} />
@@ -967,15 +1185,25 @@ async function recalculateRanking() {
       {!loading && selectedJob && ranking.length === 0 && (
         <div className="ranking-empty">
           <div className="ranking-empty-icon">📋</div>
-          {rankingInfo.pending > 0 ? (
+          {rankingMessage ? (
+            <>
+              <h3>El alcance del ranking cambió</h3>
+              <p>{rankingMessage}</p>
+            </>
+          ) : rankingInfo.pending > 0 ? (
             <>
               <h3>Hay candidatos pendientes de evaluación</h3>
               <p>Usa "Evaluar candidatos" para procesar los candidatos asignados a esta vacante.</p>
             </>
+          ) : !hasRanking ? (
+            <>
+              <h3>Ranking listo para generar</h3>
+              <p>Talent comparará esta vacante contra toda la base de candidatos disponible. Usa "Evaluar candidatos" para procesar los perfiles que aún no tengan evaluación.</p>
+            </>
           ) : (
             <>
               <h3>No hay candidatos con estos filtros</h3>
-              <p>{rankingMessage || "Ajusta los filtros o cambia la fuente de candidatos para ver resultados."}</p>
+              <p>{rankingMessage || "Ajusta los filtros para encontrar los perfiles que quieres revisar."}</p>
             </>
           )}
         </div>
@@ -1010,6 +1238,9 @@ async function recalculateRanking() {
                   <div className="ranking-candidate-header-left">
                     <span className="ranking-candidate-position">#{position}</span>
                     <span className="ranking-candidate-name">{candidate.candidate_name}</span>
+                    {candidate.applied_to_job && (
+                      <span className="ranking-applied-chip">Aplicó a esta vacante</span>
+                    )}
                     {candidate.is_banned && (
                       <span className="ranking-banned-chip">Vetado</span>
                     )}
@@ -1096,17 +1327,8 @@ async function recalculateRanking() {
                   </button>
 
                   {canCreateUsers && (
-                    <button
-                      className="btn btn-primary"
-                      type="button"
-                      onClick={() => setUserTarget(candidate)}
-                      disabled={candidate.is_banned}
-                      title={candidate.is_banned ? "Quita el veto antes de crear el usuario." : undefined}
-                    >
-                      Crear usuario
-                    </button>
+                    <button className="btn btn-primary" type="button" disabled={candidate.is_banned} onClick={() => setUserTarget(candidate)}>Crear usuario</button>
                   )}
-
                   <Link
                     className="btn btn-ghost ranking-profile-btn"
                     to={`/candidates/${candidate.candidate_id}?job_id=${selectedJob}`}
@@ -1121,14 +1343,7 @@ async function recalculateRanking() {
         </div>
       )}
 
-      <CandidateCreateUserModal
-        open={Boolean(userTarget)}
-        candidateId={userTarget?.candidate_id}
-        candidate={userTarget}
-        jobTitle={selectedJobData?.title || ""}
-        onClose={() => setUserTarget(null)}
-      />
-
+      <CandidateCreateUserModal open={Boolean(userTarget)} candidateId={userTarget?.candidate_id} candidate={userTarget} jobTitle={selectedJobData?.title || ""} onClose={() => setUserTarget(null)} />
       {/* 10. PAGINATION */}
       {rankingInfo.total > 0 && (
         <div className="ranking-pagination">
@@ -1246,8 +1461,8 @@ async function recalculateRanking() {
                   <strong>Importante</strong>
                   <p>{costEstimate.disclaimer}</p>
                   <p>
-                    Esta confirmación usa la cantidad real de candidatos elegibles para
-                    el alcance seleccionado. El cálculo es informativo y no constituye
+                    Esta confirmación usa la cantidad real de candidatos elegibles según
+                    país y modalidad de la vacante. El cálculo es informativo y no constituye
                     una factura ni un tope garantizado de AWS.
                   </p>
                 </div>
