@@ -422,6 +422,11 @@ def test_parallel_ranking_evaluations_use_batches_of_at_most_ten(monkeypatch):
         )
         monkeypatch.setattr(
             job_reevaluations,
+            "get_ranking_parallel_batches",
+            lambda: 10,
+        )
+        monkeypatch.setattr(
+            job_reevaluations,
             "_evaluate_candidate_in_isolated_session",
             lambda **kwargs: evaluated.append(kwargs["candidate_id"]) or True,
         )
@@ -438,8 +443,9 @@ def test_parallel_ranking_evaluations_use_batches_of_at_most_ten(monkeypatch):
         )
 
         assert failures == []
-        assert [batch.max_workers for batch in executor_batches] == [10, 10, 3]
-        assert [batch.submissions for batch in executor_batches] == [
+        assert [executor.max_workers for executor in executor_batches] == [23]
+        assert executor_batches[0].submissions == candidate_ids
+        assert job_reevaluations._candidate_batches(candidate_ids, batch_size=10) == [
             candidate_ids[:10],
             candidate_ids[10:20],
             candidate_ids[20:],
