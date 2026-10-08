@@ -55,9 +55,74 @@ jobs:
           if ($Process.ExitCode -ne 0) {
             throw "Packaged Resume Agent self-test failed with exit code $($Process.ExitCode)"
           }
-      - uses: actions/upload-artifact@v4
+
+      - name: Sign Windows executable
+        id: signing
+        shell: powershell
+        env:
+          WINDOWS_CODE_SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_CODE_SIGNING_PFX_BASE64 }}
+          WINDOWS_CODE_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_CODE_SIGNING_PFX_PASSWORD }}
+        run: |
+          $PfxBase64 = $env:WINDOWS_CODE_SIGNING_PFX_BASE64
+          $PfxPassword = $env:WINDOWS_CODE_SIGNING_PFX_PASSWORD
+
+          if ([string]::IsNullOrWhiteSpace($PfxBase64) -or [string]::IsNullOrWhiteSpace($PfxPassword)) {
+            Write-Warning "Code-signing certificate is not configured. No distributable artifact will be published."
+            "signed=false" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+
+          $PfxPath = Join-Path $env:RUNNER_TEMP "asiati-resume-agent-code-signing.pfx"
+          try {
+            [IO.File]::WriteAllBytes(
+              $PfxPath,
+              [Convert]::FromBase64String($PfxBase64)
+            )
+            .\tools\indeed_resume_agent\sign.ps1 `
+              -Executable ".\dist\ASIATI Resume Agent\ASIATI Resume Agent.exe" `
+              -PfxPath $PfxPath `
+              -PfxPassword $PfxPassword
+            "signed=true" >> $env:GITHUB_OUTPUT
+          }
+          finally {
+            if (Test-Path $PfxPath) {
+              Remove-Item $PfxPath -Force
+            }
+          }
+
+      - name: Verify Authenticode signature
+        if: steps.signing.outputs.signed == 'true'
+        shell: powershell
+        run: |
+          $Exe = ".\dist\ASIATI Resume Agent\ASIATI Resume Agent.exe"
+          $Signature = Get-AuthenticodeSignature -FilePath $Exe
+          if ($Signature.Status -ne "Valid") {
+            throw "Authenticode validation failed: $($Signature.Status)"
+          }
+          if (-not $Signature.SignerCertificate) {
+            throw "Signed binary has no signer certificate."
+          }
+          "Publisher=$($Signature.SignerCertificate.Subject)" | Out-File -FilePath ".\dist\ASIATI Resume Agent\SIGNING-STATUS.txt" -Encoding utf8
+          "Thumbprint=$($Signature.SignerCertificate.Thumbprint)" | Out-File -FilePath ".\dist\ASIATI Resume Agent\SIGNING-STATUS.txt" -Encoding utf8 -Append
+          "Status=$($Signature.Status)" | Out-File -FilePath ".\dist\ASIATI Resume Agent\SIGNING-STATUS.txt" -Encoding utf8 -Append
+
+      - name: Require signature for manual release
+        if: github.event_name == 'workflow_dispatch' && steps.signing.outputs.signed != 'true'
+        shell: powershell
+        run: |
+          throw "Manual Resume Agent releases require WINDOWS_CODE_SIGNING_PFX_BASE64 and WINDOWS_CODE_SIGNING_PFX_PASSWORD."
+
+      - name: Publish signed Windows artifact
+        if: steps.signing.outputs.signed == 'true'
+        uses: actions/upload-artifact@v4
         with:
-          name: ASIATI-Resume-Agent-Windows
+          name: ASIATI-Resume-Agent-Windows-SIGNED
           path: dist/ASIATI Resume Agent/**
           if-no-files-found: error
           retention-days: 14
+
+      - name: Unsigned build notice
+        if: steps.signing.outputs.signed != 'true' && github.event_name != 'workflow_dispatch'
+        shell: powershell
+        run: |
+          Write-Host "Build and self-test passed, but the executable was not published because Authenticode signing is not configured."
