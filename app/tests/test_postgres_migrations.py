@@ -358,6 +358,11 @@ def test_alembic_head_builds_current_postgres_schema():
             "size_bytes",
             "uploaded_by_sub",
             "uploaded_at",
+            "value_text",
+            "review_status",
+            "review_comment",
+            "reviewed_by_sub",
+            "reviewed_at",
         }.issubset(employee_document_columns)
 
         user_profile_columns = {
