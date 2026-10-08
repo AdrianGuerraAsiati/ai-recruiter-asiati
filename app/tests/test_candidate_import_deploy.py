@@ -47,7 +47,7 @@ def test_worker_provisions_parallel_ranking_capacity_without_changing_import_con
     assert 'IMPORT_EVALUATION_CONCURRENCY="${IMPORT_EVALUATION_CONCURRENCY:-1}"' in worker
     assert 'RANKING_EVALUATION_CONCURRENCY="${RANKING_EVALUATION_CONCURRENCY:-10}"' in worker
     assert 'RANKING_EVALUATION_BATCH_SIZE="${RANKING_EVALUATION_BATCH_SIZE:-10}"' in worker
-    assert 'PG_POOL_SIZE="${PG_POOL_SIZE:-10}"' in worker
+    assert 'PG_POOL_SIZE="${PG_POOL_SIZE:-2}"' in worker
 
 
 def test_worker_preserves_roles_anywhere_mounts_and_dynamic_runtime_role_checks():
