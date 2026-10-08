@@ -15,6 +15,7 @@ const navItems = [
   { to: "/calendar", label: "Agenda", icon: "calendar", section: "Reclutamiento", permission: "candidates.read" },
   { to: "/candidates", label: "Candidatos", icon: "users", section: "Reclutamiento", permission: "candidates.read" },
   { to: "/ranking", label: "Ranking IA", icon: "ranking", section: "Reclutamiento", permission: "ranking.read" },
+  { to: "/psychotechnical", label: "Pruebas psicotécnicas", icon: "check", section: "Reclutamiento", permission: "psychotechnical.read" },
   { to: "/employees", label: "Empleados", icon: "employee", section: "Equipo", permission: "employees.read" },
   { to: "/access", label: "Usuarios y accesos", icon: "profile", section: "Equipo", permission: "employees.credentials.manage" },
   {

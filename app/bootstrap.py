@@ -23,6 +23,8 @@ from app.domains.hiring.router import router as hiring_router
 from app.domains.odoo_sync.router import router as odoo_sync_router
 from app.domains.jobs.router import router as jobs_router
 from app.domains.ranking.router import router as ranking_router
+from app.domains.psychotechnical.router import public_router as psychotechnical_public_router
+from app.domains.psychotechnical.router import router as psychotechnical_router
 from app.domains.recruitment_calendar.router import router as recruitment_calendar_router
 from app.domains.talent_id.router import kiosk_router as talent_id_kiosk_router
 from app.domains.talent_id.router import router as talent_id_router
@@ -70,6 +72,8 @@ def create_app() -> FastAPI:
     app.include_router(hiring_router)
     app.include_router(odoo_sync_router)
     app.include_router(ranking_router)
+    app.include_router(psychotechnical_router)
+    app.include_router(psychotechnical_public_router)
     app.include_router(recruitment_calendar_router)
     app.include_router(talent_id_router)
     app.include_router(talent_id_kiosk_router)

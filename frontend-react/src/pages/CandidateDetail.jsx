@@ -269,6 +269,7 @@ function CandidateDetail() {
           )}
         </div>
         <div className="candidate-profile-actions">
+          <Link to={`/psychotechnical?candidate_id=${candidate_id}`} className="btn btn-secondary">Prueba psicotécnica</Link>
           {jobId && (
             <button
               type="button"
