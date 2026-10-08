@@ -27,7 +27,7 @@ PLATFORMS: tuple[PlatformSpec, ...] = (
         label="Computrabajo",
         subtitle="Candidatos y CVs",
         session_label="SESIÓN COMPUTRABAJO",
-        portal_url="https://co.computrabajo.com/",
+        portal_url="https://empresa.co.computrabajo.com/",
         production_ready=False,
     ),
 )
