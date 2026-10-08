@@ -22,12 +22,12 @@ jobs:
             const repo = context.repo.repo;
             const current = context.payload.pull_request;
             const critical = [
-              /^app\\/(models|crud|bootstrap|deps)\\.py$/,
-              /^alembic\\//,
-              /^frontend-react\\/src\\/(api|context)\\//,
-              /^\\.github\\/workflows\\//,
-              /^requirements\\.txt$/,
-              /^frontend-react\\/package\\.json$/
+              /^app\/(models|crud|bootstrap|deps)\.py$/,
+              /^alembic\//,
+              /^frontend-react\/src\/(api|context)\//,
+              /^\.github\/workflows\//,
+              /^requirements\.txt$/,
+              /^frontend-react\/package\.json$/
             ];
             const filesFor = async (number) => {
               const entries = await github.paginate(github.rest.pulls.listFiles, {owner, repo, pull_number: number, per_page: 100});
