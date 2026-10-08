@@ -4,7 +4,7 @@ import queue
 import threading
 
 
-def run_computrabajo_ui(*, browser) -> None:
+def run_computrabajo_ui(*, browser, api_factory=None) -> None:
     """Computrabajo shell kept separate from the production Indeed workflow.
 
     The browser/session boundary is ready now. Automatic candidate and vacancy
@@ -13,12 +13,13 @@ def run_computrabajo_ui(*, browser) -> None:
     """
 
     import tkinter as tk
-    from tkinter import ttk
+    from tkinter import ttk, filedialog, simpledialog, messagebox
+    from .computrabajo_import import prepare_candidate, upload_candidate, upload_manifest
 
     root = tk.Tk()
     root.title("ASIATI Recruiter Agent · Computrabajo")
-    root.geometry("760x480")
-    root.minsize(680, 440)
+    root.geometry("760x660")
+    root.minsize(680, 600)
     root.configure(background="#F4F7FB")
 
     commands: queue.Queue[str] = queue.Queue()
@@ -159,6 +160,70 @@ def run_computrabajo_ui(*, browser) -> None:
         pady=(5, 0),
     )
 
+    def choose_candidate() -> None:
+        if api_factory is None:
+            return
+        file_path = filedialog.askopenfilename(
+            parent=root, title="CV de Computrabajo",
+            filetypes=[("Hojas de vida", "*.pdf *.docx")],
+        )
+        if not file_path:
+            return
+        fields = []
+        for prompt in ("Identificador único del candidato en Computrabajo",
+                       "Nombre del candidato", "Vacante", "Cuenta de Computrabajo"):
+            value = simpledialog.askstring("Agregar candidato a Talent", prompt, parent=root)
+            if not value or not value.strip():
+                return
+            fields.append(value.strip())
+        try:
+            candidate = prepare_candidate(
+                external_id=fields[0], candidate_name=fields[1],
+                job_title=fields[2], source_account=fields[3], file_path=file_path)
+            api = api_factory()
+        except Exception as exc:
+            messagebox.showerror("Computrabajo", str(exc), parent=root)
+            return
+        if not messagebox.askyesno(
+            "Confirmar envío", "¿Enviar este CV de Computrabajo a Talent?", parent=root
+        ):
+            api.close()
+            return
+        commands.put(("candidate", (api, candidate)))
+
+    def choose_batch() -> None:
+        if api_factory is None:
+            return
+        manifest = filedialog.askopenfilename(
+            parent=root, title="Importar lista CSV de candidatos",
+            filetypes=[("Archivos CSV", "*.csv")],
+        )
+        if not manifest:
+            return
+        account = simpledialog.askstring(
+            "Computrabajo", "Cuenta de origen en Computrabajo", parent=root
+        )
+        if not account:
+            return
+        try:
+            api = api_factory()
+        except Exception as exc:
+            messagebox.showerror("Computrabajo", str(exc), parent=root)
+            return
+        if not messagebox.askyesno("Confirmar lote",
+            "¿Enviar hasta 100 CV del manifiesto a Talent? Solo usar CSV autorizado.",
+            parent=root):
+            api.close()
+            return
+        commands.put(("batch", (api, manifest, account.strip())))
+
+    single_button = ttk.Button(
+        actions, text="Agregar candidato a Talent", command=choose_candidate)
+    single_button.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(5, 0))
+    batch_button = ttk.Button(
+        actions, text="Agregar lote a Talent (CSV)", command=choose_batch)
+    batch_button.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(5, 0))
+
     note = tk.Frame(
         shell,
         background="#FFFAEB",
@@ -197,6 +262,27 @@ def run_computrabajo_ui(*, browser) -> None:
             try:
                 command = commands.get(timeout=0.2)
             except queue.Empty:
+                continue
+
+            if isinstance(command, tuple) and command[0] in ("candidate", "batch"):
+                api = command[1][0]
+                updates.put(("busy", "Enviando candidatos autorizados a Talent…"))
+                try:
+                    if command[0] == "candidate":
+                        result = upload_candidate(api, command[1][1])
+                        label = "Ya existía" if result.get("existing") else "Recibido"
+                        updates.put(("ready", "Candidato: " + label +
+                                     ". Estado: " + str(result.get("status", "pendiente"))))
+                    else:
+                        report = upload_manifest(api, csv_path=command[1][1],
+                                                 source_account=command[1][2])
+                        updates.put(("ready", "Lote procesado: " + str(report["created"]) +
+                                     " nuevos, " + str(report["existing"]) +
+                                     " existentes, " + str(report["failed"]) + " errores"))
+                except Exception as exc:
+                    updates.put(("error", "No se pudo enviar a Talent: " + type(exc).__name__))
+                finally:
+                    api.close()
                 continue
 
             if command == "profile_pdf":
@@ -310,6 +396,8 @@ def run_computrabajo_ui(*, browser) -> None:
                 state, message = updates.get_nowait()
                 status_var.set(message)
                 busy = state in {"busy", "diagnostic_busy"}
+                single_button.configure(state="disabled" if busy else "normal")
+                batch_button.configure(state="disabled" if busy else "normal")
                 open_button.configure(
                     state="disabled" if busy else "normal"
                 )
