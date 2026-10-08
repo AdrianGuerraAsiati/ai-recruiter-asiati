@@ -1,5 +1,7 @@
 """Contracts for durable asynchronous job reevaluation work."""
 
+from concurrent.futures import Future
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -82,22 +84,16 @@ def test_worker_evaluates_only_stale_owned_candidates_and_materializes_once(monk
         evaluated = []
         ranked = []
 
-        def fake_evaluate(_db, *, candidate, job, force=False):
-            evaluated.append(candidate.id)
-            assert force is False
-            evaluation = (
-                _db.query(Evaluation)
-                .filter(Evaluation.job_id == job.id, Evaluation.candidate_id == candidate.id)
-                .first()
-            )
-            evaluation.job_evaluation_version = job.evaluation_version
-            evaluation.status = "COMPLETED"
-            _db.commit()
-            return evaluation, True, None
+        def fake_evaluate(*, candidate_id, job_id, owner_sub, force_evaluation):
+            evaluated.append(candidate_id)
+            assert job_id == job.id
+            assert owner_sub == "owner-1"
+            assert force_evaluation is False
+            return True
 
         monkeypatch.setattr(
-            job_reevaluations.evaluations_service,
-            "evaluate_candidate_for_job",
+            job_reevaluations,
+            "_evaluate_candidate_in_isolated_session",
             fake_evaluate,
         )
         monkeypatch.setattr(
@@ -153,29 +149,15 @@ def test_manual_async_ranking_uses_all_scope_and_force_flag(monkeypatch):
             lambda _db, *, job, scope: [first, second],
         )
 
-        def fake_evaluate(_db, *, candidate, job, force=False):
-            evaluated.append((candidate.id, force))
-            evaluation = Evaluation(
-                candidate_id=candidate.id,
-                job_id=job.id,
-                job_evaluation_version=job.evaluation_version,
-                status="COMPLETED",
-                match_score=80,
-                recommendation="GOOD_MATCH",
-                summary=(
-                    "Complete asynchronous evaluation summary with enough detail "
-                    "to satisfy the ranking completeness contract for this test."
-                ),
-                strengths=["Cloud"],
-                gaps=[],
-            )
-            _db.add(evaluation)
-            _db.commit()
-            return evaluation, True, None
+        def fake_evaluate(*, candidate_id, job_id, owner_sub, force_evaluation):
+            assert job_id == job.id
+            assert owner_sub == "owner-1"
+            evaluated.append((candidate_id, force_evaluation))
+            return True
 
         monkeypatch.setattr(
-            job_reevaluations.evaluations_service,
-            "evaluate_candidate_for_job",
+            job_reevaluations,
+            "_evaluate_candidate_in_isolated_session",
             fake_evaluate,
         )
         monkeypatch.setattr(
@@ -185,7 +167,7 @@ def test_manual_async_ranking_uses_all_scope_and_force_flag(monkeypatch):
         )
 
         assert job_reevaluations.process_job_reevaluation(db, task_id=task.id) == "COMPLETED"
-        assert evaluated == [(first.id, True), (second.id, True)]
+        assert sorted(evaluated) == sorted([(first.id, True), (second.id, True)])
         assert ranked == [{"job_id": job.id, "owner_sub": "owner-1", "scope": "all"}]
     finally:
         db.close()
@@ -198,18 +180,18 @@ def test_worker_retry_does_not_duplicate_current_evaluations(monkeypatch):
         job, _current, stale, _outsider, task = _seed_job_with_candidates(db)
         calls = []
 
-        def fake_evaluate(_db, *, candidate, job, force=False):
-            calls.append(candidate.id)
-            evaluation = (
-                _db.query(Evaluation)
-                .filter(Evaluation.job_id == job.id, Evaluation.candidate_id == candidate.id)
-                .first()
-            )
-            evaluation.job_evaluation_version = job.evaluation_version
-            _db.commit()
-            return evaluation, True, None
+        def fake_evaluate(*, candidate_id, job_id, owner_sub, force_evaluation):
+            assert job_id == job.id
+            assert owner_sub == "owner-1"
+            assert force_evaluation is False
+            calls.append(candidate_id)
+            return True
 
-        monkeypatch.setattr(job_reevaluations.evaluations_service, "evaluate_candidate_for_job", fake_evaluate)
+        monkeypatch.setattr(
+            job_reevaluations,
+            "_evaluate_candidate_in_isolated_session",
+            fake_evaluate,
+        )
         monkeypatch.setattr(
             job_reevaluations.ranking_service,
             "materialize_ranking_from_evaluations",
@@ -217,6 +199,13 @@ def test_worker_retry_does_not_duplicate_current_evaluations(monkeypatch):
         )
 
         assert job_reevaluations.process_job_reevaluation(db, task_id=task.id) == "COMPLETED"
+        stale_evaluation = (
+            db.query(Evaluation)
+            .filter(Evaluation.job_id == job.id, Evaluation.candidate_id == stale.id)
+            .one()
+        )
+        stale_evaluation.job_evaluation_version = job.evaluation_version
+        db.commit()
         task.status = "PENDING"
         task.completed_at = None
         db.commit()
@@ -235,9 +224,9 @@ def test_older_task_cannot_overwrite_newer_job_version(monkeypatch):
         db.commit()
         calls = []
         monkeypatch.setattr(
-            job_reevaluations.evaluations_service,
-            "evaluate_candidate_for_job",
-            lambda *args, **kwargs: calls.append((args, kwargs)),
+            job_reevaluations,
+            "_evaluate_candidate_in_isolated_session",
+            lambda **kwargs: calls.append(kwargs),
         )
         monkeypatch.setattr(
             job_reevaluations.ranking_service,
@@ -305,3 +294,72 @@ def test_dispatch_repair_marks_timestamp_only_after_queue_success(monkeypatch):
     finally:
         db.close()
         engine.dispose()
+
+def test_parallel_ranking_evaluations_use_batches_of_at_most_ten(monkeypatch):
+    engine, db = _db()
+    try:
+        executor_batches = []
+        evaluated = []
+
+        class RecordingExecutor:
+            def __init__(self, *, max_workers, thread_name_prefix=None):
+                self.max_workers = max_workers
+                self.thread_name_prefix = thread_name_prefix
+                self.submissions = []
+
+            def __enter__(self):
+                executor_batches.append(self)
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def submit(self, fn, **kwargs):
+                self.submissions.append(kwargs["candidate_id"])
+                future = Future()
+                try:
+                    future.set_result(fn(**kwargs))
+                except Exception as exc:
+                    future.set_exception(exc)
+                return future
+
+        monkeypatch.setattr(job_reevaluations, "ThreadPoolExecutor", RecordingExecutor)
+        monkeypatch.setattr(
+            job_reevaluations,
+            "get_ranking_evaluation_batch_size",
+            lambda: 10,
+        )
+        monkeypatch.setattr(
+            job_reevaluations,
+            "get_ranking_evaluation_concurrency",
+            lambda: 10,
+        )
+        monkeypatch.setattr(
+            job_reevaluations,
+            "_evaluate_candidate_in_isolated_session",
+            lambda **kwargs: evaluated.append(kwargs["candidate_id"]) or True,
+        )
+
+        candidate_ids = [f"candidate-{index:02d}" for index in range(23)]
+        failures = job_reevaluations._run_parallel_candidate_evaluations(
+            db,
+            task_id="task-1",
+            processing_token=None,
+            job_id="job-1",
+            owner_sub="owner-1",
+            candidate_ids=candidate_ids,
+            force_evaluation=False,
+        )
+
+        assert failures == []
+        assert [batch.max_workers for batch in executor_batches] == [10, 10, 3]
+        assert [batch.submissions for batch in executor_batches] == [
+            candidate_ids[:10],
+            candidate_ids[10:20],
+            candidate_ids[20:],
+        ]
+        assert evaluated == candidate_ids
+    finally:
+        db.close()
+        engine.dispose()
+
