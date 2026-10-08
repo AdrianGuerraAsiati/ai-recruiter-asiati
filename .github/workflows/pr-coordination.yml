@@ -1,0 +1,58 @@
+name: PR Coordination
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  overlap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Analyze overlapping changed files
+        uses: actions/github-script@v7
+        with:
+          script: |
+            if (!context.payload.pull_request) {
+              core.info('Manual dispatch: open a PR to analyze overlaps.');
+              return;
+            }
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const current = context.payload.pull_request;
+            const critical = [
+              /^app\/(models|crud|bootstrap|deps)\.py$/,
+              /^alembic\//,
+              /^frontend-react\/src\/(api|context)\//,
+              /^\.github\/workflows\//,
+              /^requirements\.txt$/,
+              /^frontend-react\/package\.json$/
+            ];
+            const filesFor = async (number) => {
+              const entries = await github.paginate(github.rest.pulls.listFiles, {owner, repo, pull_number: number, per_page: 100});
+              return new Set(entries.map(f => f.filename));
+            };
+            const mine = await filesFor(current.number);
+            const open = await github.paginate(github.rest.pulls.list, {owner, repo, state: 'open', per_page: 100});
+            const alerts = [];
+            for (const pr of open) {
+              if (pr.number === current.number || pr.draft) continue;
+              const theirs = await filesFor(pr.number);
+              const shared = [...mine].filter(f => theirs.has(f));
+              if (!shared.length) continue;
+              alerts.push({number: pr.number, files: shared, critical: shared.filter(f => critical.some(re => re.test(f)))});
+            }
+            if (!alerts.length) {
+              core.info('No overlapping changed paths with other open non-draft PRs.');
+              return;
+            }
+            for (const a of alerts) {
+              core.warning('PR #' + a.number + ': shared paths: ' + a.files.join(', ') + (a.critical.length ? ' | CRITICAL: ' + a.critical.join(', ') : ''));
+            }
+            core.summary.addHeading('Parallel development overlap report');
+            for (const a of alerts) {
+              core.summary.addRaw('PR #' + a.number + ': ' + a.files.join(', ') + (a.critical.length ? ' (critical: ' + a.critical.join(', ') + ')' : '') + '\\n\\n');
+            }
+            await core.summary.write();
+            core.info('Advisory only: overlapping PRs are not blocked.');
