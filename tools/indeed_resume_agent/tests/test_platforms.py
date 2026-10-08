@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from tools.indeed_resume_agent.computrabajo_browser import safe_computrabajo_url
+from tools.indeed_resume_agent.computrabajo_browser import (
+    ComputrabajoBrowserUse,
+    safe_computrabajo_url,
+)
 from tools.indeed_resume_agent.platforms import (
     get_platform,
     normalize_platform,
@@ -44,3 +47,16 @@ def test_computrabajo_url_is_https_and_allowlisted():
         safe_computrabajo_url("http://co.computrabajo.com/")
     with pytest.raises(ValueError):
         safe_computrabajo_url("https://example.com/")
+
+
+def test_computrabajo_diagnostics_strip_query_strings_and_fragments():
+    sanitized = ComputrabajoBrowserUse._safe_diagnostic_url(
+        "https://co.computrabajo.com/empresa/candidatos?id=secret#profile"
+    )
+    assert sanitized == "https://co.computrabajo.com/empresa/candidatos"
+    assert (
+        ComputrabajoBrowserUse._safe_diagnostic_url(
+            "https://example.com/candidate?id=secret"
+        )
+        == ""
+    )
