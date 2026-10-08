@@ -4,6 +4,8 @@ from collections.abc import Callable
 
 from .api_client import AgentApiClient
 from .browser_use_driver import IndeedBrowserUse
+from .computrabajo_browser import ComputrabajoBrowserUse
+from .computrabajo_ui import run_computrabajo_ui
 from .config import load_config
 from .credential_store import (
     AgentCredentialMissing,
@@ -14,6 +16,7 @@ from .download_capture_compat import install_download_capture_compat
 from .indeed_candidates_current import install_current_indeed_candidates
 from .indeed_jobs_current import install_current_indeed_jobs
 from .jobs_listing_compat import install_jobs_listing_compat
+from .platform_selector import select_platform
 from .runtime_compat import install_runtime_compat
 from .ui_v3 import run_ui
 from .vacancy_click_recovery import install_vacancy_click_recovery
@@ -70,8 +73,7 @@ def resolve_agent_token(
         return value
 
 
-def main() -> None:
-    config = load_config()
+def _run_indeed(config) -> None:
     try:
         token = resolve_agent_token()
     except AgentCredentialMissing:
@@ -106,6 +108,28 @@ def main() -> None:
             browser.close()
         finally:
             api.close()
+
+
+def _run_computrabajo(config) -> None:
+    browser = ComputrabajoBrowserUse(config)
+    try:
+        run_computrabajo_ui(browser=browser)
+    finally:
+        browser.close()
+
+
+def main() -> None:
+    config = load_config()
+    platform = select_platform()
+    if platform is None:
+        return
+    if platform == "indeed":
+        _run_indeed(config)
+        return
+    if platform == "computrabajo":
+        _run_computrabajo(config)
+        return
+    raise ValueError(f"Plataforma no soportada: {platform}")
 
 
 if __name__ == "__main__":
