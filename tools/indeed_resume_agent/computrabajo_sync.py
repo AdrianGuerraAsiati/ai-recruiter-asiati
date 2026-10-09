@@ -107,6 +107,7 @@ def sync_all_candidates(*, browser, api, source_account: str,
         "pages": directory["pages"], "partial": directory["partial"],
         "cancelled": directory["cancelled"], "errors": [],
         "blocked_pages": directory.get("blocked_pages", 0), "error_counts": {},
+        "expected_candidates": directory.get("expected_candidates", 0),
     }
     for index, candidate in enumerate(candidates, 1):
         if stop_requested and stop_requested():
