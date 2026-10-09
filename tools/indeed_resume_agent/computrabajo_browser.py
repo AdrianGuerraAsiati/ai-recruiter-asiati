@@ -493,6 +493,7 @@ class ComputrabajoBrowserUse:
                 await asyncio.sleep(0.6)
 
             previous_signature = tab_base_signature
+            awaiting_next_page = False
             last_numeric_page = 1
             while pages < max_pages:
                 if stop_requested and stop_requested():
@@ -507,19 +508,42 @@ class ComputrabajoBrowserUse:
                     if page.get("access_denied"):
                         break
                     if previous_signature is not None:
-                        if signature(page) != previous_signature:
-                            break
+                        next_signature = signature(page)
+                        if next_signature != previous_signature:
+                            # Some Computrabajo AJAX pagers empty the candidate
+                            # list before adding the next page. A changed page
+                            # number alone is NOT proof the CV links are loaded.
+                            old_ids = set(previous_signature[0])
+                            new_ids = set(next_signature[0])
+                            old_offers = set(previous_signature[1])
+                            new_offers = set(next_signature[1])
+                            still_hydrating = awaiting_next_page and (
+                                (old_ids and not new_ids.difference(old_ids))
+                                or (old_offers and not new_offers and not new_ids)
+                            )
+                            if not still_hydrating:
+                                break
                     elif (page.get("candidates") or page.get("offer_links") or
                           page.get("page_links") or page.get("tabs_js") or
                           page.get("js_next") or attempt == 5):
                         break
                     await asyncio.sleep(0.4)
                     cdp = await self._ensure_started()
-                if previous_signature is not None and not page.get("access_denied") and (
-                        signature(page) == previous_signature):
-                    unresolved_pagination += 1
-                    break
+                if previous_signature is not None and not page.get("access_denied"):
+                    next_signature = signature(page)
+                    old_ids = set(previous_signature[0])
+                    new_ids = set(next_signature[0])
+                    old_offers = set(previous_signature[1])
+                    new_offers = set(next_signature[1])
+                    still_hydrating = awaiting_next_page and (
+                        (old_ids and not new_ids.difference(old_ids))
+                        or (old_offers and not new_offers and not new_ids)
+                    )
+                    if next_signature == previous_signature or still_hydrating:
+                        unresolved_pagination += 1
+                        break
                 previous_signature = signature(page)
+                awaiting_next_page = False
                 pages += 1
                 if discovery_progress:
                     discovery_progress({
@@ -580,6 +604,7 @@ class ComputrabajoBrowserUse:
                 target_page = clicked.get("target_page")
                 if (type(target_page) is int and 1 <= target_page <= 10000):
                     last_numeric_page = max(last_numeric_page, target_page)
+                awaiting_next_page = True
                 await asyncio.sleep(0.45)
             if cancelled:
                 break
