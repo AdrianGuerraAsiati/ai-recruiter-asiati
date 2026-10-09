@@ -415,6 +415,7 @@ class ComputrabajoBrowserUse:
         authenticated browser session. This does not bypass expired offers.
         """
         from collections import deque
+        from urllib.parse import parse_qs
         from .computrabajo_directory import (
             OFFERS_START, CANDIDATES_PATH, DIRECTORY_SCAN_JS,
             NEXT_PAGE_JS, directory_url, candidate_detail_url, tab_click_js,
@@ -425,6 +426,7 @@ class ComputrabajoBrowserUse:
         pending = deque([(OFFERS_START, None)])
         scheduled = {(OFFERS_START, None)}
         visited_tasks = set()
+        tab_scans = set()
         found = {}
         offer_urls = set()
         blocked_pages = pages = candidate_pages = listing_pages = 0
@@ -449,6 +451,7 @@ class ComputrabajoBrowserUse:
                 tuple(sorted(page.get("offer_links", []))),
                 tuple(sorted(page.get("page_links", []))),
                 str(page.get("active_page") or ""),
+                str(page.get("active_tab") or ""),
             )
 
         def enqueue(url, tab=None):
@@ -476,7 +479,12 @@ class ComputrabajoBrowserUse:
             if tab is not None:
                 original = await scan(cdp)
                 tab_base_signature = signature(original)
-                activated = await self._evaluate(cdp, tab_click_js(tab))
+                activated = await self._evaluate(
+                    cdp, tab_click_js(
+                        tab,
+                        candidate_list=urlparse(url).path.casefold().rstrip("/") == CANDIDATES_PATH,
+                    )
+                )
                 if not isinstance(activated, dict) or not activated.get("clicked"):
                     unresolved_pagination += 1
                     continue
@@ -536,10 +544,16 @@ class ComputrabajoBrowserUse:
                         enqueue(safe)
                 for next_url in page.get("page_links", []):
                     enqueue(next_url)
-                if current_path != CANDIDATES_PATH and tab is None:
-                    for next_tab in page.get("tabs_js", []):
-                        if isinstance(next_tab, str):
-                            enqueue(url, next_tab)
+                if tab is None:
+                    # Scan candidate status tabs once per provider offer, not
+                    # once for each page of a large paginated listing.
+                    ids = parse_qs(urlparse(url).query).get("oi", [])
+                    tab_group = (current_path, ids[0].casefold() if ids else url)
+                    if tab_group not in tab_scans:
+                        tab_scans.add(tab_group)
+                        for next_tab in page.get("tabs_js", []):
+                            if isinstance(next_tab, str):
+                                enqueue(url, next_tab)
                 # Old DOM adapters signal unsupported pagination instead of
                 # js_next; treat that as partial, not as "fully synchronized".
                 if page.get("unsupported_pagination"):
