@@ -192,3 +192,56 @@ def test_duplicate_candidates_across_multiple_lists_are_returned_once():
     assert output["candidate_pages"] == 2
     assert output["pages"] == 3
     assert len(output["candidates"]) == 1
+
+
+def test_618_applicants_are_collected_from_all_authorized_status_tabs():
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    listing = ("https://empresa.co.computrabajo.com/Company/Offers/Match?oi="
+               + "B" * 32)
+    counts = {"recibidos": 547, "seleccionados": 6,
+              "finalistas": 0, "descartados": 65}
+
+    def candidate(i):
+        cid = f"{i:032x}"
+        return {"external_id": cid, "candidate_name": "Sample",
+                "detail_url": ("https://empresa.co.computrabajo.com/"
+                               "Company/MatchCvDetail/MatchDetail?ims=" + cid)}
+
+    def status_page(start, stop, tabs=()):
+        return dict(directory_page(candidates=[candidate(i) for i in range(start, stop)],
+                                   tabs=tabs), reported_total=618, status_counts=counts)
+
+    initial = status_page(1, 548, tabs=["seleccionados (6)", "descartados (65)"])
+    selected = status_page(548, 554)
+    discarded = status_page(554, 619)
+    browser._evaluate = AsyncMock(side_effect=[
+        directory_page(offers=[listing]), initial,
+        initial, {"clicked": True}, selected,
+        initial, {"clicked": True}, discarded,
+    ])
+    result = asyncio.run(browser._discover_all_candidates_async(max_pages=15))
+    assert result["offers_found"] == 1
+    assert result["expected_candidates"] == 618
+    assert result["missing_candidates"] == 0
+    assert len(result["candidates"]) == 618
+    assert result["candidate_pages"] == 3
+    assert result["partial"] is False
+
+
+def test_missing_candidate_status_pages_are_reported_as_partial():
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    listing = ("https://empresa.co.computrabajo.com/Company/Offers/Match?oi="
+               + "B" * 32)
+    only_received = dict(directory_page(candidates=[directory_candidate("A")]),
+                         reported_total=618,
+                         status_counts={"recibidos":547,"seleccionados":6,
+                                        "finalistas":0,"descartados":65})
+    browser._evaluate = AsyncMock(side_effect=[
+        directory_page(offers=[listing]), only_received,
+    ])
+    result = asyncio.run(browser._discover_all_candidates_async(max_pages=10))
+    assert result["expected_candidates"] == 618
+    assert result["missing_candidates"] == 617
+    assert result["partial"] is True
