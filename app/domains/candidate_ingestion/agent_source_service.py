@@ -11,7 +11,7 @@ from pathlib import PurePosixPath
 
 from sqlalchemy.orm import Session
 
-from app.domains.candidate_ingestion import job_resolution, repository
+from app.domains.candidate_ingestion import repository
 from app.infrastructure.imports import queue
 from app.infrastructure.ingestion.storage import EmailIngestionStorage
 
@@ -117,10 +117,9 @@ def ingest_candidate_document(
     normalized_account = str(source_account or "").strip()
     normalized_external_id = str(external_id or "").strip()
     normalized_name = " ".join(str(candidate_name or "").split()).strip()
-    normalized_job = " ".join(str(job_title or "").split()).strip()
     if not normalized_account or not normalized_external_id:
         raise CandidateSourceValidationError(422, "CANDIDATE_SOURCE_IDENTITY_MISSING")
-    if not normalized_name or not normalized_job:
+    if not normalized_name:
         raise CandidateSourceValidationError(422, "CANDIDATE_SOURCE_CONTEXT_MISSING")
 
     payload = bytes(data or b"")
@@ -153,11 +152,8 @@ def ingest_candidate_document(
 
     metadata = {
         "candidate_name": normalized_name,
-        "job_title": normalized_job,
         "source_provider": normalized_provider,
     }
-    if external_job_id:
-        metadata["external_job_id"] = str(external_job_id).strip()
     if location:
         metadata["location"] = " ".join(str(location).split()).strip()
     if applied_at:
@@ -173,14 +169,8 @@ def ingest_candidate_document(
         status="RECEIVED",
         raw_metadata=metadata,
     )
-    resolved_job = job_resolution.resolve_job(
-        db,
-        owner_sub=owner_sub,
-        explicit_job_id=None,
-        metadata=metadata,
-    )
-    if resolved_job is not None:
-        event.job_id = resolved_job.id
+    # Computrabajo is a candidate source only: NEVER resolve or assign a Talent job.
+    # Provider-side offers are navigation paths, not jobs in the Talent domain.
 
     safe_filename = _safe_filename(filename, content_type=canonical_type)
     source_storage = storage or EmailIngestionStorage()
