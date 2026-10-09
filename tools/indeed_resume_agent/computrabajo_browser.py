@@ -459,7 +459,7 @@ class ComputrabajoBrowserUse:
                   if (!/^[a-f0-9]{16,64}$/i.test(id) || seen.has(id)) continue;
                   seen.add(id);
                   const name = (a.querySelector('strong, b, h3, h4')?.textContent ||
-                    a.textContent || '').split('\n')[0].trim().slice(0, 180);
+                    a.textContent || '').split('\\n')[0].trim().slice(0, 180);
                   candidates.push({external_id: id, candidate_name: name,
                                    detail_url: u.href});
                 } else if (path === '/company/offers/match' &&
