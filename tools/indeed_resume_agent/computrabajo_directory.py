@@ -117,7 +117,7 @@ DIRECTORY_SCAN_JS = r"""(() => {
         el.getAttribute('aria-selected') !== 'true' &&
         !el.classList.contains('active') && !tabs.includes(name)) {
       const href = el.getAttribute('href') || '';
-      if (!href || href === '#' || href.toLowerCase().startsWith('javascript:')) tabs.push(name);
+      if (!href || href.startsWith('#') || href.toLowerCase().startsWith('javascript:')) tabs.push(name);
     }
   }
   let jsNext = false;
@@ -128,7 +128,7 @@ DIRECTORY_SCAN_JS = r"""(() => {
     const href = el.getAttribute('href') || '';
     let url;
     try { url = new URL(href, location.href); } catch (_) { url = null; }
-    if (!href || href === '#' || href.toLowerCase().startsWith('javascript:') ||
+    if (!href || href.startsWith('#') || href.toLowerCase().startsWith('javascript:') ||
         (url && url.href === location.href)) jsNext = true;
   }
   const activePage = document.querySelector(
@@ -155,7 +155,7 @@ NEXT_PAGE_JS = r"""(() => {
     const href = el.getAttribute('href') || '';
     let u = null;
     try { u = new URL(href, location.href); } catch (_) {}
-    if (href && href !== '#' && !href.toLowerCase().startsWith('javascript:') &&
+    if (href && !href.startsWith('#') && !href.toLowerCase().startsWith('javascript:') &&
         u && u.href !== location.href) continue;
     el.click();
     return {clicked: true};
