@@ -52,3 +52,20 @@ def test_tab_expression_restricts_to_known_status_filters():
     assert "clicked" in expression
     with pytest.raises(ValueError, match="COMPUTRABAJO_INVALID_TAB"):
         tab_click_js("x" * 76)
+
+
+def test_candidate_tabs_have_a_read_only_scope_distinct_from_offer_tabs():
+    candidate_tab = tab_click_js("recibidos (547)", candidate_list=True)
+    assert "/company/offers/match" in candidate_tab
+    assert "recibid" in candidate_tab
+    assert ".click()" in candidate_tab
+    assert "fetch(" not in candidate_tab
+    assert "fetch(" not in DIRECTORY_SCAN_JS
+    assert "recibid" in DIRECTORY_SCAN_JS
+    assert "seleccionad" in DIRECTORY_SCAN_JS
+
+
+def test_numeric_js_pagination_next_page_is_supported():
+    assert "activeNumber + 1" in DIRECTORY_SCAN_JS
+    assert "activeNumber + 1" in NEXT_PAGE_JS
+    assert "pager(el)" in NEXT_PAGE_JS
