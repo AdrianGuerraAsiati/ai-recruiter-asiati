@@ -44,7 +44,6 @@ def test_computrabajo_candidate_is_handed_to_shared_ingestion_queue(monkeypatch)
         last_error_message=None,
         queue_dispatched_at=None,
     )
-    job = SimpleNamespace(id="job-1")
 
     monkeypatch.setattr(
         agent_source_service.repository,
@@ -61,11 +60,6 @@ def test_computrabajo_candidate_is_handed_to_shared_ingestion_queue(monkeypatch)
         agent_source_service.repository,
         "create_document",
         lambda _db, **kwargs: created.setdefault("document", kwargs),
-    )
-    monkeypatch.setattr(
-        agent_source_service.job_resolution,
-        "resolve_job",
-        lambda *args, **kwargs: job,
     )
     monkeypatch.setattr(
         agent_source_service.queue,
@@ -95,16 +89,14 @@ def test_computrabajo_candidate_is_handed_to_shared_ingestion_queue(monkeypatch)
     assert result.event_id == "event-1"
     assert result.existing is False
     assert result.queued is True
-    assert event.job_id == "job-1"
+    assert event.job_id is None
     assert event.status == "STORED"
     assert queued == ["event-1"]
     assert created["event"]["source"] == "AGENT"
     assert created["event"]["provider"] == "COMPUTRABAJO"
     assert created["event"]["raw_metadata"] == {
         "candidate_name": "Ada Lovelace",
-        "job_title": "Ingeniera de software",
         "source_provider": "COMPUTRABAJO",
-        "external_job_id": "offer-7",
         "location": "Bogotá, D.C.",
     }
     assert created["document"]["document_sha256"] == hashlib.sha256(payload).hexdigest()
@@ -188,3 +180,22 @@ def test_candidate_source_rejects_unknown_provider_and_non_resume_bytes():
             content_type="application/pdf",
             data=b"not-a-document",
         )
+
+
+def test_computrabajo_does_not_require_a_job_title_or_create_a_job(monkeypatch):
+    db = FakeDB()
+    event = SimpleNamespace(id="candidate-only", status="RECEIVED", job_id=None,
+                            last_error_code=None, last_error_message=None,
+                            queue_dispatched_at=None)
+    monkeypatch.setattr(agent_source_service.repository, "get_event_by_external_id", lambda *a, **kw: None)
+    monkeypatch.setattr(agent_source_service.repository, "create_event", lambda *a, **kw: event)
+    monkeypatch.setattr(agent_source_service.repository, "create_document", lambda *a, **kw: None)
+    monkeypatch.setattr(agent_source_service.queue, "send_candidate_ingestion", lambda *a: None)
+    result = agent_source_service.ingest_candidate_document(
+        db, owner_sub="owner", provider="COMPUTRABAJO", source_account="asiati",
+        external_id="candidate-1", candidate_name="Persona Ejemplo", job_title=None,
+        external_job_id="external-job", filename="cv.pdf", content_type="application/pdf",
+        data=b"%PDF-1.4\\ntest", storage=FakeStorage(),
+    )
+    assert result.queued is True
+    assert event.job_id is None
