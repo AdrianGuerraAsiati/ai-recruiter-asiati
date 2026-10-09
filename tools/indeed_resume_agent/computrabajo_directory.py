@@ -78,7 +78,11 @@ DIRECTORY_SCAN_JS = r"""(() => {
   const nextControl = el => {
     const label = (el.getAttribute('aria-label') || el.getAttribute('title') ||
                    el.textContent || '').trim().toLowerCase();
-    return el.rel === 'next' || /\b(siguiente|next)\b|^[›»→]+$/.test(label);
+    const current = document.querySelector(
+      '.pagination .active,.pager .active,[aria-current="page"]')?.textContent?.trim() || '';
+    const numeric = /^\d+$/.test(current) ? Number(current) : 0;
+    return el.rel === 'next' || /\b(siguiente|next)\b|^[›»→]+$/.test(label) ||
+      (numeric > 0 && label === String(numeric + 1));
   };
   const tabName = el => (el.getAttribute('aria-label') || el.textContent || '')
     .toLowerCase().trim().replace(/\s+/g, ' ').slice(0, 75);
@@ -164,7 +168,11 @@ NEXT_PAGE_JS = r"""(() => {
   for (const el of document.querySelectorAll('a, button')) {
     const label = (el.getAttribute('aria-label') || el.getAttribute('title') ||
                    el.textContent || '').trim().toLowerCase();
-    const isNext = el.rel === 'next' || /\b(siguiente|next)\b|^[›»→]+$/.test(label);
+    const current = document.querySelector(
+      '.pagination .active,.pager .active,[aria-current="page"]')?.textContent?.trim() || '';
+    const number = /^\d+$/.test(current) ? Number(current) : 0;
+    const isNext = el.rel === 'next' || /\b(siguiente|next)\b|^[›»→]+$/.test(label) ||
+      (number > 0 && label === String(number+1));
     if (!isNext || !(pager(el) || el.rel === 'next') ||
         el.disabled || el.getAttribute('aria-disabled') === 'true') continue;
     const href = el.getAttribute('href') || '';
