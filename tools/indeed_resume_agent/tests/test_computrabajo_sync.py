@@ -116,3 +116,32 @@ def test_sync_all_stop_does_not_visit_candidates(tmp_path):
                                  stop_requested=lambda: True)
     assert result["cancelled"] is True
     browser.collect_candidate.assert_not_called()
+
+
+def test_sync_reports_pdf_and_api_failures_separately(tmp_path):
+    from tools.indeed_resume_agent.computrabajo_sync import sync_all_candidates
+    from tools.indeed_resume_agent.api_client import AgentApiError
+
+    browser = Mock()
+    browser.discover_all_candidates.return_value = {
+        "candidates": [fake_candidate(1), fake_candidate(2)],
+        "pages": 2, "blocked_pages": 1, "partial": True, "cancelled": False,
+    }
+    browser.collect_candidate.side_effect = [
+        RuntimeError("COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED"),
+        {"name": "Second", "filename": "cv.pdf", "data": b"%PDF-1.7",
+         "content_type": "application/pdf"},
+    ]
+    api = Mock()
+    api.ingest_source_candidate.side_effect = AgentApiError(422, "HTTP_422")
+    outcome = sync_all_candidates(
+        browser=browser, api=api, source_account="ASIATI",
+        checkpoint_path=tmp_path / "checkpoint.json",
+    )
+    assert outcome["created"] == 0 and outcome["failed"] == 2
+    assert outcome["blocked_pages"] == 1
+    assert outcome["error_counts"] == {
+        "descarga:COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED": 1,
+        "talent:HTTP_422": 1,
+    }
+    assert api.ingest_source_candidate.call_count == 1
