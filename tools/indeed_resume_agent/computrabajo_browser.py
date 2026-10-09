@@ -404,6 +404,129 @@ class ComputrabajoBrowserUse:
     def discover_visible_candidates(self) -> list[dict]:
         return self._call(self._discover_visible_candidates_async(), timeout=30.0)
 
+
+    async def _discover_all_candidates_async(self, *, max_pages: int = 500,
+                                             stop_requested=None) -> dict:
+        """Walk accessible employer listings only to find people; never sync offers.
+
+        Only explicit, authenticated employer-page hrefs are followed. When the
+        provider uses unsupported JS-only pagination the run is marked partial,
+        never advertised as a complete account-wide sync.
+        """
+        from collections import deque
+        from string import hexdigits
+
+        if max_pages < 1 or max_pages > 1000:
+            raise ValueError("COMPUTRABAJO_INVALID_PAGE_LIMIT")
+        start = "https://empresa.co.computrabajo.com/Company/Offers"
+        pending = deque([start])
+        visited: set[str] = set()
+        found: dict[str, dict] = {}
+        unsupported_pagination = False
+        cancelled = False
+
+        while pending and len(visited) < max_pages:
+            if stop_requested and stop_requested():
+                cancelled = True
+                break
+            url = pending.popleft()
+            if url in visited:
+                continue
+            parsed = urlparse(url)
+            if (parsed.scheme != "https" or
+                parsed.hostname != "empresa.co.computrabajo.com" or
+                parsed.path.casefold().rstrip("/") not in
+                    {"/company/offers", "/company/offers/match"}):
+                raise ValueError("COMPUTRABAJO_UNSAFE_DISCOVERY_PAGE")
+            await self._open_portal(url)
+            cdp = await self._ensure_started()
+            page = await self._evaluate(cdp, """(() => {
+              if (location.hostname !== 'empresa.co.computrabajo.com' ||
+                  !/^\/company\/offers(?:\/match)?\/?$/i.test(location.pathname)) {
+                return {error: 'COMPUTRABAJO_LOGIN_OR_LIST_REQUIRED'};
+              }
+              const offerLinks = [], pageLinks = [], candidates = [];
+              const seen = new Set();
+              const here = location.pathname.toLowerCase().replace(/\/$/, '');
+              for (const a of document.querySelectorAll('a[href]')) {
+                let u;
+                try { u = new URL(a.href, location.href); } catch (_) { continue; }
+                if (u.origin !== location.origin) continue;
+                const path = u.pathname.toLowerCase().replace(/\/$/, '');
+                if (path === '/company/matchcvdetail/matchdetail' &&
+                    here === '/company/offers/match') {
+                  const id = u.searchParams.get('ims') || '';
+                  if (!/^[a-f0-9]{16,64}$/i.test(id) || seen.has(id)) continue;
+                  seen.add(id);
+                  const name = (a.querySelector('strong, b, h3, h4')?.textContent ||
+                    a.textContent || '').split('\n')[0].trim().slice(0, 180);
+                  candidates.push({external_id: id, candidate_name: name,
+                                   detail_url: u.href});
+                } else if (path === '/company/offers/match' &&
+                           here === '/company/offers' && u.searchParams.get('oi')) {
+                  offerLinks.push(u.href);
+                } else if (path === here && u.search !== location.search) {
+                  const nav = a.closest('.pagination,.pager,nav[aria-label]') ||
+                    a.rel?.toLowerCase() === 'next' ||
+                    /siguiente|next|página|page/i.test(
+                      [a.getAttribute('aria-label'), a.title].join(' '));
+                  if (nav) pageLinks.push(u.href);
+                }
+              }
+              const unlinked = [...document.querySelectorAll('button, a:not([href])')]
+                .some(el => !el.disabled && /^(siguiente|next|›|»)$/i.test(
+                  (el.getAttribute('aria-label') || el.textContent || '').trim()));
+              return {offer_links: offerLinks, page_links: pageLinks,
+                      candidates, unsupported_pagination: unlinked};
+            })()""")
+            if not isinstance(page, dict) or page.get("error"):
+                raise ValueError("COMPUTRABAJO_LOGIN_OR_LIST_REQUIRED")
+            if not isinstance(page.get("candidates"), list):
+                raise RuntimeError("COMPUTRABAJO_DISCOVERY_INVALID")
+            visited.add(url)
+            unsupported_pagination |= bool(page.get("unsupported_pagination"))
+            for candidate in page["candidates"]:
+                if not isinstance(candidate, dict):
+                    continue
+                external_id = str(candidate.get("external_id") or "")
+                detail = str(candidate.get("detail_url") or "")
+                candidate_url = urlparse(detail)
+                if (not 16 <= len(external_id) <= 64 or
+                    any(ch not in hexdigits for ch in external_id) or
+                    candidate_url.scheme != "https" or
+                    candidate_url.hostname != "empresa.co.computrabajo.com" or
+                    candidate_url.path.casefold() != "/company/matchcvdetail/matchdetail" or
+                    not candidate_url.query):
+                    continue
+                found.setdefault(external_id.casefold(), candidate)
+            for link in page.get("offer_links", []) + page.get("page_links", []):
+                if not isinstance(link, str):
+                    continue
+                target = urlparse(link)
+                if (target.scheme == "https" and
+                    target.hostname == "empresa.co.computrabajo.com" and
+                    target.path.casefold().rstrip("/") in
+                        {"/company/offers", "/company/offers/match"} and
+                    link not in visited and link not in pending):
+                    pending.append(link)
+            await asyncio.sleep(0.15)
+        if not found and not cancelled:
+            raise ValueError("COMPUTRABAJO_NO_CANDIDATES_DISCOVERED")
+        return {
+            "candidates": list(found.values()),
+            "pages": len(visited),
+            "cancelled": cancelled,
+            "partial": bool(pending) or unsupported_pagination,
+        }
+
+    def discover_all_candidates(self, *, max_pages: int = 500,
+                                stop_requested=None) -> dict:
+        return self._call(
+            self._discover_all_candidates_async(
+                max_pages=max_pages, stop_requested=stop_requested
+            ), timeout=max(300.0, max_pages * 12.0),
+        )
+
     async def _collect_candidate_async(self, candidate: dict) -> dict:
         """Navigate to one discovered profile and obtain CV bytes within browser session.
 
