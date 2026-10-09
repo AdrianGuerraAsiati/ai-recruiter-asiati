@@ -83,3 +83,26 @@ def test_directory_requires_authenticated_employer_page():
     b._open_portal = AsyncMock()
     with pytest.raises(ValueError, match="COMPUTRABAJO_LOGIN_OR_LIST_REQUIRED"):
         asyncio.run(b._discover_all_candidates_async(max_pages=1))
+
+
+def test_expired_offer_is_skipped_and_marked_partial():
+    b = make_browser(None)
+    b._open_portal = AsyncMock()
+    b._evaluate = AsyncMock(side_effect=[
+        {"candidates": [], "offer_links": [
+            "https://empresa.co.computrabajo.com/Company/Offers/Match?oi=1234",
+            "https://empresa.co.computrabajo.com/Company/Offers/Match?oi=5678",
+        ], "page_links": [], "unsupported_pagination": False},
+        {"access_denied": "OFFER_EXPIRED", "candidates": [], "offer_links": [],
+         "page_links": [], "unsupported_pagination": False},
+        {"candidates": [{
+            "external_id": "A" * 32, "candidate_name": "Example",
+            "detail_url": "https://empresa.co.computrabajo.com/Company/MatchCvDetail/MatchDetail?ims=abc",
+        }], "offer_links": [], "page_links": [],
+         "unsupported_pagination": False},
+    ])
+    result = asyncio.run(b._discover_all_candidates_async(max_pages=5))
+    assert result["pages"] == 3
+    assert result["blocked_pages"] == 1
+    assert result["partial"] is True
+    assert len(result["candidates"]) == 1
