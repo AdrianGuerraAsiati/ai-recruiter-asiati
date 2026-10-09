@@ -429,6 +429,8 @@ class ComputrabajoBrowserUse:
         tab_scans = set()
         found = {}
         offer_urls = set()
+        offer_expected_counts = {}
+        offer_discovered_ids = {}
         blocked_pages = pages = candidate_pages = listing_pages = 0
         unresolved_pagination = 0
         cancelled = False
@@ -527,16 +529,24 @@ class ComputrabajoBrowserUse:
                     blocked_pages += 1
                     break
                 current_path = urlparse(url).path.casefold().rstrip("/")
+                ids = parse_qs(urlparse(url).query).get("oi", [])
+                offer_key = ids[0].casefold() if ids else None
                 if current_path == CANDIDATES_PATH:
                     candidate_pages += 1
+                    count = page.get("reported_received")
+                    if (offer_key and type(count) is int and 0 <= count <= 1000000):
+                        offer_expected_counts[offer_key] = max(
+                            offer_expected_counts.get(offer_key, 0), count
+                        )
                 else:
                     listing_pages += 1
                 for candidate in page["candidates"]:
                     if (isinstance(candidate, dict) and candidate_detail_url(
                             candidate.get("detail_url"), candidate.get("external_id"))):
-                        found.setdefault(
-                            str(candidate["external_id"]).casefold(), candidate
-                        )
+                        external_id = str(candidate["external_id"]).casefold()
+                        found.setdefault(external_id, candidate)
+                        if offer_key and current_path == CANDIDATES_PATH:
+                            offer_discovered_ids.setdefault(offer_key, set()).add(external_id)
                 for candidate_listing in page.get("offer_links", []):
                     safe = directory_url(candidate_listing)
                     if safe and urlparse(safe).path.casefold().rstrip("/") == CANDIDATES_PATH:
@@ -569,6 +579,10 @@ class ComputrabajoBrowserUse:
                 break
             await asyncio.sleep(0.1)
 
+        incomplete_offers = sum(
+            len(offer_discovered_ids.get(key, set())) < count
+            for key, count in offer_expected_counts.items()
+        )
         if not found and not cancelled:
             raise ValueError(
                 "COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED"
@@ -582,10 +596,17 @@ class ComputrabajoBrowserUse:
             "offers_found": len(offer_urls),
             "blocked_pages": blocked_pages,
             "unresolved_pagination": unresolved_pagination,
+            "reported_received_total": sum(offer_expected_counts.values()),
+            "discovered_with_reported_total": sum(
+                len(offer_discovered_ids.get(key, set()))
+                for key in offer_expected_counts
+            ),
+            "offers_with_missing_candidates": incomplete_offers,
             "cancelled": cancelled,
             "partial": (
                 bool(pending) or unresolved_pagination > 0 or
-                blocked_pages > 0 or cancelled or pages >= max_pages
+                blocked_pages > 0 or incomplete_offers > 0 or
+                cancelled or pages >= max_pages
             ),
         }
 
