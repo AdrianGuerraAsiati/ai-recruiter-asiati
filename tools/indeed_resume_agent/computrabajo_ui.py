@@ -245,11 +245,17 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
                         f" {blocked} páginas restringidas por Computrabajo."
                         if blocked else ""
                     )
+                    expected = int(report.get("expected_candidates", 0) or 0)
+                    coverage = (
+                        f" Encontrados {report['total']} de {expected} aspirantes "
+                        f"indicados por Computrabajo."
+                        if expected else f" Encontrados {report['total']} aspirantes."
+                    )
                     updates.put(("ready", f"{status}. "
                         f"{report['pages']} páginas revisadas; "
                         f"{report['created']} nuevos, {report['existing']} existentes, "
                         f"{report['skipped']} omitidos y {report['failed']} errores."
-                        + blocked_label + warning))
+                        + coverage + blocked_label + warning))
                 except Exception as exc:
                     code = str(exc)
                     if code == "COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED":
