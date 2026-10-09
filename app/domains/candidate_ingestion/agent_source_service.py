@@ -141,12 +141,23 @@ def ingest_candidate_document(
     if existing is not None:
         documents = repository.list_documents(db, event_id=existing.id)
         if len(documents) == 1 and documents[0].document_sha256 == digest:
+            queued = bool(existing.queue_dispatched_at)
+            # An earlier SQS outage must not strand a stored candidate forever.
+            if not queued:
+                try:
+                    queue.send_candidate_ingestion(existing.id)
+                except Exception:
+                    db.rollback()
+                else:
+                    existing.queue_dispatched_at = _now()
+                    db.commit()
+                    queued = True
             return CandidateSourceIngestionResult(
                 event_id=str(existing.id),
                 provider=normalized_provider,
                 status=str(existing.status),
                 existing=True,
-                queued=bool(existing.queue_dispatched_at),
+                queued=queued,
             )
         raise CandidateSourceValidationError(409, "CANDIDATE_SOURCE_EVENT_CONFLICT")
 
