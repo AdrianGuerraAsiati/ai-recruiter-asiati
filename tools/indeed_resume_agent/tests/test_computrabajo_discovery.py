@@ -48,17 +48,16 @@ def test_full_directory_scans_links_and_skips_foreign_pages():
     from unittest.mock import Mock
     b = make_browser(None)
     b._open_portal = AsyncMock()
-    b._evaluate = AsyncMock(side_effect=[
-        {"candidates": [], "offer_links": [
+    b._evaluate = AsyncMock(return_value={
+        "candidates": [], "offer_links": [
             "https://empresa.co.computrabajo.com/Company/Offers/Match?oi=1234",
             "https://evil.example/Company/Offers/Match?oi=8888",
-        ], "page_links": [], "unsupported_pagination": False},
-        {"candidates": [{
-            "external_id": "A" * 32,
-            "candidate_name": "Example",
-            "detail_url": "https://empresa.co.computrabajo.com/Company/MatchCvDetail/MatchDetail?ims=aaa",
-        }], "offer_links": [], "page_links": [], "unsupported_pagination": False},
-    ])
+        ], "page_links": [], "unsupported_pagination": False})
+    b._walk_offer_candidates_async = AsyncMock(return_value={
+        "candidates": [{"external_id": "A" * 32, "candidate_name": "Example",
+            "detail_url": "https://empresa.co.computrabajo.com/Company/MatchCvDetail/MatchDetail?ims=aaa"}],
+        "pages": 1, "partial": False, "blocked": False, "expected": 1,
+    })
     directory = asyncio.run(b._discover_all_candidates_async(max_pages=5))
     assert directory["pages"] == 2
     assert len(directory["candidates"]) == 1
@@ -88,21 +87,100 @@ def test_directory_requires_authenticated_employer_page():
 def test_expired_offer_is_skipped_and_marked_partial():
     b = make_browser(None)
     b._open_portal = AsyncMock()
-    b._evaluate = AsyncMock(side_effect=[
-        {"candidates": [], "offer_links": [
+    b._evaluate = AsyncMock(return_value={
+        "candidates": [], "offer_links": [
             "https://empresa.co.computrabajo.com/Company/Offers/Match?oi=1234",
             "https://empresa.co.computrabajo.com/Company/Offers/Match?oi=5678",
-        ], "page_links": [], "unsupported_pagination": False},
-        {"access_denied": "OFFER_EXPIRED", "candidates": [], "offer_links": [],
-         "page_links": [], "unsupported_pagination": False},
+        ], "page_links": [], "unsupported_pagination": False})
+    b._walk_offer_candidates_async = AsyncMock(side_effect=[
+        {"candidates": [], "pages": 1, "partial": True,
+         "blocked": True, "expected": 0},
         {"candidates": [{
             "external_id": "A" * 32, "candidate_name": "Example",
             "detail_url": "https://empresa.co.computrabajo.com/Company/MatchCvDetail/MatchDetail?ims=abc",
-        }], "offer_links": [], "page_links": [],
-         "unsupported_pagination": False},
+        }], "pages": 1, "partial": False, "blocked": False, "expected": 1},
     ])
     result = asyncio.run(b._discover_all_candidates_async(max_pages=5))
     assert result["pages"] == 3
     assert result["blocked_pages"] == 1
     assert result["partial"] is True
     assert len(result["candidates"]) == 1
+
+
+def test_offer_collector_covers_618_candidates_across_statuses_and_pages():
+    b = make_browser(None)
+    b._open_portal = AsyncMock()
+    b._click_candidate_listing_control = AsyncMock(return_value=True)
+    original = {
+        "statuses": ["recibidos", "seleccionados", "finalistas", "descartados"],
+        "counts": {"recibidos": 547, "seleccionados": 6,
+                   "finalistas": 0, "descartados": 65},
+        "active_status": "recibidos", "reported_total": 618,
+    }
+
+    def page(state, offset, count, next_page):
+        return dict(original, active_status=state, next=next_page,
+            candidates=[{"external_id": f"{i:032x}",
+                "candidate_name": "Test",
+                "detail_url": ("https://empresa.co.computrabajo.com/"
+                    f"Company/MatchCvDetail/MatchDetail?ims={i:032x}")}
+                for i in range(offset, offset+count)],
+            signature=f"{state}:{offset}")
+
+    # Every status begins with a fresh first-page navigation; only an actual
+    # next-page click advances the candidate view.
+    received = [page("recibidos", 1, 100, True),
+                page("recibidos", 101, 100, True),
+                page("recibidos", 201, 100, True),
+                page("recibidos", 301, 100, True),
+                page("recibidos", 401, 100, True),
+                page("recibidos", 501, 47, False)]
+    selected = page("seleccionados", 548, 6, False)
+    finalistas = page("finalistas", 554, 0, False)
+    discarded = page("descartados", 554, 65, False)
+    state = {"status": "recibidos", "page": 0}
+    async def read(_):
+        return (received[state["page"]] if state["status"] == "recibidos"
+                else {"seleccionados": selected, "finalistas": finalistas,
+                      "descartados": discarded}[state["status"]])
+    async def click(_, *, kind, status=""):
+        if kind == "status":
+            state["status"] = status
+            state["page"] = 0
+        elif kind == "next":
+            state["page"] += 1
+        return True
+    async def open_portal(url):
+        state["status"] = "recibidos"
+        state["page"] = 0
+    async def wait(_, previous):
+        return await read(None)
+    b._candidate_listing_snapshot = read
+    b._click_candidate_listing_control = click
+    b._open_portal = open_portal
+    b._wait_candidate_listing_change = wait
+    result = asyncio.run(b._walk_offer_candidates_async(
+        "https://empresa.co.computrabajo.com/Company/Offers/Match?oi=abc",
+        max_pages=30))
+    assert result["pages"] == 9
+    assert result["expected"] == 618
+    assert len(result["candidates"]) == 618
+    assert result["partial"] is False
+
+
+def test_offer_collector_reports_partial_if_next_page_missing():
+    b = make_browser(None)
+    b._open_portal = AsyncMock()
+    b._candidate_listing_snapshot = AsyncMock(return_value={
+        "statuses": ["recibidos", "seleccionados", "finalistas", "descartados"],
+        "counts": {"recibidos": 547, "seleccionados": 6,
+                   "finalistas": 0, "descartados": 65},
+        "active_status": "recibidos", "reported_total": 618,
+        "signature": "page-1", "candidates": [], "next": False,
+    })
+    b._click_candidate_listing_control = AsyncMock(return_value=False)
+    result = asyncio.run(b._walk_offer_candidates_async(
+        "https://empresa.co.computrabajo.com/Company/Offers/Match?oi=abc",
+        max_pages=30))
+    assert result["expected"] == 618
+    assert result["partial"] is True
