@@ -440,7 +440,7 @@ class ComputrabajoBrowserUse:
                 raise ValueError("COMPUTRABAJO_UNSAFE_DISCOVERY_PAGE")
             await self._open_portal(url)
             cdp = await self._ensure_started()
-            page = await self._evaluate(cdp, """(() => {
+            scan_script = """(() => {
               if (location.hostname !== 'empresa.co.computrabajo.com' ||
                   !/^\/company\/offers(?:\/match)?\/?$/i.test(location.pathname)) {
                 return {error: 'COMPUTRABAJO_LOGIN_OR_LIST_REQUIRED'};
@@ -473,12 +473,21 @@ class ComputrabajoBrowserUse:
                   if (nav) pageLinks.push(u.href);
                 }
               }
-              const unlinked = [...document.querySelectorAll('button, a:not([href])')]
+              const unlinked = [...document.querySelectorAll('button, a:not([href]), a[href="#"], a[href="javascript:void(0)"]')]
                 .some(el => !el.disabled && /^(siguiente|next|›|»)$/i.test(
                   (el.getAttribute('aria-label') || el.textContent || '').trim()));
               return {offer_links: offerLinks, page_links: pageLinks,
                       candidates, unsupported_pagination: unlinked};
-            })()""")
+            })()"""
+            # Wait briefly for client-side lists to hydrate after document.readyState.
+            page = None
+            for attempt in range(6):
+                page = await self._evaluate(cdp, scan_script)
+                if (not isinstance(page, dict) or page.get("error") or
+                    page.get("candidates") or page.get("offer_links") or
+                    page.get("page_links") or attempt == 5):
+                    break
+                await asyncio.sleep(0.65)
             if not isinstance(page, dict) or page.get("error"):
                 raise ValueError("COMPUTRABAJO_LOGIN_OR_LIST_REQUIRED")
             if not isinstance(page.get("candidates"), list):
