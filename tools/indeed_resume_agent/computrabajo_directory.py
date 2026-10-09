@@ -139,9 +139,13 @@ DIRECTORY_SCAN_JS = r"""(() => {
     if (!href || href.startsWith('#') || href.toLowerCase().startsWith('javascript:') ||
         (url && url.href === location.href)) jsNext = true;
   }
+  const received = [...document.querySelectorAll(
+    '[role="tab"], .nav-tabs a, .nav-tabs button, .tabs a, .tabs button, [data-toggle="tab"], [data-bs-toggle="tab"]'
+  )].map(tabName).find(t => /^recibid[oa]s\s*\(\s*\d+\s*\)$/i.test(t));
+  const reportedReceived = received ? Number(received.match(/\(\s*(\d+)\s*\)/)?.[1]) : null;
   return {candidates, offer_links: offerLinks, page_links: pageLinks,
           tabs_js: tabs, js_next: jsNext, active_page: activePage,
-          active_tab: activeTab};
+          active_tab: activeTab, reported_received: reportedReceived};
 })()"""
 
 
