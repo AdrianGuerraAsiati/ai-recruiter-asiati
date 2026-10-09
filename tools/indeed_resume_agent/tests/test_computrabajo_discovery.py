@@ -64,7 +64,7 @@ def test_full_directory_scans_links_and_skips_foreign_pages(monkeypatch):
     assert directory["pages"] == 2
     assert len(directory["candidates"]) == 1
     assert directory["partial"] is False
-    assert b._open_portal.await_count == 2
+    assert b._open_portal.await_count == 1
 
 
 def test_directory_reports_partial_when_pagination_cannot_be_followed():
@@ -146,7 +146,7 @@ def test_offer_collector_covers_618_candidates_across_statuses_and_pages(monkeyp
         return (received[state["page"]] if state["status"] == "recibidos"
                 else {"seleccionados": selected, "finalistas": finalistas,
                       "descartados": discarded}[state["status"]])
-    async def click(_, *, kind, status=""):
+    async def click(_, kind, status=""):
         if kind == "status":
             state["status"] = status
             state["page"] = 0
