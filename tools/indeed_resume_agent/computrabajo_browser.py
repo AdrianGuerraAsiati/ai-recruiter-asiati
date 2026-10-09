@@ -406,7 +406,8 @@ class ComputrabajoBrowserUse:
 
 
     async def _discover_all_candidates_async(self, *, max_pages: int = 500,
-                                             stop_requested=None) -> dict:
+                                             stop_requested=None,
+                                             discovery_progress=None) -> dict:
         """Visit accessible offer indexes and all discoverable candidate pages.
 
         Offers are merely navigation: we only return unique candidate profiles.
@@ -509,6 +510,11 @@ class ComputrabajoBrowserUse:
                     break
                 previous_signature = signature(page)
                 pages += 1
+                if discovery_progress:
+                    discovery_progress({
+                        "pages": pages, "offers_found": len(offer_urls),
+                        "candidates_found": len(found), "blocked_pages": blocked_pages,
+                    })
                 if page.get("access_denied"):
                     blocked_pages += 1
                     break
@@ -570,10 +576,11 @@ class ComputrabajoBrowserUse:
         }
 
     def discover_all_candidates(self, *, max_pages: int = 500,
-                                stop_requested=None) -> dict:
+                                stop_requested=None, discovery_progress=None) -> dict:
         return self._call(
             self._discover_all_candidates_async(
-                max_pages=max_pages, stop_requested=stop_requested
+                max_pages=max_pages, stop_requested=stop_requested,
+                discovery_progress=discovery_progress
             ), timeout=max(300.0, max_pages * 12.0),
         )
 
