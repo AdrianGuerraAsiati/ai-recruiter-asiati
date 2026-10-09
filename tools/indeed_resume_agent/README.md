@@ -134,6 +134,16 @@ Para pasar de un PC de pruebas al PC de Katherine se genera un token nuevo y se 
 
 ## Sincronización integral de Computrabajo (solo candidatos)
 
+### Cobertura ampliada (octubre de 2026)
+
+El explorador recorre enlaces de listados de candidatos dentro de **Mis ofertas**, paginación con enlaces, controles «Siguiente» que cargan páginas por JavaScript y pestañas de estado accesibles sin publicaciones nuevas. **Nunca importa ni vincula ofertas a vacantes de Talent**: los enlaces son solo caminos de navegación a las personas candidatas.
+
+Muestra contadores independientes de listados detectados, páginas de aspirantes recorridas, aspirantes importados, páginas restringidas y paginaciones sin confirmar. Sigue registrando las ofertas vencidas como restringidas y nunca elude una membresía. No considera completa una ejecución con páginas bloqueadas, botones sin respuesta, tope de páginas o interrupción voluntaria.
+
+Un segundo recorrido utiliza los checkpoints existentes para no repetir la ingesta de candidatos ya sincronizados; si el portal cambia el DOM, ejecutar **Iniciar diagnóstico** / **Guardar diagnóstico** con navegación normal y validar el contrato de paginación en una sesión autorizada (sin compartir cookies ni credenciales).
+
+
+
 Tras iniciar sesión manualmente en el portal de empresa de Computrabajo, el botón **Sincronizar todos los candidatos** navega por las ofertas *exclusivamente para descubrir listas de aspirantes*. No importa, crea, actualiza ni vincula ofertas con las vacantes de Talent u Odoo. Descubre candidatos en enlaces de paginación accesibles, recoge PDF/DOCX o PDF del perfil, envía a la API de ingesta y registra los identificadores ya procesados en un checkpoint local sin nombres ni CV.
 
 La cuenta fuente se configura opcionalmente con `ASIATI_COMPUTRABAJO_SOURCE_ACCOUNT` (predeterminado `ASIATI`). Los errores se pueden reintentar y la operación se puede detener de forma segura. Un resultado **parcial** significa que se alcanzó el límite de páginas, que falta validar paginación JavaScript o que hubo errores; no debe interpretarse como una ingesta completa. El DOM real y la navegación entre páginas necesitan validación E2E con una sesión empresarial autorizada antes del uso masivo.
