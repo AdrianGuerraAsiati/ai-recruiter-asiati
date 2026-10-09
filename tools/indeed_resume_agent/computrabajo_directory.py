@@ -71,13 +71,48 @@ DIRECTORY_SCAN_JS = r"""(() => {
   }
   const candidates = [], offerLinks = [], pageLinks = [], tabs = [];
   const candidateIds = new Set(), directOffers = new Set(), directPages = new Set();
-  const pager = el => !!el.closest(
-    '.pagination, .pager, [class*="pagination"], [class*="paginacion"], nav[aria-label*="age"], nav[aria-label*="ágina"]'
-  );
-  const nextControl = el => {
-    const label = (el.getAttribute('aria-label') || el.getAttribute('title') ||
-                   el.textContent || '').trim().toLowerCase();
-    return el.rel === 'next' || /\b(siguiente|next)\b|^[›»→]+$/.test(label);
+  const isClickable = el => !(
+    el.disabled || el.getAttribute('aria-disabled') === 'true' ||
+    el.closest('[disabled], [aria-disabled="true"]'));
+  const pagerRoot = el => {
+    const known = el.closest(
+      '.pagination, .pager, [class*="pagin"], [id*="pagin"], [class*="paging"], [id*="paging"], [class*="pagebar"], [id*="pagebar"], nav[aria-label*="age"], nav[aria-label*="ágina"]'
+    );
+    if (known) return known;
+    // Provider-specific pagers can have no semantic class. Recognize only
+    // compact navigation groups of consecutive numbered links/buttons.
+    let parent = el.parentElement;
+    for (let depth = 0; parent && depth < 3; depth++, parent = parent.parentElement) {
+      const members = [...parent.querySelectorAll('a,button,[role="button"]')];
+      if (members.length < 3 || members.length > 20) continue;
+      const numbers = [...new Set(members.map(m =>
+        (m.textContent || '').trim()).filter(t => /^\d{1,4}$/.test(t)).map(Number))];
+      if (numbers.length >= 3 && numbers.length <= 12 &&
+          numbers.some(n => numbers.includes(n + 1))) return parent;
+    }
+    return null;
+  };
+  const pager = el => !!pagerRoot(el);
+  const controlNumber = el => {
+    const label = (el.textContent || '').trim();
+    return /^\d{1,4}$/.test(label) ? Number(label) : 0;
+  };
+  const forwardArrow = el => {
+    const meta = [el.getAttribute('aria-label'), el.title, el.rel,
+      el.getAttribute('data-action'), el.className,
+      ...[...el.querySelectorAll('i,svg,span')].map(n => n.getAttribute('class'))
+    ].filter(x => typeof x === 'string').join(' ').toLowerCase();
+    const label = (el.textContent || '').trim().toLowerCase();
+    if (/\b(prev|previous|anterior|back|atr[aá]s|left|izquierda)\b|(^|[-_])(prev|left)([-_]|$)/i.test(meta))
+      return false;
+    return /\b(next|siguiente|right|derecha|forward)\b|(^|[-_])(next|right)([-_]|$)/i.test(meta) ||
+      /^[›»→]+$/.test(label);
+  };
+  const activePageNumber = () => {
+    const active = [...document.querySelectorAll(
+      '.pagination .active, .pager .active, [class*="pagin"] .active, [class*="pagin"] .selected, [class*="pagin"] .current, [class*="paging"] .active, [class*="paging"] .current, [aria-current="page"]'
+    )].find(el => pager(el) && /^\d{1,4}$/.test((el.textContent || '').trim()));
+    return active ? Number(active.textContent.trim()) : 0;
   };
   const tabName = el => (el.getAttribute('aria-label') || el.textContent || '')
     .toLowerCase().trim().replace(/\s+/g, ' ').slice(0, 75);
@@ -124,62 +159,120 @@ DIRECTORY_SCAN_JS = r"""(() => {
     }
   }
   const activeTab = [...document.querySelectorAll('[role="tab"][aria-selected="true"], .nav-tabs .active, .tabs .active, .tablist .active, [data-toggle="tab"].active')].map(tabName).find(safeTab) || '';
-  const activePage = document.querySelector(
-    '.pagination .active, .pager .active, [aria-current="page"]'
-  )?.textContent?.trim().slice(0, 30) || '';
-  const activeNumber = /^\d+$/.test(activePage) ? Number(activePage) : 0;
+  const activeNumber = activePageNumber();
+  const activePage = activeNumber ? String(activeNumber) : '';
   let jsNext = false;
-  for (const el of document.querySelectorAll('a, button')) {
-    if (el.disabled || el.getAttribute('aria-disabled') === 'true' ||
-        el.closest('[disabled]')) continue;
-    const numericNext = pager(el) && activeNumber > 0 && /^\d+$/.test((el.textContent || '').trim())
-      && Number((el.textContent || '').trim()) === activeNumber + 1;
-    if ((!nextControl(el) && !numericNext) || !(pager(el) || el.rel === 'next')) continue;
+  let pager_numbers = [];
+  for (const el of document.querySelectorAll('a, button, [role="button"]')) {
+    if (!pager(el) || !isClickable(el)) continue;
+    const number = controlNumber(el);
+    if (number) pager_numbers.push(number);
+    const isNext = forwardArrow(el) ||
+      (number > 0 && (activeNumber ? number > activeNumber : number >= 2));
+    if (!isNext) continue;
     const href = el.getAttribute('href') || '';
     let url;
     try { url = new URL(href, location.href); } catch (_) { url = null; }
     if (!href || href.startsWith('#') || href.toLowerCase().startsWith('javascript:') ||
         (url && url.href === location.href)) jsNext = true;
   }
+  pager_numbers = [...new Set(pager_numbers)].sort((a,b) => a-b);
   const received = [...document.querySelectorAll(
     '[role="tab"], .nav-tabs a, .nav-tabs button, .tabs a, .tabs button, [data-toggle="tab"], [data-bs-toggle="tab"]'
   )].map(tabName).find(t => /^recibid[oa]s\s*\(\s*\d+\s*\)$/i.test(t));
   const reportedReceived = received ? Number(received.match(/\(\s*(\d+)\s*\)/)?.[1]) : null;
   return {candidates, offer_links: offerLinks, page_links: pageLinks,
           tabs_js: tabs, js_next: jsNext, active_page: activePage,
-          active_tab: activeTab, reported_received: reportedReceived};
+          active_tab: activeTab, reported_received: reportedReceived,
+          pager_numbers: pager_numbers};
 })()"""
 
 
 NEXT_PAGE_JS = r"""(() => {
-  const pathname = location.pathname.toLowerCase().replace(/\/$/, '');
+  const expectedFloor = __PAGE_FLOOR__;
   if (location.hostname !== 'empresa.co.computrabajo.com' ||
-      !['/company/offers', '/company/offers/match'].includes(pathname))
-    return {clicked: false};
-  const pager = el => !!el.closest(
-    '.pagination, .pager, [class*="pagination"], [class*="paginacion"], nav[aria-label*="age"], nav[aria-label*="ágina"]');
-  const activePage = document.querySelector(
-    '.pagination .active, .pager .active, [aria-current="page"]'
-  )?.textContent?.trim() || '';
-  const activeNumber = /^\d+$/.test(activePage) ? Number(activePage) : 0;
-  for (const el of document.querySelectorAll('a, button')) {
-    const label = (el.getAttribute('aria-label') || el.getAttribute('title') ||
-                   el.textContent || '').trim().toLowerCase();
-    const isNext = el.rel === 'next' || /\b(siguiente|next)\b|^[›»→]+$/.test(label)
-      || (pager(el) && activeNumber > 0 && /^\d+$/.test(label)
-          && Number(label) === activeNumber + 1);
-    if (!isNext || !(pager(el) || el.rel === 'next') ||
-        el.disabled || el.getAttribute('aria-disabled') === 'true') continue;
+      !['/company/offers', '/company/offers/match'].includes(
+        location.pathname.toLowerCase().replace(/\/$/, '')
+      )) return {clicked: false};
+  const isClickable = el => !(
+    el.disabled || el.getAttribute('aria-disabled') === 'true' ||
+    el.closest('[disabled], [aria-disabled="true"]'));
+  const pagerRoot = el => {
+    const known = el.closest(
+      '.pagination, .pager, [class*="pagin"], [id*="pagin"], [class*="paging"], [id*="paging"], [class*="pagebar"], [id*="pagebar"], nav[aria-label*="age"], nav[aria-label*="ágina"]'
+    );
+    if (known) return known;
+    // Provider-specific pagers can have no semantic class. Recognize only
+    // compact navigation groups of consecutive numbered links/buttons.
+    let parent = el.parentElement;
+    for (let depth = 0; parent && depth < 3; depth++, parent = parent.parentElement) {
+      const members = [...parent.querySelectorAll('a,button,[role="button"]')];
+      if (members.length < 3 || members.length > 20) continue;
+      const numbers = [...new Set(members.map(m =>
+        (m.textContent || '').trim()).filter(t => /^\d{1,4}$/.test(t)).map(Number))];
+      if (numbers.length >= 3 && numbers.length <= 12 &&
+          numbers.some(n => numbers.includes(n + 1))) return parent;
+    }
+    return null;
+  };
+  const pager = el => !!pagerRoot(el);
+  const controlNumber = el => {
+    const label = (el.textContent || '').trim();
+    return /^\d{1,4}$/.test(label) ? Number(label) : 0;
+  };
+  const forwardArrow = el => {
+    const meta = [el.getAttribute('aria-label'), el.title, el.rel,
+      el.getAttribute('data-action'), el.className,
+      ...[...el.querySelectorAll('i,svg,span')].map(n => n.getAttribute('class'))
+    ].filter(x => typeof x === 'string').join(' ').toLowerCase();
+    const label = (el.textContent || '').trim().toLowerCase();
+    if (/\b(prev|previous|anterior|back|atr[aá]s|left|izquierda)\b|(^|[-_])(prev|left)([-_]|$)/i.test(meta))
+      return false;
+    return /\b(next|siguiente|right|derecha|forward)\b|(^|[-_])(next|right)([-_]|$)/i.test(meta) ||
+      /^[›»→]+$/.test(label);
+  };
+  const activePageNumber = () => {
+    const active = [...document.querySelectorAll(
+      '.pagination .active, .pager .active, [class*="pagin"] .active, [class*="pagin"] .selected, [class*="pagin"] .current, [class*="paging"] .active, [class*="paging"] .current, [aria-current="page"]'
+    )].find(el => pager(el) && /^\d{1,4}$/.test((el.textContent || '').trim()));
+    return active ? Number(active.textContent.trim()) : 0;
+  };
+
+  const active = activePageNumber();
+  const floor = Math.max(active, expectedFloor);
+  const controls = [...document.querySelectorAll('a,button,[role="button"]')]
+    .filter(el => pager(el) && isClickable(el));
+  const candidates = controls.filter(el => controlNumber(el) > floor)
+    .sort((a,b) => controlNumber(a) - controlNumber(b));
+  const pageTarget = candidates[0];
+  const hasLocalClick = el => {
     const href = el.getAttribute('href') || '';
-    let u = null;
-    try { u = new URL(href, location.href); } catch (_) {}
-    if (href && !href.startsWith('#') && !href.toLowerCase().startsWith('javascript:') &&
-        u && u.href !== location.href) continue;
-    el.click();
-    return {clicked: true};
+    let url;
+    try { url = new URL(href, location.href); } catch (_) { url = null; }
+    return !href || href.startsWith('#') || /^javascript:/i.test(href) ||
+      (url && url.href === location.href);
+  };
+  if (pageTarget && hasLocalClick(pageTarget)) {
+    const targetPage = controlNumber(pageTarget);
+    pageTarget.click();
+    return {clicked: true, target_page: targetPage};
+  }
+  // When the visible numeric window ends (e.g. pages 1–5), advance using
+  // a *forward* caret, never the previous/back control.
+  const forward = controls.find(el => forwardArrow(el) && hasLocalClick(el));
+  if (forward) {
+    forward.click();
+    return {clicked: true, target_page: floor + 1, arrow: true};
   }
   return {clicked: false};
 })()"""
+
+
+def pagination_next_js(*, after_page: int = 0) -> str:
+    """Create a guarded click expression with a monotonically advancing floor."""
+    if not isinstance(after_page, int) or not 0 <= after_page <= 10000:
+        raise ValueError("COMPUTRABAJO_INVALID_PAGE")
+    return NEXT_PAGE_JS.replace("__PAGE_FLOOR__", str(after_page))
 
 
 def tab_click_js(name: str, *, candidate_list: bool = False) -> str:
