@@ -52,3 +52,15 @@ def test_tab_expression_restricts_to_known_status_filters():
     assert "clicked" in expression
     with pytest.raises(ValueError, match="COMPUTRABAJO_INVALID_TAB"):
         tab_click_js("x" * 76)
+
+
+def test_candidate_status_click_contract_is_read_only_and_domain_scoped():
+    for status in ("recibidos (547)", "seleccionados (6)", "descartados (65)"):
+        expression = tab_click_js(status)
+        assert status in expression
+        assert "'/company/offers/match'" in expression
+        assert ".click()" in expression
+        assert "fetch(" not in expression
+    assert "status_counts" in DIRECTORY_SCAN_JS
+    assert "reported_total" in DIRECTORY_SCAN_JS
+    assert "Number(current + 1)" in DIRECTORY_SCAN_JS
