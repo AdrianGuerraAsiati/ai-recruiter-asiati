@@ -47,19 +47,45 @@ def _fingerprint(source_account: str, external_id: str) -> str:
     ).hexdigest()
 
 
+class CandidateTransferError(RuntimeError):
+    """Safe, non-PII failure description for the agent interface."""
+
+    def __init__(self, stage: str, code: str):
+        self.stage = stage
+        self.code = code
+        super().__init__(f"{stage}:{code}")
+
+
+def _safe_transfer_code(exc: Exception) -> str:
+    # A status code distinguishes API incompatibility from missing PDF.
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int) and 400 <= status <= 599:
+        return f"HTTP_{status}"
+    message = str(exc)
+    if message.startswith("COMPUTRABAJO_") and message.isascii() and len(message) < 90:
+        return message
+    return type(exc).__name__
+
+
 def _submit_candidate(*, browser, api, source_account: str, candidate: dict) -> dict:
-    document = browser.collect_candidate(candidate)
-    # No job title or external job identifier is sent to Talent.
-    return api.ingest_source_candidate(
-        provider="COMPUTRABAJO",
-        source_account=source_account,
-        external_id=str(candidate["external_id"]),
-        candidate_name=document["name"],
-        filename=document["filename"],
-        data=document["data"],
-        content_type=document["content_type"],
-        job_title="",
-    )
+    try:
+        document = browser.collect_candidate(candidate)
+    except Exception as exc:
+        raise CandidateTransferError("descarga", _safe_transfer_code(exc)) from exc
+    try:
+        # No job title or external job identifier is sent to Talent.
+        return api.ingest_source_candidate(
+            provider="COMPUTRABAJO",
+            source_account=source_account,
+            external_id=str(candidate["external_id"]),
+            candidate_name=document["name"],
+            filename=document["filename"],
+            data=document["data"],
+            content_type=document["content_type"],
+            job_title="",
+        )
+    except Exception as exc:
+        raise CandidateTransferError("talent", _safe_transfer_code(exc)) from exc
 
 
 def sync_all_candidates(*, browser, api, source_account: str,
@@ -80,6 +106,7 @@ def sync_all_candidates(*, browser, api, source_account: str,
         "skipped": 0, "failed": 0,
         "pages": directory["pages"], "partial": directory["partial"],
         "cancelled": directory["cancelled"], "errors": [],
+        "blocked_pages": directory.get("blocked_pages", 0), "error_counts": {},
     }
     for index, candidate in enumerate(candidates, 1):
         if stop_requested and stop_requested():
@@ -102,7 +129,12 @@ def sync_all_candidates(*, browser, api, source_account: str,
             except Exception as exc:
                 result["failed"] += 1
                 # No candidate identifiers, names, or sensitive provider errors in logs.
-                result["errors"].append({"item": index, "code": type(exc).__name__})
+                code = (
+                    f"{exc.stage}:{exc.code}" if isinstance(exc, CandidateTransferError)
+                    else f"local:{type(exc).__name__}"
+                )
+                result["errors"].append({"item": index, "code": code})
+                result["error_counts"][code] = result["error_counts"].get(code, 0) + 1
         if progress:
             progress(index, result.copy())
     return result
