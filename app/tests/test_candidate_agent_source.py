@@ -199,3 +199,28 @@ def test_computrabajo_does_not_require_a_job_title_or_create_a_job(monkeypatch):
     )
     assert result.queued is True
     assert event.job_id is None
+
+
+def test_existing_unqueued_candidate_is_dispatched_on_retry(monkeypatch):
+    db = FakeDB()
+    payload = b"%PDF-1.7\nretry"
+    event = SimpleNamespace(
+        id="event-retry", status="STORED", queue_dispatched_at=None,
+    )
+    monkeypatch.setattr(agent_source_service.repository,
+        "get_event_by_external_id", lambda *a, **kw: event)
+    monkeypatch.setattr(agent_source_service.repository,
+        "list_documents", lambda *a, **kw: [
+            SimpleNamespace(document_sha256=hashlib.sha256(payload).hexdigest())
+        ])
+    queued = []
+    monkeypatch.setattr(agent_source_service.queue,
+        "send_candidate_ingestion", lambda id: queued.append(id))
+    result = agent_source_service.ingest_candidate_document(
+        db, owner_sub="owner", provider="COMPUTRABAJO", source_account="asiati",
+        external_id="candidate-1", candidate_name="Persona Ejemplo", job_title=None,
+        filename="cv.pdf", content_type="application/pdf", data=payload,
+    )
+    assert result.existing is True and result.queued is True
+    assert queued == ["event-retry"]
+    assert db.commits == 1
