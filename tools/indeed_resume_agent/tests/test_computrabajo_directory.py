@@ -4,7 +4,7 @@ import pytest
 
 from tools.indeed_resume_agent.computrabajo_directory import (
     DIRECTORY_SCAN_JS, NEXT_PAGE_JS, candidate_detail_url, directory_url,
-    tab_click_js,
+    pagination_next_js, tab_click_js,
 )
 
 
@@ -66,6 +66,13 @@ def test_candidate_tabs_have_a_read_only_scope_distinct_from_offer_tabs():
 
 
 def test_numeric_js_pagination_next_page_is_supported():
-    assert "activeNumber + 1" in DIRECTORY_SCAN_JS
-    assert "activeNumber + 1" in NEXT_PAGE_JS
-    assert "pager(el)" in NEXT_PAGE_JS
+    assert "pager_numbers" in DIRECTORY_SCAN_JS
+    assert "pagerRoot" in DIRECTORY_SCAN_JS
+    assert "pagerRoot" in NEXT_PAGE_JS
+    assert "forwardArrow" in NEXT_PAGE_JS
+    assert "expectedFloor" in NEXT_PAGE_JS
+    assert "target_page" in NEXT_PAGE_JS
+    assert "const expectedFloor = 5;" in pagination_next_js(after_page=5)
+    assert "const expectedFloor = __PAGE_FLOOR__" in NEXT_PAGE_JS
+    with pytest.raises(ValueError, match="COMPUTRABAJO_INVALID_PAGE"):
+        pagination_next_js(after_page=-1)
