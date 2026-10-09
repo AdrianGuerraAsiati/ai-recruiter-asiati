@@ -1,20 +1,16 @@
 from __future__ import annotations
 
+import os
 import queue
 import threading
 
 
 def run_computrabajo_ui(*, browser, api_factory=None) -> None:
-    """Computrabajo shell kept separate from the production Indeed workflow.
-
-    The browser/session boundary is ready now. Automatic candidate and vacancy
-    collectors stay disabled until we validate the authenticated Computrabajo
-    DOM and add provider-specific contracts/tests instead of guessing selectors.
-    """
+    """Candidate-only automatic synchronization using the separate browser session."""
 
     import tkinter as tk
-    from tkinter import ttk, simpledialog, messagebox
-    from .computrabajo_sync import sync_visible_candidates
+    from tkinter import ttk
+    from .computrabajo_sync import sync_all_candidates
 
     root = tk.Tk()
     root.title("ASIATI Recruiter Agent · Computrabajo")
@@ -25,6 +21,7 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
     commands: queue.Queue[str] = queue.Queue()
     updates: queue.Queue[tuple[str, str]] = queue.Queue()
     stop_event = threading.Event()
+    cancel_event = threading.Event()
 
     shell = tk.Frame(root, background="#F4F7FB", padx=24, pady=22)
     shell.pack(fill="both", expand=True)
@@ -155,41 +152,27 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
 
     def confirm_sync() -> None:
         if api_factory is None:
-            return
-        account = simpledialog.askstring(
-            "Computrabajo", "Identificador de la cuenta de Computrabajo", parent=root
-        )
-        if not account:
-            return
-        job = simpledialog.askstring(
-            "Computrabajo", "Nombre de la vacante abierta", parent=root
-        )
-        if not job:
-            return
-        if not messagebox.askyesno(
-            "Confirmar sincronización",
-            "Se enviarán a Talent los candidatos visibles en esta página. "
-            "Se intentará descargar el CV adjunto o generar un PDF del perfil.",
-            parent=root,
-        ):
+            status_var.set("No hay conexión configurada con Talent.")
             return
         try:
             api = api_factory()
         except Exception:
             status_var.set("No se pudo obtener la credencial de Talent.")
             return
-        commands.put(("sync", api, account.strip(), job.strip()))
+        cancel_event.clear()
+        account = os.getenv("ASIATI_COMPUTRABAJO_SOURCE_ACCOUNT", "ASIATI").strip()
+        commands.put(("sync_all", api, account))
 
     sync_button = ttk.Button(
-        actions, text="Agregar candidatos a Talent", command=confirm_sync,
+        actions, text="Sincronizar todos los candidatos", command=confirm_sync,
     )
-    sync_button.grid(
-        row=2,
-        column=0,
-        columnspan=3,
-        sticky="ew",
-        pady=(5, 0),
+    sync_button.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(5, 0))
+
+    cancel_button = ttk.Button(
+        actions, text="Detener sincronización",
+        command=lambda: cancel_event.set(), state="disabled",
     )
+    cancel_button.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(5, 0))
 
     note = tk.Frame(
         shell,
@@ -211,10 +194,9 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
     tk.Label(
         note,
         text=(
-            "Computrabajo ya usa una sesión de navegador separada de Indeed. "
-            "La sincronización automática permanece bloqueada hasta validar el DOM "
-            "autenticado y definir selectores propios de vacantes, candidatos y "
-            "descarga de CV."
+            "Solo se importan candidatos. Las ofertas se consultan como navegación "
+            "del portal, pero no se crean ni vinculan vacantes en Talent. "
+            "Si la paginación no se puede verificar, la ejecución se informa como parcial."
         ),
         background="#FFFAEB",
         foreground="#475467",
@@ -231,24 +213,31 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
             except queue.Empty:
                 continue
 
-            if isinstance(command, tuple) and command[0] == "sync":
-                _, api, account, job = command
-                updates.put(("busy", "Sincronizando candidatos visibles con Talent…"))
+            if isinstance(command, tuple) and command[0] == "sync_all":
+                _, api, account = command
+                updates.put(("busy", "Buscando candidatos en todas las páginas disponibles…"))
                 try:
-                    report = sync_visible_candidates(
-                        browser=browser, api=api, source_account=account, job_title=job,
-                        stop_requested=stop_event.is_set,
+                    report = sync_all_candidates(
+                        browser=browser, api=api, source_account=account,
+                        stop_requested=lambda: stop_event.is_set() or cancel_event.is_set(),
                         progress=lambda index, result: updates.put((
-                            "busy", f"Procesados {index}/{result['total']}: "
+                            "busy", f"Procesados {index}/{result['total']} · "
                             f"{result['created']} nuevos, {result['existing']} existentes, "
+                            f"{result['skipped']} ya sincronizados, "
                             f"{result['failed']} fallidos"
                         )),
                     )
-                    updates.put(("ready", "Sincronización finalizada: "
+                    status = "Atención: ejecución parcial" if (
+                        report["partial"] or report["cancelled"] or report["failed"]
+                    ) else "Sincronización completada"
+                    updates.put(("ready", f"{status}. "
+                        f"{report['pages']} páginas revisadas; "
                         f"{report['created']} nuevos, {report['existing']} existentes, "
-                        f"{report['failed']} fallidos."))
-                except Exception:
-                    updates.put(("error", "No fue posible sincronizar. Revisa la vacante y conexión con Talent."))
+                        f"{report['skipped']} omitidos y {report['failed']} errores."))
+                except Exception as exc:
+                    updates.put(("error",
+                        "No se completó la sincronización de candidatos (" +
+                        type(exc).__name__ + "). Verifica sesión y paginación."))
                 finally:
                     api.close()
                 continue
@@ -384,6 +373,7 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
                 busy = state in {"busy", "diagnostic_busy"}
                 discover_button.configure(state="disabled" if busy else "normal")
                 sync_button.configure(state="disabled" if busy else "normal")
+                cancel_button.configure(state="normal" if busy else "disabled")
                 logout_button.configure(state="disabled" if busy else "normal")
                 open_button.configure(
                     state="disabled" if busy else "normal"
@@ -404,6 +394,7 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
             root.after(200, drain_updates)
 
     def on_close() -> None:
+        cancel_event.set()
         stop_event.set()
         root.destroy()
 
