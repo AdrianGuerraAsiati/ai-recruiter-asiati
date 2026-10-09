@@ -152,7 +152,7 @@ def test_js_next_stuck_marks_partial_instead_of_claiming_all():
         candidates=[directory_candidate("A")],
         js_next=True, active_page="1",
     )
-    browser._evaluate = AsyncMock(side_effect=[first, {"clicked": True}] + [first] * 14)
+    browser._evaluate = AsyncMock(side_effect=[first, {"clicked": True}] + [first] * 24)
     output = asyncio.run(browser._discover_all_candidates_async(max_pages=20))
     assert output["pages"] == 1
     assert output["unresolved_pagination"] == 1
