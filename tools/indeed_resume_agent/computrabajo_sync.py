@@ -113,6 +113,8 @@ def sync_all_candidates(*, browser, api, source_account: str,
         "candidate_pages": directory.get("candidate_pages", 0),
         "listing_pages": directory.get("listing_pages", 0),
         "unresolved_pagination": directory.get("unresolved_pagination", 0),
+        "expected_candidates": directory.get("expected_candidates", 0),
+        "missing_candidates": directory.get("missing_candidates", 0),
     }
     for index, candidate in enumerate(candidates, 1):
         if stop_requested and stop_requested():
