@@ -118,11 +118,12 @@ def directory_candidate(letter):
 
 
 def directory_page(*, candidates=(), offers=(), links=(), tabs=(),
-                   js_next=False, active_page=""):
+                   js_next=False, active_page="", active_tab=""):
     return {
         "candidates": list(candidates), "offer_links": list(offers),
         "page_links": list(links), "tabs_js": list(tabs),
         "js_next": js_next, "active_page": active_page,
+        "active_tab": active_tab,
     }
 
 
