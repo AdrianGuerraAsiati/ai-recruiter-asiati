@@ -142,11 +142,11 @@ def test_offer_collector_covers_618_candidates_across_statuses_and_pages(monkeyp
     finalistas = page("finalistas", 554, 0, False)
     discarded = page("descartados", 554, 65, False)
     state = {"status": "recibidos", "page": 0}
-    async def read(_):
+    async def read(_, __):
         return (received[state["page"]] if state["status"] == "recibidos"
                 else {"seleccionados": selected, "finalistas": finalistas,
                       "descartados": discarded}[state["status"]])
-    async def click(_, kind, status=""):
+    async def click(_, __, kind, status=""):
         if kind == "status":
             state["status"] = status
             state["page"] = 0
@@ -156,8 +156,8 @@ def test_offer_collector_covers_618_candidates_across_statuses_and_pages(monkeyp
     async def open_portal(url):
         state["status"] = "recibidos"
         state["page"] = 0
-    async def wait(_, previous):
-        return await read(None)
+    async def wait(_, __, previous):
+        return await read(None, None)
     b._candidate_listing_snapshot = read
     b._click_candidate_listing_control = click
     b._open_portal = open_portal
