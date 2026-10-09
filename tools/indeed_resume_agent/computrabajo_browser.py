@@ -838,21 +838,23 @@ class ComputrabajoBrowserUse:
             candidates.push({external_id: id, candidate_name: name,
                              detail_url: u.href});
           }
+          const activePage = document.querySelector(
+            '.pagination .active,.pager .active,[class*="pagin"] .active,[aria-current="page"]');
+          const marker = (activePage?.textContent || '').trim().slice(0,20);
+          const currentPage = /^\d+$/.test(marker) ? Number(marker) : 0;
           const nextCandidates = [...document.querySelectorAll('a,button')]
             .filter(el => {
               const container = el.closest('.pagination,.pager,[class*="pagin"],nav[aria-label]');
               const txt = [label(el), el.getAttribute('aria-label') || '',
                            el.title || ''].join(' ').toLowerCase();
               return !!container && (/siguiente|next|^\s*[›»>]\s*$/i.test(txt) ||
-                                     el.rel?.toLowerCase() === 'next');
+                                     el.rel?.toLowerCase() === 'next' ||
+                                     (currentPage > 0 && label(el) === String(currentPage+1)));
             });
           const next = nextCandidates.some(el => !el.disabled &&
             el.getAttribute('aria-disabled') !== 'true' &&
             !el.closest('.disabled,[aria-disabled="true"]') &&
             !el.matches('.disabled'));
-          const activePage = document.querySelector(
-            '.pagination .active,.pager .active,[class*="pagin"] .active,[aria-current="page"]');
-          const marker = (activePage?.textContent || '').trim().slice(0,20);
           const total = text.match(/(\d{1,7})\s+candidatos inscritos/);
           return {
             candidates, statuses: available, counts, active_status: active,
@@ -1261,8 +1263,13 @@ class ComputrabajoBrowserUse:
               const container = el.closest('.pagination,.pager,[class*="pagin"],nav[aria-label]');
               const txt = [label(el),el.getAttribute('aria-label')||'',el.title||'']
                 .join(' ').toLowerCase();
+              const activePage = document.querySelector(
+                '.pagination .active,.pager .active,[class*="pagin"] .active,[aria-current="page"]');
+              const activeText = (activePage?.textContent || '').trim();
+              const currentPage = /^\d+$/.test(activeText) ? Number(activeText) : 0;
               return !!container && (/siguiente|next|^\s*[›»>]\s*$/i.test(txt) ||
-                                      el.rel?.toLowerCase() === 'next');
+                                      el.rel?.toLowerCase() === 'next' ||
+                                      (currentPage > 0 && label(el) === String(currentPage+1)));
             });
           const chosen = matches[0];
           if (!chosen) return false;
