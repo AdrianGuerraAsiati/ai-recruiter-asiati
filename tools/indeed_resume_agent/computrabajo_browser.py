@@ -418,7 +418,7 @@ class ComputrabajoBrowserUse:
         from urllib.parse import parse_qs
         from .computrabajo_directory import (
             OFFERS_START, CANDIDATES_PATH, DIRECTORY_SCAN_JS,
-            NEXT_PAGE_JS, directory_url, candidate_detail_url, tab_click_js,
+            pagination_next_js, directory_url, candidate_detail_url, tab_click_js,
         )
 
         if not 1 <= max_pages <= 1000:
@@ -493,6 +493,7 @@ class ComputrabajoBrowserUse:
                 await asyncio.sleep(0.6)
 
             previous_signature = tab_base_signature
+            last_numeric_page = 1
             while pages < max_pages:
                 if stop_requested and stop_requested():
                     cancelled = True
@@ -570,10 +571,15 @@ class ComputrabajoBrowserUse:
                     unresolved_pagination += 1
                 if not page.get("js_next"):
                     break
-                clicked = await self._evaluate(cdp, NEXT_PAGE_JS)
+                clicked = await self._evaluate(
+                    cdp, pagination_next_js(after_page=last_numeric_page)
+                )
                 if not isinstance(clicked, dict) or not clicked.get("clicked"):
                     unresolved_pagination += 1
                     break
+                target_page = clicked.get("target_page")
+                if (type(target_page) is int and 1 <= target_page <= 10000):
+                    last_numeric_page = max(last_numeric_page, target_page)
                 await asyncio.sleep(0.45)
             if cancelled:
                 break
