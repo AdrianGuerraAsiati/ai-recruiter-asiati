@@ -56,7 +56,7 @@ def test_full_directory_scans_links_and_skips_foreign_pages():
         {"candidates": [{
             "external_id": "A" * 32,
             "candidate_name": "Example",
-            "detail_url": "https://empresa.co.computrabajo.com/Company/MatchCvDetail/MatchDetail?ims=aaa",
+            "detail_url": "https://empresa.co.computrabajo.com/Company/MatchCvDetail/MatchDetail?ims=" + "A" * 32,
         }], "offer_links": [], "page_links": [], "unsupported_pagination": False},
     ])
     directory = asyncio.run(b._discover_all_candidates_async(max_pages=5))
@@ -71,7 +71,7 @@ def test_directory_reports_partial_when_pagination_cannot_be_followed():
     b._open_portal = AsyncMock()
     b._evaluate = AsyncMock(return_value={
         "candidates": [{"external_id": "A" * 32, "candidate_name": "Example",
-            "detail_url": "https://empresa.co.computrabajo.com/Company/MatchCvDetail/MatchDetail?ims=abc"}],
+            "detail_url": "https://empresa.co.computrabajo.com/Company/MatchCvDetail/MatchDetail?ims=" + "A" * 32}],
         "offer_links": [], "page_links": [], "unsupported_pagination": True,
     })
     directory = asyncio.run(b._discover_all_candidates_async(max_pages=1))
@@ -97,7 +97,7 @@ def test_expired_offer_is_skipped_and_marked_partial():
          "page_links": [], "unsupported_pagination": False},
         {"candidates": [{
             "external_id": "A" * 32, "candidate_name": "Example",
-            "detail_url": "https://empresa.co.computrabajo.com/Company/MatchCvDetail/MatchDetail?ims=abc",
+            "detail_url": "https://empresa.co.computrabajo.com/Company/MatchCvDetail/MatchDetail?ims=" + "A" * 32,
         }], "offer_links": [], "page_links": [],
          "unsupported_pagination": False},
     ])
@@ -106,3 +106,89 @@ def test_expired_offer_is_skipped_and_marked_partial():
     assert result["blocked_pages"] == 1
     assert result["partial"] is True
     assert len(result["candidates"]) == 1
+
+
+
+def directory_candidate(letter):
+    return {
+        "external_id": letter * 32,
+        "candidate_name": "Anonymous applicant",
+        "detail_url": "https://empresa.co.computrabajo.com/Company/MatchCvDetail/MatchDetail?ims=" + letter * 32,
+    }
+
+
+def directory_page(*, candidates=(), offers=(), links=(), tabs=(),
+                   js_next=False, active_page=""):
+    return {
+        "candidates": list(candidates), "offer_links": list(offers),
+        "page_links": list(links), "tabs_js": list(tabs),
+        "js_next": js_next, "active_page": active_page,
+    }
+
+
+def test_js_next_pagination_reads_more_candidates_without_reimporting_offers():
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    browser._evaluate = AsyncMock(side_effect=[
+        directory_page(candidates=[directory_candidate("A")],
+                       js_next=True, active_page="1"),
+        {"clicked": True},
+        directory_page(candidates=[directory_candidate("B")],
+                       js_next=False, active_page="2"),
+    ])
+    output = asyncio.run(browser._discover_all_candidates_async(max_pages=20))
+    assert output["candidate_pages"] == 0  # root offers page in fixture
+    assert output["pages"] == 2
+    assert len(output["candidates"]) == 2
+    assert output["unresolved_pagination"] == 0
+    assert output["partial"] is False
+
+
+def test_js_next_stuck_marks_partial_instead_of_claiming_all():
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    first = directory_page(
+        candidates=[directory_candidate("A")],
+        js_next=True, active_page="1",
+    )
+    browser._evaluate = AsyncMock(side_effect=[first, {"clicked": True}] + [first] * 14)
+    output = asyncio.run(browser._discover_all_candidates_async(max_pages=20))
+    assert output["pages"] == 1
+    assert output["unresolved_pagination"] == 1
+    assert output["partial"] is True
+    assert len(output["candidates"]) == 1
+
+
+def test_approved_listing_tabs_discover_more_accessible_offers():
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    listing = "https://empresa.co.computrabajo.com/Company/Offers/Match?oi=" + "B" * 32
+    browser._evaluate = AsyncMock(side_effect=[
+        directory_page(tabs=["finalizadas"]),
+        directory_page(tabs=["finalizadas"]),   # base before switching tab
+        {"clicked": True},
+        directory_page(offers=[listing]),       # after switching tab
+        directory_page(candidates=[directory_candidate("A")]),
+    ])
+    output = asyncio.run(browser._discover_all_candidates_async(max_pages=10))
+    assert output["pages"] == 3
+    assert output["offers_found"] == 1
+    assert len(output["candidates"]) == 1
+    assert output["partial"] is False
+
+
+def test_duplicate_candidates_across_multiple_lists_are_returned_once():
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    first = "https://empresa.co.computrabajo.com/Company/Offers/Match?oi=" + "B" * 32
+    second = "https://empresa.co.computrabajo.com/Company/Offers/Match?oi=" + "C" * 32
+    browser._evaluate = AsyncMock(side_effect=[
+        directory_page(offers=[first, second]),
+        directory_page(candidates=[directory_candidate("A")]),
+        directory_page(candidates=[directory_candidate("A")]),
+    ])
+    output = asyncio.run(browser._discover_all_candidates_async(max_pages=10))
+    assert output["offers_found"] == 2
+    assert output["candidate_pages"] == 2
+    assert output["pages"] == 3
+    assert len(output["candidates"]) == 1
