@@ -405,6 +405,968 @@ class ComputrabajoBrowserUse:
         return self._call(self._discover_visible_candidates_async(), timeout=30.0)
 
 
+    async def _candidate_listing_snapshot(self, cdp) -> dict:
+        """Read the current accessible candidate tab without changing any status."""
+        payload = await self._evaluate(cdp, r"""(() => {
+          if (location.hostname !== 'empresa.co.computrabajo.com' ||
+              location.pathname.toLowerCase().replace(/\/$/, '') !== '/company/offers/match')
+            return {error: 'COMPUTRABAJO_LIST_REQUIRED'};
+          const text = (document.body?.innerText || '').toLowerCase();
+          if (/su oferta de empleo ha vencido|oferta de empleo ha vencido|contratar una membresía/i.test(text))
+            return {error: 'COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED'};
+          const statuses = ['recibidos', 'seleccionados', 'finalistas', 'descartados'];
+          const label = el => (el.innerText || el.textContent || '')
+            .replace(/\s+/g, ' ').trim().toLowerCase();
+          const controls = [...document.querySelectorAll('a,button,[role="tab"]')]
+            .filter(el => statuses.some(s => new RegExp('^' + s + '\\s*\\(\\s*\\d+\\s*\\)(self, *, max_pages: int = 500,
+                                             stop_requested=None) -> dict:
+        """Walk accessible employer listings only to find people; never sync offers.
+
+        Only explicit, authenticated employer-page hrefs are followed. When the
+        provider uses unsupported JS-only pagination the run is marked partial,
+        never advertised as a complete account-wide sync.
+        """
+        from collections import deque
+        from string import hexdigits
+
+        if max_pages < 1 or max_pages > 1000:
+            raise ValueError("COMPUTRABAJO_INVALID_PAGE_LIMIT")
+        start = "https://empresa.co.computrabajo.com/Company/Offers"
+        pending = deque([start])
+        visited: set[str] = set()
+        found: dict[str, dict] = {}
+        unsupported_pagination = False
+        blocked_pages = 0
+        cancelled = False
+
+        while pending and len(visited) < max_pages:
+            if stop_requested and stop_requested():
+                cancelled = True
+                break
+            url = pending.popleft()
+            if url in visited:
+                continue
+            parsed = urlparse(url)
+            if (parsed.scheme != "https" or
+                parsed.hostname != "empresa.co.computrabajo.com" or
+                parsed.path.casefold().rstrip("/") not in
+                    {"/company/offers", "/company/offers/match"}):
+                raise ValueError("COMPUTRABAJO_UNSAFE_DISCOVERY_PAGE")
+            await self._open_portal(url)
+            cdp = await self._ensure_started()
+            scan_script = """(() => {
+              if (location.hostname !== 'empresa.co.computrabajo.com' ||
+                  !/^\/company\/offers(?:\/match)?\/?$/i.test(location.pathname)) {
+                return {error: 'COMPUTRABAJO_LOGIN_OR_LIST_REQUIRED'};
+              }
+              const offerLinks = [], pageLinks = [], candidates = [];
+              const pageText = (document.body?.innerText || '').toLowerCase();
+              if (/su oferta de empleo ha vencido|oferta de empleo ha vencido|contratar una membresía/i.test(pageText))
+                return {access_denied: 'OFFER_EXPIRED', candidates: [],
+                        offer_links: [], page_links: [], unsupported_pagination: false};
+              const seen = new Set();
+              const here = location.pathname.toLowerCase().replace(/\/$/, '');
+              for (const a of document.querySelectorAll('a[href]')) {
+                let u;
+                try { u = new URL(a.href, location.href); } catch (_) { continue; }
+                if (u.origin !== location.origin) continue;
+                const path = u.pathname.toLowerCase().replace(/\/$/, '');
+                if (path === '/company/matchcvdetail/matchdetail' &&
+                    here === '/company/offers/match') {
+                  const id = u.searchParams.get('ims') || '';
+                  if (!/^[a-f0-9]{16,64}$/i.test(id) || seen.has(id)) continue;
+                  seen.add(id);
+                  const name = (a.querySelector('strong, b, h3, h4')?.textContent ||
+                    a.textContent || '').split('\\n')[0].trim().slice(0, 180);
+                  candidates.push({external_id: id, candidate_name: name,
+                                   detail_url: u.href});
+                } else if (path === '/company/offers/match' &&
+                           here === '/company/offers' && u.searchParams.get('oi')) {
+                  offerLinks.push(u.href);
+                } else if (path === here && u.search !== location.search) {
+                  const nav = a.closest('.pagination,.pager,nav[aria-label]') ||
+                    a.rel?.toLowerCase() === 'next' ||
+                    /siguiente|next|página|page/i.test(
+                      [a.getAttribute('aria-label'), a.title].join(' '));
+                  if (nav) pageLinks.push(u.href);
+                }
+              }
+              const unlinked = [...document.querySelectorAll('button, a:not([href]), a[href="#"], a[href="javascript:void(0)"]')]
+                .some(el => !el.disabled && /^(siguiente|next|›|»)$/i.test(
+                  (el.getAttribute('aria-label') || el.textContent || '').trim()));
+              return {offer_links: offerLinks, page_links: pageLinks,
+                      candidates, unsupported_pagination: unlinked};
+            })()"""
+            # Wait briefly for client-side lists to hydrate after document.readyState.
+            page = None
+            for attempt in range(6):
+                page = await self._evaluate(cdp, scan_script)
+                if (not isinstance(page, dict) or page.get("error") or
+                    page.get("access_denied") or page.get("candidates") or
+                    page.get("offer_links") or page.get("page_links") or
+                    attempt == 5):
+                    break
+                await asyncio.sleep(0.65)
+            if not isinstance(page, dict) or page.get("error"):
+                raise ValueError("COMPUTRABAJO_LOGIN_OR_LIST_REQUIRED")
+            if not isinstance(page.get("candidates"), list):
+                raise RuntimeError("COMPUTRABAJO_DISCOVERY_INVALID")
+            visited.add(url)
+            if page.get("access_denied"):
+                blocked_pages += 1
+                continue
+            unsupported_pagination |= bool(page.get("unsupported_pagination"))
+            for candidate in page["candidates"]:
+                if not isinstance(candidate, dict):
+                    continue
+                external_id = str(candidate.get("external_id") or "")
+                detail = str(candidate.get("detail_url") or "")
+                candidate_url = urlparse(detail)
+                if (not 16 <= len(external_id) <= 64 or
+                    any(ch not in hexdigits for ch in external_id) or
+                    candidate_url.scheme != "https" or
+                    candidate_url.hostname != "empresa.co.computrabajo.com" or
+                    candidate_url.path.casefold() != "/company/matchcvdetail/matchdetail" or
+                    not candidate_url.query):
+                    continue
+                found.setdefault(external_id.casefold(), candidate)
+            for link in page.get("offer_links", []) + page.get("page_links", []):
+                if not isinstance(link, str):
+                    continue
+                target = urlparse(link)
+                if (target.scheme == "https" and
+                    target.hostname == "empresa.co.computrabajo.com" and
+                    target.path.casefold().rstrip("/") in
+                        {"/company/offers", "/company/offers/match"} and
+                    link not in visited and link not in pending):
+                    pending.append(link)
+            await asyncio.sleep(0.15)
+        if not found and not cancelled:
+            raise ValueError(
+                "COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED"
+                if blocked_pages else "COMPUTRABAJO_NO_CANDIDATES_DISCOVERED"
+            )
+        return {
+            "candidates": list(found.values()),
+            "pages": len(visited),
+            "blocked_pages": blocked_pages,
+            "cancelled": cancelled,
+            "partial": bool(pending) or unsupported_pagination or bool(blocked_pages),
+        }
+
+    def discover_all_candidates(self, *, max_pages: int = 500,
+                                stop_requested=None) -> dict:
+        return self._call(
+            self._discover_all_candidates_async(
+                max_pages=max_pages, stop_requested=stop_requested
+            ), timeout=max(300.0, max_pages * 12.0),
+        )
+
+    async def _collect_candidate_async(self, candidate: dict) -> dict:
+        """Navigate to one discovered profile and obtain CV bytes within browser session.
+
+        Prefer the provider attachment; PDF fallback only on unsupported/missing file.
+        """
+        detail_url = str(candidate.get("detail_url") or "")
+        parsed = urlparse(detail_url)
+        if (parsed.scheme != "https" or parsed.hostname != "empresa.co.computrabajo.com"
+                or parsed.path.lower() != "/company/matchcvdetail/matchdetail"):
+            raise ValueError("COMPUTRABAJO_INVALID_CANDIDATE_URL")
+        cdp = await self._ensure_started()
+        await cdp.cdp_client.send.Page.navigate(
+            params={"url": detail_url}, session_id=cdp.session_id,
+        )
+        await self._wait_ready(cdp)
+        info = await self._evaluate(cdp, """(() => {
+            if (location.hostname !== 'empresa.co.computrabajo.com' ||
+                location.pathname.toLowerCase() !== '/company/matchcvdetail/matchdetail') {
+                return {error: 'COMPUTRABAJO_PROFILE_REQUIRED'};
+            }
+            const content = (document.body?.innerText || '').toLowerCase();
+            if (/su oferta de empleo ha vencido|oferta de empleo ha vencido|contratar una membresía/i.test(content))
+                return {error: 'COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED'};
+            const links = [...document.querySelectorAll('a.js_download_file[href], a[href*="CvDownloader"]')];
+            const valid = links.map(a => {
+                try { return new URL(a.href, location.href); }
+                catch (_) { return null; }
+            }).filter(u => u && u.origin === location.origin &&
+                u.pathname.toLowerCase() === '/company/cvdownloader/company/cvdetail/download' &&
+                u.searchParams.has('ims'));
+            const name = (document.querySelector('h1.fs22, h1')?.textContent || '').trim();
+            return {name: name.slice(0, 180),
+                    attachment_url: valid[0]?.href || ''};
+        })()""")
+        if not isinstance(info, dict):
+            raise RuntimeError("COMPUTRABAJO_PROFILE_INVALID")
+        if info.get("error"):
+            raise RuntimeError(str(info["error"]))
+        name = str(candidate.get("candidate_name") or info.get("name") or "").strip()
+        if not name:
+            raise RuntimeError("COMPUTRABAJO_NAME_MISSING")
+        if not info.get("attachment_url") and not info.get("name"):
+            raise RuntimeError("COMPUTRABAJO_PROFILE_CONTENT_UNAVAILABLE")
+        if info.get("attachment_url"):
+            encoded = json.dumps(str(info["attachment_url"]))
+            result = await self._evaluate(cdp, """(async () => {
+                const url = """ + encoded + """;
+                try {
+                    const response = await fetch(url, {credentials: 'same-origin'});
+                    const type = response.headers.get('content-type') || '';
+                    if (response.status === 401 || response.status === 403)
+                        return {access_denied: true};
+                    if (!response.ok || /text\\/html|application\\/json/i.test(type))
+                        return {unsupported: true};
+                    const buffer = await response.arrayBuffer();
+                    if (buffer.byteLength < 8 || buffer.byteLength > 15 * 1024 * 1024)
+                        return {unsupported: true};
+                    const view = new Uint8Array(buffer);
+                    let raw = '';
+                    for (let i=0; i<view.length; i+=8192)
+                        raw += String.fromCharCode(...view.subarray(i, i+8192));
+                    return {content: btoa(raw), type};
+                } catch (_) { return {unsupported: true}; }
+            })()""")
+            if isinstance(result, dict) and result.get("access_denied"):
+                raise RuntimeError("COMPUTRABAJO_CV_ACCESS_DENIED")
+            if isinstance(result, dict) and result.get("content"):
+                raw = base64.b64decode(result["content"], validate=True)
+                if raw.lstrip().startswith(b"%PDF-"):
+                    return dict(name=name, data=raw, filename="computrabajo-cv.pdf",
+                                content_type="application/pdf", kind="attached")
+                if raw.startswith(b"PK") and len(raw) <= 15 * 1024 * 1024:
+                    return dict(name=name, data=raw, filename="computrabajo-cv.docx",
+                                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                kind="attached")
+        response = await cdp.cdp_client.send.Page.printToPDF(
+            params={"printBackground": True, "preferCSSPageSize": True},
+            session_id=cdp.session_id,
+        )
+        encoded = response.get("data") if isinstance(response, dict) else None
+        if not encoded:
+            raise RuntimeError("COMPUTRABAJO_PRINT_EMPTY")
+        raw = base64.b64decode(encoded, validate=True)
+        if not raw.startswith(b"%PDF-") or len(raw) > 15 * 1024 * 1024:
+            raise RuntimeError("COMPUTRABAJO_PRINT_INVALID")
+        return dict(name=name, data=raw, filename="computrabajo-profile.pdf",
+                    content_type="application/pdf", kind="profile")
+
+    def collect_candidate(self, candidate: dict) -> dict:
+        return self._call(self._collect_candidate_async(candidate), timeout=90.0)
+
+    async def _save_visible_profile_pdf_async(self) -> str:
+        """Export a user-opened Computrabajo profile, without bulk collection."""
+        cdp = await self._ensure_started()
+        page = await self._page_metadata(cdp)
+        url = str(page.get("url") or "")
+        parsed = urlparse(url)
+        if (
+            parsed.hostname != "empresa.co.computrabajo.com"
+            or parsed.path.casefold() not in (
+                "/company/matchcvdetail/matchdetail",
+                "/company/matchcvdetail/matchprint",
+            )
+        ):
+            raise ValueError("COMPUTRABAJO_PROFILE_REQUIRED")
+        response = await cdp.cdp_client.send.Page.printToPDF(
+            params={"printBackground": True, "preferCSSPageSize": True},
+            session_id=cdp.session_id,
+        )
+        encoded = response.get("data") if isinstance(response, dict) else None
+        if not encoded:
+            raise RuntimeError("COMPUTRABAJO_PDF_EMPTY")
+        data = base64.b64decode(encoded, validate=True)
+        if not data.startswith(b"%PDF-") or len(data) > 20 * 1024 * 1024:
+            raise RuntimeError("COMPUTRABAJO_PDF_INVALID")
+        folder = self._profile_dir.parent / "exports" / "computrabajo"
+        folder.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        destination = folder / f"profile-{stamp}.pdf"
+        destination.write_bytes(data)
+        return str(destination)
+
+    def save_visible_profile_pdf(self) -> str:
+        return self._call(self._save_visible_profile_pdf_async(), timeout=60.0)
+
+    async def _page_metadata(self, cdp) -> dict:
+        value = await self._evaluate(
+            cdp,
+            "(() => ({url: location.href, title: document.title || ''}))()",
+        )
+        return value if isinstance(value, dict) else {}
+
+    async def _start_diagnostic_async(self) -> None:
+        self._diagnostic_events = []
+        self._diagnostic_started_at = datetime.now(timezone.utc).isoformat()
+        self._diagnostic_active = True
+        await self._open_portal()
+
+    def start_diagnostic(self) -> None:
+        self._call(self._start_diagnostic_async())
+
+    def poll_diagnostic(self) -> None:
+        if not self._diagnostic_active:
+            return
+        self._call(self._ensure_started(), timeout=15.0)
+
+    async def _stop_diagnostic_async(self) -> str | None:
+        if not self._diagnostic_active:
+            return self._last_diagnostic_path
+        self._diagnostic_active = False
+        cdp = await self._ensure_started()
+        diagnostics_dir = self._profile_dir.parent / "diagnostics"
+        diagnostics_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        json_path = (
+            diagnostics_dir
+            / f"computrabajo-flow-diagnostic-{stamp}.json"
+        )
+        png_path = (
+            diagnostics_dir
+            / f"computrabajo-flow-diagnostic-{stamp}.png"
+        )
+        page = await self._page_metadata(cdp)
+        screenshot_saved = False
+        if self._config.diagnostic_screenshots:
+            try:
+                shot = await cdp.cdp_client.send.Page.captureScreenshot(
+                    params={"format": "png"},
+                    session_id=cdp.session_id,
+                )
+                encoded = shot.get("data") if isinstance(shot, dict) else None
+                if encoded:
+                    png_path.write_bytes(base64.b64decode(encoded))
+                    screenshot_saved = True
+            except Exception:
+                pass
+
+        payload = {
+            "captured_at_utc": datetime.now(timezone.utc).isoformat(),
+            "started_at_utc": self._diagnostic_started_at,
+            "provider": "computrabajo",
+            "driver": "browser-use-cdp",
+            "events": list(self._diagnostic_events),
+            "page": {
+                "url": self._safe_diagnostic_url(page.get("url")),
+                "title": str(page.get("title") or "")[:300],
+            },
+            "screenshot": str(png_path) if screenshot_saved else "",
+            "privacy": {
+                "query_strings_persisted": False,
+                "cookies_persisted": False,
+                "authorization_headers_persisted": False,
+                "response_bodies_persisted": False,
+            },
+        }
+        try:
+            json_path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            self._last_diagnostic_path = str(json_path)
+            return self._last_diagnostic_path
+        except Exception:
+            return None
+
+    def stop_diagnostic(self) -> str | None:
+        return self._call(
+            self._stop_diagnostic_async(),
+            timeout=30.0,
+        )
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        try:
+            self._call(self._discard_browser_session(), timeout=30.0)
+        except Exception:
+            pass
+        self._closed = True
+        try:
+            self._loop.call_soon_threadsafe(self._loop.stop)
+        except Exception:
+            return
+        self._loop_thread.join(timeout=5.0)
+, 'i').test(label(el)) ||
+                                           label(el) === s));
+          const counts = {}, available = [];
+          let active = '';
+          for (const el of controls) {
+            const text = label(el);
+            const state = statuses.find(s => text === s || text.startsWith(s + '(') ||
+                                                         text.startsWith(s + ' ('));
+            if (!state || available.includes(state)) continue;
+            available.push(state);
+            const match = text.match(/\(\s*(\d+)\s*\)/);
+            if (match) counts[state] = Number(match[1]);
+            if (el.matches('.active,.selected,[aria-selected="true"]') ||
+                el.closest('.active,.selected,.current,[aria-selected="true"]')) active = state;
+          }
+          const seen = new Set(), candidates = [];
+          for (const a of document.querySelectorAll('a[href*="/MatchCvDetail/MatchDetail"]')) {
+            let u;
+            try { u = new URL(a.href, location.href); } catch (_) { continue; }
+            const id = u.searchParams.get('ims') || '';
+            if (u.origin !== location.origin ||
+                u.pathname.toLowerCase() !== '/company/matchcvdetail/matchdetail' ||
+                !/^[a-f0-9]{16,64}$/i.test(id) || seen.has(id)) continue;
+            seen.add(id);
+            const name = (a.querySelector('strong,b,h3,h4')?.textContent ||
+                          a.textContent || '').trim().slice(0,180);
+            candidates.push({external_id: id, candidate_name: name,
+                             detail_url: u.href});
+          }
+          const nextCandidates = [...document.querySelectorAll('a,button')]
+            .filter(el => {
+              const container = el.closest('.pagination,.pager,[class*="pagin"],nav[aria-label]');
+              const txt = [label(el), el.getAttribute('aria-label') || '',
+                           el.title || ''].join(' ').toLowerCase();
+              return !!container && (/siguiente|next|^\s*[›»>]\s*$/i.test(txt) ||
+                                     el.rel?.toLowerCase() === 'next');
+            });
+          const next = nextCandidates.some(el => !el.disabled &&
+            el.getAttribute('aria-disabled') !== 'true' &&
+            !el.closest('.disabled,[aria-disabled="true"]') &&
+            !el.matches('.disabled'));
+          const activePage = document.querySelector(
+            '.pagination .active,.pager .active,[class*="pagin"] .active,[aria-current="page"]');
+          const marker = (activePage?.textContent || '').trim().slice(0,20);
+          const total = text.match(/(\d{1,7})\s+candidatos inscritos/);
+          return {
+            candidates, statuses: available, counts, active_status: active,
+            next, reported_total: total ? Number(total[1]) : null,
+            signature: [location.href,active,marker,
+                candidates.map(x => x.external_id).join(',')].join('|')
+          };
+        })()""")
+        if not isinstance(payload, dict):
+            raise RuntimeError("COMPUTRABAJO_LIST_INVALID")
+        return payload
+
+    async def _click_candidate_listing_control(self, cdp, *, kind: str,
+                                                status: str = "") -> bool:
+        """Click only the pagination or tab controls, never applicant actions."""
+        if kind not in {"status", "next"} or (
+            kind == "status" and status not in
+            {"recibidos", "seleccionados", "finalistas", "descartados"}
+        ):
+            return False
+        expression = r"""(() => {
+          if (location.hostname !== 'empresa.co.computrabajo.com' ||
+              location.pathname.toLowerCase().replace(/\/$/, '') !== '/company/offers/match')
+            return false;
+          const kind = KIND;
+          const status = STATUS;
+          const label = el => (el.innerText || el.textContent || '')
+            .replace(/\s+/g, ' ').trim().toLowerCase();
+          const matches = [...document.querySelectorAll('a,button,[role="tab"]')]
+            .filter(el => {
+              if (el.disabled || el.getAttribute('aria-disabled') === 'true' ||
+                  el.closest('.disabled,[aria-disabled="true"]')) return false;
+              if (kind === 'status') {
+                const text = label(el);
+                return text === status || new RegExp('^' + status +
+                  '\\s*\\(\\s*\\d+\\s*\\)(self, *, max_pages: int = 500,
+                                             stop_requested=None) -> dict:
+        """Walk accessible employer listings only to find people; never sync offers.
+
+        Only explicit, authenticated employer-page hrefs are followed. When the
+        provider uses unsupported JS-only pagination the run is marked partial,
+        never advertised as a complete account-wide sync.
+        """
+        from collections import deque
+        from string import hexdigits
+
+        if max_pages < 1 or max_pages > 1000:
+            raise ValueError("COMPUTRABAJO_INVALID_PAGE_LIMIT")
+        start = "https://empresa.co.computrabajo.com/Company/Offers"
+        pending = deque([start])
+        visited: set[str] = set()
+        found: dict[str, dict] = {}
+        unsupported_pagination = False
+        blocked_pages = 0
+        cancelled = False
+
+        while pending and len(visited) < max_pages:
+            if stop_requested and stop_requested():
+                cancelled = True
+                break
+            url = pending.popleft()
+            if url in visited:
+                continue
+            parsed = urlparse(url)
+            if (parsed.scheme != "https" or
+                parsed.hostname != "empresa.co.computrabajo.com" or
+                parsed.path.casefold().rstrip("/") not in
+                    {"/company/offers", "/company/offers/match"}):
+                raise ValueError("COMPUTRABAJO_UNSAFE_DISCOVERY_PAGE")
+            await self._open_portal(url)
+            cdp = await self._ensure_started()
+            scan_script = """(() => {
+              if (location.hostname !== 'empresa.co.computrabajo.com' ||
+                  !/^\/company\/offers(?:\/match)?\/?$/i.test(location.pathname)) {
+                return {error: 'COMPUTRABAJO_LOGIN_OR_LIST_REQUIRED'};
+              }
+              const offerLinks = [], pageLinks = [], candidates = [];
+              const pageText = (document.body?.innerText || '').toLowerCase();
+              if (/su oferta de empleo ha vencido|oferta de empleo ha vencido|contratar una membresía/i.test(pageText))
+                return {access_denied: 'OFFER_EXPIRED', candidates: [],
+                        offer_links: [], page_links: [], unsupported_pagination: false};
+              const seen = new Set();
+              const here = location.pathname.toLowerCase().replace(/\/$/, '');
+              for (const a of document.querySelectorAll('a[href]')) {
+                let u;
+                try { u = new URL(a.href, location.href); } catch (_) { continue; }
+                if (u.origin !== location.origin) continue;
+                const path = u.pathname.toLowerCase().replace(/\/$/, '');
+                if (path === '/company/matchcvdetail/matchdetail' &&
+                    here === '/company/offers/match') {
+                  const id = u.searchParams.get('ims') || '';
+                  if (!/^[a-f0-9]{16,64}$/i.test(id) || seen.has(id)) continue;
+                  seen.add(id);
+                  const name = (a.querySelector('strong, b, h3, h4')?.textContent ||
+                    a.textContent || '').split('\\n')[0].trim().slice(0, 180);
+                  candidates.push({external_id: id, candidate_name: name,
+                                   detail_url: u.href});
+                } else if (path === '/company/offers/match' &&
+                           here === '/company/offers' && u.searchParams.get('oi')) {
+                  offerLinks.push(u.href);
+                } else if (path === here && u.search !== location.search) {
+                  const nav = a.closest('.pagination,.pager,nav[aria-label]') ||
+                    a.rel?.toLowerCase() === 'next' ||
+                    /siguiente|next|página|page/i.test(
+                      [a.getAttribute('aria-label'), a.title].join(' '));
+                  if (nav) pageLinks.push(u.href);
+                }
+              }
+              const unlinked = [...document.querySelectorAll('button, a:not([href]), a[href="#"], a[href="javascript:void(0)"]')]
+                .some(el => !el.disabled && /^(siguiente|next|›|»)$/i.test(
+                  (el.getAttribute('aria-label') || el.textContent || '').trim()));
+              return {offer_links: offerLinks, page_links: pageLinks,
+                      candidates, unsupported_pagination: unlinked};
+            })()"""
+            # Wait briefly for client-side lists to hydrate after document.readyState.
+            page = None
+            for attempt in range(6):
+                page = await self._evaluate(cdp, scan_script)
+                if (not isinstance(page, dict) or page.get("error") or
+                    page.get("access_denied") or page.get("candidates") or
+                    page.get("offer_links") or page.get("page_links") or
+                    attempt == 5):
+                    break
+                await asyncio.sleep(0.65)
+            if not isinstance(page, dict) or page.get("error"):
+                raise ValueError("COMPUTRABAJO_LOGIN_OR_LIST_REQUIRED")
+            if not isinstance(page.get("candidates"), list):
+                raise RuntimeError("COMPUTRABAJO_DISCOVERY_INVALID")
+            visited.add(url)
+            if page.get("access_denied"):
+                blocked_pages += 1
+                continue
+            unsupported_pagination |= bool(page.get("unsupported_pagination"))
+            for candidate in page["candidates"]:
+                if not isinstance(candidate, dict):
+                    continue
+                external_id = str(candidate.get("external_id") or "")
+                detail = str(candidate.get("detail_url") or "")
+                candidate_url = urlparse(detail)
+                if (not 16 <= len(external_id) <= 64 or
+                    any(ch not in hexdigits for ch in external_id) or
+                    candidate_url.scheme != "https" or
+                    candidate_url.hostname != "empresa.co.computrabajo.com" or
+                    candidate_url.path.casefold() != "/company/matchcvdetail/matchdetail" or
+                    not candidate_url.query):
+                    continue
+                found.setdefault(external_id.casefold(), candidate)
+            for link in page.get("offer_links", []) + page.get("page_links", []):
+                if not isinstance(link, str):
+                    continue
+                target = urlparse(link)
+                if (target.scheme == "https" and
+                    target.hostname == "empresa.co.computrabajo.com" and
+                    target.path.casefold().rstrip("/") in
+                        {"/company/offers", "/company/offers/match"} and
+                    link not in visited and link not in pending):
+                    pending.append(link)
+            await asyncio.sleep(0.15)
+        if not found and not cancelled:
+            raise ValueError(
+                "COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED"
+                if blocked_pages else "COMPUTRABAJO_NO_CANDIDATES_DISCOVERED"
+            )
+        return {
+            "candidates": list(found.values()),
+            "pages": len(visited),
+            "blocked_pages": blocked_pages,
+            "cancelled": cancelled,
+            "partial": bool(pending) or unsupported_pagination or bool(blocked_pages),
+        }
+
+    def discover_all_candidates(self, *, max_pages: int = 500,
+                                stop_requested=None) -> dict:
+        return self._call(
+            self._discover_all_candidates_async(
+                max_pages=max_pages, stop_requested=stop_requested
+            ), timeout=max(300.0, max_pages * 12.0),
+        )
+
+    async def _collect_candidate_async(self, candidate: dict) -> dict:
+        """Navigate to one discovered profile and obtain CV bytes within browser session.
+
+        Prefer the provider attachment; PDF fallback only on unsupported/missing file.
+        """
+        detail_url = str(candidate.get("detail_url") or "")
+        parsed = urlparse(detail_url)
+        if (parsed.scheme != "https" or parsed.hostname != "empresa.co.computrabajo.com"
+                or parsed.path.lower() != "/company/matchcvdetail/matchdetail"):
+            raise ValueError("COMPUTRABAJO_INVALID_CANDIDATE_URL")
+        cdp = await self._ensure_started()
+        await cdp.cdp_client.send.Page.navigate(
+            params={"url": detail_url}, session_id=cdp.session_id,
+        )
+        await self._wait_ready(cdp)
+        info = await self._evaluate(cdp, """(() => {
+            if (location.hostname !== 'empresa.co.computrabajo.com' ||
+                location.pathname.toLowerCase() !== '/company/matchcvdetail/matchdetail') {
+                return {error: 'COMPUTRABAJO_PROFILE_REQUIRED'};
+            }
+            const content = (document.body?.innerText || '').toLowerCase();
+            if (/su oferta de empleo ha vencido|oferta de empleo ha vencido|contratar una membresía/i.test(content))
+                return {error: 'COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED'};
+            const links = [...document.querySelectorAll('a.js_download_file[href], a[href*="CvDownloader"]')];
+            const valid = links.map(a => {
+                try { return new URL(a.href, location.href); }
+                catch (_) { return null; }
+            }).filter(u => u && u.origin === location.origin &&
+                u.pathname.toLowerCase() === '/company/cvdownloader/company/cvdetail/download' &&
+                u.searchParams.has('ims'));
+            const name = (document.querySelector('h1.fs22, h1')?.textContent || '').trim();
+            return {name: name.slice(0, 180),
+                    attachment_url: valid[0]?.href || ''};
+        })()""")
+        if not isinstance(info, dict):
+            raise RuntimeError("COMPUTRABAJO_PROFILE_INVALID")
+        if info.get("error"):
+            raise RuntimeError(str(info["error"]))
+        name = str(candidate.get("candidate_name") or info.get("name") or "").strip()
+        if not name:
+            raise RuntimeError("COMPUTRABAJO_NAME_MISSING")
+        if not info.get("attachment_url") and not info.get("name"):
+            raise RuntimeError("COMPUTRABAJO_PROFILE_CONTENT_UNAVAILABLE")
+        if info.get("attachment_url"):
+            encoded = json.dumps(str(info["attachment_url"]))
+            result = await self._evaluate(cdp, """(async () => {
+                const url = """ + encoded + """;
+                try {
+                    const response = await fetch(url, {credentials: 'same-origin'});
+                    const type = response.headers.get('content-type') || '';
+                    if (response.status === 401 || response.status === 403)
+                        return {access_denied: true};
+                    if (!response.ok || /text\\/html|application\\/json/i.test(type))
+                        return {unsupported: true};
+                    const buffer = await response.arrayBuffer();
+                    if (buffer.byteLength < 8 || buffer.byteLength > 15 * 1024 * 1024)
+                        return {unsupported: true};
+                    const view = new Uint8Array(buffer);
+                    let raw = '';
+                    for (let i=0; i<view.length; i+=8192)
+                        raw += String.fromCharCode(...view.subarray(i, i+8192));
+                    return {content: btoa(raw), type};
+                } catch (_) { return {unsupported: true}; }
+            })()""")
+            if isinstance(result, dict) and result.get("access_denied"):
+                raise RuntimeError("COMPUTRABAJO_CV_ACCESS_DENIED")
+            if isinstance(result, dict) and result.get("content"):
+                raw = base64.b64decode(result["content"], validate=True)
+                if raw.lstrip().startswith(b"%PDF-"):
+                    return dict(name=name, data=raw, filename="computrabajo-cv.pdf",
+                                content_type="application/pdf", kind="attached")
+                if raw.startswith(b"PK") and len(raw) <= 15 * 1024 * 1024:
+                    return dict(name=name, data=raw, filename="computrabajo-cv.docx",
+                                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                kind="attached")
+        response = await cdp.cdp_client.send.Page.printToPDF(
+            params={"printBackground": True, "preferCSSPageSize": True},
+            session_id=cdp.session_id,
+        )
+        encoded = response.get("data") if isinstance(response, dict) else None
+        if not encoded:
+            raise RuntimeError("COMPUTRABAJO_PRINT_EMPTY")
+        raw = base64.b64decode(encoded, validate=True)
+        if not raw.startswith(b"%PDF-") or len(raw) > 15 * 1024 * 1024:
+            raise RuntimeError("COMPUTRABAJO_PRINT_INVALID")
+        return dict(name=name, data=raw, filename="computrabajo-profile.pdf",
+                    content_type="application/pdf", kind="profile")
+
+    def collect_candidate(self, candidate: dict) -> dict:
+        return self._call(self._collect_candidate_async(candidate), timeout=90.0)
+
+    async def _save_visible_profile_pdf_async(self) -> str:
+        """Export a user-opened Computrabajo profile, without bulk collection."""
+        cdp = await self._ensure_started()
+        page = await self._page_metadata(cdp)
+        url = str(page.get("url") or "")
+        parsed = urlparse(url)
+        if (
+            parsed.hostname != "empresa.co.computrabajo.com"
+            or parsed.path.casefold() not in (
+                "/company/matchcvdetail/matchdetail",
+                "/company/matchcvdetail/matchprint",
+            )
+        ):
+            raise ValueError("COMPUTRABAJO_PROFILE_REQUIRED")
+        response = await cdp.cdp_client.send.Page.printToPDF(
+            params={"printBackground": True, "preferCSSPageSize": True},
+            session_id=cdp.session_id,
+        )
+        encoded = response.get("data") if isinstance(response, dict) else None
+        if not encoded:
+            raise RuntimeError("COMPUTRABAJO_PDF_EMPTY")
+        data = base64.b64decode(encoded, validate=True)
+        if not data.startswith(b"%PDF-") or len(data) > 20 * 1024 * 1024:
+            raise RuntimeError("COMPUTRABAJO_PDF_INVALID")
+        folder = self._profile_dir.parent / "exports" / "computrabajo"
+        folder.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        destination = folder / f"profile-{stamp}.pdf"
+        destination.write_bytes(data)
+        return str(destination)
+
+    def save_visible_profile_pdf(self) -> str:
+        return self._call(self._save_visible_profile_pdf_async(), timeout=60.0)
+
+    async def _page_metadata(self, cdp) -> dict:
+        value = await self._evaluate(
+            cdp,
+            "(() => ({url: location.href, title: document.title || ''}))()",
+        )
+        return value if isinstance(value, dict) else {}
+
+    async def _start_diagnostic_async(self) -> None:
+        self._diagnostic_events = []
+        self._diagnostic_started_at = datetime.now(timezone.utc).isoformat()
+        self._diagnostic_active = True
+        await self._open_portal()
+
+    def start_diagnostic(self) -> None:
+        self._call(self._start_diagnostic_async())
+
+    def poll_diagnostic(self) -> None:
+        if not self._diagnostic_active:
+            return
+        self._call(self._ensure_started(), timeout=15.0)
+
+    async def _stop_diagnostic_async(self) -> str | None:
+        if not self._diagnostic_active:
+            return self._last_diagnostic_path
+        self._diagnostic_active = False
+        cdp = await self._ensure_started()
+        diagnostics_dir = self._profile_dir.parent / "diagnostics"
+        diagnostics_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        json_path = (
+            diagnostics_dir
+            / f"computrabajo-flow-diagnostic-{stamp}.json"
+        )
+        png_path = (
+            diagnostics_dir
+            / f"computrabajo-flow-diagnostic-{stamp}.png"
+        )
+        page = await self._page_metadata(cdp)
+        screenshot_saved = False
+        if self._config.diagnostic_screenshots:
+            try:
+                shot = await cdp.cdp_client.send.Page.captureScreenshot(
+                    params={"format": "png"},
+                    session_id=cdp.session_id,
+                )
+                encoded = shot.get("data") if isinstance(shot, dict) else None
+                if encoded:
+                    png_path.write_bytes(base64.b64decode(encoded))
+                    screenshot_saved = True
+            except Exception:
+                pass
+
+        payload = {
+            "captured_at_utc": datetime.now(timezone.utc).isoformat(),
+            "started_at_utc": self._diagnostic_started_at,
+            "provider": "computrabajo",
+            "driver": "browser-use-cdp",
+            "events": list(self._diagnostic_events),
+            "page": {
+                "url": self._safe_diagnostic_url(page.get("url")),
+                "title": str(page.get("title") or "")[:300],
+            },
+            "screenshot": str(png_path) if screenshot_saved else "",
+            "privacy": {
+                "query_strings_persisted": False,
+                "cookies_persisted": False,
+                "authorization_headers_persisted": False,
+                "response_bodies_persisted": False,
+            },
+        }
+        try:
+            json_path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            self._last_diagnostic_path = str(json_path)
+            return self._last_diagnostic_path
+        except Exception:
+            return None
+
+    def stop_diagnostic(self) -> str | None:
+        return self._call(
+            self._stop_diagnostic_async(),
+            timeout=30.0,
+        )
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        try:
+            self._call(self._discard_browser_session(), timeout=30.0)
+        except Exception:
+            pass
+        self._closed = True
+        try:
+            self._loop.call_soon_threadsafe(self._loop.stop)
+        except Exception:
+            return
+        self._loop_thread.join(timeout=5.0)
+, 'i').test(text);
+              }
+              const container = el.closest('.pagination,.pager,[class*="pagin"],nav[aria-label]');
+              const txt = [label(el),el.getAttribute('aria-label')||'',el.title||'']
+                .join(' ').toLowerCase();
+              return !!container && (/siguiente|next|^\s*[›»>]\s*$/i.test(txt) ||
+                                      el.rel?.toLowerCase() === 'next');
+            });
+          const chosen = matches[0];
+          if (!chosen) return false;
+          if (chosen.href) {
+            let target;
+            try { target = new URL(chosen.href, location.href); } catch (_) { return false; }
+            if (target.origin !== location.origin ||
+                target.pathname.toLowerCase().replace(/\/$/, '') !== '/company/offers/match')
+              return false;
+          }
+          chosen.click();
+          return true;
+        })()""".replace("KIND", json.dumps(kind)).replace("STATUS", json.dumps(status))
+        return bool(await self._evaluate(cdp, expression))
+
+    async def _wait_candidate_listing_change(self, cdp, signature: str) -> dict | None:
+        for _ in range(18):
+            await asyncio.sleep(0.4)
+            try:
+                page = await self._candidate_listing_snapshot(cdp)
+            except Exception:
+                # Full-page navigation may briefly destroy the previous execution context.
+                continue
+            if page.get("error"):
+                return page
+            if page.get("signature") != signature:
+                return page
+        return None
+
+    async def _walk_offer_candidates_async(self, url: str, *,
+                                           max_pages: int = 500,
+                                           stop_requested=None) -> dict:
+        """Collect accessible statuses and JS-paginated pages of one offer.
+
+        This does not create or update an offer in Talent/Computrabajo.
+        """
+        from string import hexdigits
+        if max_pages < 1:
+            return dict(candidates=[], pages=0, partial=True,
+                        blocked=False, expected=0)
+        await self._open_portal(url)
+        cdp = await self._ensure_started()
+        first = await self._candidate_listing_snapshot(cdp)
+        if first.get("error") == "COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED":
+            return dict(candidates=[], pages=1, partial=True,
+                        blocked=True, expected=0)
+        if first.get("error"):
+            raise ValueError(first["error"])
+        available = first.get("statuses", [])
+        counts = first.get("counts", {})
+        statuses = ([s for s in ("recibidos","seleccionados","finalistas","descartados")
+                    if s in available] or [first.get("active_status") or "recibidos"])
+        expected = sum(int(counts[s]) for s in statuses if s in counts)
+        reported = first.get("reported_total")
+        partial = (len(statuses) < 4 or
+                   any(s not in counts for s in statuses) or
+                   (isinstance(reported, int) and expected < reported))
+        collected: dict[str, dict] = {}
+        pages = 0
+        for status in statuses:
+            if stop_requested and stop_requested():
+                partial = True
+                break
+            if pages >= max_pages:
+                partial = True
+                break
+            await self._open_portal(url)
+            cdp = await self._ensure_started()
+            current = await self._candidate_listing_snapshot(cdp)
+            if current.get("error"):
+                partial = True
+                continue
+            if status != current.get("active_status"):
+                before = current.get("signature", "")
+                if not await self._click_candidate_listing_control(
+                    cdp, kind="status", status=status,
+                ):
+                    partial = True
+                    continue
+                current = await self._wait_candidate_listing_change(cdp, before)
+                if not current or current.get("error"):
+                    partial = True
+                    continue
+            seen_signatures = set()
+            while pages < max_pages:
+                if stop_requested and stop_requested():
+                    partial = True
+                    break
+                if not isinstance(current, dict) or current.get("error"):
+                    partial = True
+                    break
+                signature = current.get("signature", "")
+                if signature in seen_signatures:
+                    partial = True
+                    break
+                seen_signatures.add(signature)
+                pages += 1
+                for candidate in current.get("candidates", []):
+                    if not isinstance(candidate, dict):
+                        continue
+                    cid = str(candidate.get("external_id") or "")
+                    parsed = urlparse(str(candidate.get("detail_url") or ""))
+                    if (not 16 <= len(cid) <= 64 or
+                        any(char not in hexdigits for char in cid) or
+                        parsed.scheme != "https" or
+                        parsed.hostname != "empresa.co.computrabajo.com" or
+                        parsed.path.casefold() != "/company/matchcvdetail/matchdetail"):
+                        continue
+                    collected.setdefault(cid.casefold(), candidate)
+                if not current.get("next"):
+                    break
+                if pages >= max_pages:
+                    partial = True
+                    break
+                if not await self._click_candidate_listing_control(cdp, kind="next"):
+                    partial = True
+                    break
+                following = await self._wait_candidate_listing_change(cdp, signature)
+                if not following or following.get("error"):
+                    partial = True
+                    break
+                current = following
+        if expected and len(collected) < expected:
+            partial = True
+        return dict(candidates=list(collected.values()), pages=pages,
+                    partial=partial, blocked=False, expected=expected)
+
     async def _discover_all_candidates_async(self, *, max_pages: int = 500,
                                              stop_requested=None) -> dict:
         """Walk accessible employer listings only to find people; never sync offers.
