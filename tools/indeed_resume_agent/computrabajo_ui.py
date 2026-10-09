@@ -251,9 +251,20 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
                         f"{report['skipped']} omitidos y {report['failed']} errores."
                         + blocked_label + warning))
                 except Exception as exc:
-                    updates.put(("error",
-                        "No se completó la sincronización de candidatos (" +
-                        type(exc).__name__ + "). Verifica sesión y paginación."))
+                    code = str(exc)
+                    if code == "COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED":
+                        message = ("Computrabajo restringe candidatos de ofertas vencidas. "
+                                   "No se importaron CV de esas ofertas; consulta una publicación "
+                                   "a la que tu cuenta tenga acceso.")
+                    elif code in {"COMPUTRABAJO_LOGIN_OR_LIST_REQUIRED",
+                                  "COMPUTRABAJO_NO_CANDIDATES_DISCOVERED"}:
+                        message = ("No se encontraron candidatos accesibles. "
+                                   "Confirma que has iniciado sesión y que la cuenta "
+                                   "puede ver aspirantes.")
+                    else:
+                        message = ("Sincronización incompleta (" + type(exc).__name__ +
+                                   "). Revisa el acceso a Computrabajo y Talent.")
+                    updates.put(("error", message))
                 finally:
                     api.close()
                 continue
