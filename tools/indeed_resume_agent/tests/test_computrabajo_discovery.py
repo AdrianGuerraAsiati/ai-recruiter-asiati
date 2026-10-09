@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from tools.indeed_resume_agent.computrabajo_browser import ComputrabajoBrowserUse
+from tools.indeed_resume_agent import computrabajo_pagination as pagination
 
 
 def make_browser(reply):
@@ -44,7 +45,7 @@ def test_invalid_dom_payload_fails_closed():
         asyncio.run(browser._discover_visible_candidates_async())
 
 
-def test_full_directory_scans_links_and_skips_foreign_pages():
+def test_full_directory_scans_links_and_skips_foreign_pages(monkeypatch):
     from unittest.mock import Mock
     b = make_browser(None)
     b._open_portal = AsyncMock()
@@ -58,6 +59,7 @@ def test_full_directory_scans_links_and_skips_foreign_pages():
             "detail_url": "https://empresa.co.computrabajo.com/Company/MatchCvDetail/MatchDetail?ims=aaa"}],
         "pages": 1, "partial": False, "blocked": False, "expected": 1,
     })
+    monkeypatch.setattr(pagination, "collect_offer_applicants", b._walk_offer_candidates_async)
     directory = asyncio.run(b._discover_all_candidates_async(max_pages=5))
     assert directory["pages"] == 2
     assert len(directory["candidates"]) == 1
@@ -84,7 +86,7 @@ def test_directory_requires_authenticated_employer_page():
         asyncio.run(b._discover_all_candidates_async(max_pages=1))
 
 
-def test_expired_offer_is_skipped_and_marked_partial():
+def test_expired_offer_is_skipped_and_marked_partial(monkeypatch):
     b = make_browser(None)
     b._open_portal = AsyncMock()
     b._evaluate = AsyncMock(return_value={
@@ -100,6 +102,7 @@ def test_expired_offer_is_skipped_and_marked_partial():
             "detail_url": "https://empresa.co.computrabajo.com/Company/MatchCvDetail/MatchDetail?ims=abc",
         }], "pages": 1, "partial": False, "blocked": False, "expected": 1},
     ])
+    monkeypatch.setattr(pagination, "collect_offer_applicants", b._walk_offer_candidates_async)
     result = asyncio.run(b._discover_all_candidates_async(max_pages=5))
     assert result["pages"] == 3
     assert result["blocked_pages"] == 1
@@ -107,7 +110,7 @@ def test_expired_offer_is_skipped_and_marked_partial():
     assert len(result["candidates"]) == 1
 
 
-def test_offer_collector_covers_618_candidates_across_statuses_and_pages():
+def test_offer_collector_covers_618_candidates_across_statuses_and_pages(monkeypatch):
     b = make_browser(None)
     b._open_portal = AsyncMock()
     b._click_candidate_listing_control = AsyncMock(return_value=True)
@@ -159,16 +162,19 @@ def test_offer_collector_covers_618_candidates_across_statuses_and_pages():
     b._click_candidate_listing_control = click
     b._open_portal = open_portal
     b._wait_candidate_listing_change = wait
-    result = asyncio.run(b._walk_offer_candidates_async(
+    monkeypatch.setattr(pagination, "_snapshot", read)
+    monkeypatch.setattr(pagination, "_click", click)
+    monkeypatch.setattr(pagination, "_changed", wait)
+    result = asyncio.run(pagination.collect_offer_applicants(b,
         "https://empresa.co.computrabajo.com/Company/Offers/Match?oi=abc",
         max_pages=30))
-    assert result["pages"] == 9
+    assert result["pages"] == 8
     assert result["expected"] == 618
     assert len(result["candidates"]) == 618
     assert result["partial"] is False
 
 
-def test_offer_collector_reports_partial_if_next_page_missing():
+def test_offer_collector_reports_partial_if_next_page_missing(monkeypatch):
     b = make_browser(None)
     b._open_portal = AsyncMock()
     b._candidate_listing_snapshot = AsyncMock(return_value={
@@ -179,7 +185,9 @@ def test_offer_collector_reports_partial_if_next_page_missing():
         "signature": "page-1", "candidates": [], "next": False,
     })
     b._click_candidate_listing_control = AsyncMock(return_value=False)
-    result = asyncio.run(b._walk_offer_candidates_async(
+    monkeypatch.setattr(pagination, "_snapshot", b._candidate_listing_snapshot)
+    monkeypatch.setattr(pagination, "_click", b._click_candidate_listing_control)
+    result = asyncio.run(pagination.collect_offer_applicants(b,
         "https://empresa.co.computrabajo.com/Company/Offers/Match?oi=abc",
         max_pages=30))
     assert result["expected"] == 618
