@@ -220,6 +220,11 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
                     report = sync_all_candidates(
                         browser=browser, api=api, source_account=account,
                         stop_requested=lambda: stop_event.is_set() or cancel_event.is_set(),
+                        discovery_progress=lambda stats: updates.put((
+                            "busy", f"Explorando Computrabajo: {stats['pages']} páginas, "
+                            f"{stats['offers_found']} listados y "
+                            f"{stats['candidates_found']} candidatos detectados…"
+                        )),
                         progress=lambda index, result: updates.put((
                             "busy", f"Procesados {index}/{result['total']} · "
                             f"{result['created']} nuevos, {result['existing']} existentes, "
@@ -240,6 +245,13 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
                     warning = (
                         f" Motivos: {details}." if details else ""
                     )
+                    uncovered = report.get("unresolved_pagination", 0)
+                    listings = report.get("offers_found", 0)
+                    profiles = report.get("candidate_pages", 0)
+                    coverage = (f" {listings} listados detectados, "
+                                f"{profiles} páginas de aspirantes.")
+                    coverage += (f" {uncovered} paginaciones sin confirmar."
+                                 if uncovered else "")
                     blocked = report.get("blocked_pages", 0)
                     blocked_label = (
                         f" {blocked} páginas restringidas por Computrabajo."
@@ -249,7 +261,7 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
                         f"{report['pages']} páginas revisadas; "
                         f"{report['created']} nuevos, {report['existing']} existentes, "
                         f"{report['skipped']} omitidos y {report['failed']} errores."
-                        + blocked_label + warning))
+                        + coverage + blocked_label + warning))
                 except Exception as exc:
                     code = str(exc)
                     if code == "COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED":

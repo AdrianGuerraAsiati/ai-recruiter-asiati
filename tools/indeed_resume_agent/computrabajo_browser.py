@@ -406,128 +406,155 @@ class ComputrabajoBrowserUse:
 
 
     async def _discover_all_candidates_async(self, *, max_pages: int = 500,
-                                             stop_requested=None) -> dict:
-        """Walk accessible employer listings only to find people; never sync offers.
+                                             stop_requested=None,
+                                             discovery_progress=None) -> dict:
+        """Visit accessible offer indexes and all discoverable candidate pages.
 
-        Only explicit, authenticated employer-page hrefs are followed. When the
-        provider uses unsupported JS-only pagination the run is marked partial,
-        never advertised as a complete account-wide sync.
+        Offers are merely navigation: we only return unique candidate profiles.
+        Dynamic next-page controls and listing tabs are clicked in the
+        authenticated browser session. This does not bypass expired offers.
         """
         from collections import deque
-        from string import hexdigits
+        from .computrabajo_directory import (
+            OFFERS_START, CANDIDATES_PATH, DIRECTORY_SCAN_JS,
+            NEXT_PAGE_JS, directory_url, candidate_detail_url, tab_click_js,
+        )
 
-        if max_pages < 1 or max_pages > 1000:
+        if not 1 <= max_pages <= 1000:
             raise ValueError("COMPUTRABAJO_INVALID_PAGE_LIMIT")
-        start = "https://empresa.co.computrabajo.com/Company/Offers"
-        pending = deque([start])
-        visited: set[str] = set()
-        found: dict[str, dict] = {}
-        unsupported_pagination = False
-        blocked_pages = 0
+        pending = deque([(OFFERS_START, None)])
+        scheduled = {(OFFERS_START, None)}
+        visited_tasks = set()
+        found = {}
+        offer_urls = set()
+        blocked_pages = pages = candidate_pages = listing_pages = 0
+        unresolved_pagination = 0
         cancelled = False
 
-        while pending and len(visited) < max_pages:
+        async def scan(cdp):
+            page = await self._evaluate(cdp, DIRECTORY_SCAN_JS)
+            if not isinstance(page, dict):
+                raise RuntimeError("COMPUTRABAJO_DISCOVERY_INVALID")
+            if page.get("error"):
+                raise ValueError(str(page["error"]))
+            if not isinstance(page.get("candidates"), list):
+                raise RuntimeError("COMPUTRABAJO_DISCOVERY_INVALID")
+            return page
+
+        def signature(page):
+            # Used for in-memory loop detection; never written to disk.
+            return (
+                tuple(sorted(str(c.get("external_id") or "")
+                    for c in page.get("candidates", []) if isinstance(c, dict))),
+                tuple(sorted(page.get("offer_links", []))),
+                tuple(sorted(page.get("page_links", []))),
+                str(page.get("active_page") or ""),
+            )
+
+        def enqueue(url, tab=None):
+            safe = directory_url(url)
+            if safe is None:
+                return
+            task = (safe, tab)
+            if task not in scheduled:
+                scheduled.add(task)
+                pending.append(task)
+
+        while pending and pages < max_pages:
             if stop_requested and stop_requested():
                 cancelled = True
                 break
-            url = pending.popleft()
-            if url in visited:
+            url, tab = pending.popleft()
+            if (url, tab) in visited_tasks:
                 continue
-            parsed = urlparse(url)
-            if (parsed.scheme != "https" or
-                parsed.hostname != "empresa.co.computrabajo.com" or
-                parsed.path.casefold().rstrip("/") not in
-                    {"/company/offers", "/company/offers/match"}):
-                raise ValueError("COMPUTRABAJO_UNSAFE_DISCOVERY_PAGE")
+            visited_tasks.add((url, tab))
+            if directory_url(url) is None:
+                continue
             await self._open_portal(url)
             cdp = await self._ensure_started()
-            scan_script = """(() => {
-              if (location.hostname !== 'empresa.co.computrabajo.com' ||
-                  !/^\/company\/offers(?:\/match)?\/?$/i.test(location.pathname)) {
-                return {error: 'COMPUTRABAJO_LOGIN_OR_LIST_REQUIRED'};
-              }
-              const offerLinks = [], pageLinks = [], candidates = [];
-              const pageText = (document.body?.innerText || '').toLowerCase();
-              if (/su oferta de empleo ha vencido|oferta de empleo ha vencido|contratar una membresía/i.test(pageText))
-                return {access_denied: 'OFFER_EXPIRED', candidates: [],
-                        offer_links: [], page_links: [], unsupported_pagination: false};
-              const seen = new Set();
-              const here = location.pathname.toLowerCase().replace(/\/$/, '');
-              for (const a of document.querySelectorAll('a[href]')) {
-                let u;
-                try { u = new URL(a.href, location.href); } catch (_) { continue; }
-                if (u.origin !== location.origin) continue;
-                const path = u.pathname.toLowerCase().replace(/\/$/, '');
-                if (path === '/company/matchcvdetail/matchdetail' &&
-                    here === '/company/offers/match') {
-                  const id = u.searchParams.get('ims') || '';
-                  if (!/^[a-f0-9]{16,64}$/i.test(id) || seen.has(id)) continue;
-                  seen.add(id);
-                  const name = (a.querySelector('strong, b, h3, h4')?.textContent ||
-                    a.textContent || '').split('\\n')[0].trim().slice(0, 180);
-                  candidates.push({external_id: id, candidate_name: name,
-                                   detail_url: u.href});
-                } else if (path === '/company/offers/match' &&
-                           here === '/company/offers' && u.searchParams.get('oi')) {
-                  offerLinks.push(u.href);
-                } else if (path === here && u.search !== location.search) {
-                  const nav = a.closest('.pagination,.pager,nav[aria-label]') ||
-                    a.rel?.toLowerCase() === 'next' ||
-                    /siguiente|next|página|page/i.test(
-                      [a.getAttribute('aria-label'), a.title].join(' '));
-                  if (nav) pageLinks.push(u.href);
-                }
-              }
-              const unlinked = [...document.querySelectorAll('button, a:not([href]), a[href="#"], a[href="javascript:void(0)"]')]
-                .some(el => !el.disabled && /^(siguiente|next|›|»)$/i.test(
-                  (el.getAttribute('aria-label') || el.textContent || '').trim()));
-              return {offer_links: offerLinks, page_links: pageLinks,
-                      candidates, unsupported_pagination: unlinked};
-            })()"""
-            # Wait briefly for client-side lists to hydrate after document.readyState.
-            page = None
-            for attempt in range(6):
-                page = await self._evaluate(cdp, scan_script)
-                if (not isinstance(page, dict) or page.get("error") or
-                    page.get("access_denied") or page.get("candidates") or
-                    page.get("offer_links") or page.get("page_links") or
-                    attempt == 5):
+            tab_base_signature = None
+            if tab is not None:
+                original = await scan(cdp)
+                tab_base_signature = signature(original)
+                activated = await self._evaluate(cdp, tab_click_js(tab))
+                if not isinstance(activated, dict) or not activated.get("clicked"):
+                    unresolved_pagination += 1
+                    continue
+                await asyncio.sleep(0.6)
+
+            previous_signature = tab_base_signature
+            while pages < max_pages:
+                if stop_requested and stop_requested():
+                    cancelled = True
                     break
-                await asyncio.sleep(0.65)
-            if not isinstance(page, dict) or page.get("error"):
-                raise ValueError("COMPUTRABAJO_LOGIN_OR_LIST_REQUIRED")
-            if not isinstance(page.get("candidates"), list):
-                raise RuntimeError("COMPUTRABAJO_DISCOVERY_INVALID")
-            visited.add(url)
-            if page.get("access_denied"):
-                blocked_pages += 1
-                continue
-            unsupported_pagination |= bool(page.get("unsupported_pagination"))
-            for candidate in page["candidates"]:
-                if not isinstance(candidate, dict):
-                    continue
-                external_id = str(candidate.get("external_id") or "")
-                detail = str(candidate.get("detail_url") or "")
-                candidate_url = urlparse(detail)
-                if (not 16 <= len(external_id) <= 64 or
-                    any(ch not in hexdigits for ch in external_id) or
-                    candidate_url.scheme != "https" or
-                    candidate_url.hostname != "empresa.co.computrabajo.com" or
-                    candidate_url.path.casefold() != "/company/matchcvdetail/matchdetail" or
-                    not candidate_url.query):
-                    continue
-                found.setdefault(external_id.casefold(), candidate)
-            for link in page.get("offer_links", []) + page.get("page_links", []):
-                if not isinstance(link, str):
-                    continue
-                target = urlparse(link)
-                if (target.scheme == "https" and
-                    target.hostname == "empresa.co.computrabajo.com" and
-                    target.path.casefold().rstrip("/") in
-                        {"/company/offers", "/company/offers/match"} and
-                    link not in visited and link not in pending):
-                    pending.append(link)
-            await asyncio.sleep(0.15)
+                cdp = await self._ensure_started()
+                page = None
+                # After clicking a JS page control, wait for the DOM to change.
+                # Fail closed rather than repeatedly ingest the same page.
+                for attempt in range(14 if previous_signature else 6):
+                    page = await scan(cdp)
+                    if page.get("access_denied"):
+                        break
+                    if previous_signature is not None:
+                        if signature(page) != previous_signature:
+                            break
+                    elif (page.get("candidates") or page.get("offer_links") or
+                          page.get("page_links") or page.get("tabs_js") or
+                          page.get("js_next") or attempt == 5):
+                        break
+                    await asyncio.sleep(0.4)
+                    cdp = await self._ensure_started()
+                if previous_signature is not None and not page.get("access_denied") and (
+                        signature(page) == previous_signature):
+                    unresolved_pagination += 1
+                    break
+                previous_signature = signature(page)
+                pages += 1
+                if discovery_progress:
+                    discovery_progress({
+                        "pages": pages, "offers_found": len(offer_urls),
+                        "candidates_found": len(found), "blocked_pages": blocked_pages,
+                    })
+                if page.get("access_denied"):
+                    blocked_pages += 1
+                    break
+                current_path = urlparse(url).path.casefold().rstrip("/")
+                if current_path == CANDIDATES_PATH:
+                    candidate_pages += 1
+                else:
+                    listing_pages += 1
+                for candidate in page["candidates"]:
+                    if (isinstance(candidate, dict) and candidate_detail_url(
+                            candidate.get("detail_url"), candidate.get("external_id"))):
+                        found.setdefault(
+                            str(candidate["external_id"]).casefold(), candidate
+                        )
+                for candidate_listing in page.get("offer_links", []):
+                    safe = directory_url(candidate_listing)
+                    if safe and urlparse(safe).path.casefold().rstrip("/") == CANDIDATES_PATH:
+                        offer_urls.add(safe)
+                        enqueue(safe)
+                for next_url in page.get("page_links", []):
+                    enqueue(next_url)
+                if current_path != CANDIDATES_PATH and tab is None:
+                    for next_tab in page.get("tabs_js", []):
+                        if isinstance(next_tab, str):
+                            enqueue(url, next_tab)
+                # Old DOM adapters signal unsupported pagination instead of
+                # js_next; treat that as partial, not as "fully synchronized".
+                if page.get("unsupported_pagination"):
+                    unresolved_pagination += 1
+                if not page.get("js_next"):
+                    break
+                clicked = await self._evaluate(cdp, NEXT_PAGE_JS)
+                if not isinstance(clicked, dict) or not clicked.get("clicked"):
+                    unresolved_pagination += 1
+                    break
+                await asyncio.sleep(0.45)
+            if cancelled:
+                break
+            await asyncio.sleep(0.1)
+
         if not found and not cancelled:
             raise ValueError(
                 "COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED"
@@ -535,17 +562,25 @@ class ComputrabajoBrowserUse:
             )
         return {
             "candidates": list(found.values()),
-            "pages": len(visited),
+            "pages": pages,
+            "candidate_pages": candidate_pages,
+            "listing_pages": listing_pages,
+            "offers_found": len(offer_urls),
             "blocked_pages": blocked_pages,
+            "unresolved_pagination": unresolved_pagination,
             "cancelled": cancelled,
-            "partial": bool(pending) or unsupported_pagination or bool(blocked_pages),
+            "partial": (
+                bool(pending) or unresolved_pagination > 0 or
+                blocked_pages > 0 or cancelled or pages >= max_pages
+            ),
         }
 
     def discover_all_candidates(self, *, max_pages: int = 500,
-                                stop_requested=None) -> dict:
+                                stop_requested=None, discovery_progress=None) -> dict:
         return self._call(
             self._discover_all_candidates_async(
-                max_pages=max_pages, stop_requested=stop_requested
+                max_pages=max_pages, stop_requested=stop_requested,
+                discovery_progress=discovery_progress
             ), timeout=max(300.0, max_pages * 12.0),
         )
 

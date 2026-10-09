@@ -90,7 +90,8 @@ def _submit_candidate(*, browser, api, source_account: str, candidate: dict) -> 
 
 def sync_all_candidates(*, browser, api, source_account: str,
                         max_pages: int = 500, checkpoint_path: Path | None = None,
-                        progress=None, stop_requested=None) -> dict:
+                        progress=None, stop_requested=None,
+                        discovery_progress=None) -> dict:
     """Discover accessible candidate pages and sync only previously unseen people."""
     account = source_account.strip()
     if not account:
@@ -98,7 +99,8 @@ def sync_all_candidates(*, browser, api, source_account: str,
     path = Path(checkpoint_path) if checkpoint_path else _checkpoint_file(browser, account)
     completed = _read_completed(path)
     directory = browser.discover_all_candidates(
-        max_pages=max_pages, stop_requested=stop_requested
+        max_pages=max_pages, stop_requested=stop_requested,
+        discovery_progress=discovery_progress,
     )
     candidates = directory["candidates"]
     result = {
@@ -107,6 +109,10 @@ def sync_all_candidates(*, browser, api, source_account: str,
         "pages": directory["pages"], "partial": directory["partial"],
         "cancelled": directory["cancelled"], "errors": [],
         "blocked_pages": directory.get("blocked_pages", 0), "error_counts": {},
+        "offers_found": directory.get("offers_found", 0),
+        "candidate_pages": directory.get("candidate_pages", 0),
+        "listing_pages": directory.get("listing_pages", 0),
+        "unresolved_pagination": directory.get("unresolved_pagination", 0),
     }
     for index, candidate in enumerate(candidates, 1):
         if stop_requested and stop_requested():
