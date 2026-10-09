@@ -314,9 +314,9 @@ class AgentApiClient:
             "source_account": str(source_account),
             "external_id": str(external_id),
             "candidate_name": str(candidate_name),
-            "job_title": str(job_title),
         }
         for key, value in {
+            "job_title": job_title,
             "external_job_id": external_job_id,
             "location": location,
             "applied_at": applied_at,

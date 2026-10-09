@@ -132,6 +132,12 @@ Eliminar la credencial no borra el perfil de Chrome ni los estados durables del 
 Para pasar de un PC de pruebas al PC de Katherine se genera un token nuevo y se reemplaza su SHA-256 en AWS. El token anterior queda invalidado.
 
 
+## Sincronización integral de Computrabajo (solo candidatos)
+
+Tras iniciar sesión manualmente en el portal de empresa de Computrabajo, el botón **Sincronizar todos los candidatos** navega por las ofertas *exclusivamente para descubrir listas de aspirantes*. No importa, crea, actualiza ni vincula ofertas con las vacantes de Talent u Odoo. Descubre candidatos en enlaces de paginación accesibles, recoge PDF/DOCX o PDF del perfil, envía a la API de ingesta y registra los identificadores ya procesados en un checkpoint local sin nombres ni CV.
+
+La cuenta fuente se configura opcionalmente con `ASIATI_COMPUTRABAJO_SOURCE_ACCOUNT` (predeterminado `ASIATI`). Los errores se pueden reintentar y la operación se puede detener de forma segura. Un resultado **parcial** significa que se alcanzó el límite de páginas, que falta validar paginación JavaScript o que hubo errores; no debe interpretarse como una ingesta completa. El DOM real y la navegación entre páginas necesitan validación E2E con una sesión empresarial autorizada antes del uso masivo.
+
 ## API de ingesta de candidatos por plataforma
 
-El agente dispone de `POST /api/agents/candidate-source/candidate` para entregar CV de Computrabajo a la misma canalización de ingesta que utiliza Talent. Requiere token de máquina válido; admite PDF/DOCX y deduplica por origen, cuenta e identificador externo. El cliente expone el envío mediante `AgentApiClient` y permite mantener las credenciales de Computrabajo en el almacén seguro del sistema operativo. La interfaz y el navegador Computrabajo existentes se mantienen sin sustitución. La integración del flujo de captura con este endpoint debe validarse antes de habilitar importación masiva.
+El agente dispone de `POST /api/agents/candidate-source/candidate` para entregar CV de Computrabajo a la misma canalización de ingesta que utiliza Talent. Requiere token de máquina válido; admite PDF/DOCX y deduplica por origen, cuenta e identificador externo. El cliente expone el envío mediante `AgentApiClient` y permite mantener las credenciales de Computrabajo en el almacén seguro del sistema operativo. La interfaz y el navegador Computrabajo existentes se mantienen sin sustitución. La captura de perfiles y la navegación completa requieren una prueba de sesión real antes de habilitar importación masiva.

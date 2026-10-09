@@ -48,3 +48,34 @@ def test_external_candidate_urls_rejected_before_navigation():
         asyncio.run(browser._collect_candidate_async({
             "detail_url": "https://attacker.invalid/Company/MatchCvDetail/MatchDetail"}))
     page.navigate.assert_not_awaited()
+
+
+def test_expired_offer_is_not_turned_into_candidate_pdf():
+    browser, page = fake_browser({"error": "COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED"})
+    with pytest.raises(RuntimeError, match="COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED"):
+        asyncio.run(browser._collect_candidate_async({
+            "detail_url": DETAIL, "candidate_name": "Example",
+        }))
+    page.printToPDF.assert_not_awaited()
+
+
+def test_page_without_candidate_profile_is_not_printed_as_pdf():
+    browser, page = fake_browser({"name": "", "attachment_url": ""})
+    with pytest.raises(RuntimeError, match="COMPUTRABAJO_PROFILE_CONTENT_UNAVAILABLE"):
+        asyncio.run(browser._collect_candidate_async({
+            "detail_url": DETAIL, "candidate_name": "Example",
+        }))
+    page.printToPDF.assert_not_awaited()
+
+
+def test_attachment_access_denied_does_not_fall_back_to_print():
+    browser, page = fake_browser(
+        {"name": "Sample",
+         "attachment_url": "https://empresa.co.computrabajo.com/Company/CvDownloader/Company/CvDetail/Download?ims=4567"},
+        {"access_denied": True},
+    )
+    with pytest.raises(RuntimeError, match="COMPUTRABAJO_CV_ACCESS_DENIED"):
+        asyncio.run(browser._collect_candidate_async({
+            "detail_url": DETAIL, "candidate_name": "Example",
+        }))
+    page.printToPDF.assert_not_awaited()
