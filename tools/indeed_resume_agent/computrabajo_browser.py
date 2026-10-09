@@ -471,14 +471,17 @@ class ComputrabajoBrowserUse:
                 continue
             await self._open_portal(url)
             cdp = await self._ensure_started()
+            tab_base_signature = None
             if tab is not None:
+                original = await scan(cdp)
+                tab_base_signature = signature(original)
                 activated = await self._evaluate(cdp, tab_click_js(tab))
                 if not isinstance(activated, dict) or not activated.get("clicked"):
                     unresolved_pagination += 1
                     continue
                 await asyncio.sleep(0.6)
 
-            previous_signature = None
+            previous_signature = tab_base_signature
             while pages < max_pages:
                 if stop_requested and stop_requested():
                     cancelled = True
