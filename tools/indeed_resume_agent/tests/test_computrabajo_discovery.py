@@ -118,12 +118,12 @@ def directory_candidate(letter):
 
 
 def directory_page(*, candidates=(), offers=(), links=(), tabs=(),
-                   js_next=False, active_page="", active_tab=""):
+                   js_next=False, active_page="", active_tab="", reported_received=None):
     return {
         "candidates": list(candidates), "offer_links": list(offers),
         "page_links": list(links), "tabs_js": list(tabs),
         "js_next": js_next, "active_page": active_page,
-        "active_tab": active_tab,
+        "active_tab": active_tab, "reported_received": reported_received,
     }
 
 
@@ -234,3 +234,19 @@ def test_active_tab_change_is_new_page_even_when_both_statuses_empty():
     with pytest.raises(ValueError, match="COMPUTRABAJO_NO_CANDIDATES_DISCOVERED"):
         asyncio.run(browser._discover_all_candidates_async(max_pages=10))
     assert browser._open_portal.await_count == 2
+
+
+def test_reported_applicant_count_marks_incomplete_listing():
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    listing = "https://empresa.co.computrabajo.com/Company/Offers/Match?oi=" + "B" * 32
+    browser._evaluate = AsyncMock(side_effect=[
+        directory_page(offers=[listing]),
+        directory_page(candidates=[directory_candidate("A")], reported_received=547),
+    ])
+    output = asyncio.run(browser._discover_all_candidates_async(max_pages=10))
+    assert output["pages"] == 2
+    assert output["reported_received_total"] == 547
+    assert output["discovered_with_reported_total"] == 1
+    assert output["offers_with_missing_candidates"] == 1
+    assert output["partial"] is True
