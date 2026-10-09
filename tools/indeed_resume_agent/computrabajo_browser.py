@@ -423,6 +423,7 @@ class ComputrabajoBrowserUse:
         visited: set[str] = set()
         found: dict[str, dict] = {}
         unsupported_pagination = False
+        blocked_pages = 0
         cancelled = False
 
         while pending and len(visited) < max_pages:
@@ -446,6 +447,10 @@ class ComputrabajoBrowserUse:
                 return {error: 'COMPUTRABAJO_LOGIN_OR_LIST_REQUIRED'};
               }
               const offerLinks = [], pageLinks = [], candidates = [];
+              const pageText = (document.body?.innerText || '').toLowerCase();
+              if (/su oferta de empleo ha vencido|oferta de empleo ha vencido|contratar una membresía/i.test(pageText))
+                return {access_denied: 'OFFER_EXPIRED', candidates: [],
+                        offer_links: [], page_links: [], unsupported_pagination: false};
               const seen = new Set();
               const here = location.pathname.toLowerCase().replace(/\/$/, '');
               for (const a of document.querySelectorAll('a[href]')) {
@@ -493,6 +498,9 @@ class ComputrabajoBrowserUse:
             if not isinstance(page.get("candidates"), list):
                 raise RuntimeError("COMPUTRABAJO_DISCOVERY_INVALID")
             visited.add(url)
+            if page.get("access_denied"):
+                blocked_pages += 1
+                continue
             unsupported_pagination |= bool(page.get("unsupported_pagination"))
             for candidate in page["candidates"]:
                 if not isinstance(candidate, dict):
@@ -520,12 +528,16 @@ class ComputrabajoBrowserUse:
                     pending.append(link)
             await asyncio.sleep(0.15)
         if not found and not cancelled:
-            raise ValueError("COMPUTRABAJO_NO_CANDIDATES_DISCOVERED")
+            raise ValueError(
+                "COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED"
+                if blocked_pages else "COMPUTRABAJO_NO_CANDIDATES_DISCOVERED"
+            )
         return {
             "candidates": list(found.values()),
             "pages": len(visited),
+            "blocked_pages": blocked_pages,
             "cancelled": cancelled,
-            "partial": bool(pending) or unsupported_pagination,
+            "partial": bool(pending) or unsupported_pagination or bool(blocked_pages),
         }
 
     def discover_all_candidates(self, *, max_pages: int = 500,
@@ -556,20 +568,29 @@ class ComputrabajoBrowserUse:
                 location.pathname.toLowerCase() !== '/company/matchcvdetail/matchdetail') {
                 return {error: 'COMPUTRABAJO_PROFILE_REQUIRED'};
             }
-            const links = [...document.querySelectorAll('a.js_download_file[href]')];
-            const valid = links.map(a => new URL(a.href)).filter(u =>
-                u.origin === location.origin &&
-                u.pathname === '/Company/CvDownloader/Company/CvDetail/Download' &&
+            const content = (document.body?.innerText || '').toLowerCase();
+            if (/su oferta de empleo ha vencido|oferta de empleo ha vencido|contratar una membresía/i.test(content))
+                return {error: 'COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED'};
+            const links = [...document.querySelectorAll('a.js_download_file[href], a[href*="CvDownloader"]')];
+            const valid = links.map(a => {
+                try { return new URL(a.href, location.href); }
+                catch (_) { return null; }
+            }).filter(u => u && u.origin === location.origin &&
+                u.pathname.toLowerCase() === '/company/cvdownloader/company/cvdetail/download' &&
                 u.searchParams.has('ims'));
             const name = (document.querySelector('h1.fs22, h1')?.textContent || '').trim();
             return {name: name.slice(0, 180),
                     attachment_url: valid[0]?.href || ''};
         })()""")
-        if not isinstance(info, dict) or info.get("error"):
+        if not isinstance(info, dict):
             raise RuntimeError("COMPUTRABAJO_PROFILE_INVALID")
+        if info.get("error"):
+            raise RuntimeError(str(info["error"]))
         name = str(candidate.get("candidate_name") or info.get("name") or "").strip()
         if not name:
             raise RuntimeError("COMPUTRABAJO_NAME_MISSING")
+        if not info.get("attachment_url") and not info.get("name"):
+            raise RuntimeError("COMPUTRABAJO_PROFILE_CONTENT_UNAVAILABLE")
         if info.get("attachment_url"):
             encoded = json.dumps(str(info["attachment_url"]))
             result = await self._evaluate(cdp, """(async () => {
@@ -577,6 +598,8 @@ class ComputrabajoBrowserUse:
                 try {
                     const response = await fetch(url, {credentials: 'same-origin'});
                     const type = response.headers.get('content-type') || '';
+                    if (response.status === 401 || response.status === 403)
+                        return {access_denied: true};
                     if (!response.ok || /text\\/html|application\\/json/i.test(type))
                         return {unsupported: true};
                     const buffer = await response.arrayBuffer();
@@ -589,6 +612,8 @@ class ComputrabajoBrowserUse:
                     return {content: btoa(raw), type};
                 } catch (_) { return {unsupported: true}; }
             })()""")
+            if isinstance(result, dict) and result.get("access_denied"):
+                raise RuntimeError("COMPUTRABAJO_CV_ACCESS_DENIED")
             if isinstance(result, dict) and result.get("content"):
                 raw = base64.b64decode(result["content"], validate=True)
                 if raw.lstrip().startswith(b"%PDF-"):
