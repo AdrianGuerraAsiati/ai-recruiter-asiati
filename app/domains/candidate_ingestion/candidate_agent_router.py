@@ -36,7 +36,7 @@ async def ingest_candidate(
     source_account: str = Form(..., min_length=1, max_length=200),
     external_id: str = Form(..., min_length=1, max_length=500),
     candidate_name: str = Form(..., min_length=1, max_length=1000),
-    job_title: str = Form(..., min_length=1, max_length=1000),
+    job_title: str | None = Form(default=None, max_length=1000),
     external_job_id: str | None = Form(default=None, max_length=500),
     location: str | None = Form(default=None, max_length=1000),
     applied_at: str | None = Form(default=None, max_length=200),
