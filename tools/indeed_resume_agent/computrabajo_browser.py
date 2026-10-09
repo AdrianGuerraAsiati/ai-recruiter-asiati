@@ -433,7 +433,13 @@ class ComputrabajoBrowserUse:
         offer_discovered_ids = {}
         blocked_pages = pages = candidate_pages = listing_pages = 0
         unresolved_pagination = 0
+        pagination_issues = {}
         cancelled = False
+
+        def mark_unresolved(code: str) -> None:
+            nonlocal unresolved_pagination
+            unresolved_pagination += 1
+            pagination_issues[code] = pagination_issues.get(code, 0) + 1
 
         async def scan(cdp):
             page = await self._evaluate(cdp, DIRECTORY_SCAN_JS)
@@ -488,7 +494,7 @@ class ComputrabajoBrowserUse:
                     )
                 )
                 if not isinstance(activated, dict) or not activated.get("clicked"):
-                    unresolved_pagination += 1
+                    mark_unresolved("TAB_NOT_AVAILABLE")
                     continue
                 await asyncio.sleep(0.6)
 
@@ -503,7 +509,8 @@ class ComputrabajoBrowserUse:
                 page = None
                 # After clicking a JS page control, wait for the DOM to change.
                 # Fail closed rather than repeatedly ingest the same page.
-                for attempt in range(14 if previous_signature else 6):
+                for attempt in range(24 if awaiting_next_page else
+                                     (14 if previous_signature else 6)):
                     page = await scan(cdp)
                     if page.get("access_denied"):
                         break
@@ -540,7 +547,10 @@ class ComputrabajoBrowserUse:
                         or (old_offers and not new_offers and not new_ids)
                     )
                     if next_signature == previous_signature or still_hydrating:
-                        unresolved_pagination += 1
+                        mark_unresolved(
+                            "PAGE_NOT_HYDRATED" if still_hydrating
+                            else "UNCHANGED_PAGE"
+                        )
                         break
                 previous_signature = signature(page)
                 awaiting_next_page = False
@@ -592,14 +602,14 @@ class ComputrabajoBrowserUse:
                 # Old DOM adapters signal unsupported pagination instead of
                 # js_next; treat that as partial, not as "fully synchronized".
                 if page.get("unsupported_pagination"):
-                    unresolved_pagination += 1
+                    mark_unresolved("UNSUPPORTED_PAGINATION")
                 if not page.get("js_next"):
                     break
                 clicked = await self._evaluate(
                     cdp, pagination_next_js(after_page=last_numeric_page)
                 )
                 if not isinstance(clicked, dict) or not clicked.get("clicked"):
-                    unresolved_pagination += 1
+                    mark_unresolved("NEXT_PAGE_NOT_CLICKABLE")
                     break
                 target_page = clicked.get("target_page")
                 if (type(target_page) is int and 1 <= target_page <= 10000):
@@ -627,6 +637,7 @@ class ComputrabajoBrowserUse:
             "offers_found": len(offer_urls),
             "blocked_pages": blocked_pages,
             "unresolved_pagination": unresolved_pagination,
+            "pagination_issues": pagination_issues,
             "reported_received_total": sum(offer_expected_counts.values()),
             "discovered_with_reported_total": sum(
                 len(offer_discovered_ids.get(key, set()))

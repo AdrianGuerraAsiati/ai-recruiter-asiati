@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 from pathlib import Path
 
 
@@ -67,25 +68,46 @@ def _safe_transfer_code(exc: Exception) -> str:
     return type(exc).__name__
 
 
-def _submit_candidate(*, browser, api, source_account: str, candidate: dict) -> dict:
+RETRYABLE_HTTP_CODES = frozenset({429, 502, 503, 504})
+RETRY_WAIT_SECONDS = (1.0, 3.0)
+
+
+def _submit_candidate(*, browser, api, source_account: str, candidate: dict,
+                      on_retry=None) -> dict:
+    """Upload the SAME CV bytes on retry; the Talent key is idempotent.
+
+    Never repeat the browser download or retry deterministic validation failures.
+    A 502/504 can occur after Talent commits; retrying the same identity and
+    document checksum is safe and returns the existing ingestion event.
+    """
     try:
         document = browser.collect_candidate(candidate)
     except Exception as exc:
         raise CandidateTransferError("descarga", _safe_transfer_code(exc)) from exc
-    try:
-        # No job title or external job identifier is sent to Talent.
-        return api.ingest_source_candidate(
-            provider="COMPUTRABAJO",
-            source_account=source_account,
-            external_id=str(candidate["external_id"]),
-            candidate_name=document["name"],
-            filename=document["filename"],
-            data=document["data"],
-            content_type=document["content_type"],
-            job_title="",
-        )
-    except Exception as exc:
-        raise CandidateTransferError("talent", _safe_transfer_code(exc)) from exc
+
+    for attempt in range(len(RETRY_WAIT_SECONDS) + 1):
+        try:
+            # No job title or external job identifier is sent to Talent.
+            return api.ingest_source_candidate(
+                provider="COMPUTRABAJO",
+                source_account=source_account,
+                external_id=str(candidate["external_id"]),
+                candidate_name=document["name"],
+                filename=document["filename"],
+                data=document["data"],
+                content_type=document["content_type"],
+                job_title="",
+            )
+        except Exception as exc:
+            status = getattr(exc, "status_code", None)
+            if (type(status) is int and status in RETRYABLE_HTTP_CODES and
+                    attempt < len(RETRY_WAIT_SECONDS)):
+                if on_retry is not None:
+                    on_retry(status)
+                time.sleep(RETRY_WAIT_SECONDS[attempt])
+                continue
+            raise CandidateTransferError("talent", _safe_transfer_code(exc)) from exc
+    raise RuntimeError("COMPUTRABAJO_RETRY_EXHAUSTED")
 
 
 def sync_all_candidates(*, browser, api, source_account: str,
@@ -109,6 +131,8 @@ def sync_all_candidates(*, browser, api, source_account: str,
         "pages": directory["pages"], "partial": directory["partial"],
         "cancelled": directory["cancelled"], "errors": [],
         "blocked_pages": directory.get("blocked_pages", 0), "error_counts": {},
+        "transient_retries": 0,
+        "pagination_issues": directory.get("pagination_issues", {}),
         "offers_found": directory.get("offers_found", 0),
         "candidate_pages": directory.get("candidate_pages", 0),
         "listing_pages": directory.get("listing_pages", 0),
@@ -126,9 +150,12 @@ def sync_all_candidates(*, browser, api, source_account: str,
             result["skipped"] += 1
         else:
             try:
+                def record_retry(status: int) -> None:
+                    result["transient_retries"] += 1
+
                 answer = _submit_candidate(
                     browser=browser, api=api, source_account=account,
-                    candidate=candidate,
+                    candidate=candidate, on_retry=record_retry,
                 )
                 if not answer.get("queued"):
                     raise RuntimeError("COMPUTRABAJO_CANDIDATE_NOT_QUEUED")

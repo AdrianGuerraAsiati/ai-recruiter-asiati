@@ -145,3 +145,78 @@ def test_sync_reports_pdf_and_api_failures_separately(tmp_path):
         "talent:HTTP_422": 1,
     }
     assert api.ingest_source_candidate.call_count == 1
+
+
+
+def test_transient_502_and_504_retry_the_same_bytes_without_redownload(monkeypatch, tmp_path):
+    from tools.indeed_resume_agent.computrabajo_sync import sync_all_candidates
+    from tools.indeed_resume_agent.api_client import AgentApiError
+
+    pauses = []
+    monkeypatch.setattr(
+        "tools.indeed_resume_agent.computrabajo_sync.time.sleep",
+        lambda seconds: pauses.append(seconds),
+    )
+    browser = Mock()
+    browser.discover_all_candidates.return_value = {
+        "candidates": [fake_candidate(1)],
+        "pages": 1, "partial": False, "cancelled": False,
+    }
+    browser.collect_candidate.return_value = {
+        "name": "Example", "filename": "cv.docx",
+        "data": b"PKsame-docx-bytes",
+        "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+    api = Mock()
+    api.ingest_source_candidate.side_effect = [
+        AgentApiError(502, "HTTP_502"),
+        AgentApiError(504, "HTTP_504"),
+        {"existing": True, "queued": True},
+    ]
+    result = sync_all_candidates(
+        browser=browser, api=api, source_account="asiati",
+        checkpoint_path=tmp_path / "progress.json",
+    )
+    assert result["failed"] == 0
+    assert result["existing"] == 1
+    assert result["transient_retries"] == 2
+    assert pauses == [1.0, 3.0]
+    assert browser.collect_candidate.call_count == 1
+    assert api.ingest_source_candidate.call_count == 3
+    uploads = api.ingest_source_candidate.call_args_list
+    assert all(x.kwargs == uploads[0].kwargs for x in uploads)
+    second = sync_all_candidates(
+        browser=browser, api=api, source_account="asiati",
+        checkpoint_path=tmp_path / "progress.json",
+    )
+    assert second["skipped"] == 1
+    assert api.ingest_source_candidate.call_count == 3
+
+
+def test_permanent_422_is_not_retried(monkeypatch, tmp_path):
+    from tools.indeed_resume_agent.computrabajo_sync import sync_all_candidates
+    from tools.indeed_resume_agent.api_client import AgentApiError
+
+    monkeypatch.setattr(
+        "tools.indeed_resume_agent.computrabajo_sync.time.sleep",
+        lambda seconds: pytest.fail("Must not sleep for HTTP 422"),
+    )
+    browser = Mock()
+    browser.discover_all_candidates.return_value = {
+        "candidates": [fake_candidate(1)],
+        "pages": 1, "partial": False, "cancelled": False,
+    }
+    browser.collect_candidate.return_value = {
+        "name": "Example", "filename": "cv.pdf",
+        "data": b"%PDF-1.7", "content_type": "application/pdf",
+    }
+    api = Mock()
+    api.ingest_source_candidate.side_effect = AgentApiError(422, "HTTP_422")
+    result = sync_all_candidates(
+        browser=browser, api=api, source_account="asiati",
+        checkpoint_path=tmp_path / "progress.json",
+    )
+    assert result["failed"] == 1
+    assert result["transient_retries"] == 0
+    assert result["error_counts"] == {"talent:HTTP_422": 1}
+    assert api.ingest_source_candidate.call_count == 1

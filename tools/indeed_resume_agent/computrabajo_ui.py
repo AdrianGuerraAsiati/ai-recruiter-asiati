@@ -252,6 +252,27 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
                                 f"{profiles} páginas de aspirantes.")
                     coverage += (f" {uncovered} paginaciones sin confirmar."
                                  if uncovered else "")
+                    reasons = report.get("pagination_issues", {})
+                    reason_names = {
+                        "PAGE_NOT_HYDRATED": "Carga incompleta",
+                        "UNCHANGED_PAGE": "Página sin cambios",
+                        "NEXT_PAGE_NOT_CLICKABLE": "Paginador inaccesible",
+                        "TAB_NOT_AVAILABLE": "Pestaña inaccesible",
+                        "UNSUPPORTED_PAGINATION": "Paginación no compatible",
+                    }
+                    reason_text = ", ".join(
+                        f"{reason_names.get(code, code)}: {count}"
+                        for code, count in sorted(
+                            reasons.items(), key=lambda item: -item[1]
+                        )[:3]
+                    )
+                    if reason_text:
+                        coverage += f" Causas: {reason_text}."
+                    if report.get("transient_retries", 0):
+                        coverage += (
+                            f" {report['transient_retries']} reintentos temporales "
+                            f"de comunicación con Talent."
+                        )
                     missing_offers = report.get("offers_with_missing_candidates", 0)
                     if missing_offers:
                         coverage += (

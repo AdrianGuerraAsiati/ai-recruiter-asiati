@@ -152,10 +152,11 @@ def test_js_next_stuck_marks_partial_instead_of_claiming_all():
         candidates=[directory_candidate("A")],
         js_next=True, active_page="1",
     )
-    browser._evaluate = AsyncMock(side_effect=[first, {"clicked": True}] + [first] * 14)
+    browser._evaluate = AsyncMock(side_effect=[first, {"clicked": True}] + [first] * 24)
     output = asyncio.run(browser._discover_all_candidates_async(max_pages=20))
     assert output["pages"] == 1
     assert output["unresolved_pagination"] == 1
+    assert output["pagination_issues"] == {"PAGE_NOT_HYDRATED": 1}
     assert output["partial"] is True
     assert len(output["candidates"]) == 1
 
@@ -283,7 +284,7 @@ def test_ajax_page_that_never_populates_is_partial_not_counted():
                            active_page="1", js_next=True)
     blank = directory_page(candidates=[], active_page="2", js_next=True)
     browser._evaluate = AsyncMock(side_effect=[
-        first, {"clicked": True, "target_page": 2}, *([blank] * 14),
+        first, {"clicked": True, "target_page": 2}, *([blank] * 24),
     ])
     output = asyncio.run(browser._discover_all_candidates_async(max_pages=20))
     assert output["pages"] == 1
