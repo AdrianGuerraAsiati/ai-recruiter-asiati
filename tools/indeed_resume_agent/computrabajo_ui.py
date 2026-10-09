@@ -252,6 +252,12 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
                                 f"{profiles} páginas de aspirantes.")
                     coverage += (f" {uncovered} paginaciones sin confirmar."
                                  if uncovered else "")
+                    expected = report.get("expected_candidates", 0)
+                    missing = report.get("missing_candidates", 0)
+                    if expected:
+                        coverage += (f" {report['total']} candidatos únicos encontrados; "
+                                     f"{expected} inscripciones reportadas; "
+                                     f"{missing} pendientes de localizar.")
                     blocked = report.get("blocked_pages", 0)
                     blocked_label = (
                         f" {blocked} páginas restringidas por Computrabajo."
