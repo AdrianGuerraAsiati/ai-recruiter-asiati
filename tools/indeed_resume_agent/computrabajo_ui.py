@@ -144,7 +144,7 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
     pdf_button = ttk.Button(actions, text="Guardar perfil abierto como PDF", command=lambda: commands.put("profile_pdf"))
     pdf_button.grid(row=3, column=0, columnspan=3, sticky="ew", pady=(5, 0))
 
-    discover_button = ttk.Button(actions, text="Detectar candidatos de esta vacante", command=lambda: commands.put("discover"))
+    discover_button = ttk.Button(actions, text="Detectar candidatos de esta página", command=lambda: commands.put("discover"))
     discover_button.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(5, 0))
 
     logout_button = ttk.Button(actions, text="Cerrar sesión", command=lambda: commands.put("logout"))
@@ -252,12 +252,12 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
                 continue
 
             if command == "discover":
-                updates.put(("busy", "Leyendo candidatos visibles de la vacante…"))
+                updates.put(("busy", "Leyendo candidatos visibles en la página…"))
                 try:
                     candidates = browser.discover_visible_candidates()
                     updates.put(("ready", f"Detectados {len(candidates)} candidatos en esta página. Sin envío a Talent todavía."))
                 except Exception:
-                    updates.put(("error", "Abre primero el listado de candidatos de una vacante."))
+                    updates.put(("error", "Abre primero una página de candidatos de Computrabajo."))
                 continue
 
             if command == "profile_pdf":
