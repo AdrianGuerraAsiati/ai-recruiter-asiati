@@ -250,3 +250,43 @@ def test_reported_applicant_count_marks_incomplete_listing():
     assert output["discovered_with_reported_total"] == 1
     assert output["offers_with_missing_candidates"] == 1
     assert output["partial"] is True
+
+
+
+def test_ajax_empty_intermediate_screen_does_not_skip_30_applicants():
+    """The pager clears DOM links before the next batch of candidate cards loads."""
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    browser._evaluate = AsyncMock(side_effect=[
+        directory_page(candidates=[directory_candidate("A")],
+                       js_next=True, active_page="1"),
+        {"clicked": True, "target_page": 2},
+        # The page badge changes immediately, but its CV links are still loading.
+        directory_page(candidates=[], active_page="2", js_next=True),
+        directory_page(candidates=[directory_candidate("B")],
+                       js_next=False, active_page="2"),
+    ])
+    output = asyncio.run(browser._discover_all_candidates_async(max_pages=20))
+    assert output["pages"] == 2
+    assert output["unresolved_pagination"] == 0
+    assert output["partial"] is False
+    assert {c["external_id"] for c in output["candidates"]} == {
+        "A" * 32, "B" * 32,
+    }
+
+
+def test_ajax_page_that_never_populates_is_partial_not_counted():
+    """Do not claim a blank transition page was synchronized."""
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    first = directory_page(candidates=[directory_candidate("A")],
+                           active_page="1", js_next=True)
+    blank = directory_page(candidates=[], active_page="2", js_next=True)
+    browser._evaluate = AsyncMock(side_effect=[
+        first, {"clicked": True, "target_page": 2}, *([blank] * 14),
+    ])
+    output = asyncio.run(browser._discover_all_candidates_async(max_pages=20))
+    assert output["pages"] == 1
+    assert output["unresolved_pagination"] == 1
+    assert output["partial"] is True
+    assert len(output["candidates"]) == 1
