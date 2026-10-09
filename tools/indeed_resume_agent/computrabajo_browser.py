@@ -489,8 +489,9 @@ class ComputrabajoBrowserUse:
             for attempt in range(6):
                 page = await self._evaluate(cdp, scan_script)
                 if (not isinstance(page, dict) or page.get("error") or
-                    page.get("candidates") or page.get("offer_links") or
-                    page.get("page_links") or attempt == 5):
+                    page.get("access_denied") or page.get("candidates") or
+                    page.get("offer_links") or page.get("page_links") or
+                    attempt == 5):
                     break
                 await asyncio.sleep(0.65)
             if not isinstance(page, dict) or page.get("error"):
