@@ -139,7 +139,7 @@ DIRECTORY_SCAN_JS = r"""(() => {
         offerLinks.push(url.href);
       }
     } else if (target === path && url.href !== location.href &&
-               (pager(a) || nextControl(a) || a.closest('[role="tab"], .nav-tabs, .tabs') ||
+               (pager(a) || forwardArrow(a) || a.closest('[role="tab"], .nav-tabs, .tabs') ||
                 (url.search && url.search !== location.search))) {
       if (!directPages.has(url.href)) {
         directPages.add(url.href);
