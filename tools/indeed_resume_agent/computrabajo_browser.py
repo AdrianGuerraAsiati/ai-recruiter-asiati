@@ -1273,12 +1273,18 @@ class ComputrabajoBrowserUse:
             });
           const chosen = matches[0];
           if (!chosen) return false;
-          if (chosen.href) {
-            let target;
-            try { target = new URL(chosen.href, location.href); } catch (_) { return false; }
-            if (target.origin !== location.origin ||
-                target.pathname.toLowerCase().replace(/\/$/, '') !== '/company/offers/match')
-              return false;
+          if (chosen.getAttribute('href')) {
+            const raw = chosen.getAttribute('href').trim().toLowerCase();
+            const benign = raw === '#' || raw === 'javascript:void(0)' ||
+                           raw === 'javascript:void(0);';
+            if (!benign) {
+              let target;
+              try { target = new URL(chosen.href, location.href); }
+              catch (_) { return false; }
+              if (target.origin !== location.origin ||
+                  target.pathname.toLowerCase().replace(/\/$/, '') !== '/company/offers/match')
+                return false;
+            }
           }
           chosen.click();
           return true;
