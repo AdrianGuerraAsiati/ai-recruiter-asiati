@@ -437,9 +437,11 @@ class ComputrabajoBrowserUse:
         found: dict[str, dict] = {}
         unsupported_pagination = False
         blocked_pages = 0
+        pages_scanned = 0
+        expected_candidates = 0
         cancelled = False
 
-        while pending and len(visited) < max_pages:
+        while pending and pages_scanned < max_pages:
             if stop_requested and stop_requested():
                 cancelled = True
                 break
@@ -452,6 +454,25 @@ class ComputrabajoBrowserUse:
                 parsed.path.casefold().rstrip("/") not in
                     {"/company/offers", "/company/offers/match"}):
                 raise ValueError("COMPUTRABAJO_UNSAFE_DISCOVERY_PAGE")
+            # The provider offer is only a navigation path; do not import jobs.
+            if parsed.path.casefold().rstrip("/") == "/company/offers/match":
+                offer = await self._walk_offer_candidates_async(
+                    url, max_pages=max_pages - pages_scanned,
+                    stop_requested=stop_requested,
+                )
+                visited.add(url)
+                pages_scanned += max(1, int(offer.get("pages", 0)))
+                if offer.get("blocked"):
+                    blocked_pages += 1
+                    unsupported_pagination = True
+                    continue
+                unsupported_pagination |= bool(offer.get("partial"))
+                expected_candidates += int(offer.get("expected", 0))
+                for candidate in offer.get("candidates", []):
+                    cid = str(candidate.get("external_id") or "").casefold()
+                    if cid:
+                        found.setdefault(cid, candidate)
+                continue
             await self._open_portal(url)
             cdp = await self._ensure_started()
             scan_script = """(() => {
@@ -512,6 +533,7 @@ class ComputrabajoBrowserUse:
             if not isinstance(page.get("candidates"), list):
                 raise RuntimeError("COMPUTRABAJO_DISCOVERY_INVALID")
             visited.add(url)
+            pages_scanned += 1
             if page.get("access_denied"):
                 blocked_pages += 1
                 continue
@@ -548,7 +570,8 @@ class ComputrabajoBrowserUse:
             )
         return {
             "candidates": list(found.values()),
-            "pages": len(visited),
+            "pages": pages_scanned,
+            "expected_candidates": expected_candidates,
             "blocked_pages": blocked_pages,
             "cancelled": cancelled,
             "partial": bool(pending) or unsupported_pagination or bool(blocked_pages),
@@ -1312,7 +1335,7 @@ class ComputrabajoBrowserUse:
             if current.get("error"):
                 partial = True
                 continue
-            if status != current.get("active_status"):
+            if status != (current.get("active_status") or "recibidos"):
                 before = current.get("signature", "")
                 if not await self._click_candidate_listing_control(
                     cdp, kind="status", status=status,
