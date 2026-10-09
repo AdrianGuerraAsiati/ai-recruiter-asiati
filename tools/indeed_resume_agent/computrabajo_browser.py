@@ -415,6 +415,7 @@ class ComputrabajoBrowserUse:
         authenticated browser session. This does not bypass expired offers.
         """
         from collections import deque
+        from urllib.parse import parse_qs
         from .computrabajo_directory import (
             OFFERS_START, CANDIDATES_PATH, DIRECTORY_SCAN_JS,
             NEXT_PAGE_JS, directory_url, candidate_detail_url, tab_click_js,
@@ -429,6 +430,8 @@ class ComputrabajoBrowserUse:
         offer_urls = set()
         blocked_pages = pages = candidate_pages = listing_pages = 0
         unresolved_pagination = 0
+        expected_by_offer = {}
+        found_by_offer = {}
         cancelled = False
 
         async def scan(cdp):
@@ -523,12 +526,24 @@ class ComputrabajoBrowserUse:
                     candidate_pages += 1
                 else:
                     listing_pages += 1
+                if current_path == CANDIDATES_PATH:
+                    offer_id = parse_qs(urlparse(url).query).get("oi", [url])[0]
+                    reported = page.get("reported_total")
+                    counts = page.get("status_counts") or {}
+                    expected = (reported if isinstance(reported, int)
+                                else sum(counts.values()) if counts else 0)
+                    if expected:
+                        expected_by_offer[offer_id] = max(
+                            expected_by_offer.get(offer_id, 0), expected
+                        )
+                    found_by_offer.setdefault(offer_id, set())
                 for candidate in page["candidates"]:
                     if (isinstance(candidate, dict) and candidate_detail_url(
                             candidate.get("detail_url"), candidate.get("external_id"))):
-                        found.setdefault(
-                            str(candidate["external_id"]).casefold(), candidate
-                        )
+                        key = str(candidate["external_id"]).casefold()
+                        found.setdefault(key, candidate)
+                        if current_path == CANDIDATES_PATH:
+                            found_by_offer[offer_id].add(key)
                 for candidate_listing in page.get("offer_links", []):
                     safe = directory_url(candidate_listing)
                     if safe and urlparse(safe).path.casefold().rstrip("/") == CANDIDATES_PATH:
@@ -536,7 +551,7 @@ class ComputrabajoBrowserUse:
                         enqueue(safe)
                 for next_url in page.get("page_links", []):
                     enqueue(next_url)
-                if current_path != CANDIDATES_PATH and tab is None:
+                if tab is None:
                     for next_tab in page.get("tabs_js", []):
                         if isinstance(next_tab, str):
                             enqueue(url, next_tab)
@@ -555,6 +570,14 @@ class ComputrabajoBrowserUse:
                 break
             await asyncio.sleep(0.1)
 
+        # A fully traversed listing must match the authorized provider count.
+        # Per-offer identities avoid confusing repeat applicants across offers.
+        missing_by_offer = sum(
+            max(0, total - len(found_by_offer.get(offer_id, set())))
+            for offer_id, total in expected_by_offer.items()
+        )
+        if missing_by_offer:
+            unresolved_pagination += 1
         if not found and not cancelled:
             raise ValueError(
                 "COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED"
@@ -567,6 +590,8 @@ class ComputrabajoBrowserUse:
             "listing_pages": listing_pages,
             "offers_found": len(offer_urls),
             "blocked_pages": blocked_pages,
+            "expected_candidates": sum(expected_by_offer.values()),
+            "missing_candidates": missing_by_offer,
             "unresolved_pagination": unresolved_pagination,
             "cancelled": cancelled,
             "partial": (
