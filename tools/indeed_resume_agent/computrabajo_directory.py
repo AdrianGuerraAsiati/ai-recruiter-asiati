@@ -111,7 +111,7 @@ DIRECTORY_SCAN_JS = r"""(() => {
       }
     }
   }
-  for (const el of document.querySelectorAll('[role="tab"], .nav-tabs button, .tabs button')) {
+  for (const el of document.querySelectorAll('[role="tab"], .nav-tabs button, .nav-tabs a, .tabs button, .tabs a, [data-toggle="tab"], [data-bs-toggle="tab"]')) {
     const name = tabName(el);
     if (safeTab(name) && !el.disabled &&
         el.getAttribute('aria-selected') !== 'true' &&
@@ -176,7 +176,7 @@ def tab_click_js(name: str) -> str:
         return {clicked: false};
       const valid = n => /^(todas?|activas?|inactivas?|finalizadas?|vencidas?|cerradas?|archivadas?|anteriores?|hist[oó]ricas?|publicadas?|pausadas?)(\b|$)/i.test(n);
       if (!valid(key)) return {clicked: false};
-      for (const el of document.querySelectorAll('[role="tab"], .nav-tabs button, .tabs button')) {
+      for (const el of document.querySelectorAll('[role="tab"], .nav-tabs button, .nav-tabs a, .tabs button, .tabs a, [data-toggle="tab"], [data-bs-toggle="tab"]')) {
         const name = (el.getAttribute('aria-label') || el.textContent || '')
           .toLowerCase().trim().replace(/\s+/g, ' ').slice(0, 75);
         if (name === key && !el.disabled) {
