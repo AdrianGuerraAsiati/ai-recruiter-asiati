@@ -116,7 +116,9 @@ DIRECTORY_SCAN_JS = r"""(() => {
     const name = tabName(el);
     if (safeTab(name) && !el.disabled &&
         el.getAttribute('aria-selected') !== 'true' &&
-        !el.classList.contains('active') && !tabs.includes(name)) {
+        !el.classList.contains('active') &&
+        !el.closest('li.active, [role="tab"][aria-selected="true"]') &&
+        !tabs.includes(name)) {
       const href = el.getAttribute('href') || '';
       if (!href || href.startsWith('#') || href.toLowerCase().startsWith('javascript:')) tabs.push(name);
     }
