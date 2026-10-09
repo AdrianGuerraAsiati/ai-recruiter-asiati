@@ -63,4 +63,4 @@ def test_candidate_status_click_contract_is_read_only_and_domain_scoped():
         assert "fetch(" not in expression
     assert "status_counts" in DIRECTORY_SCAN_JS
     assert "reported_total" in DIRECTORY_SCAN_JS
-    assert "Number(current + 1)" in DIRECTORY_SCAN_JS
+    assert "String(numeric + 1)" in DIRECTORY_SCAN_JS
