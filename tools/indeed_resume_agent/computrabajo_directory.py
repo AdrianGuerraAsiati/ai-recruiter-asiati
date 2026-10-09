@@ -71,7 +71,6 @@ DIRECTORY_SCAN_JS = r"""(() => {
   }
   const candidates = [], offerLinks = [], pageLinks = [], tabs = [];
   const candidateIds = new Set(), directOffers = new Set(), directPages = new Set();
-  const sameDirectory = p => ['/company/offers', '/company/offers/match'].includes(p);
   const pager = el => !!el.closest(
     '.pagination, .pager, [class*="pagination"], [class*="paginacion"], nav[aria-label*="age"], nav[aria-label*="ágina"]'
   );
@@ -82,7 +81,9 @@ DIRECTORY_SCAN_JS = r"""(() => {
   };
   const tabName = el => (el.getAttribute('aria-label') || el.textContent || '')
     .toLowerCase().trim().replace(/\s+/g, ' ').slice(0, 75);
-  const safeTab = name => /^(todas?|activas?|inactivas?|finalizadas?|vencidas?|cerradas?|archivadas?|anteriores?|hist[oó]ricas?|publicadas?|pausadas?)(\b|$)/i.test(name);
+  const safeTab = name => path === '/company/offers/match'
+    ? /^(recibid[oa]s|seleccionad[oa]s|finalistas?|descartad[oa]s|preseleccionad[oa]s|rechazad[oa]s|entrevistad[oa]s)(\s*\(\s*\d+\s*\))?$/i.test(name)
+    : /^(todas?|activas?|inactivas?|finalizadas?|vencidas?|cerradas?|archivadas?|anteriores?|hist[oó]ricas?|publicadas?|pausadas?)(\b|$)/i.test(name);
   for (const a of document.querySelectorAll('a[href]')) {
     let url;
     try { url = new URL(a.getAttribute('href'), location.href); } catch (_) { continue; }
@@ -115,27 +116,38 @@ DIRECTORY_SCAN_JS = r"""(() => {
     const name = tabName(el);
     if (safeTab(name) && !el.disabled &&
         el.getAttribute('aria-selected') !== 'true' &&
-        !el.classList.contains('active') && !tabs.includes(name)) {
+        !el.classList.contains('active') &&
+        !el.closest('li.active, [role="tab"][aria-selected="true"]') &&
+        !tabs.includes(name)) {
       const href = el.getAttribute('href') || '';
       if (!href || href.startsWith('#') || href.toLowerCase().startsWith('javascript:')) tabs.push(name);
     }
   }
+  const activeTab = [...document.querySelectorAll('[role="tab"][aria-selected="true"], .nav-tabs .active, .tabs .active, .tablist .active, [data-toggle="tab"].active')].map(tabName).find(safeTab) || '';
+  const activePage = document.querySelector(
+    '.pagination .active, .pager .active, [aria-current="page"]'
+  )?.textContent?.trim().slice(0, 30) || '';
+  const activeNumber = /^\d+$/.test(activePage) ? Number(activePage) : 0;
   let jsNext = false;
   for (const el of document.querySelectorAll('a, button')) {
     if (el.disabled || el.getAttribute('aria-disabled') === 'true' ||
         el.closest('[disabled]')) continue;
-    if (!nextControl(el) || !(pager(el) || el.rel === 'next')) continue;
+    const numericNext = pager(el) && activeNumber > 0 && /^\d+$/.test((el.textContent || '').trim())
+      && Number((el.textContent || '').trim()) === activeNumber + 1;
+    if ((!nextControl(el) && !numericNext) || !(pager(el) || el.rel === 'next')) continue;
     const href = el.getAttribute('href') || '';
     let url;
     try { url = new URL(href, location.href); } catch (_) { url = null; }
     if (!href || href.startsWith('#') || href.toLowerCase().startsWith('javascript:') ||
         (url && url.href === location.href)) jsNext = true;
   }
-  const activePage = document.querySelector(
-    '.pagination .active, .pager .active, [aria-current="page"]'
-  )?.textContent?.trim().slice(0, 30) || '';
+  const received = [...document.querySelectorAll(
+    '[role="tab"], .nav-tabs a, .nav-tabs button, .tabs a, .tabs button, [data-toggle="tab"], [data-bs-toggle="tab"]'
+  )].map(tabName).find(t => /^recibid[oa]s\s*\(\s*\d+\s*\)$/i.test(t));
+  const reportedReceived = received ? Number(received.match(/\(\s*(\d+)\s*\)/)?.[1]) : null;
   return {candidates, offer_links: offerLinks, page_links: pageLinks,
-          tabs_js: tabs, js_next: jsNext, active_page: activePage};
+          tabs_js: tabs, js_next: jsNext, active_page: activePage,
+          active_tab: activeTab, reported_received: reportedReceived};
 })()"""
 
 
@@ -146,10 +158,16 @@ NEXT_PAGE_JS = r"""(() => {
     return {clicked: false};
   const pager = el => !!el.closest(
     '.pagination, .pager, [class*="pagination"], [class*="paginacion"], nav[aria-label*="age"], nav[aria-label*="ágina"]');
+  const activePage = document.querySelector(
+    '.pagination .active, .pager .active, [aria-current="page"]'
+  )?.textContent?.trim() || '';
+  const activeNumber = /^\d+$/.test(activePage) ? Number(activePage) : 0;
   for (const el of document.querySelectorAll('a, button')) {
     const label = (el.getAttribute('aria-label') || el.getAttribute('title') ||
                    el.textContent || '').trim().toLowerCase();
-    const isNext = el.rel === 'next' || /\b(siguiente|next)\b|^[›»→]+$/.test(label);
+    const isNext = el.rel === 'next' || /\b(siguiente|next)\b|^[›»→]+$/.test(label)
+      || (pager(el) && activeNumber > 0 && /^\d+$/.test(label)
+          && Number(label) === activeNumber + 1);
     if (!isNext || !(pager(el) || el.rel === 'next') ||
         el.disabled || el.getAttribute('aria-disabled') === 'true') continue;
     const href = el.getAttribute('href') || '';
@@ -164,22 +182,28 @@ NEXT_PAGE_JS = r"""(() => {
 })()"""
 
 
-def tab_click_js(name: str) -> str:
-    """Build a tab-click expression with safely JSON-encoded label text."""
+def tab_click_js(name: str, *, candidate_list: bool = False) -> str:
+    """Click only known navigation tabs, never candidate state-changing actions."""
     import json
+
     if not isinstance(name, str) or len(name) > 75:
         raise ValueError("COMPUTRABAJO_INVALID_TAB")
+    # Only the two read-only listing paths are permitted.
+    path = CANDIDATES_PATH if candidate_list else OFFERS_PATH
     return r"""(() => {
       const key = """ + json.dumps(name) + r""";
+      const expectedPath = """ + json.dumps(path) + r""";
       if (location.hostname !== 'empresa.co.computrabajo.com' ||
-          location.pathname.toLowerCase().replace(/\/$/, '') !== '/company/offers')
+          location.pathname.toLowerCase().replace(/\/$/, '') !== expectedPath)
         return {clicked: false};
-      const valid = n => /^(todas?|activas?|inactivas?|finalizadas?|vencidas?|cerradas?|archivadas?|anteriores?|hist[oó]ricas?|publicadas?|pausadas?)(\b|$)/i.test(n);
+      const valid = n => expectedPath === '/company/offers/match'
+        ? /^(recibid[oa]s|seleccionad[oa]s|finalistas?|descartad[oa]s|preseleccionad[oa]s|rechazad[oa]s|entrevistad[oa]s)(\s*\(\s*\d+\s*\))?$/i.test(n)
+        : /^(todas?|activas?|inactivas?|finalizadas?|vencidas?|cerradas?|archivadas?|anteriores?|hist[oó]ricas?|publicadas?|pausadas?)(\b|$)/i.test(n);
       if (!valid(key)) return {clicked: false};
       for (const el of document.querySelectorAll('[role="tab"], .nav-tabs button, .nav-tabs a, .tabs button, .tabs a, [data-toggle="tab"], [data-bs-toggle="tab"]')) {
-        const name = (el.getAttribute('aria-label') || el.textContent || '')
+        const current = (el.getAttribute('aria-label') || el.textContent || '')
           .toLowerCase().trim().replace(/\s+/g, ' ').slice(0, 75);
-        if (name === key && !el.disabled) {
+        if (current === key && !el.disabled) {
           el.click();
           return {clicked: true};
         }

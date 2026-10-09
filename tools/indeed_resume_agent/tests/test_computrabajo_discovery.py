@@ -118,11 +118,12 @@ def directory_candidate(letter):
 
 
 def directory_page(*, candidates=(), offers=(), links=(), tabs=(),
-                   js_next=False, active_page=""):
+                   js_next=False, active_page="", active_tab="", reported_received=None):
     return {
         "candidates": list(candidates), "offer_links": list(offers),
         "page_links": list(links), "tabs_js": list(tabs),
         "js_next": js_next, "active_page": active_page,
+        "active_tab": active_tab, "reported_received": reported_received,
     }
 
 
@@ -192,3 +193,60 @@ def test_duplicate_candidates_across_multiple_lists_are_returned_once():
     assert output["candidate_pages"] == 2
     assert output["pages"] == 3
     assert len(output["candidates"]) == 1
+
+
+def test_candidate_status_tabs_are_traversed_without_importing_vacancies():
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    listing = "https://empresa.co.computrabajo.com/Company/Offers/Match?oi=" + "B" * 32
+    browser._evaluate = AsyncMock(side_effect=[
+        directory_page(offers=[listing]),
+        directory_page(candidates=[directory_candidate("A")],
+                       tabs=["seleccionados (6)"], active_page="1"),
+        directory_page(candidates=[directory_candidate("A")],
+                       tabs=["seleccionados (6)"], active_page="1"),
+        {"clicked": True},
+        directory_page(candidates=[directory_candidate("C")],
+                       active_page="1", active_tab="seleccionados (6)"),
+    ])
+    result = asyncio.run(browser._discover_all_candidates_async(max_pages=10))
+    assert result["pages"] == 3
+    assert result["candidate_pages"] == 2
+    assert result["offers_found"] == 1
+    assert {c["external_id"] for c in result["candidates"]} == {"A" * 32, "C" * 32}
+    tab_script = browser._evaluate.await_args_list[3].args[1]
+    assert "seleccionados (6)" in tab_script
+    assert "/company/offers/match" in tab_script
+
+
+def test_active_tab_change_is_new_page_even_when_both_statuses_empty():
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    base = directory_page(offers=[], tabs=["finalizadas"])
+    browser._evaluate = AsyncMock(side_effect=[
+        base,
+        base,
+        {"clicked": True},
+        directory_page(active_tab="finalizadas"),
+    ])
+    # The root has no candidates, so a separate cancellation bypasses
+    # the ordinary no-candidates exception; it still must scan both tabs.
+    with pytest.raises(ValueError, match="COMPUTRABAJO_NO_CANDIDATES_DISCOVERED"):
+        asyncio.run(browser._discover_all_candidates_async(max_pages=10))
+    assert browser._open_portal.await_count == 2
+
+
+def test_reported_applicant_count_marks_incomplete_listing():
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    listing = "https://empresa.co.computrabajo.com/Company/Offers/Match?oi=" + "B" * 32
+    browser._evaluate = AsyncMock(side_effect=[
+        directory_page(offers=[listing]),
+        directory_page(candidates=[directory_candidate("A")], reported_received=547),
+    ])
+    output = asyncio.run(browser._discover_all_candidates_async(max_pages=10))
+    assert output["pages"] == 2
+    assert output["reported_received_total"] == 547
+    assert output["discovered_with_reported_total"] == 1
+    assert output["offers_with_missing_candidates"] == 1
+    assert output["partial"] is True
