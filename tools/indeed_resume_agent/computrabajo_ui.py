@@ -230,10 +230,26 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
                     status = "Atención: ejecución parcial" if (
                         report["partial"] or report["cancelled"] or report["failed"]
                     ) else "Sincronización completada"
+                    error_counts = sorted(
+                        report.get("error_counts", {}).items(),
+                        key=lambda item: (-item[1], item[0]),
+                    )
+                    details = ", ".join(
+                        f"{code}: {count}" for code, count in error_counts[:3]
+                    )
+                    warning = (
+                        f" Motivos: {details}." if details else ""
+                    )
+                    blocked = report.get("blocked_pages", 0)
+                    blocked_label = (
+                        f" {blocked} páginas restringidas por Computrabajo."
+                        if blocked else ""
+                    )
                     updates.put(("ready", f"{status}. "
                         f"{report['pages']} páginas revisadas; "
                         f"{report['created']} nuevos, {report['existing']} existentes, "
-                        f"{report['skipped']} omitidos y {report['failed']} errores."))
+                        f"{report['skipped']} omitidos y {report['failed']} errores."
+                        + blocked_label + warning))
                 except Exception as exc:
                     updates.put(("error",
                         "No se completó la sincronización de candidatos (" +
