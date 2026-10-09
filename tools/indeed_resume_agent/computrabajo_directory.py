@@ -82,7 +82,9 @@ DIRECTORY_SCAN_JS = r"""(() => {
   };
   const tabName = el => (el.getAttribute('aria-label') || el.textContent || '')
     .toLowerCase().trim().replace(/\s+/g, ' ').slice(0, 75);
-  const safeTab = name => /^(todas?|activas?|inactivas?|finalizadas?|vencidas?|cerradas?|archivadas?|anteriores?|hist[oó]ricas?|publicadas?|pausadas?)(\b|$)/i.test(name);
+  const offerTab = name => /^(todas?|activas?|inactivas?|finalizadas?|vencidas?|cerradas?|archivadas?|anteriores?|hist[oó]ricas?|publicadas?|pausadas?)(\b|$)/i.test(name);
+  const candidateTab = name => /^(recibidos|seleccionados|finalistas|descartados)\s*(\(\s*\d+\s*\))?$/i.test(name);
+  const safeTab = name => path === '/company/offers' ? offerTab(name) : candidateTab(name);
   for (const a of document.querySelectorAll('a[href]')) {
     let url;
     try { url = new URL(a.getAttribute('href'), location.href); } catch (_) { continue; }
@@ -111,11 +113,13 @@ DIRECTORY_SCAN_JS = r"""(() => {
       }
     }
   }
-  for (const el of document.querySelectorAll('[role="tab"], .nav-tabs button, .nav-tabs a, .tabs button, .tabs a, [data-toggle="tab"], [data-bs-toggle="tab"]')) {
+  for (const el of document.querySelectorAll('[role="tab"], .nav-tabs button, .nav-tabs a, .tabs button, .tabs a, [class*="tab"] a, [class*="tab"] button, [data-toggle="tab"], [data-bs-toggle="tab"]')) {
     const name = tabName(el);
     if (safeTab(name) && !el.disabled &&
         el.getAttribute('aria-selected') !== 'true' &&
-        !el.classList.contains('active') && !tabs.includes(name)) {
+        !el.classList.contains('active') &&
+        !el.closest('.active,.selected,.current,[aria-selected="true"]') &&
+        !tabs.includes(name)) {
       const href = el.getAttribute('href') || '';
       if (!href || href.startsWith('#') || href.toLowerCase().startsWith('javascript:')) tabs.push(name);
     }
@@ -134,8 +138,19 @@ DIRECTORY_SCAN_JS = r"""(() => {
   const activePage = document.querySelector(
     '.pagination .active, .pager .active, [aria-current="page"]'
   )?.textContent?.trim().slice(0, 30) || '';
+  const statusCounts = {};
+  if (path === '/company/offers/match') {
+    for (const el of document.querySelectorAll('a,button,[role="tab"],[class*="tab"]')) {
+      const name = tabName(el);
+      const found = name.match(/^(recibidos|seleccionados|finalistas|descartados)\s*\(\s*(\d+)\s*\)$/);
+      if (found) statusCounts[found[1]] = Number(found[2]);
+    }
+  }
+  const totalMatch = text.match(/(\d{1,7})\s+candidatos inscritos/);
   return {candidates, offer_links: offerLinks, page_links: pageLinks,
-          tabs_js: tabs, js_next: jsNext, active_page: activePage};
+          tabs_js: tabs, js_next: jsNext, active_page: activePage,
+          status_counts: statusCounts,
+          reported_total: totalMatch ? Number(totalMatch[1]) : null};
 })()"""
 
 
@@ -171,12 +186,16 @@ def tab_click_js(name: str) -> str:
         raise ValueError("COMPUTRABAJO_INVALID_TAB")
     return r"""(() => {
       const key = """ + json.dumps(name) + r""";
-      if (location.hostname !== 'empresa.co.computrabajo.com' ||
-          location.pathname.toLowerCase().replace(/\/$/, '') !== '/company/offers')
+      if (location.hostname !== 'empresa.co.computrabajo.com')
         return {clicked: false};
-      const valid = n => /^(todas?|activas?|inactivas?|finalizadas?|vencidas?|cerradas?|archivadas?|anteriores?|hist[oó]ricas?|publicadas?|pausadas?)(\b|$)/i.test(n);
+      const path = location.pathname.toLowerCase().replace(/\/$/, '');
+      if (!['/company/offers','/company/offers/match'].includes(path))
+        return {clicked: false};
+      const offerTab = n => /^(todas?|activas?|inactivas?|finalizadas?|vencidas?|cerradas?|archivadas?|anteriores?|hist[oó]ricas?|publicadas?|pausadas?)(\b|$)/i.test(n);
+      const candidateTab = n => /^(recibidos|seleccionados|finalistas|descartados)\s*(\(\s*\d+\s*\))?$/i.test(n);
+      const valid = n => path === '/company/offers' ? offerTab(n) : candidateTab(n);
       if (!valid(key)) return {clicked: false};
-      for (const el of document.querySelectorAll('[role="tab"], .nav-tabs button, .nav-tabs a, .tabs button, .tabs a, [data-toggle="tab"], [data-bs-toggle="tab"]')) {
+      for (const el of document.querySelectorAll('[role="tab"], .nav-tabs button, .nav-tabs a, .tabs button, .tabs a, [class*="tab"] a, [class*="tab"] button, [data-toggle="tab"], [data-bs-toggle="tab"]')) {
         const name = (el.getAttribute('aria-label') || el.textContent || '')
           .toLowerCase().trim().replace(/\s+/g, ' ').slice(0, 75);
         if (name === key && !el.disabled) {
