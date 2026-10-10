@@ -250,7 +250,7 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
                     profiles = report.get("candidate_pages", 0)
                     coverage = (f" {listings} listados detectados, "
                                 f"{profiles} páginas de aspirantes.")
-                    coverage += (f" {uncovered} paginaciones sin confirmar."
+                    coverage += (f" {uncovered} incidencias de cobertura."
                                  if uncovered else "")
                     reasons = report.get("pagination_issues", {})
                     reason_names = {
@@ -259,6 +259,7 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
                         "NEXT_PAGE_NOT_CLICKABLE": "Paginador inaccesible",
                         "TAB_NOT_AVAILABLE": "Pestaña inaccesible",
                         "UNSUPPORTED_PAGINATION": "Paginación no compatible",
+                        "INCOMPLETE_PROVIDER_COUNT": "Inscritos sin localizar",
                     }
                     reason_text = ", ".join(
                         f"{reason_names.get(code, code)}: {count}"
@@ -273,13 +274,15 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
                             f" {report['transient_retries']} reintentos temporales "
                             f"de comunicación con Talent."
                         )
+                    expected = report.get("expected_candidates", 0)
+                    missing = report.get("missing_candidates", 0)
                     missing_offers = report.get("offers_with_missing_candidates", 0)
-                    if missing_offers:
+                    if expected:
+                        covered = report.get("discovered_with_reported_total", 0)
                         coverage += (
-                            f" Cobertura incompleta en {missing_offers} listados: "
-                            f"{report['discovered_with_reported_total']} aspirantes "
-                            f"detectados de {report['reported_received_total']} "
-                            f"indicados por Computrabajo."
+                            f" Cobertura por oferta: {covered}/{expected} "
+                            f"inscripciones detectadas; {missing} pendientes "
+                            f"en {missing_offers} listados."
                         )
                     blocked = report.get("blocked_pages", 0)
                     blocked_label = (
