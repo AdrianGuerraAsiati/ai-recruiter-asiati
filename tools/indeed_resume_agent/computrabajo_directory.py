@@ -177,13 +177,39 @@ DIRECTORY_SCAN_JS = r"""(() => {
         (url && url.href === location.href)) jsNext = true;
   }
   pager_numbers = [...new Set(pager_numbers)].sort((a,b) => a-b);
-  const received = [...document.querySelectorAll(
-    '[role="tab"], .nav-tabs a, .nav-tabs button, .tabs a, .tabs button, [data-toggle="tab"], [data-bs-toggle="tab"]'
-  )].map(tabName).find(t => /^recibid[oa]s\s*\(\s*\d+\s*\)$/i.test(t));
-  const reportedReceived = received ? Number(received.match(/\(\s*(\d+)\s*\)/)?.[1]) : null;
+  // Counts belong to the employer's *visible* status tabs. This does not
+  // change statuses, fetch hidden data, or open restricted offer pages.
+  const statusCounts = {};
+  if (path === '/company/offers/match') {
+    const tabElements = document.querySelectorAll(
+      '[role="tab"], .nav-tabs a, .nav-tabs button, .tabs a, .tabs button, ' +
+      '[class*="tab"] a, [class*="tab"] button, [data-toggle="tab"], [data-bs-toggle="tab"]'
+    );
+    for (const el of tabElements) {
+      const label = tabName(el);
+      const match = label.match(
+        /^(recibid[oa]s|seleccionad[oa]s|finalistas?|descartad[oa]s)\s*\(\s*(\d{1,7})\s*\)$/i
+      );
+      if (!match) continue;
+      const count = Number(match[2]);
+      if (count <= 1000000) statusCounts[match[1]] = count;
+    }
+  }
+  const reportedReceived = statusCounts.recibidos ?? statusCounts.recibidas ?? null;
+  // Some offers display "618 inscritos" rather than a "total" tab.
+  // Dots and commas here are thousands separators, not decimals.
+  const declared = path === '/company/offers/match'
+    ? text.match(/\b(\d[\d.,]{0,10})\s+(?:candidatos?\s+)?inscritos\b/i)
+    : null;
+  const rawTotal = declared?.[1] || '';
+  const validTotal = /^\d{1,7}$/.test(rawTotal) ||
+    /^\d{1,3}(?:[.,]\d{3})+$/.test(rawTotal);
+  const value = validTotal ? Number(rawTotal.replace(/[.,]/g, '')) : null;
+  const reportedTotal = value !== null && value <= 1000000 ? value : null;
   return {candidates, offer_links: offerLinks, page_links: pageLinks,
           tabs_js: tabs, js_next: jsNext, active_page: activePage,
           active_tab: activeTab, reported_received: reportedReceived,
+          reported_total: reportedTotal, status_counts: statusCounts,
           pager_numbers: pager_numbers};
 })()"""
 
