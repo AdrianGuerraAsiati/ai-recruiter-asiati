@@ -390,3 +390,88 @@ def test_finalists_are_not_double_counted_if_provider_total_is_missing():
     result = asyncio.run(browser._discover_all_candidates_async(max_pages=10))
     assert result["expected_candidates"] == 618
     assert result["missing_candidates"] == 617
+
+
+def test_numeric_pager_arrow_reveals_next_window_before_candidate_page():
+    """Do not mistake 1–5 -> 6–10 for a downloaded sixth candidate page."""
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    first = dict(
+        directory_page(candidates=[directory_candidate("A")],
+                       js_next=True, active_page="5"),
+        pager_numbers=[1, 2, 3, 4, 5],
+    )
+    shifted = dict(first, pager_numbers=[6, 7, 8, 9, 10])
+    sixth = dict(
+        directory_page(candidates=[directory_candidate("B")],
+                       active_page="6", js_next=False),
+        pager_numbers=[6, 7, 8, 9, 10],
+    )
+    browser._evaluate = AsyncMock(side_effect=[
+        first,
+        {"clicked": True, "target_page": 6, "arrow": True},
+        shifted,  # Arrow shows page 6 but candidate cards are still from 5.
+        {"clicked": True, "target_page": 6},  # Explicit numeric click.
+        sixth,
+    ])
+    result = asyncio.run(browser._discover_all_candidates_async(max_pages=10))
+    assert result["pages"] == 2
+    assert result["unresolved_pagination"] == 0
+    assert {c["external_id"] for c in result["candidates"]} == {
+        "A" * 32, "B" * 32,
+    }
+    assert browser._evaluate.await_count == 5
+
+
+def test_forward_arrow_that_navigates_directly_is_not_clicked_twice():
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    first = directory_page(
+        candidates=[directory_candidate("A")], js_next=True, active_page="5",
+    )
+    sixth = directory_page(
+        candidates=[directory_candidate("B")], js_next=False, active_page="6",
+    )
+    browser._evaluate = AsyncMock(side_effect=[
+        first, {"clicked": True, "target_page": 6, "arrow": True},
+        sixth, sixth,
+    ])
+    result = asyncio.run(browser._discover_all_candidates_async(max_pages=10))
+    assert result["unresolved_pagination"] == 0
+    assert result["pages"] == 2
+    assert browser._evaluate.await_count == 4
+
+
+def test_stuck_numeric_pager_window_is_classified_instead_of_skipped():
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    first = dict(
+        directory_page(candidates=[directory_candidate("A")],
+                       active_page="5", js_next=True),
+        pager_numbers=[1, 2, 3, 4, 5],
+    )
+    browser._evaluate = AsyncMock(side_effect=[
+        first, {"clicked": True, "target_page": 6, "arrow": True},
+        *([first] * 16),
+    ])
+    result = asyncio.run(browser._discover_all_candidates_async(max_pages=10))
+    assert result["pages"] == 1
+    assert result["pagination_issues"] == {"PAGER_WINDOW_NOT_ADVANCED": 1}
+    assert result["partial"] is True
+
+
+def test_https_page_links_remain_queued_if_js_pager_is_unavailable():
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    url = "https://empresa.co.computrabajo.com/Company/Offers?page=2"
+    first = directory_page(
+        candidates=[directory_candidate("A")], links=[url], js_next=True,
+    )
+    second = directory_page(candidates=[directory_candidate("B")])
+    browser._evaluate = AsyncMock(side_effect=[
+        first, {"clicked": False}, second,
+    ])
+    result = asyncio.run(browser._discover_all_candidates_async(max_pages=10))
+    assert result["pages"] == 2
+    assert result["unresolved_pagination"] == 0
+    assert len(result["candidates"]) == 2

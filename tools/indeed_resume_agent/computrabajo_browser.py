@@ -635,9 +635,62 @@ class ComputrabajoBrowserUse:
                     cdp, pagination_next_js(after_page=last_numeric_page)
                 )
                 if not isinstance(clicked, dict) or not clicked.get("clicked"):
-                    mark_unresolved("NEXT_PAGE_NOT_CLICKABLE")
+                    # An ordinary HTTPS link can be queued and visited by the
+                    # directory crawler; it is not a failed JS navigation.
+                    if not page.get("page_links"):
+                        mark_unresolved("NEXT_PAGE_NOT_CLICKABLE")
                     break
                 target_page = clicked.get("target_page")
+                if clicked.get("arrow"):
+                    # Some arrows only replace the *visible numbers* (1–5
+                    # becomes 6–10), without changing the candidate cards.
+                    # Do not mistake this for loading page 6, or skip page 6.
+                    arrow_resolved = False
+                    for _ in range(16):
+                        if stop_requested and stop_requested():
+                            cancelled = True
+                            break
+                        shifted = await scan(cdp)
+                        if shifted.get("access_denied"):
+                            arrow_resolved = True
+                            break
+                        visible_number = shifted.get("active_page")
+                        new_ids = {
+                            str(c.get("external_id") or "").casefold()
+                            for c in shifted.get("candidates", [])
+                            if isinstance(c, dict)
+                        }
+                        old_ids = {
+                            str(c.get("external_id") or "").casefold()
+                            for c in page.get("candidates", [])
+                            if isinstance(c, dict)
+                        }
+                        if (str(visible_number) == str(target_page) or
+                                (new_ids and new_ids.difference(old_ids))):
+                            # The arrow actually navigated to a new page.
+                            arrow_resolved = True
+                            break
+                        numbers = shifted.get("pager_numbers") or []
+                        if target_page in numbers:
+                            # Numeric buttons now visible. Open exactly the
+                            # first unseen page, within the authenticated UI.
+                            selected = await self._evaluate(
+                                cdp, pagination_next_js(
+                                    after_page=last_numeric_page
+                                ),
+                            )
+                            if (isinstance(selected, dict) and
+                                    selected.get("clicked") and
+                                    not selected.get("arrow") and
+                                    selected.get("target_page") == target_page):
+                                arrow_resolved = True
+                                break
+                        await asyncio.sleep(0.4)
+                    if cancelled:
+                        break
+                    if not arrow_resolved:
+                        mark_unresolved("PAGER_WINDOW_NOT_ADVANCED")
+                        break
                 if (type(target_page) is int and 1 <= target_page <= 10000):
                     last_numeric_page = max(last_numeric_page, target_page)
                 awaiting_next_page = True

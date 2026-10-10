@@ -268,9 +268,6 @@ NEXT_PAGE_JS = r"""(() => {
   const floor = Math.max(active, expectedFloor);
   const controls = [...document.querySelectorAll('a,button,[role="button"]')]
     .filter(el => pager(el) && isClickable(el));
-  const candidates = controls.filter(el => controlNumber(el) > floor)
-    .sort((a,b) => controlNumber(a) - controlNumber(b));
-  const pageTarget = candidates[0];
   const hasLocalClick = el => {
     const href = el.getAttribute('href') || '';
     let url;
@@ -278,17 +275,23 @@ NEXT_PAGE_JS = r"""(() => {
     return !href || href.startsWith('#') || /^javascript:/i.test(href) ||
       (url && url.href === location.href);
   };
-  if (pageTarget && hasLocalClick(pageTarget)) {
-    const targetPage = controlNumber(pageTarget);
+  // Never jump from page 5 straight to page 7 when the provider only
+  // moved the visible 1–5 numeric window to 6–10. Demand the *next*
+  // sequential page; the Python driver will handle window-only arrows.
+  const nextNumber = floor + 1;
+  const pageTarget = controls.find(el =>
+    controlNumber(el) === nextNumber && hasLocalClick(el));
+  if (pageTarget) {
     pageTarget.click();
-    return {clicked: true, target_page: targetPage};
+    return {clicked: true, target_page: nextNumber};
   }
   // When the visible numeric window ends (e.g. pages 1–5), advance using
   // a *forward* caret, never the previous/back control.
   const forward = controls.find(el => forwardArrow(el) && hasLocalClick(el));
   if (forward) {
     forward.click();
-    return {clicked: true, target_page: floor + 1, arrow: true};
+    // Arrow may only reveal another group of numbers, not load a CV page.
+    return {clicked: true, target_page: nextNumber, arrow: true};
   }
   return {clicked: false};
 })()"""

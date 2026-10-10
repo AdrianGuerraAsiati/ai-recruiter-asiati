@@ -257,6 +257,7 @@ def run_computrabajo_ui(*, browser, api_factory=None) -> None:
                         "PAGE_NOT_HYDRATED": "Carga incompleta",
                         "UNCHANGED_PAGE": "Página sin cambios",
                         "NEXT_PAGE_NOT_CLICKABLE": "Paginador inaccesible",
+                        "PAGER_WINDOW_NOT_ADVANCED": "Bloque de páginas sin avance",
                         "TAB_NOT_AVAILABLE": "Pestaña inaccesible",
                         "UNSUPPORTED_PAGINATION": "Paginación no compatible",
                         "INCOMPLETE_PROVIDER_COUNT": "Inscritos sin localizar",
