@@ -86,3 +86,11 @@ def test_scan_exposes_authorized_count_without_fetching_hidden_profiles():
     assert "statusCounts" in DIRECTORY_SCAN_JS
     assert "fetch(" not in DIRECTORY_SCAN_JS
     assert "window.open(" not in DIRECTORY_SCAN_JS
+
+
+
+def test_numeric_pages_advance_sequentially_before_using_forward_arrow():
+    assert "const nextNumber = floor + 1;" in NEXT_PAGE_JS
+    assert "controlNumber(el) === nextNumber" in NEXT_PAGE_JS
+    assert "arrow: true" in NEXT_PAGE_JS
+    assert "candidates[0]" not in NEXT_PAGE_JS
