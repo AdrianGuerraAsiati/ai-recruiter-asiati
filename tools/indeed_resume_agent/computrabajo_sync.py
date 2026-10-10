@@ -138,6 +138,8 @@ def sync_all_candidates(*, browser, api, source_account: str,
         "listing_pages": directory.get("listing_pages", 0),
         "unresolved_pagination": directory.get("unresolved_pagination", 0),
         "reported_received_total": directory.get("reported_received_total", 0),
+        "expected_candidates": directory.get("expected_candidates", 0),
+        "missing_candidates": directory.get("missing_candidates", 0),
         "discovered_with_reported_total": directory.get("discovered_with_reported_total", 0),
         "offers_with_missing_candidates": directory.get("offers_with_missing_candidates", 0),
     }

@@ -291,3 +291,102 @@ def test_ajax_page_that_never_populates_is_partial_not_counted():
     assert output["unresolved_pagination"] == 1
     assert output["partial"] is True
     assert len(output["candidates"]) == 1
+
+
+def test_all_618_visible_applicants_are_reconciled_across_status_tabs():
+    """Simulates the visible 547 + 6 + 65 cohorts; no offer is imported."""
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    listing = (
+        "https://empresa.co.computrabajo.com/Company/Offers/Match?oi="
+        + "B" * 32
+    )
+    def candidates(start, stop):
+        result = []
+        for number in range(start, stop):
+            identity = f"{number:032x}"
+            result.append({
+                "external_id": identity,
+                "candidate_name": "Anonymous applicant",
+                "detail_url": (
+                    "https://empresa.co.computrabajo.com/"
+                    "Company/MatchCvDetail/MatchDetail?ims=" + identity
+                ),
+            })
+        return result
+
+    counts = {"recibidos": 547, "seleccionados": 6,
+              "finalistas": 3, "descartados": 65}
+    received = dict(
+        directory_page(candidates=candidates(1, 548),
+                       tabs=["seleccionados (6)", "descartados (65)"]),
+        status_counts=counts, reported_total=618, reported_received=547,
+    )
+    selected = dict(
+        directory_page(candidates=candidates(548, 554)),
+        status_counts=counts, reported_total=618,
+    )
+    discarded = dict(
+        directory_page(candidates=candidates(554, 619)),
+        status_counts=counts, reported_total=618,
+    )
+    browser._evaluate = AsyncMock(side_effect=[
+        directory_page(offers=[listing]),
+        received,
+        received, {"clicked": True}, selected,
+        received, {"clicked": True}, discarded,
+    ])
+    result = asyncio.run(browser._discover_all_candidates_async(max_pages=15))
+    assert result["offers_found"] == 1
+    assert result["candidate_pages"] == 3
+    assert result["expected_candidates"] == 618
+    assert result["reported_received_total"] == 547
+    assert result["discovered_with_reported_total"] == 618
+    assert result["missing_candidates"] == 0
+    assert len(result["candidates"]) == 618
+    assert result["partial"] is False
+
+
+def test_reported_618_but_one_visible_profile_is_incomplete():
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    listing = (
+        "https://empresa.co.computrabajo.com/Company/Offers/Match?oi="
+        + "B" * 32
+    )
+    browser._evaluate = AsyncMock(side_effect=[
+        directory_page(offers=[listing]),
+        dict(
+            directory_page(candidates=[directory_candidate("A")]),
+            reported_total=618,
+            reported_received=547,
+            status_counts={"recibidos": 547, "seleccionados": 6,
+                           "finalistas": 3, "descartados": 65},
+        ),
+    ])
+    result = asyncio.run(browser._discover_all_candidates_async(max_pages=10))
+    assert result["expected_candidates"] == 618
+    assert result["missing_candidates"] == 617
+    assert result["offers_with_missing_candidates"] == 1
+    assert result["pagination_issues"]["INCOMPLETE_PROVIDER_COUNT"] == 1
+    assert result["partial"] is True
+
+
+def test_finalists_are_not_double_counted_if_provider_total_is_missing():
+    browser = make_browser(None)
+    browser._open_portal = AsyncMock()
+    listing = (
+        "https://empresa.co.computrabajo.com/Company/Offers/Match?oi="
+        + "B" * 32
+    )
+    browser._evaluate = AsyncMock(side_effect=[
+        directory_page(offers=[listing]),
+        dict(
+            directory_page(candidates=[directory_candidate("A")]),
+            status_counts={"recibidos": 547, "seleccionados": 6,
+                           "finalistas": 3, "descartados": 65},
+        ),
+    ])
+    result = asyncio.run(browser._discover_all_candidates_async(max_pages=10))
+    assert result["expected_candidates"] == 618
+    assert result["missing_candidates"] == 617

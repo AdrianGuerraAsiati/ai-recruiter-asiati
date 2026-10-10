@@ -76,3 +76,13 @@ def test_numeric_js_pagination_next_page_is_supported():
     assert "const expectedFloor = __PAGE_FLOOR__" in NEXT_PAGE_JS
     with pytest.raises(ValueError, match="COMPUTRABAJO_INVALID_PAGE"):
         pagination_next_js(after_page=-1)
+
+
+def test_scan_exposes_authorized_count_without_fetching_hidden_profiles():
+    assert "reported_total: reportedTotal" in DIRECTORY_SCAN_JS
+    assert "status_counts: statusCounts" in DIRECTORY_SCAN_JS
+    assert "candidatos?" in DIRECTORY_SCAN_JS
+    assert "inscritos" in DIRECTORY_SCAN_JS
+    assert "statusCounts" in DIRECTORY_SCAN_JS
+    assert "fetch(" not in DIRECTORY_SCAN_JS
+    assert "window.open(" not in DIRECTORY_SCAN_JS
