@@ -430,6 +430,7 @@ class ComputrabajoBrowserUse:
         found = {}
         offer_urls = set()
         offer_expected_counts = {}
+        offer_received_counts = {}
         offer_discovered_ids = {}
         blocked_pages = pages = candidate_pages = listing_pages = 0
         unresolved_pagination = 0
@@ -568,11 +569,36 @@ class ComputrabajoBrowserUse:
                 offer_key = ids[0].casefold() if ids else None
                 if current_path == CANDIDATES_PATH:
                     candidate_pages += 1
-                    count = page.get("reported_received")
-                    if (offer_key and type(count) is int and 0 <= count <= 1000000):
-                        offer_expected_counts[offer_key] = max(
-                            offer_expected_counts.get(offer_key, 0), count
+                    received = page.get("reported_received")
+                    declared_total = page.get("reported_total")
+                    status_counts = page.get("status_counts") or {}
+                    if offer_key:
+                        if type(received) is int and 0 <= received <= 1000000:
+                            offer_received_counts[offer_key] = max(
+                                offer_received_counts.get(offer_key, 0), received
+                            )
+                        # Finalistas can be a subset of seleccionados, so do
+                        # not add that tab to an inferred distinct-person total.
+                        disjoint_labels = (
+                            "recibidos", "recibidas", "seleccionados",
+                            "seleccionadas", "descartados", "descartadas",
                         )
+                        inferred = sum(
+                            count for label, count in status_counts.items()
+                            if label in disjoint_labels and type(count) is int
+                            and 0 <= count <= 1000000
+                        ) if isinstance(status_counts, dict) else 0
+                        expected = max(
+                            inferred,
+                            received if type(received) is int
+                            and 0 <= received <= 1000000 else 0,
+                            declared_total if type(declared_total) is int
+                            and 0 <= declared_total <= 1000000 else 0,
+                        )
+                        if expected:
+                            offer_expected_counts[offer_key] = max(
+                                offer_expected_counts.get(offer_key, 0), expected
+                            )
                 else:
                     listing_pages += 1
                 for candidate in page["candidates"]:
@@ -620,10 +646,18 @@ class ComputrabajoBrowserUse:
                 break
             await asyncio.sleep(0.1)
 
+        missing_candidates = sum(
+            max(0, count - len(offer_discovered_ids.get(key, set())))
+            for key, count in offer_expected_counts.items()
+        )
         incomplete_offers = sum(
             len(offer_discovered_ids.get(key, set())) < count
             for key, count in offer_expected_counts.items()
         )
+        if missing_candidates:
+            # A 200 response and successful uploads do NOT imply complete
+            # discovery when the provider visibly reports more applicants.
+            mark_unresolved("INCOMPLETE_PROVIDER_COUNT")
         if not found and not cancelled:
             raise ValueError(
                 "COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED"
@@ -638,10 +672,12 @@ class ComputrabajoBrowserUse:
             "blocked_pages": blocked_pages,
             "unresolved_pagination": unresolved_pagination,
             "pagination_issues": pagination_issues,
-            "reported_received_total": sum(offer_expected_counts.values()),
+            "reported_received_total": sum(offer_received_counts.values()),
+            "expected_candidates": sum(offer_expected_counts.values()),
+            "missing_candidates": missing_candidates,
             "discovered_with_reported_total": sum(
-                len(offer_discovered_ids.get(key, set()))
-                for key in offer_expected_counts
+                min(len(offer_discovered_ids.get(key, set())), count)
+                for key, count in offer_expected_counts.items()
             ),
             "offers_with_missing_candidates": incomplete_offers,
             "cancelled": cancelled,
