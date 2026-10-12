@@ -16,6 +16,7 @@ from app.domains.recruitment_calendar.exceptions import (
 from app.domains.recruitment_calendar.schemas import (
     RecruitmentEventCreate,
     RecruitmentEventUpdate,
+    GoogleCalendarAccountUpdate,
 )
 
 
@@ -103,8 +104,10 @@ def update_event(
 
 
 def _google_error(exc: Exception):
+    if isinstance(exc, google.GoogleCalendarEmailError):
+        raise HTTPException(status_code=422, detail="La cuenta debe pertenecer a un dominio corporativo autorizado.")
     if isinstance(exc, google.GoogleCalendarAuthorizationError):
-        raise HTTPException(status_code=403, detail="Autoriza únicamente la cuenta de Talento Humano.")
+        raise HTTPException(status_code=403, detail="La cuenta de Google debe coincidir con el correo corporativo configurado.")
     if isinstance(exc, google.GoogleCalendarConfigurationError):
         raise HTTPException(status_code=409, detail="Configura primero la conexión corporativa de Google.")
     if isinstance(exc, google.GoogleCalendarRemoteError):
@@ -117,6 +120,17 @@ def google_calendar_status(
     _principal: dict = Depends(require_permission("candidates.read")),
 ):
     return google.status()
+
+
+@router.put("/google/account")
+def google_calendar_account(
+    body: GoogleCalendarAccountUpdate,
+    _principal: dict = Depends(require_permission("integrations.manage")),
+):
+    try:
+        return google.set_target_email(body.email)
+    except Exception as exc:
+        _google_error(exc)
 
 
 @router.get("/google/oauth/start")
