@@ -1272,7 +1272,7 @@ describe("Focused onboarding sessions", () => {
 
     expect(await screen.findByText("Siguiente paso")).toBeInTheDocument();
     expect(screen.getByText(/2 actividades recomendadas/)).toBeInTheDocument();
-    expect(screen.getByText(/~9 min/)).toBeInTheDocument();
+    expect(screen.getByText(/2 actividades recomendadas · ~9 min/)).toBeInTheDocument();
     expect(screen.getAllByText("Bienvenida breve").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Conoce ASIATI").length).toBeGreaterThan(0);
 
