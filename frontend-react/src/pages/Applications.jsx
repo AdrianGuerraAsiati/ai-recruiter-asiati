@@ -4,6 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import api from "../api/client";
+import { useSession } from "../context/SessionContext";
+import CandidateCreateUserModal from "../components/CandidateCreateUserModal.jsx";
+import ApplicationHireModal from "../components/ApplicationHireModal.jsx";
+import ApplicationAccessModal from "../components/ApplicationAccessModal.jsx";
 import { getApiErrorMessage } from "../utils/errors";
 import PageHeader from "../components/ui/PageHeader";
 import {
@@ -29,7 +33,15 @@ const STATUS_OPTIONS = [
 
 
 function Applications() {
+  const { hasPermission } = useSession();
+  const canCreateEmployees = hasPermission("employees.create");
+  const canManageAccess = hasPermission("employees.credentials.manage");
+  const canReviewDocuments = hasPermission("employee_documents.read_all");
   const [items, setItems] = useState([]);
+  const [provisionTarget, setProvisionTarget] = useState(null);
+  const [accessTarget, setAccessTarget] = useState(null);
+  const [hireTarget, setHireTarget] = useState(null);
+  const [success, setSuccess] = useState("");
   const [status, setStatus] = useState("");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -82,6 +94,10 @@ function Applications() {
   }, [items]);
 
   async function updateStatus(application, nextStatus) {
+    if (nextStatus === "HIRED") {
+      setError("La contratación formal se realiza con el botón Crear empleado.");
+      return;
+    }
     setSavingId(application.id);
     setError("");
     try {
@@ -106,11 +122,12 @@ function Applications() {
       <PageHeader
         eyebrow="Pipeline de selección"
         title="Postulaciones"
-        description="Consulta cada candidato por vacante y actualiza su etapa sin perder el historial."
+        description="Cada postulante dispone de un acceso para enviar documentos. La creación del empleado ocurre únicamente al confirmar la contratación aquí."
         className="split-header"
       />
 
-      {error && <FeedbackMessage title="Las postulaciones no están actualizadas">{error}</FeedbackMessage>}
+      {error && <FeedbackMessage title="No se completó la operación">{error}</FeedbackMessage>}
+      {success && <FeedbackMessage tone="success" title="Operación completada">{success}</FeedbackMessage>}
 
       <section className="metrics-grid" aria-label="Resumen de postulaciones">
         <MetricCard icon="applications" label="Total" value={total} detail="Postulaciones registradas" tone="blue" />
@@ -188,7 +205,7 @@ function Applications() {
                         onChange={(event) => void updateStatus(application, event.target.value)}
                       >
                         {STATUS_OPTIONS.map(([value, label]) => (
-                          <option key={value} value={value}>{label}</option>
+                          <option key={value} value={value} disabled={value === "HIRED" && application.application_status !== "HIRED"}>{label}</option>
                         ))}
                       </select>
                     </td>
@@ -198,12 +215,34 @@ function Applications() {
                         : "—"}
                     </td>
                     <td>
-                      <Link
-                        className="btn btn-secondary"
-                        to={`/candidates/${application.candidate.candidate_id}`}
-                      >
-                        Ver candidato
-                      </Link>
+                      <div className="ui-actions" style={{ flexWrap: "wrap", gap: 8 }}>
+                        <Link className="btn btn-ghost" to={`/candidates/${application.candidate.candidate_id}?job_id=${application.job.job_id}`}>
+                          Ver candidato
+                        </Link>
+                        {canReviewDocuments && application.access?.profile_id && (
+                          <Link
+                            className="btn btn-secondary"
+                            to={`/documents?employee_id=${encodeURIComponent(application.access.profile_id)}`}
+                          >
+                            Revisar documentos
+                          </Link>
+                        )}
+                        {canCreateEmployees && application.application_status !== "HIRED" && !application.access?.provisioned && (
+                          <button className="btn btn-primary" type="button" onClick={() => setProvisionTarget(application)}>
+                            Crear acceso
+                          </button>
+                        )}
+                        {canManageAccess && application.access?.profile_id && (
+                          <button className="btn btn-secondary" type="button" onClick={() => setAccessTarget(application)}>
+                            {application.access.username || "Usuario"} · Credenciales
+                          </button>
+                        )}
+                        {canCreateEmployees && application.application_status !== "HIRED" && application.access?.provisioned && (
+                          <button className="btn btn-primary" type="button" onClick={() => setHireTarget(application)}>
+                            Crear empleado
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -224,6 +263,37 @@ function Applications() {
           </div>
         )}
       </section>
+      <CandidateCreateUserModal
+        open={Boolean(provisionTarget)}
+        candidateId={provisionTarget?.candidate?.candidate_id}
+        candidate={provisionTarget?.candidate}
+        jobId={provisionTarget?.job?.job_id || ""}
+        jobTitle={provisionTarget?.job?.title || ""}
+        onClose={() => setProvisionTarget(null)}
+        onCreated={async () => {
+          setSuccess("Acceso del postulante creado. Ya puede iniciar sesión y cargar sus documentos.");
+          await loadApplications();
+        }}
+      />
+      {accessTarget && (
+        <ApplicationAccessModal
+          key={accessTarget.id}
+          application={accessTarget}
+          onClose={() => setAccessTarget(null)}
+          onUpdated={loadApplications}
+        />
+      )}
+      {hireTarget && (
+        <ApplicationHireModal
+          key={hireTarget.id}
+          application={hireTarget}
+          onClose={() => setHireTarget(null)}
+          onHired={async () => {
+            setSuccess("Postulación cerrada como Contratado. El usuario ahora es empleado y recibirá onboarding.");
+            await loadApplications();
+          }}
+        />
+      )}
     </div>
   );
 }

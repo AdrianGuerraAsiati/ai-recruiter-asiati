@@ -3,7 +3,7 @@
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from app.access_control import ADMIN, EMPLOYEE
@@ -235,9 +235,12 @@ def update_employee_username(
 @router.post("/{employee_id}/credentials/reset-password")
 def reset_employee_password(
     employee_id: str,
+    response: Response,
     db: Session = Depends(get_db),
     _principal: dict = Depends(require_permission("employees.credentials.manage")),
 ):
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
     try:
         employee, temporary_password = service.reset_employee_temporary_password(
             db,

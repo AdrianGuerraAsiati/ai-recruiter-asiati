@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.access_control import (
     ADMIN,
+    APPLICANT,
     EMPLOYEE,
     PERMISSION_DEFINITIONS,
     assign_role,
@@ -119,7 +120,7 @@ def test_rbac_catalog_is_idempotent_and_contains_only_supported_roles(db):
     )
 
     assert first == second
-    assert {role.code for role in db.query(Role).all()} == {ADMIN, EMPLOYEE}
+    assert {role.code for role in db.query(Role).all()} == {ADMIN, APPLICANT, EMPLOYEE}
 
 
 def test_bootstrap_admin_emails_are_promoted_from_employee(db, monkeypatch):

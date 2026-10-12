@@ -1,6 +1,6 @@
 """Candidate hiring HTTP routes."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_permission
@@ -55,6 +55,35 @@ def _translate(exc: Exception):
     if isinstance(exc, training_service.TrainingStateError):
         raise HTTPException(status_code=422, detail=str(exc))
     raise exc
+
+
+@router.post("/{job_id}/candidates/{candidate_id}/start-application", status_code=201)
+def start_candidate_application(
+    job_id: str,
+    candidate_id: str,
+    body: HireCandidateRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("employees.create")),
+):
+    """Link a ranked candidate to this vacancy and issue one-time credentials."""
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    try:
+        return service.start_candidate_application(
+            db,
+            owner_sub=principal["sub"],
+            job_id=job_id,
+            candidate_id=candidate_id,
+            created_by_sub=principal["sub"],
+            username=body.username,
+            email=body.email,
+            first_name=body.first_name,
+            last_name=body.last_name,
+            department=body.department,
+        )
+    except Exception as exc:
+        _translate(exc)
 
 
 @router.post("/{job_id}/candidates/{candidate_id}/hire")

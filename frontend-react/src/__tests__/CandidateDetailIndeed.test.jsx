@@ -313,13 +313,13 @@ describe("CandidateDetail global evaluation and explicit selection", () => {
     await screen.findByText("88%");
     await screen.findByText(/aún no ha sido agregado al proceso/i);
     expect(screen.queryByText(/Candidato no encontrado en esta vacante/i)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Empezar contratación" }));
+    fireEvent.click(screen.getByRole("button", { name: "Iniciar postulación" }));
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith("/jobs/job-1/candidates", {
         candidate_ids: ["candidate-1"],
       });
     });
     await screen.findByRole("button", { name: /Calificación inicial/i });
-    expect(screen.queryByRole("button", { name: "Empezar contratación" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Iniciar postulación" })).not.toBeInTheDocument();
   });
 });

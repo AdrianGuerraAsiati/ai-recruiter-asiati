@@ -1,6 +1,7 @@
 // eslint-disable-next-line no-unused-vars
 import React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
@@ -17,30 +18,10 @@ import {
   ProgressBar,
 } from "../components/ui/StatePanel";
 
-function todayInputValue() {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 10);
-}
-
-function emptyEmployeeForm() {
-  return {
-    username: "",
-    first_name: "",
-    last_name: "",
-    email: "",
-    job_title: "",
-    department: "",
-    country_code: "",
-    company_name: "",
-    hire_date: todayInputValue(),
-    role: "EMPLOYEE",
-  };
-}
-
 function Employees() {
   const { principal, hasPermission } = useSession();
   const canReadTrainingResults = hasPermission("training.results.read");
+  const canManageCredentials = hasPermission("employees.credentials.manage");
   const canManageTalentId = hasPermission("talent_id.manage");
   const canImportOdoo = hasPermission("employees.create");
   const [employees, setEmployees] = useState([]);
@@ -50,8 +31,6 @@ function Employees() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [formOpen, setFormOpen] = useState(false);
-  const [form, setForm] = useState(() => emptyEmployeeForm());
   const [editTarget, setEditTarget] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [editError, setEditError] = useState("");
@@ -130,33 +109,6 @@ function Employees() {
     }
   }
 
-  async function createEmployee(event) {
-    event.preventDefault();
-    setSaving(true);
-    setError("");
-    try {
-      const { data } = await api.post("/employees", form);
-      const employee = data?.employee || {};
-      setCreatedEmployeeName(
-        [employee.first_name, employee.last_name].filter(Boolean).join(" ")
-          || form.first_name
-          || "Empleado",
-      );
-      setCreatedCredentials(data?.credentials || null);
-      setForm(emptyEmployeeForm());
-      setFormOpen(false);
-      await loadEmployees();
-    } catch (err) {
-      setError(getApiErrorMessage(err, {
-        action: "crear el empleado y su acceso",
-        resource: "empleados",
-        fallback: "El empleado no se creó. Revisa correo, datos personales y permisos antes de reintentar.",
-      }));
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function toggleStatus(employee) {
     const nextStatus = employee.status === "ACTIVE" ? "DISABLED" : "ACTIVE";
     setError("");
@@ -176,6 +128,7 @@ function Employees() {
     setEditTarget(employee);
     setEditError("");
     setEditForm({
+      username: employee.username || "",
       first_name: employee.first_name || "",
       last_name: employee.last_name || "",
       job_title: employee.job_title || "",
@@ -260,6 +213,15 @@ function Employees() {
       if (editForm.role !== currentRole) {
         await api.put(`/employees/${editTarget.id}/role`, { role: editForm.role });
       }
+      if (
+        canManageCredentials
+        && editTarget.access_provisioned
+        && editForm.username !== (editTarget.username || "")
+      ) {
+        await api.put(`/employees/${editTarget.id}/credentials/username`, {
+          username: editForm.username,
+        });
+      }
       await api.put(`/employees/${editTarget.id}`, {
         first_name: editForm.first_name,
         last_name: editForm.last_name,
@@ -284,6 +246,27 @@ function Employees() {
         action: "actualizar el perfil del empleado",
         resource: "empleados",
         fallback: "Los cambios no se guardaron por completo. Revisa cargo, rol y onboarding antes de reintentar.",
+      }));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function resetEmployeePassword() {
+    if (!editTarget || !canManageCredentials || !editTarget.access_provisioned) return;
+    setSaving(true);
+    setEditError("");
+    try {
+      const { data } = await api.post(`/employees/${editTarget.id}/credentials/reset-password`);
+      setCreatedEmployeeName([editTarget.first_name, editTarget.last_name].filter(Boolean).join(" ") || editTarget.email);
+      closeEmployeeEditor();
+      setCreatedCredentials(data.credentials);
+      await loadEmployees();
+    } catch (err) {
+      setEditError(getApiErrorMessage(err, {
+        action: "restablecer la contraseña temporal",
+        resource: "credenciales",
+        fallback: "No se pudo restablecer la contraseña. Inténtalo de nuevo.",
       }));
     } finally {
       setSaving(false);
@@ -326,7 +309,7 @@ function Employees() {
         eyebrow="Gestión interna"
         title="Empleados"
         description="Administra accesos, perfiles, roles y seguimiento de onboarding del equipo ASIATI."
-        actions={!formOpen ? (
+        actions={(
           <div className="ui-actions">
             {canImportOdoo && (
               <button
@@ -338,11 +321,11 @@ function Employees() {
                 {odooSyncing ? "Sincronizando…" : "Sincronizar desde Odoo"}
               </button>
             )}
-            <button className="btn btn-primary" type="button" onClick={() => setFormOpen(true)}>
-              Crear empleado
-            </button>
+            <Link className="btn btn-primary" to="/applications">
+              Ir a postulaciones para contratar
+            </Link>
           </div>
-        ) : null}
+        )}
         className="split-header"
       />
 
@@ -440,6 +423,9 @@ function Employees() {
                               {employee.email || "Sin correo laboral"}
                               {employee.source === "ODOO" ? " · Odoo" : ""}
                             </small>
+                            {canManageCredentials && employee.access_provisioned && (
+                              <small>Usuario: {employee.username || "Sin definir"}</small>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -553,6 +539,32 @@ function Employees() {
             )}
 
             <form className="employee-form" onSubmit={saveEmployeeEdits}>
+              {canManageCredentials && editTarget.access_provisioned && (
+                <div className="employee-fixed-onboarding employee-create-onboarding">
+                  <strong>Acceso a Talent</strong>
+                  <div className="form-group">
+                    <label htmlFor="employee-edit-login-username">Usuario de acceso</label>
+                    <input
+                      id="employee-edit-login-username"
+                      value={editForm.username}
+                      onChange={(event) => setEditForm({ ...editForm, username: event.target.value.toLowerCase() })}
+                      minLength={3}
+                      maxLength={40}
+                      autoComplete="off"
+                      required
+                    />
+                  </div>
+                  <small>La contraseña actual no se puede ver por seguridad. Restablecerla genera una clave provisional nueva que se muestra una sola vez.</small>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void resetEmployeePassword()}
+                  >
+                    Generar nueva contraseña provisional
+                  </button>
+                </div>
+              )}
               <div className="employee-form-grid">
                 <div className="form-group">
                   <label htmlFor="employee-edit-first-name">Nombre</label>
@@ -750,110 +762,6 @@ function Employees() {
         }}
       />
 
-      {formOpen && (
-        <div className="modal-overlay" role="presentation" onMouseDown={() => setFormOpen(false)}>
-          <section className="modal employee-modal" role="dialog" aria-modal="true" aria-labelledby="employee-modal-title" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <span className="eyebrow">Nuevo acceso</span>
-                <h2 id="employee-modal-title">Crear empleado</h2>
-                <p>Define el usuario de acceso. Talent generará una contraseña temporal y no enviará correos automáticos.</p>
-              </div>
-              <button className="btn-close" type="button" aria-label="Cerrar" onClick={() => setFormOpen(false)}>×</button>
-            </div>
-
-            <form className="employee-form" onSubmit={createEmployee}>
-              <div className="form-group">
-                <label htmlFor="employee-username">Usuario de Talent</label>
-                <input
-                  id="employee-username"
-                  value={form.username}
-                  onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })}
-                  placeholder="Ej. jperez"
-                  autoComplete="off"
-                  required
-                />
-                <small>Lo define el administrador. No es un correo electrónico.</small>
-              </div>
-              <div className="employee-form-grid">
-                <div className="form-group">
-                  <label htmlFor="employee-first-name">Nombre</label>
-                  <input id="employee-first-name" value={form.first_name} onChange={(event) => setForm({ ...form, first_name: event.target.value })} required />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="employee-last-name">Apellido</label>
-                  <input id="employee-last-name" value={form.last_name} onChange={(event) => setForm({ ...form, last_name: event.target.value })} required />
-                </div>
-              </div>
-              <div className="form-group">
-                <label htmlFor="employee-email">Correo de contacto</label>
-                <input id="employee-email" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required />
-              </div>
-              <div className="employee-form-grid">
-                <div className="form-group">
-                  <label htmlFor="employee-job-title">Cargo</label>
-                  <input id="employee-job-title" value={form.job_title} onChange={(event) => setForm({ ...form, job_title: event.target.value })} />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="employee-department">Área</label>
-                  <input id="employee-department" value={form.department} onChange={(event) => setForm({ ...form, department: event.target.value })} />
-                </div>
-              </div>
-              <div className="employee-form-grid">
-                <div className="form-group">
-                  <label htmlFor="employee-country">País</label>
-                  <select
-                    id="employee-country"
-                    value={form.country_code}
-                    onChange={(event) => setForm({ ...form, country_code: event.target.value })}
-                  >
-                    <option value="">Sin definir</option>
-                    {COUNTRY_OPTIONS.map((country) => (
-                      <option key={country.code} value={country.code}>{country.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label htmlFor="employee-company">Empresa</label>
-                  <input
-                    id="employee-company"
-                    value={form.company_name}
-                    onChange={(event) => setForm({ ...form, company_name: event.target.value })}
-                    placeholder="ASIATI"
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="employee-hire-date">Fecha de ingreso</label>
-                <input
-                  id="employee-hire-date"
-                  type="date"
-                  value={form.hire_date}
-                  onChange={(event) => setForm({ ...form, hire_date: event.target.value })}
-                />
-              </div>
-              <div className="employee-fixed-onboarding employee-create-onboarding">
-                <strong>Onboarding ASIATI</strong>
-                <small>Se asignará automáticamente la ruta corporativa común.</small>
-              </div>
-              {hasPermission("employees.roles.manage") && (
-                <div className="form-group">
-                  <label htmlFor="employee-role">Rol inicial</label>
-                  <select id="employee-role" value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}>
-                    <option value="EMPLOYEE">Empleado</option>
-                    <option value="ADMIN">Administrador</option>
-                  </select>
-                </div>
-              )}
-              <div className="form-actions">
-                <button className="btn btn-secondary" type="button" onClick={() => setFormOpen(false)}>Cancelar</button>
-                <button className="btn btn-primary" type="submit" disabled={saving}>{saving ? "Creando…" : "Crear empleado"}</button>
-              </div>
-            </form>
-          </section>
-        </div>
-      )}
     </div>
   );
 }

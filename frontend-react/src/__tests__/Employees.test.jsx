@@ -71,7 +71,7 @@ describe("Employees administration", () => {
     });
   });
 
-  it("lists employees and lets an admin open the create flow", async () => {
+  it("lists employees and directs hiring to the Applications view", async () => {
     renderPage();
 
     expect(await screen.findByText("Ana Pérez")).toBeInTheDocument();
@@ -82,10 +82,8 @@ describe("Employees administration", () => {
     expect(screen.getByText("Onboarding completados")).toBeInTheDocument();
     expect(screen.getByText("Ingreso: 2026-09-24")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /crear empleado/i }));
-
-    expect(screen.getByRole("heading", { name: "Crear empleado" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Rol inicial")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Crear empleado" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ir a postulaciones para contratar" })).toHaveAttribute("href", "/applications");
   });
 
   it("filters the directory by onboarding status", async () => {
@@ -187,47 +185,11 @@ describe("Employees administration", () => {
     expect(screen.getByText("100%")).toBeInTheDocument();
   });
 
-  it("creates employees as EMPLOYEE from an admin session", async () => {
-    api.post.mockResolvedValueOnce({
-      data: {
-        employee: {
-          id: "new-employee",
-          username: "lgomez",
-          first_name: "Luis",
-          last_name: "Gómez",
-        },
-        credentials: {
-          username: "lgomez",
-          temporary_password: "TempPass123",
-          must_change_password: true,
-        },
-      },
-    });
+  it("does not provide a direct employee creation action", async () => {
     renderPage();
-
     await screen.findByText("Ana Pérez");
-    fireEvent.click(screen.getByRole("button", { name: /crear empleado/i }));
-
-    fireEvent.change(screen.getByLabelText("Usuario de Talent"), { target: { value: "lgomez" } });
-    fireEvent.change(screen.getByLabelText("Nombre"), { target: { value: "Luis" } });
-    fireEvent.change(screen.getByLabelText("Apellido"), { target: { value: "Gómez" } });
-    fireEvent.change(screen.getByLabelText("Correo de contacto"), { target: { value: "luis@asiati.com.co" } });
-    fireEvent.click(screen.getByRole("button", { name: "Crear empleado" }));
-
-    await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith("/employees", expect.objectContaining({
-        username: "lgomez",
-        email: "luis@asiati.com.co",
-        first_name: "Luis",
-        last_name: "Gómez",
-        hire_date: expect.any(String),
-        role: "EMPLOYEE",
-      }));
-    });
-
-    expect(
-      await screen.findByRole("link", { name: `${window.location.origin}/` }),
-    ).toHaveAttribute("href", `${window.location.origin}/`);
+    expect(screen.queryByRole("button", { name: "Crear empleado" })).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
   });
 
   it("lets an admin edit profile and fingerprint-report attendance together", async () => {
@@ -328,20 +290,13 @@ describe("Employees administration", () => {
     });
   });
 
-  it("shows ADMIN and EMPLOYEE as the only assignable roles", async () => {
+  it("still allows admins to change the role of an existing employee", async () => {
     renderPage();
-
     await screen.findByText("Ana Pérez");
-    fireEvent.click(screen.getByRole("button", { name: /crear empleado/i }));
-
-    const roleSelect = screen.getByLabelText("Rol inicial");
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    const roleSelect = screen.getByLabelText("Rol");
     expect(Array.from(roleSelect.options).map((option) => option.value)).toEqual([
-      "EMPLOYEE",
-      "ADMIN",
-    ]);
-    expect(Array.from(roleSelect.options).map((option) => option.textContent)).toEqual([
-      "Empleado",
-      "Administrador",
+      "EMPLOYEE", "ADMIN",
     ]);
   });
 

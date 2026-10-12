@@ -64,7 +64,10 @@ function Documents() {
   const canUploadOwn = hasPermission("employee_documents.upload_own");
 
   const [employees, setEmployees] = useState([]);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState(ownEmployeeId);
+  const requestedProfileId = canReadAll
+    ? new URLSearchParams(window.location.search).get("employee_id")
+    : null;
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(requestedProfileId || ownEmployeeId);
   const [portfolio, setPortfolio] = useState(null);
   const [filesByType, setFilesByType] = useState({});
   const [valuesByType, setValuesByType] = useState({});
@@ -464,7 +467,7 @@ function Documents() {
       <PageHeader
         eyebrow="Ingreso y vinculación"
         title="Documentos"
-        description="Cada requisito debe ser enviado por el nuevo empleado y revisado individualmente por un administrador antes de quedar aprobado."
+        description="Cada postulante envía sus soportes con su cuenta de Talent. Talento Humano revisa individualmente cada requisito antes de la contratación."
         className="split-header"
       />
 
@@ -487,6 +490,9 @@ function Documents() {
               onChange={(event) => selectEmployee(event.target.value)}
             >
               <option value={ownEmployeeId}>Mis documentos</option>
+              {selectedEmployeeId !== ownEmployeeId && !employees.some((item) => item.id === selectedEmployeeId) && (
+                <option value={selectedEmployeeId}>Postulante seleccionado</option>
+              )}
               {employees
                 .filter((employee) => employee.id !== ownEmployeeId)
                 .map((employee) => (

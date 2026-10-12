@@ -11,8 +11,13 @@ from app.models import Permission, Role, RolePermission, UserProfile, UserRole
 
 ADMIN = "ADMIN"
 EMPLOYEE = "EMPLOYEE"
+APPLICANT = "APPLICANT"
 
 ROLE_DEFINITIONS = {
+    APPLICANT: (
+        "Postulante",
+        "Acceso limitado a su expediente personal para completar los documentos de contratación.",
+    ),
     ADMIN: (
         "Administrador",
         "Administración completa del sistema, reclutamiento, empleados, integraciones y capacitación.",
@@ -77,6 +82,7 @@ _EMPLOYEE_PERMISSIONS = {
 }
 
 ROLE_PERMISSION_MATRIX = {
+    APPLICANT: {"profile.read_own", "employee_documents.read_own", "employee_documents.upload_own"},
     ADMIN: _ADMIN_PERMISSIONS,
     EMPLOYEE: _EMPLOYEE_PERMISSIONS,
 }
@@ -87,6 +93,7 @@ def normalize_email(email: str | None) -> str:
 
 
 ROLE_RANK = {
+    APPLICANT: 0,
     EMPLOYEE: 1,
     ADMIN: 2,
 }
@@ -283,7 +290,16 @@ def ensure_user_profile(
             assign_role(db, profile, effective_default_role)
             changed = True
 
-    changed = _ensure_minimum_role(db, profile, bootstrap_role) or changed
+    # Known applicants must not silently inherit EMPLOYEE permissions on login.
+    # Explicitly configured bootstrap admins still receive their admin role.
+    applicant_role = (
+        db.query(UserRole)
+        .filter(UserRole.user_id == profile.id, UserRole.role_code == APPLICANT)
+        .first()
+        is not None
+    )
+    if not applicant_role or bootstrap_role == ADMIN:
+        changed = _ensure_minimum_role(db, profile, bootstrap_role) or changed
 
     if changed:
         db.commit()

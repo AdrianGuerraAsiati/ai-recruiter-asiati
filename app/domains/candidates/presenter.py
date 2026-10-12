@@ -32,6 +32,17 @@ def application_to_dict(link, candidate, job) -> dict:
             link.status_changed_at.isoformat() if link.status_changed_at else None
         ),
         "hired_at": link.hired_at.isoformat() if link.hired_at else None,
+        "access": (
+            {
+                "profile_id": link.employee.id,
+                "username": link.employee.login_username,
+                "email": link.employee.email,
+                "provisioned": bool(link.employee.cognito_sub),
+                "status": link.employee.status,
+            }
+            if link.employee is not None
+            else None
+        ),
         "candidate": {
             "id": candidate.id,
             "candidate_id": candidate.id,
