@@ -2,7 +2,7 @@
 import React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import api from "../api/client";
+import api, { getAccessToken } from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
@@ -623,6 +623,48 @@ function Training() {
     }
   }
 
+  async function refreshVideoUrl(lesson) {
+    const courseId = selectedAssignment?.course?.id;
+    if (!courseId || lesson?.video_source !== "managed") {
+      throw new Error("No managed video available for this course.");
+    }
+    // A fresh course read signs a new AWS URL. Do not replace course state:
+    // replacing all lesson metadata here would interrupt active playback.
+    const { data } = await api.get(`/training/me/courses/${encodeURIComponent(courseId)}`);
+    const currentVideo = (data.course?.modules || [])
+      .flatMap((module) => module.lessons || [])
+      .find((item) => item.id === lesson.id && item.video_source === "managed");
+    if (!currentVideo?.video_url) {
+      throw new Error("The refreshed course did not contain this video.");
+    }
+    return currentVideo.video_url;
+  }
+
+  function saveVideoOnExit(lesson, segment) {
+    // Axios requests may be canceled when the browser tab closes. Fetch with
+    // keepalive makes a best-effort final PUT using the existing auth contract.
+    if (!lesson?.id || typeof window.fetch !== "function") return;
+    const apiRoot = new URL(
+      String(api.defaults.baseURL || "/api").replace(/\/$/, "") + "/",
+      window.location.href,
+    );
+    const url = new URL(
+      "training/me/lessons/" + encodeURIComponent(lesson.id) + "/video-progress",
+      apiRoot,
+    );
+    const token = getAccessToken();
+    void window.fetch(url.toString(), {
+      method: "PUT",
+      credentials: "include",
+      keepalive: true,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: "Bearer " + token } : {}),
+      },
+      body: JSON.stringify(segment),
+    }).catch(() => {});
+  }
+
   async function updateVideoProgress(lesson, segment) {
     if (!lesson?.id) return null;
     setError("");
@@ -898,6 +940,8 @@ function Training() {
         previousJourneyLesson={previousJourneyLesson}
         completeLesson={completeLesson}
         updateVideoProgress={updateVideoProgress}
+        refreshVideoUrl={refreshVideoUrl}
+        saveVideoOnExit={saveVideoOnExit}
         saving={saving}
         nextRequiredJourneyLesson={nextRequiredJourneyLesson}
         openFinalQuiz={openFinalQuiz}

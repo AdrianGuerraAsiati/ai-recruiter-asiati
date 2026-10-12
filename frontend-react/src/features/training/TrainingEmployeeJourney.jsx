@@ -1,5 +1,6 @@
 // eslint-disable-next-line no-unused-vars
 import React, { useRef, useState } from "react";
+import TrainingVideoPlayer from "./TrainingVideoPlayer";
 import "./onboarding-workspace.css";
 
 import {
@@ -19,139 +20,6 @@ import {
   teamInitials,
 } from "./trainingUtils";
 
-function TrackedTrainingVideo({ lesson, onVideoProgress }) {
-  const videoRef = useRef(null);
-  // Progress responses refresh the S3 signed URL. Replacing src on each refresh
-  // makes the browser restart playback, even when the user only paused.
-  // The component is keyed by lesson ID, so keep its first URL until that
-  // lesson is left and remounted.
-  const [playbackUrl] = useState(() => lesson.video_url);
-  const restoredPositionRef = useRef(false);
-  const segmentStartRef = useRef(null);
-  const lastObservedTimeRef = useRef(null);
-  const requestInFlightRef = useRef(false);
-  const watchedPercent = Number(lesson?.video_progress?.watched_percent || 0);
-
-  async function flushSegment(endTime) {
-    const video = videoRef.current;
-    const startTime = segmentStartRef.current;
-    if (!video || startTime == null || requestInFlightRef.current) return;
-    const end = Number(endTime);
-    const start = Number(startTime);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start + 0.25) return;
-
-    requestInFlightRef.current = true;
-    segmentStartRef.current = end;
-    try {
-      await onVideoProgress(lesson, {
-        duration_seconds: Number(video.duration || lesson.duration_seconds || 0),
-        played_from_seconds: start,
-        played_to_seconds: end,
-        position_seconds: Number(video.currentTime || end),
-      });
-    } finally {
-      requestInFlightRef.current = false;
-    }
-  }
-
-  function handleLoadedMetadata(event) {
-    if (restoredPositionRef.current) return;
-    restoredPositionRef.current = true;
-
-    const duration = Number(event.currentTarget.duration);
-    const savedPosition = Number(lesson?.video_progress?.last_position_seconds || 0);
-    // An ended video starts from the beginning when replayed. Restoring the
-    // position only seeks the player; it does not count as watched time.
-    if (Number.isFinite(duration) && duration > 0
-      && Number.isFinite(savedPosition) && savedPosition > 0
-      && savedPosition < duration - 1) {
-      event.currentTarget.currentTime = savedPosition;
-    }
-  }
-
-  function handlePlay(event) {
-    const current = Number(event.currentTarget.currentTime || 0);
-    segmentStartRef.current = current;
-    lastObservedTimeRef.current = current;
-  }
-
-  function handleTimeUpdate(event) {
-    const current = Number(event.currentTarget.currentTime || 0);
-    const start = segmentStartRef.current;
-    if (start == null) {
-      segmentStartRef.current = current;
-      lastObservedTimeRef.current = current;
-      return;
-    }
-    if (!event.currentTarget.paused && current - start >= 5) {
-      void flushSegment(current);
-    }
-    lastObservedTimeRef.current = current;
-  }
-
-  function handleSeeking() {
-    const lastObserved = lastObservedTimeRef.current;
-    if (lastObserved != null) {
-      void flushSegment(lastObserved);
-    }
-    segmentStartRef.current = null;
-    lastObservedTimeRef.current = null;
-  }
-
-  function handleSeeked(event) {
-    const current = Number(event.currentTarget.currentTime || 0);
-    segmentStartRef.current = current;
-    lastObservedTimeRef.current = current;
-  }
-
-  function handlePause(event) {
-    const current = Number(event.currentTarget.currentTime || 0);
-    lastObservedTimeRef.current = current;
-    void flushSegment(current);
-  }
-
-  function handleEnded(event) {
-    const current = Number(event.currentTarget.currentTime || 0);
-    lastObservedTimeRef.current = current;
-    void flushSegment(current);
-  }
-
-  const threshold = Number(lesson?.video_progress?.completion_threshold_percent || 80);
-
-  return (
-    <>
-      <video
-        ref={videoRef}
-        key={lesson.id}
-        controls
-        preload="metadata"
-        src={playbackUrl}
-        aria-label={`Video: ${lesson.title}`}
-        onLoadedMetadata={handleLoadedMetadata}
-        onPlay={handlePlay}
-        onTimeUpdate={handleTimeUpdate}
-        onSeeking={handleSeeking}
-        onSeeked={handleSeeked}
-        onPause={handlePause}
-        onEnded={handleEnded}
-      >
-        Tu navegador no puede reproducir este video.
-      </video>
-      <div className="training-video-watch-progress" aria-live="polite">
-        <div>
-          <strong>{Math.round(watchedPercent)}% reproducido</strong>
-          <span>
-            {lesson.completed
-              ? "Video completado"
-              : `Se completa automáticamente al reproducir al menos el ${threshold}%.`}
-          </span>
-        </div>
-        <ProgressBar value={watchedPercent} />
-      </div>
-    </>
-  );
-}
-
 export default function TrainingEmployeeJourney({
   canManage,
   myAssignments,
@@ -169,6 +37,8 @@ export default function TrainingEmployeeJourney({
   previousJourneyLesson,
   completeLesson,
   updateVideoProgress,
+  refreshVideoUrl,
+  saveVideoOnExit,
   saving,
   nextRequiredJourneyLesson,
   openFinalQuiz,
@@ -466,10 +336,12 @@ export default function TrainingEmployeeJourney({
                           {activeJourneyLesson.video_url && (
                             <div className={`training-video training-journey-video ${isPortraitOnboardingModule(activeJourneyLesson.module) ? "is-portrait" : ""}`}>
                               {isDirectVideo(activeJourneyLesson.video_url) ? (
-                                <TrackedTrainingVideo
+                                <TrainingVideoPlayer
                                   key={activeJourneyLesson.id}
                                   lesson={activeJourneyLesson}
                                   onVideoProgress={updateVideoProgress}
+                                  onRefreshVideoUrl={refreshVideoUrl}
+                                  onSaveOnExit={saveVideoOnExit}
                                 />
                               ) : googleDrivePreviewUrl(activeJourneyLesson.video_url) ? (
                                 <>
