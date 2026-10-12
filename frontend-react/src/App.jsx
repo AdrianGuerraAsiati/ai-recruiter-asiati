@@ -68,12 +68,20 @@ function ProtectedPage({ children, permission, permissionsAny }) {
 }
 
 
+function LandingPage() {
+  const { principal } = useSession();
+  if (principal?.roles?.includes("APPLICANT") && !principal?.roles?.includes("EMPLOYEE") && !principal?.roles?.includes("ADMIN")) {
+    return <Navigate to="/documents" replace />;
+  }
+  return <Dashboard />;
+}
+
 function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
 
-      <Route path="/dashboard" element={<ProtectedPage><Dashboard /></ProtectedPage>} />
+      <Route path="/dashboard" element={<ProtectedPage><LandingPage /></ProtectedPage>} />
       <Route path="/training" element={<ProtectedPage permission="training.read"><Training /></ProtectedPage>} />
       <Route path="/progress" element={<ProtectedPage permission="training.progress.read_own"><Progress /></ProtectedPage>} />
       <Route path="/profile" element={<ProtectedPage permission="profile.read_own"><Profile /></ProtectedPage>} />
