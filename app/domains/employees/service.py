@@ -368,6 +368,95 @@ def provision_employee(
         raise
 
 
+def provision_existing_profile_access(
+    db: Session,
+    employee_id: str,
+    *,
+    username: str,
+    first_name: str,
+    last_name: str,
+    role_code: str = APPLICANT,
+    created_by_sub: str | None = None,
+    cognito_client=None,
+) -> tuple[UserProfile, str | None]:
+    """Provision a previously imported profile with document-upload access.
+
+    An existing Odoo profile can legitimately lack Cognito credentials. Never
+    create a second UserProfile; attach Cognito to the existing stable profile.
+    """
+    profile = require_employee(db, employee_id)
+    if profile.status != "ACTIVE":
+        raise EmployeeStateError()
+    if not profile.email:
+        raise EmployeeProvisioningError("El perfil no tiene correo.")
+    normalized = normalize_login_username(username)
+    if profile.login_username and profile.login_username != normalized:
+        raise EmployeeUsernameExists()
+    conflict = db.query(UserProfile).filter(
+        UserProfile.id != profile.id,
+        UserProfile.login_username == normalized,
+    ).first()
+    if conflict is not None:
+        raise EmployeeUsernameExists()
+    if profile.cognito_sub:
+        return profile, None
+
+    client = cognito_client or get_admin_cognito_client()
+    pool_id = _user_pool_id()
+    temporary_password = generate_temporary_password()
+    created = False
+    try:
+        response = client.admin_create_user(
+            UserPoolId=pool_id,
+            Username=profile.email,
+            TemporaryPassword=temporary_password,
+            MessageAction="SUPPRESS",
+            UserAttributes=[
+                {"Name": "email", "Value": profile.email},
+                {"Name": "email_verified", "Value": "true"},
+                {"Name": "given_name", "Value": first_name},
+                {"Name": "family_name", "Value": last_name},
+            ],
+        )
+        created = True
+        user = response.get("User") or {}
+        sub = _cognito_sub_from_user(user)
+        if not sub:
+            user = client.admin_get_user(UserPoolId=pool_id, Username=profile.email)
+            sub = _cognito_sub_from_user(user)
+        if not sub:
+            raise EmployeeIdentityError("Cognito did not return a stable subject")
+        profile.cognito_sub = sub
+        profile.login_username = normalized
+        if not profile.first_name:
+            profile.first_name = first_name
+        if not profile.last_name:
+            profile.last_name = last_name
+        if not roles_for_profile(db, profile.id):
+            assign_role(db, profile, role_code, assigned_by_sub=created_by_sub)
+            profile.onboarding_status = "NOT_REQUIRED" if role_code == APPLICANT else "PENDING"
+        db.commit()
+        db.refresh(profile)
+        return profile, temporary_password
+    except ClientError as exc:
+        db.rollback()
+        if created:
+            try:
+                client.admin_delete_user(UserPoolId=pool_id, Username=profile.email)
+            except Exception:
+                pass
+        code = str(exc.response.get("Error", {}).get("Code") or "")
+        raise EmployeeProvisioningError(code or "Cognito error") from exc
+    except Exception:
+        db.rollback()
+        if created:
+            try:
+                client.admin_delete_user(UserPoolId=pool_id, Username=profile.email)
+            except Exception:
+                pass
+        raise
+
+
 def create_employee(
     db: Session,
     *,
