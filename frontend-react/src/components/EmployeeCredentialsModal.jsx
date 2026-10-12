@@ -49,7 +49,7 @@ export default function EmployeeCredentialsModal({
         <div className="employee-credentials-warning" role="note">
           <strong>Guarda estas credenciales ahora.</strong>
           <span>
-            La contraseña temporal se muestra una sola vez. El empleado deberá
+            La contraseña temporal se muestra una sola vez. La persona deberá
             cambiarla en su primer acceso.
           </span>
         </div>
