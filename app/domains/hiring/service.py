@@ -66,6 +66,145 @@ def _ensure_employee_role(
     db.commit()
 
 
+def start_candidate_application(
+    db: Session,
+    *,
+    owner_sub: str,
+    job_id: str,
+    candidate_id: str,
+    created_by_sub: str,
+    username: str,
+    email: str | None = None,
+    first_name: str | None = None,
+    last_name: str | None = None,
+    department: str | None = None,
+    cognito_client=None,
+) -> dict:
+    """Start a selected application and provision portal access without hiring.
+
+    Rankings evaluate the whole candidate pool, so the JobCandidate relation is
+    created only when an administrator initiates the application. Retrying this
+    action must not generate another password or employee identity.
+    """
+    job = candidates_service.require_job(db, job_id, owner_sub)
+    candidate = candidates_service.require_candidate(db, candidate_id, owner_sub)
+    if candidate.is_banned:
+        raise HiringConflictError("No puedes iniciar la postulación de un candidato vetado.")
+    if str(job.status or "").upper() != "ACTIVE":
+        raise HiringConflictError("Solo puedes iniciar postulaciones en vacantes activas.")
+
+    resolved_email = normalize_email(email or candidate.email or "")
+    if not resolved_email:
+        raise HiringValidationError("El candidato necesita un correo para recibir acceso.")
+    resolved_username = employees_service.normalize_login_username(username)
+    resolved_first, resolved_last = _employee_names(
+        candidate.name, first_name=first_name, last_name=last_name
+    )
+    link = candidates_repository.get_job_candidate(
+        db, job_id=job_id, candidate_id=candidate_id, owner_sub=None
+    )
+    if link is not None and link.application_status in {"HIRED", "WITHDRAWN", "REJECTED"}:
+        raise HiringConflictError(
+            "Esta postulación ya fue cerrada. Revisa su estado antes de continuar."
+        )
+    if link is not None and link.employee_id:
+        employee = employees_service.require_employee(db, link.employee_id)
+        return {
+            "job_id": job_id,
+            "candidate_id": candidate_id,
+            "application_id": link.id,
+            "application_status": link.application_status,
+            "employee_created": False,
+            "employee": employees_service.employee_payload(db, employee),
+            "credentials": None,
+            "already_started": True,
+        }
+
+    employee = (
+        db.query(UserProfile)
+        .filter(UserProfile.email == resolved_email)
+        .one_or_none()
+    )
+    employee_created = False
+    temporary_password = None
+    if employee is not None:
+        if employee.status != "ACTIVE":
+            raise HiringConflictError("El usuario existente se encuentra deshabilitado.")
+        if not employee.cognito_sub:
+            raise HiringConflictError(
+                "Existe una ficha sin acceso a Talent. Provisiona el acceso desde Empleados."
+            )
+        if employee.login_username and employee.login_username != resolved_username:
+            raise HiringConflictError(
+                "El correo ya tiene otro usuario. Consulta o edita sus credenciales en Empleados."
+            )
+
+    # The assignment is flushed with the employee provisioning transaction.
+    link = link or candidates_repository.ensure_candidate_assigned_to_job(
+        db, job_id=job_id, candidate_id=candidate_id
+    )
+    if employee is None:
+        try:
+            employee, temporary_password = employees_service.provision_employee(
+                db,
+                username=resolved_username,
+                email=resolved_email,
+                first_name=resolved_first,
+                last_name=resolved_last,
+                job_title=str(job.title or "").strip() or None,
+                department=str(department or "").strip() or None,
+                country_code=str(getattr(job, "country_code", None) or "").strip() or None,
+                company_name=str(getattr(job, "company_name", None) or "").strip() or None,
+                # Hiring date and Odoo employee creation are reserved for /hire.
+                hire_date=None,
+                role_code=EMPLOYEE,
+                created_by_sub=created_by_sub,
+                cognito_client=cognito_client,
+            )
+            employee_created = True
+        except Exception:
+            db.rollback()
+            raise
+    elif not employee.login_username:
+        employee = employees_service.set_employee_username(
+            db, employee.id, username=resolved_username
+        )
+
+    _ensure_employee_role(db, employee, assigned_by_sub=created_by_sub)
+    link.employee_id = employee.id
+    if link.application_status != "SELECTED":
+        candidates_repository.set_job_candidate_status(db, link, status="SELECTED")
+        indeed_service.queue_candidate_status(
+            db,
+            owner_sub=owner_sub,
+            job_id=job_id,
+            candidate_id=candidate_id,
+            local_status="SELECTED",
+            status_changed_at=link.status_changed_at,
+        )
+    db.commit()
+    db.refresh(link)
+
+    return {
+        "job_id": job_id,
+        "candidate_id": candidate_id,
+        "application_id": link.id,
+        "application_status": link.application_status,
+        "employee_created": employee_created,
+        "employee": employees_service.employee_payload(db, employee),
+        "credentials": (
+            {
+                "username": employee.login_username,
+                "temporary_password": temporary_password,
+                "must_change_password": True,
+            }
+            if temporary_password
+            else None
+        ),
+        "already_started": False,
+    }
+
+
 def hire_candidate(
     db: Session,
     *,
