@@ -3,10 +3,11 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_permission
-from app.domains.recruitment_calendar import service
+from app.domains.recruitment_calendar import google, service
 from app.domains.recruitment_calendar.exceptions import (
     RecruitmentApplicationNotEligible,
     RecruitmentEventNotFound,
@@ -99,3 +100,72 @@ def update_event(
         )
     except Exception as exc:
         _translate(exc)
+
+
+def _google_error(exc: Exception):
+    if isinstance(exc, google.GoogleCalendarAuthorizationError):
+        raise HTTPException(status_code=403, detail="Autoriza únicamente la cuenta de Talento Humano.")
+    if isinstance(exc, google.GoogleCalendarConfigurationError):
+        raise HTTPException(status_code=409, detail="Configura primero la conexión corporativa de Google.")
+    if isinstance(exc, google.GoogleCalendarRemoteError):
+        raise HTTPException(status_code=502, detail="Google Calendar no respondió correctamente.")
+    raise exc
+
+
+@router.get("/google/status")
+def google_calendar_status(
+    _principal: dict = Depends(require_permission("candidates.read")),
+):
+    return google.status()
+
+
+@router.get("/google/oauth/start")
+def google_calendar_start(
+    principal: dict = Depends(require_permission("integrations.manage")),
+):
+    try:
+        return google.start_oauth(admin_sub=principal["sub"])
+    except Exception as exc:
+        _google_error(exc)
+
+
+@router.get("/google/callback", include_in_schema=False)
+def google_calendar_callback(
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+):
+    # Public OAuth redirect: the signed, single-use state is checked before
+    # exchanging a code. Never return codes or tokens to the browser.
+    if error or not code or not state:
+        return RedirectResponse(google.FRONTEND_RETURN_URL + "?google=error", status_code=303)
+    try:
+        google.oauth_callback(code=code, state=state)
+    except google.GoogleCalendarAuthorizationError:
+        return RedirectResponse(
+            google.FRONTEND_RETURN_URL + "?google=wrong_account", status_code=303
+        )
+    except (google.GoogleCalendarRemoteError, google.GoogleCalendarConfigurationError):
+        return RedirectResponse(google.FRONTEND_RETURN_URL + "?google=error", status_code=303)
+    return RedirectResponse(google.FRONTEND_RETURN_URL + "?google=connected", status_code=303)
+
+
+@router.post("/google/sync")
+def google_calendar_sync(
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("integrations.manage")),
+):
+    try:
+        return google.sync_upcoming(db)
+    except Exception as exc:
+        _google_error(exc)
+
+
+@router.delete("/google")
+def google_calendar_disconnect(
+    _principal: dict = Depends(require_permission("integrations.manage")),
+):
+    try:
+        return google.disconnect()
+    except Exception as exc:
+        _google_error(exc)
