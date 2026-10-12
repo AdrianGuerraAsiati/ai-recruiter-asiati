@@ -11,7 +11,7 @@ from botocore.exceptions import ClientError
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.access_control import EMPLOYEE, assign_role, normalize_email
+from app.access_control import APPLICANT, EMPLOYEE, assign_role, normalize_email
 from app.infrastructure.auth.cognito import get_admin_cognito_client
 from app.models import TrainingAssignment, TrainingCourse, UserProfile, UserRole
 
@@ -164,7 +164,14 @@ def list_employees(
     status: str | None = None,
     onboarding_status: str | None = None,
 ) -> list[UserProfile]:
-    query = db.query(UserProfile)
+    # Applicant logins are technical accounts, not hired staff members.
+    # Exclude them until the hiring workflow promotes their role.
+    query = db.query(UserProfile).filter(
+        ~db.query(UserRole).filter(
+            UserRole.user_id == UserProfile.id,
+            UserRole.role_code == APPLICANT,
+        ).exists()
+    )
     normalized_q = q.strip()
     if normalized_q:
         pattern = f"%{normalized_q}%"
@@ -325,7 +332,7 @@ def provision_employee(
             country_code=country_code,
             company_name=company_name,
             hire_date=hire_date,
-            onboarding_status="PENDING",
+            onboarding_status="NOT_REQUIRED" if role_code == APPLICANT else "PENDING",
             status="ACTIVE",
             created_by_sub=created_by_sub,
         )
