@@ -13,6 +13,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
@@ -27,7 +28,9 @@ from app.models import RecruitmentEvent
 
 logger = logging.getLogger(__name__)
 
-HR_EMAIL = "talentohumano@asiati.com.co"
+DEFAULT_ACCOUNT_EMAIL = "talentohumano@asiati.com.co"
+# The configured account is persisted in Secrets Manager, never in code.
+DEFAULT_ALLOWED_DOMAINS = ("asiati.com.co", "asiaticorp.com")
 GOOGLE_SCOPE = (
     "https://www.googleapis.com/auth/calendar.events "
     "https://www.googleapis.com/auth/userinfo.email"
@@ -54,6 +57,10 @@ class GoogleCalendarRemoteError(RuntimeError):
     pass
 
 
+class GoogleCalendarEmailError(ValueError):
+    pass
+
+
 def _store(store=None):
     return store if store is not None else GmailOAuthSecretStore()
 
@@ -67,6 +74,45 @@ def _config(secret: dict) -> bool:
 def _calendar_secret(secret: dict) -> dict:
     data = secret.get(SECRET_KEY)
     return dict(data) if isinstance(data, dict) else {}
+
+
+def _target_email(calendar: dict) -> str:
+    return str(calendar.get("target_email") or DEFAULT_ACCOUNT_EMAIL).strip().casefold()
+
+
+def _allowed_domains() -> set[str]:
+    """Admins may switch within approved company domains, configurable by ops."""
+    configured = os.getenv("TALENT_GOOGLE_ALLOWED_DOMAINS")
+    values = configured.split(",") if configured is not None else DEFAULT_ALLOWED_DOMAINS
+    return {value.strip().casefold() for value in values if value.strip()}
+
+
+def set_target_email(email: str, *, store=None) -> dict:
+    """Switch the corporate account and invalidate any prior Calendar grant.
+
+    A saved Google refresh token is always bound to the exact target email.
+    Switching requires a fresh Google OAuth consent before syncing.
+    """
+    candidate = str(email or "").strip().casefold()
+    if not re.fullmatch(r"[a-z0-9][a-z0-9._%+\-]{0,63}@[a-z0-9.-]+", candidate):
+        raise GoogleCalendarEmailError("GOOGLE_CALENDAR_EMAIL_INVALID")
+    domain = candidate.rsplit("@", 1)[1]
+    if domain not in _allowed_domains():
+        raise GoogleCalendarEmailError("GOOGLE_CALENDAR_DOMAIN_NOT_ALLOWED")
+
+    secret_store = _store(store)
+    payload = dict(secret_store.read())
+    calendar = _calendar_secret(payload)
+    if candidate != _target_email(calendar):
+        for key in (
+            "refresh_token", "connected_email", "connected_at",
+            "connected_by_sub", "pending_state_hash", "pending_at",
+        ):
+            calendar.pop(key, None)
+        calendar["target_email"] = candidate
+        payload[SECRET_KEY] = calendar
+        secret_store.write(payload)
+    return status(store=secret_store)
 
 
 def _redirect_uri() -> str:
@@ -85,12 +131,13 @@ def status(*, store=None) -> dict:
         payload = {}
     calendar = _calendar_secret(payload)
     connected_email = str(calendar.get("connected_email") or "").strip().casefold()
+    target_email = _target_email(calendar)
     return {
-        "target_email": HR_EMAIL,
+        "target_email": target_email,
         "connected": bool(
             _config(payload)
             and calendar.get("refresh_token")
-            and connected_email == HR_EMAIL
+            and connected_email == target_email
         ),
         "connected_email": connected_email or None,
         "oauth_configured": _config(payload) and bool(_redirect_uri()),
@@ -138,8 +185,11 @@ def start_oauth(*, admin_sub: str, store=None) -> dict:
     secret = dict(secret_store.read())
     if not _config(secret) or not _redirect_uri():
         raise GoogleCalendarConfigurationError("GOOGLE_CALENDAR_OAUTH_NOT_CONFIGURED")
+    calendar = _calendar_secret(secret)
+    target_email = _target_email(calendar)
     signed_state = _sign_state(
         {
+            "email": target_email,
             "iat": int(time.time()),
             "sub": admin_sub,
             "nonce": secrets.token_urlsafe(24),
@@ -147,7 +197,6 @@ def start_oauth(*, admin_sub: str, store=None) -> dict:
         },
         str(secret["state_secret"]),
     )
-    calendar = _calendar_secret(secret)
     calendar["pending_state_hash"] = hashlib.sha256(signed_state.encode()).hexdigest()
     calendar["pending_at"] = int(time.time())
     secret[SECRET_KEY] = calendar
@@ -160,10 +209,10 @@ def start_oauth(*, admin_sub: str, store=None) -> dict:
         "scope": GOOGLE_SCOPE,
         "access_type": "offline",
         "prompt": "consent select_account",
-        "login_hint": HR_EMAIL,
+        "login_hint": target_email,
         "state": signed_state,
     })
-    return {"authorization_url": GOOGLE_AUTH_URL + "?" + query, "target_email": HR_EMAIL}
+    return {"authorization_url": GOOGLE_AUTH_URL + "?" + query, "target_email": target_email}
 
 
 def oauth_callback(*, code: str, state: str, store=None, http_client=None) -> dict:
@@ -174,6 +223,9 @@ def oauth_callback(*, code: str, state: str, store=None, http_client=None) -> di
         raise GoogleCalendarConfigurationError("GOOGLE_CALENDAR_OAUTH_NOT_CONFIGURED")
     state_data = _check_state(state, str(secret["state_secret"]))
     calendar = _calendar_secret(secret)
+    target_email = _target_email(calendar)
+    if state_data.get("email") != target_email:
+        raise GoogleCalendarAuthorizationError("GOOGLE_CALENDAR_TARGET_CHANGED")
     if not hmac.compare_digest(
         str(calendar.get("pending_state_hash") or ""),
         hashlib.sha256(state.encode()).hexdigest(),
@@ -207,12 +259,12 @@ def oauth_callback(*, code: str, state: str, store=None, http_client=None) -> di
         if profile_response.status_code != 200:
             raise GoogleCalendarRemoteError("GOOGLE_CALENDAR_IDENTITY_CHECK_FAILED")
         connected_email = str(profile_response.json().get("email") or "").casefold()
-        if connected_email != HR_EMAIL:
+        if connected_email != target_email:
             raise GoogleCalendarAuthorizationError("GOOGLE_CALENDAR_WRONG_ACCOUNT")
 
         # A successful OAuth grant without Calendar API permissions is not a connection.
         calendar_response = http.get(
-            GOOGLE_EVENTS_URL + "/" + quote(HR_EMAIL, safe="") + "/events",
+            GOOGLE_EVENTS_URL + "/" + quote(target_email, safe="") + "/events",
             headers={"Authorization": "Bearer " + access_token},
             params={"maxResults": 1},
         )
@@ -234,7 +286,7 @@ def oauth_callback(*, code: str, state: str, store=None, http_client=None) -> di
     calendar.pop("pending_at", None)
     secret[SECRET_KEY] = calendar
     secret_store.write(secret)
-    return {"connected": True, "connected_email": HR_EMAIL}
+    return {"connected": True, "connected_email": target_email}
 
 
 def disconnect(*, store=None) -> dict:
@@ -248,12 +300,12 @@ def disconnect(*, store=None) -> dict:
     calendar.pop("pending_at", None)
     secret[SECRET_KEY] = calendar
     secret_store.write(secret)
-    return {"connected": False, "target_email": HR_EMAIL}
+    return {"connected": False, "target_email": _target_email(calendar)}
 
 
 def _access_token(secret: dict, http) -> str:
     calendar = _calendar_secret(secret)
-    if not _config(secret) or str(calendar.get("connected_email") or "").casefold() != HR_EMAIL or not calendar.get("refresh_token"):
+    if not _config(secret) or str(calendar.get("connected_email") or "").casefold() != _target_email(calendar) or not calendar.get("refresh_token"):
         raise GoogleCalendarConfigurationError("GOOGLE_CALENDAR_NOT_CONNECTED")
     response = http.post(
         GOOGLE_TOKEN_URL,
@@ -317,12 +369,13 @@ def sync_event(event: RecruitmentEvent, *, store=None, http_client=None) -> dict
     Existing Google events not created by Talent are not read or altered.
     """
     secret = _store(store).read()
+    target_email = _target_email(_calendar_secret(secret))
     owns_client = http_client is None
     http = http_client or httpx.Client(timeout=12)
     try:
         token = _access_token(secret, http)
         headers = {"Authorization": "Bearer " + token}
-        url = GOOGLE_EVENTS_URL + "/" + quote(HR_EMAIL, safe="") + "/events"
+        url = GOOGLE_EVENTS_URL + "/" + quote(target_email, safe="") + "/events"
         body = _event_body(event)
         # First attempt deterministic insert; a conflict means this Talent
         # appointment already exists in Google, so update its known ID.
@@ -389,4 +442,4 @@ def sync_upcoming(db: Session, *, limit: int = 100, store=None, http_client=None
             synced += 1
         except (GoogleCalendarRemoteError, GoogleCalendarConfigurationError):
             failed += 1
-    return {"total": len(events), "synced": synced, "failed": failed, "target_email": HR_EMAIL}
+    return {"total": len(events), "synced": synced, "failed": failed, "target_email": status(store=store)["target_email"]}
