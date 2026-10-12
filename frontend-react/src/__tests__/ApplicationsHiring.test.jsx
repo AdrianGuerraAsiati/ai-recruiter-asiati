@@ -67,7 +67,7 @@ describe("Applications: document access and employee creation", () => {
       "/jobs/job-1/candidates/candidate-1/hire",
       expect.objectContaining({ username: "aperez", email: "ana@example.com" }),
     ));
-    expect(await screen.findByText(/Postulación cerrada como Contratado/)).toBeInTheDocument();
+    expect(await screen.findByText(/Contratación confirmada y onboarding asignado/)).toBeInTheDocument();
   });
 
   it("offers portal credentials before hiring applicants imported without a login", async () => {
