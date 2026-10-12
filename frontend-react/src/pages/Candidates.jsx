@@ -10,7 +10,6 @@ import { useNotice } from "../context/noticeStore";
 import PageHeader from "../components/ui/PageHeader";
 import Icon from "../components/ui/Icon";
 import { EmptyState, FeedbackMessage, ProgressBar } from "../components/ui/StatePanel";
-import CandidateCreateUserModal from "../components/CandidateCreateUserModal.jsx";
 import CandidateImportModal from "../features/candidate-import/CandidateImportModal.jsx";
 
 const PAGE_SIZE = 20;
@@ -19,7 +18,6 @@ function Candidates() {
   const { hasPermission } = useSession();
   const { notify } = useNotice();
   const canRestrictCandidates = hasPermission("candidates.restrict");
-  const canCreateUsers = hasPermission("employees.create");
   const canManageCandidates = hasPermission("candidates.manage");
   const [candidates, setCandidates] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -33,7 +31,6 @@ function Candidates() {
   const [pages, setPages] = useState(0);
   const [searchParams, setSearchParams] = useSearchParams();
   const [restrictionTarget, setRestrictionTarget] = useState(null);
-  const [userTarget, setUserTarget] = useState(null);
   const [query, setQuery] = useState("");
   const [restrictionMode, setRestrictionMode] = useState("ban");
   const [restrictionReason, setRestrictionReason] = useState("");
@@ -498,9 +495,6 @@ function Candidates() {
                   <Icon name="applications" size={16} />
                   Ver CV
                 </button>
-                {canCreateUsers && (
-                  <button className="btn btn-primary" type="button" disabled={candidate.is_banned} onClick={() => setUserTarget(candidate)}>Crear usuario</button>
-                )}
                 {canRestrictCandidates && (
                   <button
                     className={`btn ${candidate.is_banned ? "btn-secondary" : "btn-danger"}`}
@@ -617,8 +611,6 @@ function Candidates() {
           </div>
         </div>
       )}
-
-      <CandidateCreateUserModal open={Boolean(userTarget)} candidateId={userTarget?.candidate_id} candidate={userTarget} onClose={() => setUserTarget(null)} />
       {showCreateModal && (
         <CandidateImportModal
           open
