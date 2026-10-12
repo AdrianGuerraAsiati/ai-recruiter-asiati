@@ -549,3 +549,33 @@ def test_hiring_promotes_applicant_login_without_recreating_credentials(db, monk
     assert len(employees_service.list_employees(db)) == 1
     assert db.query(TrainingAssignment).count() == 1
     assert cognito.created == ["ana@example.com"]
+
+
+def test_formal_hire_queues_document_welcome_once_and_never_on_retry(db, monkeypatch):
+    job, candidate, link = _application(db)
+    deliveries = []
+
+    def fake_welcome(_db, employee_id):
+        deliveries.append(employee_id)
+        return {"status": "SENT", "attempt_count": 1, "sent_at": "2026-10-12T10:00:00Z"}
+
+    monkeypatch.setattr(hiring_service.document_notifications, "send_welcome", fake_welcome)
+    first = _hire(db, cognito=FakeCognito(), job=job, candidate=candidate)
+    second = _hire(db, cognito=FakeCognito(), job=job, candidate=candidate)
+    assert first["welcome_email"]["status"] == "SENT"
+    assert first["status_changed"] is True
+    assert second["status_changed"] is False
+    assert deliveries == [first["employee"]["id"]]
+
+
+def test_hire_succeeds_even_when_welcome_email_delivery_fails(db, monkeypatch):
+    job, candidate, _link = _application(db)
+
+    def unavailable(*_args, **_kwargs):
+        raise RuntimeError("SES unavailable")
+
+    monkeypatch.setattr(hiring_service.document_notifications, "send_welcome", unavailable)
+    result = _hire(db, cognito=FakeCognito(), job=job, candidate=candidate)
+    assert result["application_status"] == "HIRED"
+    assert result["welcome_email"]["status"] == "FAILED"
+    assert result["onboarding_assignment"]

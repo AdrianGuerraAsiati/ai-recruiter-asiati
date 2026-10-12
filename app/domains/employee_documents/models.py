@@ -61,3 +61,37 @@ class EmployeeDocument(Base):
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
 
     employee = relationship("UserProfile")
+
+
+class EmployeeDocumentEmail(Base):
+    """One durable welcome-document request per employee (safe to retry)."""
+
+    __tablename__ = "employee_document_emails"
+    __table_args__ = (
+        UniqueConstraint("employee_id", "kind", name="uq_employee_document_emails_employee_kind"),
+        CheckConstraint(
+            "status IN ('PENDING', 'SENDING', 'SENT', 'FAILED')",
+            name="ck_employee_document_emails_status",
+        ),
+        Index("idx_employee_document_emails_status", "status", "created_at"),
+    )
+
+    id = Column(Text, primary_key=True, default=lambda: str(uuid.uuid4()))
+    employee_id = Column(
+        Text,
+        ForeignKey("user_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    kind = Column(Text, nullable=False, default="WELCOME_DOCUMENTS")
+    status = Column(Text, nullable=False, default="PENDING")
+    attempt_count = Column(Integer, nullable=False, default=0)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    attempt_at = Column(DateTime(timezone=True), nullable=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+
+    employee = relationship("UserProfile")

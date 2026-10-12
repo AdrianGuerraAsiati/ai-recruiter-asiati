@@ -26,6 +26,7 @@ CORE_TABLES = {
     "role_permissions",
     "employee_score_events",
     "employee_documents",
+    "employee_document_emails",
     "training_courses",
     "training_modules",
     "training_lessons",
@@ -94,6 +95,7 @@ def test_alembic_head_builds_current_postgres_schema():
             "role_permissions",
             "employee_score_events",
             "employee_documents",
+            "employee_document_emails",
             "training_courses",
             "training_modules",
             "training_lessons",
@@ -542,6 +544,6 @@ def test_alembic_head_builds_current_postgres_schema():
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
         psych_columns = {column["name"] for column in inspector.get_columns("psychotechnical_assignments")}
         assert {"candidate_id", "job_id", "test_key", "token_hash", "status"}.issubset(psych_columns)
-        assert revision == "052"
+        assert revision == "053"
     finally:
         engine.dispose()

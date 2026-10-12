@@ -288,8 +288,10 @@ function Applications() {
           key={hireTarget.id}
           application={hireTarget}
           onClose={() => setHireTarget(null)}
-          onHired={async () => {
-            setSuccess("Postulación cerrada como Contratado. El usuario ahora es empleado y recibirá onboarding.");
+          onHired={async (result) => {
+            setSuccess(result?.welcome_email?.status === "SENT"
+              ? "Contratación confirmada. Felicitación y solicitud de documentos enviadas al correo del empleado."
+              : "Contratación confirmada y onboarding asignado. Correo de bienvenida pendiente; puedes reintentarlo desde Documentos.");
             await loadApplications();
           }}
         />

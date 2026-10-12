@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.domains.employee_documents.models import EmployeeDocument
@@ -328,4 +329,48 @@ def download_payload(db: Session, document_id: str) -> dict:
         ),
         "filename": document.original_filename,
         "expires_in": storage.PRESIGNED_DOWNLOAD_EXPIRY_SECONDS,
+    }
+
+
+def review_queue(db: Session, *, limit: int = 100) -> dict:
+    """Administrative inbox of pending and correction-requested document sets.
+
+    Only persons with documents needing attention appear; applicants without
+    any submission are still reachable through the Applications deep link.
+    """
+    pending = func.sum(case((EmployeeDocument.review_status == "PENDING_REVIEW", 1), else_=0))
+    corrections = func.sum(case((EmployeeDocument.review_status == "CHANGES_REQUESTED", 1), else_=0))
+    rows = (
+        db.query(
+            UserProfile.id,
+            UserProfile.first_name,
+            UserProfile.last_name,
+            UserProfile.email,
+            pending.label("pending"),
+            corrections.label("corrections"),
+            func.max(EmployeeDocument.uploaded_at).label("last_submission_at"),
+        )
+        .join(EmployeeDocument, EmployeeDocument.employee_id == UserProfile.id)
+        .filter(EmployeeDocument.review_status.in_(("PENDING_REVIEW", "CHANGES_REQUESTED")))
+        .group_by(UserProfile.id, UserProfile.first_name, UserProfile.last_name, UserProfile.email)
+        .order_by(
+            func.max(EmployeeDocument.uploaded_at).desc(),
+            UserProfile.id.asc(),
+        )
+        .limit(min(max(int(limit), 1), 100))
+        .all()
+    )
+    return {
+        "items": [
+            {
+                "profile_id": profile_id,
+                "name": " ".join(x for x in (first_name, last_name) if x) or email or "Postulante",
+                "email": email,
+                "pending_review": int(pending_count or 0),
+                "changes_requested": int(corrections_count or 0),
+                "last_submission_at": last_submission_at.isoformat() if last_submission_at else None,
+            }
+            for profile_id, first_name, last_name, email, pending_count, corrections_count, last_submission_at in rows
+        ],
+        "limit": min(max(int(limit), 1), 100),
     }
