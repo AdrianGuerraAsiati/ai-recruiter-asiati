@@ -1,20 +1,14 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import EmployeeCredentialsModal from "./EmployeeCredentialsModal";
 
 export default function ApplicationAccessModal({ application, onClose, onUpdated }) {
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(application?.access?.username || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [credentials, setCredentials] = useState(null);
-
-  useEffect(() => {
-    setUsername(application?.access?.username || "");
-    setCredentials(null);
-    setError("");
-  }, [application]);
 
   if (!application?.access?.profile_id) return null;
   const profileId = application.access.profile_id;
