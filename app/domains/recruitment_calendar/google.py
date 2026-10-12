@@ -355,6 +355,10 @@ def sync_event(event: RecruitmentEvent, *, store=None, http_client=None) -> dict
 
 def try_sync_event(event: RecruitmentEvent) -> dict:
     """Never rollback a Talent appointment if Google's integration is offline."""
+    if os.getenv("TALENT_GOOGLE_CALENDAR_AUTOSYNC", "false").casefold() not in {
+        "true", "1", "yes", "on"
+    }:
+        return {"synced": False, "reason": "AUTOSYNC_DISABLED"}
     if not status()["connected"]:
         return {"synced": False, "reason": "NOT_CONNECTED"}
     try:
@@ -368,8 +372,6 @@ def sync_upcoming(db: Session, *, limit: int = 100, store=None, http_client=None
     """Retry recent/upcoming Talent events without touching unrelated Google events."""
     if not status(store=store)["connected"]:
         raise GoogleCalendarConfigurationError("GOOGLE_CALENDAR_NOT_CONNECTED")
-    from app.domains.recruitment_calendar import repository
-
     since = datetime.now(timezone.utc) - timedelta(days=7)
     events = (
         db.query(RecruitmentEvent)
