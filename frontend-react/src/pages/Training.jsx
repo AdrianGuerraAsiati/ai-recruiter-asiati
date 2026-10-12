@@ -645,7 +645,7 @@ function Training() {
     // keepalive makes a best-effort final PUT using the existing auth contract.
     if (!lesson?.id || typeof window.fetch !== "function") return;
     const apiRoot = new URL(
-      String(api.defaults.baseURL || "/api").replace(/\\/$/, "") + "/",
+      String(api.defaults.baseURL || "/api").replace(/\/$/, "") + "/",
       window.location.href,
     );
     const url = new URL(
