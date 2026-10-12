@@ -282,9 +282,9 @@ export default function CandidateCreateUserModal({
                     value={form.hire_date}
                     onChange={(event) => setForm({ ...form, hire_date: event.target.value })}
                   />
-                </div>
+                </div>}
 
-                { !jobId && <div className="employee-fixed-onboarding employee-create-onboarding">
+                {!jobId && <div className="employee-fixed-onboarding employee-create-onboarding">
                   <strong>Onboarding ASIATI</strong>
                   <small>Se asignará automáticamente la ruta corporativa común.</small>
                 </div> }
