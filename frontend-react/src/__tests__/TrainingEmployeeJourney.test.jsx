@@ -93,7 +93,7 @@ describe("TrainingEmployeeJourney", () => {
     expect(container.querySelector(".training-assignment-card")).not.toBeInTheDocument();
     expect(screen.getAllByText("Ruta de prueba").length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole("button", { name: /Continuar ahora/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Continuar aprendizaje/ }));
     expect(props.setActiveLessonId).toHaveBeenCalledWith("lesson-1");
 
     props.setActiveLessonId.mockClear();
