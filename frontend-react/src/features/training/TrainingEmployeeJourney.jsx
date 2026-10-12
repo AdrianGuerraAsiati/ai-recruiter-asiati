@@ -25,7 +25,7 @@ function TrackedTrainingVideo({ lesson, onVideoProgress }) {
   // makes the browser restart playback, even when the user only paused.
   // The component is keyed by lesson ID, so keep its first URL until that
   // lesson is left and remounted.
-  const playbackUrlRef = useRef(lesson.video_url);
+  const [playbackUrl] = useState(() => lesson.video_url);
   const restoredPositionRef = useRef(false);
   const segmentStartRef = useRef(null);
   const lastObservedTimeRef = useRef(null);
@@ -125,7 +125,7 @@ function TrackedTrainingVideo({ lesson, onVideoProgress }) {
         key={lesson.id}
         controls
         preload="metadata"
-        src={playbackUrlRef.current}
+        src={playbackUrl}
         aria-label={`Video: ${lesson.title}`}
         onLoadedMetadata={handleLoadedMetadata}
         onPlay={handlePlay}
