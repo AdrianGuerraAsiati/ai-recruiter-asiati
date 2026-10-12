@@ -1,5 +1,6 @@
 // eslint-disable-next-line no-unused-vars
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
+import "./onboarding-workspace.css";
 
 import {
   EmptyState,
@@ -155,6 +156,9 @@ export default function TrainingEmployeeJourney({
   quizResult,
   submitQuiz,
 }) {
+  const [focusMode, setFocusMode] = useState(false);
+  const focusRef = useRef(null);
+  const tabsRef = useRef(null);
   const modules = employeeCourse?.course?.modules || [];
   const isSingleCourse = myAssignments.length === 1;
   const activeModule = modules.find(
@@ -167,6 +171,15 @@ export default function TrainingEmployeeJourney({
       .trim();
   }
 
+  function selectLesson(id) {
+    setActiveLessonId(id);
+    focusRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }
+
+  function scrollModules(direction) {
+    tabsRef.current?.scrollBy?.({ left: direction * 340, behavior: "smooth" });
+  }
+
   function openModule(module) {
     const lessons = module?.lessons || [];
     const nextLesson = lessons.find(
@@ -174,7 +187,7 @@ export default function TrainingEmployeeJourney({
     )
       || lessons.find((lesson) => !lesson.completed)
       || lessons[0];
-    if (nextLesson) setActiveLessonId(nextLesson.id);
+    if (nextLesson) selectLesson(nextLesson.id);
   }
 
   return (
@@ -231,98 +244,88 @@ export default function TrainingEmployeeJourney({
                 <LoadingState label="Cargando contenido…" compact />
               ) : employeeCourse?.course ? (
                 <>
-                  <div className="training-player-heading">
-                    <div>
-                      <span className="eyebrow">Curso asignado</span>
+                  <header className="training-workspace-hero">
+                    <div className="training-workspace-hero-content">
+                      <span className="training-workspace-kicker">
+                        {employeeCourse.course.is_onboarding ? "Tu inducción en ASIATI" : "Tu espacio de aprendizaje"}
+                      </span>
                       <h2>{employeeCourse.course.title}</h2>
-                      <p>{employeeCourse.course.description || "Capacitación ASIATI"}</p>
+                      {employeeCourse.course.description && <p>{employeeCourse.course.description}</p>}
+                      <div className="training-workspace-facts">
+                        <span>{modules.length} módulos</span>
+                        <span>{employeeCourse.course.completed_lessons} de {employeeCourse.course.lesson_count} actividades</span>
+                        {employeeCourse.course.remaining_minutes > 0 && (
+                          <span>~{employeeCourse.course.remaining_minutes} min pendientes</span>
+                        )}
+                      </div>
                     </div>
-                    <strong>{employeeCourse.course.progress_percent}%</strong>
-                  </div>
+                    <div className="training-workspace-progress">
+                      <div className="training-workspace-progress-label">
+                        <span>Progreso general</span>
+                        <strong>{Math.round(Number(employeeCourse.course.progress_percent || 0))}%</strong>
+                      </div>
+                      <ProgressBar value={employeeCourse.course.progress_percent} />
+                      <small>Tu avance se guarda automáticamente.</small>
+                    </div>
+                  </header>
 
-                  <div className="training-journey-overview">
-                    <div className="training-journey-progress-copy">
-                      <span>Tu avance</span>
-                      <strong>{employeeCourse.course.progress_percent}%</strong>
+                  <section className="training-workspace-toolbar" aria-label="Continuar aprendizaje">
+                    <div className="training-workspace-next">
+                      <span>Siguiente paso</span>
+                      <strong>
+                        {currentRecommendedSession.items[0]?.title
+                          || (employeeCourse.course.has_quiz && !selectedAssignment?.quiz_result?.passed
+                            ? "Evaluación final"
+                            : "Ruta de aprendizaje completada")}
+                      </strong>
                       <small>
-                        {employeeCourse.course.completed_lessons} de {employeeCourse.course.lesson_count} actividades obligatorias
-                        {employeeCourse.course.remaining_minutes
-                          ? ` · ~${employeeCourse.course.remaining_minutes} min restantes`
-                          : ""}
-                        {employeeCourse.course.has_unknown_remaining_duration
-                          ? " + contenido con duración por confirmar"
+                        {currentRecommendedSession.items.length > 0
+                          ? `${currentRecommendedSession.items.length} actividad${currentRecommendedSession.items.length === 1 ? "" : "es"} recomendada${currentRecommendedSession.items.length === 1 ? "" : "s"}`
+                          : "Todas las actividades obligatorias están al día"}
+                        {currentRecommendedSession.minutes > 0
+                          ? ` · ~${currentRecommendedSession.minutes} min`
                           : ""}
                       </small>
                     </div>
-                    <ProgressBar value={employeeCourse.course.progress_percent} />
-                  </div>
-
-                  <section className="training-focus-session">
-                    <div className="training-focus-session-copy">
-                      <span className="eyebrow">Sesión recomendada</span>
-                      <h3>
-                        {currentRecommendedSession.items.length > 0
-                          ? `${currentRecommendedSession.items.length} actividad${currentRecommendedSession.items.length === 1 ? "" : "es"} para avanzar`
-                          : employeeCourse.course.has_quiz && !selectedAssignment?.quiz_result?.passed
-                            ? "Ya puedes presentar la evaluación"
-                            : "Ruta de contenido completada"}
-                      </h3>
-                      <p>
-                        {currentRecommendedSession.items.length > 0
-                          ? "Avanza en un bloque corto. Tu progreso queda guardado automáticamente."
-                          : employeeCourse.course.has_quiz && !selectedAssignment?.quiz_result?.passed
-                            ? "Terminaste el contenido obligatorio. Solo falta el quiz final."
-                            : "Completaste las actividades obligatorias de esta ruta."}
-                      </p>
-                    </div>
-
-                    {currentRecommendedSession.items.length > 0 && (
-                      <div className="training-focus-session-items">
-                        {currentRecommendedSession.items.map((lesson) => (
-                          <span key={lesson.id}>
-                            {lessonTypeIcon(lesson.content_type)} {lesson.title}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="training-focus-session-actions">
-                      {currentRecommendedSession.items.length > 0 && (
-                        <span className="training-focus-session-time">
-                          {currentRecommendedSession.minutes > 0
-                            ? `~${currentRecommendedSession.minutes} min`
-                            : "Duración por confirmar"}
-                          {currentRecommendedSession.hasUnknownDuration
-                            && currentRecommendedSession.minutes > 0
-                            ? " + contenido por confirmar"
-                            : ""}
-                        </span>
-                      )}
+                    <div className="training-workspace-actions">
                       {currentRecommendedSession.items.length > 0 ? (
-                        <button
-                          className="btn btn-primary"
-                          type="button"
-                          onClick={() => setActiveLessonId(currentRecommendedSession.items[0].id)}
-                        >
-                          Continuar ahora →
+                        <button className="btn btn-primary" type="button"
+                          onClick={() => selectLesson(currentRecommendedSession.items[0].id)}>
+                          Continuar aprendizaje <span aria-hidden="true">→</span>
                         </button>
                       ) : employeeCourse.course.has_quiz && !selectedAssignment?.quiz_result?.passed ? (
-                        <button
-                          className="btn btn-primary"
-                          type="button"
-                          onClick={openFinalQuiz}
-                        >
-                          Ir a evaluación final →
+                        <button className="btn btn-primary" type="button" onClick={openFinalQuiz}>
+                          Ir a evaluación final <span aria-hidden="true">→</span>
                         </button>
-                      ) : null}
+                      ) : (
+                        <span className="training-workspace-finished">Ruta completada</span>
+                      )}
+                      <button type="button" className="training-focus-toggle"
+                        aria-pressed={focusMode}
+                        onClick={() => setFocusMode((current) => !current)}>
+                        {focusMode ? "Mostrar actividades" : "Ampliar contenido"}
+                      </button>
                     </div>
                   </section>
+
+                  <div className="training-workspace-module-heading">
+                    <div>
+                      <h3>Explora los módulos</h3>
+                      <p>Selecciona un módulo para ver sus actividades.</p>
+                    </div>
+                    <div className="training-workspace-module-controls">
+                      <button type="button" aria-label="Ver módulos anteriores"
+                        onClick={() => scrollModules(-1)}>←</button>
+                      <button type="button" aria-label="Ver módulos siguientes"
+                        onClick={() => scrollModules(1)}>→</button>
+                    </div>
+                  </div>
 
                   <nav
                     className="training-module-switcher-shell"
                     aria-label="Módulos del curso"
                   >
-                    <div className="training-module-switcher">
+                    <div className="training-module-switcher" ref={tabsRef}>
                       {modules.map((module) => {
                         const isActive = activeModule?.id === module.id;
                         return (
@@ -331,6 +334,7 @@ export default function TrainingEmployeeJourney({
                             type="button"
                             className={`training-module-tab ${isActive ? "active" : ""} ${module.is_complete ? "is-complete" : ""}`}
                             aria-current={isActive ? "step" : undefined}
+                             title={module.title}
                             onClick={() => openModule(module)}
                             disabled={!module.lessons?.length}
                           >
@@ -346,7 +350,7 @@ export default function TrainingEmployeeJourney({
                     </div>
                   </nav>
 
-                  <div className={`training-journey-layout ${isTeamModule(activeModule) ? "is-team-module" : ""}`}>
+                  <div className={`training-journey-layout ${isTeamModule(activeModule) ? "is-team-module" : ""} ${focusMode ? "is-expanded" : ""}`}>
                     <aside className="training-active-module-panel" aria-label="Contenido del módulo activo">
                       {activeModule ? (
                         <>
@@ -367,7 +371,7 @@ export default function TrainingEmployeeJourney({
                                 key={lesson.id}
                                 type="button"
                                 className={`training-journey-lesson-button ${isTeamModule(activeModule) ? "training-team-card" : ""} ${lesson.id === activeLessonId ? "active" : ""} ${lesson.completed ? "is-complete" : ""}`}
-                                onClick={() => setActiveLessonId(lesson.id)}
+                                onClick={() => selectLesson(lesson.id)}
                               >
                                 <span className={isTeamModule(activeModule) ? "training-team-avatar" : ""}>
                                   {lesson.completed
@@ -420,7 +424,7 @@ export default function TrainingEmployeeJourney({
                       )}
                     </aside>
 
-                    <article className="training-journey-focus">
+                    <article className="training-journey-focus" ref={focusRef}>
                       {activeJourneyLesson ? (
                         <>
                           <div className="training-journey-focus-meta">
@@ -539,7 +543,7 @@ export default function TrainingEmployeeJourney({
                                 className="btn btn-secondary"
                                 type="button"
                                 disabled={!previousJourneyLesson}
-                                onClick={() => previousJourneyLesson && setActiveLessonId(previousJourneyLesson.id)}
+                                onClick={() => previousJourneyLesson && selectLesson(previousJourneyLesson.id)}
                               >
                                 ← Anterior
                               </button>
@@ -578,7 +582,7 @@ export default function TrainingEmployeeJourney({
                                   <button
                                     className="btn btn-primary"
                                     type="button"
-                                    onClick={() => setActiveLessonId(nextRequiredJourneyLesson.id)}
+                                    onClick={() => selectLesson(nextRequiredJourneyLesson.id)}
                                   >
                                     Continuar →
                                   </button>

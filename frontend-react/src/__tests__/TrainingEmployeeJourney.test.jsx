@@ -93,7 +93,7 @@ describe("TrainingEmployeeJourney", () => {
     expect(container.querySelector(".training-assignment-card")).not.toBeInTheDocument();
     expect(screen.getAllByText("Ruta de prueba").length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole("button", { name: /Continuar ahora/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Continuar aprendizaje/ }));
     expect(props.setActiveLessonId).toHaveBeenCalledWith("lesson-1");
 
     props.setActiveLessonId.mockClear();
@@ -248,4 +248,38 @@ describe("TrainingEmployeeJourney", () => {
 
     expect(screen.getByText("Aún no tienes cursos asignados")).toBeInTheDocument();
   });
+
+  it("expands the lesson player without hiding module navigation", () => {
+    const props = buildProps();
+    const { container } = render(<TrainingEmployeeJourney {...props} />);
+
+    expect(screen.getByRole("heading", { name: "Curso ASIATI" })).toBeInTheDocument();
+    expect(screen.getByText("Progreso general")).toBeInTheDocument();
+    expect(screen.getByText("Explora los módulos")).toBeInTheDocument();
+
+    const toggle = screen.getByRole("button", { name: "Ampliar contenido" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(toggle);
+
+    expect(container.querySelector(".training-journey-layout")).toHaveClass("is-expanded");
+    expect(screen.getByRole("button", { name: "Mostrar actividades" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("navigation", { name: "Módulos del curso" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar actividades" }));
+    expect(container.querySelector(".training-journey-layout")).not.toHaveClass("is-expanded");
+  });
+
+  it("exposes scroll controls for a horizontally overflowing module rail", () => {
+    const props = buildProps();
+    const { container } = render(<TrainingEmployeeJourney {...props} />);
+    const tabs = container.querySelector(".training-module-switcher");
+    const scrollBy = vi.fn();
+    tabs.scrollBy = scrollBy;
+
+    fireEvent.click(screen.getByRole("button", { name: "Ver módulos siguientes" }));
+    expect(scrollBy).toHaveBeenCalledWith({ left: 340, behavior: "smooth" });
+    fireEvent.click(screen.getByRole("button", { name: "Ver módulos anteriores" }));
+    expect(scrollBy).toHaveBeenCalledWith({ left: -340, behavior: "smooth" });
+  });
+
 });
