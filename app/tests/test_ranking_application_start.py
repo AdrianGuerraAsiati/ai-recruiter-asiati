@@ -27,9 +27,9 @@ def context(monkeypatch):
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine)()
     ensure_rbac_catalog(db)
-    db.add(Job(id="00000000-0000-0000-0000-000000000001", title="Desarrollador", status="ACTIVE", country_code="CO"))
-    db.add(Job(id="00000000-0000-0000-0000-000000000002", title="Analista", status="ACTIVE", country_code="CO"))
-    db.add(Candidate(id="00000000-0000-0000-0000-000000000003", name="Ana Pérez", email="ana@example.com"))
+    db.add(Job(id="10000000-0000-0000-0000-000000000a01", title="Desarrollador", status="ACTIVE", country_code="CO"))
+    db.add(Job(id="20000000-0000-0000-0000-000000000b02", title="Analista", status="ACTIVE", country_code="CO"))
+    db.add(Candidate(id="30000000-0000-0000-0000-000000000c03", name="Ana Pérez", email="ana@example.com"))
     db.commit()
     monkeypatch.setattr(indeed_service, "queue_candidate_status", lambda *args, **kwargs: None)
     yield db
@@ -37,12 +37,12 @@ def context(monkeypatch):
     engine.dispose()
 
 
-def start(db, job_id="00000000-0000-0000-0000-000000000001"):
+def start(db, job_id="10000000-0000-0000-0000-000000000a01"):
     return service.start_candidate_application(
         db,
         owner_sub="admin-sub",
         job_id=job_id,
-        candidate_id="00000000-0000-0000-0000-000000000003",
+        candidate_id="30000000-0000-0000-0000-000000000c03",
         created_by_sub="admin-sub",
         username="aperez",
         cognito_client=FakeCognito(),
@@ -70,7 +70,7 @@ def test_selected_application_provisions_once_without_hiring(context):
     assert context.query(JobCandidate).count() == 1
     assert context.query(UserProfile).count() == 1
 
-    another_vacancy = start(context, "00000000-0000-0000-0000-000000000002")
+    another_vacancy = start(context, "20000000-0000-0000-0000-000000000b02")
     assert another_vacancy["employee_created"] is False
     assert another_vacancy["credentials"] is None
     assert context.query(JobCandidate).count() == 2
@@ -88,7 +88,7 @@ def test_banned_candidate_is_not_linked_or_provisioned(context):
 
 
 def test_paused_job_cannot_start_application(context):
-    job = context.query(Job).filter(Job.id == "00000000-0000-0000-0000-000000000001").one()
+    job = context.query(Job).filter(Job.id == "10000000-0000-0000-0000-000000000a01").one()
     job.status = "PAUSED"
     context.commit()
     with pytest.raises(service.HiringConflictError, match="activas"):
