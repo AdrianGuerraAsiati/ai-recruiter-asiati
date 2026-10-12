@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
@@ -37,14 +37,6 @@ export default function ApplicationHireModal({ application, onClose, onHired }) 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [credentials, setCredentials] = useState(null);
-
-  useEffect(() => {
-    if (application) {
-      setForm(initialForm(application));
-      setError("");
-      setCredentials(null);
-    }
-  }, [application]);
 
   if (!application) return null;
 
