@@ -472,6 +472,9 @@ function Employees() {
                               {employee.email || "Sin correo laboral"}
                               {employee.source === "ODOO" ? " · Odoo" : ""}
                             </small>
+                            {canManageCredentials && employee.access_provisioned && (
+                              <small>Usuario: {employee.username || "Sin definir"}</small>
+                            )}
                           </div>
                         </div>
                       </td>
