@@ -1,6 +1,7 @@
 // eslint-disable-next-line no-unused-vars
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { useSession } from "../context/SessionContext";
 import { getApiErrorMessage } from "../utils/errors";
@@ -59,12 +60,16 @@ function employeeLabel(employee) {
 function Documents() {
   const { principal, hasPermission } = useSession();
   const ownEmployeeId = principal?.profile?.id || "";
+  const [searchParams] = useSearchParams();
   const canReadAll = hasPermission("employee_documents.read_all");
   const canReview = hasPermission("employee_documents.review");
   const canUploadOwn = hasPermission("employee_documents.upload_own");
 
   const [employees, setEmployees] = useState([]);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState(ownEmployeeId);
+  const requestedProfileId = hasPermission("employee_documents.read_all")
+    ? searchParams.get("employee_id")
+    : null;
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(requestedProfileId || ownEmployeeId);
   const [portfolio, setPortfolio] = useState(null);
   const [filesByType, setFilesByType] = useState({});
   const [valuesByType, setValuesByType] = useState({});
@@ -74,6 +79,9 @@ function Documents() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  useEffect(() => {
+    if (requestedProfileId) setSelectedEmployeeId(requestedProfileId);
+  }, [requestedProfileId]);
   const viewingOwn = selectedEmployeeId === ownEmployeeId;
   const selectedEmployee = useMemo(
     () => employees.find((item) => item.id === selectedEmployeeId) || null,
@@ -464,7 +472,7 @@ function Documents() {
       <PageHeader
         eyebrow="Ingreso y vinculación"
         title="Documentos"
-        description="Cada requisito debe ser enviado por el nuevo empleado y revisado individualmente por un administrador antes de quedar aprobado."
+        description="Cada postulante envía sus soportes con su cuenta de Talent. Talento Humano revisa individualmente cada requisito antes de la contratación."
         className="split-header"
       />
 
@@ -487,6 +495,9 @@ function Documents() {
               onChange={(event) => selectEmployee(event.target.value)}
             >
               <option value={ownEmployeeId}>Mis documentos</option>
+              {selectedEmployeeId !== ownEmployeeId && !employees.some((item) => item.id === selectedEmployeeId) && (
+                <option value={selectedEmployeeId}>Postulante seleccionado</option>
+              )}
               {employees
                 .filter((employee) => employee.id !== ownEmployeeId)
                 .map((employee) => (
