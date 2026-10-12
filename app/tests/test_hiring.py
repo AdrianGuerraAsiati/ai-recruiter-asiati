@@ -5,9 +5,10 @@ from botocore.exceptions import ClientError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.access_control import ensure_rbac_catalog
+from app.access_control import APPLICANT, EMPLOYEE, ensure_rbac_catalog
 from app.db import Base
 from app.domains.hiring import service as hiring_service
+from app.domains.employees import service as employees_service
 from app.domains.training import service as training_service
 from app.domains.training import video_progress as training_video_progress
 from app.models import (
@@ -515,3 +516,36 @@ def test_hire_prepares_employee_contract_for_odoo(db, monkeypatch):
     assert contract_sync.payload["contract"]["contract_type"] == "Indefinido"
     assert contract_sync.payload["contract"]["start_date"] == "2026-10-05"
     assert contract_sync.payload["contract"]["monthly_wage"] == "3500000"
+
+
+def test_hiring_promotes_applicant_login_without_recreating_credentials(db, monkeypatch):
+    job, candidate, link = _application(db)
+    cognito = FakeCognito()
+    applicant = hiring_service.start_candidate_application(
+        db,
+        owner_sub="admin-sub",
+        job_id=job.id,
+        candidate_id=candidate.id,
+        created_by_sub="admin-sub",
+        username="ana.perez",
+        cognito_client=cognito,
+    )
+    profile_id = applicant["employee"]["id"]
+    assert employees_service.roles_for_profile(db, profile_id) == [APPLICANT]
+    assert employees_service.list_employees(db) == []
+    assert db.query(TrainingAssignment).count() == 0
+
+    monkeypatch.setattr(
+        hiring_service.employee_delivery, "sync_employee_now",
+        lambda _db, *, employee_id: {"status": "SYNCED", "employee_id": employee_id},
+    )
+    hired = _hire(db, cognito=cognito, job=job, candidate=candidate)
+    db.refresh(link)
+    assert hired["employee_created"] is False
+    assert hired["credentials"] is None
+    assert hired["application_status"] == "HIRED"
+    assert link.employee_id == profile_id
+    assert employees_service.roles_for_profile(db, profile_id) == [EMPLOYEE]
+    assert len(employees_service.list_employees(db)) == 1
+    assert db.query(TrainingAssignment).count() == 1
+    assert cognito.created == ["ana@example.com"]
