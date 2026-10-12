@@ -41,6 +41,7 @@ function emptyEmployeeForm() {
 function Employees() {
   const { principal, hasPermission } = useSession();
   const canReadTrainingResults = hasPermission("training.results.read");
+  const canManageCredentials = hasPermission("employees.credentials.manage");
   const canManageTalentId = hasPermission("talent_id.manage");
   const canImportOdoo = hasPermission("employees.create");
   const [employees, setEmployees] = useState([]);
@@ -176,6 +177,7 @@ function Employees() {
     setEditTarget(employee);
     setEditError("");
     setEditForm({
+      username: employee.username || "",
       first_name: employee.first_name || "",
       last_name: employee.last_name || "",
       job_title: employee.job_title || "",
@@ -260,6 +262,15 @@ function Employees() {
       if (editForm.role !== currentRole) {
         await api.put(`/employees/${editTarget.id}/role`, { role: editForm.role });
       }
+      if (
+        canManageCredentials
+        && editTarget.access_provisioned
+        && editForm.username !== (editTarget.username || "")
+      ) {
+        await api.put(`/employees/${editTarget.id}/credentials/username`, {
+          username: editForm.username,
+        });
+      }
       await api.put(`/employees/${editTarget.id}`, {
         first_name: editForm.first_name,
         last_name: editForm.last_name,
@@ -284,6 +295,27 @@ function Employees() {
         action: "actualizar el perfil del empleado",
         resource: "empleados",
         fallback: "Los cambios no se guardaron por completo. Revisa cargo, rol y onboarding antes de reintentar.",
+      }));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function resetEmployeePassword() {
+    if (!editTarget || !canManageCredentials || !editTarget.access_provisioned) return;
+    setSaving(true);
+    setEditError("");
+    try {
+      const { data } = await api.post(`/employees/${editTarget.id}/credentials/reset-password`);
+      setCreatedEmployeeName([editTarget.first_name, editTarget.last_name].filter(Boolean).join(" ") || editTarget.email);
+      closeEmployeeEditor();
+      setCreatedCredentials(data.credentials);
+      await loadEmployees();
+    } catch (err) {
+      setEditError(getApiErrorMessage(err, {
+        action: "restablecer la contraseña temporal",
+        resource: "credenciales",
+        fallback: "No se pudo restablecer la contraseña. Inténtalo de nuevo.",
       }));
     } finally {
       setSaving(false);
@@ -553,6 +585,32 @@ function Employees() {
             )}
 
             <form className="employee-form" onSubmit={saveEmployeeEdits}>
+              {canManageCredentials && editTarget.access_provisioned && (
+                <div className="employee-fixed-onboarding employee-create-onboarding">
+                  <strong>Acceso a Talent</strong>
+                  <div className="form-group">
+                    <label htmlFor="employee-edit-login-username">Usuario de acceso</label>
+                    <input
+                      id="employee-edit-login-username"
+                      value={editForm.username}
+                      onChange={(event) => setEditForm({ ...editForm, username: event.target.value.toLowerCase() })}
+                      minLength={3}
+                      maxLength={40}
+                      autoComplete="off"
+                      required
+                    />
+                  </div>
+                  <small>La contraseña actual no se puede ver por seguridad. Restablecerla genera una clave provisional nueva que se muestra una sola vez.</small>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void resetEmployeePassword()}
+                  >
+                    Generar nueva contraseña provisional
+                  </button>
+                </div>
+              )}
               <div className="employee-form-grid">
                 <div className="form-group">
                   <label htmlFor="employee-edit-first-name">Nombre</label>
