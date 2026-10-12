@@ -1251,6 +1251,16 @@ async function recalculateRanking() {
                     </span>
                   </div>
                   <div className="ranking-candidate-score">
+                    {canCreateUsers && (
+                      <button
+                        className="btn btn-primary btn-sm ranking-start-application"
+                        type="button"
+                        disabled={candidate.is_banned}
+                        onClick={() => setUserTarget(candidate)}
+                      >
+                        Iniciar postulación
+                      </button>
+                    )}
                     {isFailed || isPending ? (
                       <span className={isFailed ? "ranking-candidate-failed" : "ranking-candidate-pending-label"}>
                         {isFailed ? "Evaluación fallida" : "Pendiente de evaluación"}
@@ -1325,10 +1335,6 @@ async function recalculateRanking() {
                   >
                     Ver análisis
                   </button>
-
-                  {canCreateUsers && (
-                    <button className="btn btn-primary" type="button" disabled={candidate.is_banned} onClick={() => setUserTarget(candidate)}>Crear usuario</button>
-                  )}
                   <Link
                     className="btn btn-ghost ranking-profile-btn"
                     to={`/candidates/${candidate.candidate_id}?job_id=${selectedJob}`}
@@ -1343,7 +1349,18 @@ async function recalculateRanking() {
         </div>
       )}
 
-      <CandidateCreateUserModal open={Boolean(userTarget)} candidateId={userTarget?.candidate_id} candidate={userTarget} jobTitle={selectedJobData?.title || ""} onClose={() => setUserTarget(null)} />
+      <CandidateCreateUserModal
+        open={Boolean(userTarget)}
+        candidateId={userTarget?.candidate_id}
+        candidate={userTarget}
+        jobId={selectedJob}
+        jobTitle={selectedJobData?.title || ""}
+        onClose={() => setUserTarget(null)}
+        onCreated={() => {
+          setActionFeedback({ type: "success", message: "Postulación vinculada y proceso de contratación iniciado." });
+          return loadRanking(page, pageSize, selectedJob, rankingScope);
+        }}
+      />
       {/* 10. PAGINATION */}
       {rankingInfo.total > 0 && (
         <div className="ranking-pagination">
