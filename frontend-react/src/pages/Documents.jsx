@@ -60,7 +60,7 @@ function employeeLabel(employee) {
 function Documents() {
   const { principal, hasPermission } = useSession();
   const ownEmployeeId = principal?.profile?.id || "";
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const canReadAll = hasPermission("employee_documents.read_all");
   const canReview = hasPermission("employee_documents.review");
   const canUploadOwn = hasPermission("employee_documents.upload_own");
@@ -69,7 +69,8 @@ function Documents() {
   const requestedProfileId = hasPermission("employee_documents.read_all")
     ? searchParams.get("employee_id")
     : null;
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState(requestedProfileId || ownEmployeeId);
+  const [localEmployeeId, setLocalEmployeeId] = useState(ownEmployeeId);
+  const selectedEmployeeId = requestedProfileId || localEmployeeId;
   const [portfolio, setPortfolio] = useState(null);
   const [filesByType, setFilesByType] = useState({});
   const [valuesByType, setValuesByType] = useState({});
@@ -79,9 +80,6 @@ function Documents() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  useEffect(() => {
-    if (requestedProfileId) setSelectedEmployeeId(requestedProfileId);
-  }, [requestedProfileId]);
   const viewingOwn = selectedEmployeeId === ownEmployeeId;
   const selectedEmployee = useMemo(
     () => employees.find((item) => item.id === selectedEmployeeId) || null,
@@ -144,7 +142,14 @@ function Documents() {
   }, [loadPortfolio]);
 
   function selectEmployee(employeeId) {
-    setSelectedEmployeeId(employeeId);
+    setLocalEmployeeId(employeeId);
+    if (requestedProfileId) {
+      setSearchParams((params) => {
+        const next = new URLSearchParams(params);
+        next.delete("employee_id");
+        return next;
+      }, { replace: true });
+    }
     setFilesByType({});
     setValuesByType({});
     setReviewNotes({});
