@@ -57,6 +57,32 @@ def _translate(exc: Exception):
     raise exc
 
 
+@router.post("/{job_id}/candidates/{candidate_id}/start-application", status_code=201)
+def start_candidate_application(
+    job_id: str,
+    candidate_id: str,
+    body: HireCandidateRequest,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("employees.create")),
+):
+    """Link a ranked candidate to this vacancy and issue one-time credentials."""
+    try:
+        return service.start_candidate_application(
+            db,
+            owner_sub=principal["sub"],
+            job_id=job_id,
+            candidate_id=candidate_id,
+            created_by_sub=principal["sub"],
+            username=body.username,
+            email=body.email,
+            first_name=body.first_name,
+            last_name=body.last_name,
+            department=body.department,
+        )
+    except Exception as exc:
+        _translate(exc)
+
+
 @router.post("/{job_id}/candidates/{candidate_id}/hire")
 def hire_candidate(
     job_id: str,
