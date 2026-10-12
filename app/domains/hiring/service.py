@@ -116,7 +116,10 @@ def start_candidate_application(
         )
     if link is not None and link.employee_id:
         employee = employees_service.require_employee(db, link.employee_id)
-        return {
+        if normalize_email(employee.email) != resolved_email:
+            raise HiringConflictError("El expediente está vinculado a otro correo. Revisa la identidad.")
+        if employee.cognito_sub:
+            return {
             "job_id": job_id,
             "candidate_id": candidate_id,
             "application_id": link.id,
@@ -125,7 +128,7 @@ def start_candidate_application(
             "employee": employees_service.employee_payload(db, employee),
             "credentials": None,
             "already_started": True,
-        }
+            }
 
     employee = (
         db.query(UserProfile)
@@ -137,10 +140,7 @@ def start_candidate_application(
     if employee is not None:
         if employee.status != "ACTIVE":
             raise HiringConflictError("El usuario existente se encuentra deshabilitado.")
-        if not employee.cognito_sub:
-            raise HiringConflictError(
-                "Existe una ficha sin acceso a Talent. Provisiona el acceso desde Empleados."
-            )
+        # Imported Odoo profiles can exist without an authentication identity.
         if employee.login_username and employee.login_username != resolved_username:
             raise HiringConflictError(
                 "El correo ya tiene otro usuario. Consulta o edita sus credenciales en Empleados."
@@ -172,6 +172,17 @@ def start_candidate_application(
         except Exception:
             db.rollback()
             raise
+    elif not employee.cognito_sub:
+        employee, temporary_password = employees_service.provision_existing_profile_access(
+            db,
+            employee.id,
+            username=resolved_username,
+            first_name=resolved_first,
+            last_name=resolved_last,
+            role_code=APPLICANT,
+            created_by_sub=created_by_sub,
+            cognito_client=cognito_client,
+        )
     elif not employee.login_username:
         employee = employees_service.set_employee_username(
             db, employee.id, username=resolved_username
