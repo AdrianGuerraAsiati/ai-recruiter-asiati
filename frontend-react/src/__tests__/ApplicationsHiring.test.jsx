@@ -56,7 +56,7 @@ describe("Applications: document access and employee creation", () => {
     expect(screen.getByRole("link", { name: "Revisar documentos" }))
       .toHaveAttribute("href", "/documents?employee_id=profile-1");
     expect(screen.getByText(/aperez · Credenciales/i)).toBeInTheDocument();
-    const hiredOption = screen.getByRole("option", { name: "Contratado" });
+    const hiredOption = within(screen.getByRole("combobox", { name: "Estado de Ana Pérez" })).getByRole("option", { name: "Contratado" });
     expect(hiredOption).toBeDisabled();
 
     fireEvent.click(screen.getByRole("button", { name: "Crear empleado" }));
