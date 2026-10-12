@@ -162,7 +162,7 @@ function Applications() {
             >
               <option value="">Todos los estados</option>
               {STATUS_OPTIONS.map(([value, label]) => (
-                <option key={value} value={value} disabled={value === "HIRED" && application.application_status !== "HIRED"}>{label}</option>
+                <option key={value} value={value}>{label}</option>
               ))}
             </select>
           </div>
@@ -205,7 +205,7 @@ function Applications() {
                         onChange={(event) => void updateStatus(application, event.target.value)}
                       >
                         {STATUS_OPTIONS.map(([value, label]) => (
-                          <option key={value} value={value}>{label}</option>
+                          <option key={value} value={value} disabled={value === "HIRED" && application.application_status !== "HIRED"}>{label}</option>
                         ))}
                       </select>
                     </td>
