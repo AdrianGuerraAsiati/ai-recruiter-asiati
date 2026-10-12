@@ -56,6 +56,7 @@ export default function CandidateCreateUserModal({
   candidateId,
   candidate: initialCandidate = null,
   jobTitle = "",
+  jobId = "",
   onClose,
   onCreated,
 }) {
@@ -128,7 +129,16 @@ export default function CandidateCreateUserModal({
     setSaving(true);
     setError("");
     try {
-      const { data } = await api.post("/employees", form);
+      const { data } = jobId
+        ? await api.post(`/jobs/${jobId}/candidates/${candidateId}/start-application`, {
+          username: form.username,
+          email: form.email,
+          first_name: form.first_name,
+          last_name: form.last_name,
+          department: form.department,
+          job_title: form.job_title,
+        })
+        : await api.post("/employees", form);
       setCredentialResult({
         employeeName: [data?.employee?.first_name, data?.employee?.last_name]
           .filter(Boolean)
@@ -138,9 +148,9 @@ export default function CandidateCreateUserModal({
       await onCreated?.(data);
     } catch (err) {
       setError(getApiErrorMessage(err, {
-        action: "crear el usuario del candidato",
+        action: jobId ? "iniciar la postulación" : "crear el usuario del candidato",
         resource: "usuarios",
-        fallback: "No se pudo crear el usuario. Revisa correo, username y permisos antes de reintentar.",
+        fallback: "No se pudo completar el proceso. Revisa correo, usuario y permisos antes de reintentar.",
       }));
     } finally {
       setSaving(false);
@@ -149,6 +159,25 @@ export default function CandidateCreateUserModal({
 
   return (
     <>
+      {credentialResult && !credentialResult.credentials && (
+        <div className="modal-overlay" role="presentation">
+          <section className="modal employee-credentials-modal" role="dialog" aria-modal="true" aria-labelledby="application-existing-title">
+            <div className="modal-header">
+              <div>
+                <span className="eyebrow">Postulación iniciada</span>
+                <h2 id="application-existing-title">Acceso vinculado</h2>
+                <p>{credentialResult.employeeName}</p>
+              </div>
+            </div>
+            <p>El candidato quedó vinculado a esta vacante con su usuario existente. Por seguridad, las contraseñas anteriores no se pueden consultar.</p>
+            <p>Los administradores pueden editar el nombre de usuario o generar una nueva contraseña temporal desde Empleados.</p>
+            <div className="form-actions">
+              <a href="/employees" className="btn btn-secondary">Administrar usuario</a>
+              <button className="btn btn-primary" type="button" onClick={() => { setCredentialResult(null); onClose?.(); }}>Finalizar</button>
+            </div>
+          </section>
+        </div>
+      )}
       {!credentialResult && (
       <div className="modal-overlay" role="presentation" onMouseDown={onClose}>
         <section
@@ -161,9 +190,11 @@ export default function CandidateCreateUserModal({
           <div className="modal-header">
             <div>
               <span className="eyebrow">Acceso a Talent</span>
-              <h2 id="candidate-user-modal-title">Crear usuario</h2>
+              <h2 id="candidate-user-modal-title">{jobId ? "Iniciar postulación" : "Crear usuario"}</h2>
               <p>
-                Crea el acceso de {titleName}. Talent generará una contraseña temporal y asignará el onboarding corporativo.
+                {jobId
+                  ? `Vincularás a ${titleName} con la vacante ${jobTitle}. Talent iniciará su proceso de contratación y generará acceso provisional si aún no tiene cuenta.`
+                  : `Crea el acceso de ${titleName}. Talent generará una contraseña temporal y asignará el onboarding corporativo.`}
               </p>
             </div>
             <button className="btn-close" type="button" aria-label="Cerrar" onClick={onClose}>×</button>
@@ -243,7 +274,7 @@ export default function CandidateCreateUserModal({
                   </div>
                 </div>
 
-                <div className="form-group">
+                {!jobId && <div className="form-group">
                   <label htmlFor="candidate-user-hire-date">Fecha de ingreso</label>
                   <input
                     id="candidate-user-hire-date"
@@ -253,15 +284,19 @@ export default function CandidateCreateUserModal({
                   />
                 </div>
 
-                <div className="employee-fixed-onboarding employee-create-onboarding">
+                { !jobId && <div className="employee-fixed-onboarding employee-create-onboarding">
                   <strong>Onboarding ASIATI</strong>
                   <small>Se asignará automáticamente la ruta corporativa común.</small>
-                </div>
+                </div> }
+                {jobId && <div className="employee-fixed-onboarding employee-create-onboarding">
+                  <strong>Proceso de contratación</strong>
+                  <small>Se registrará como Seleccionado; la contratación definitiva se realizará después de revisar los documentos.</small>
+                </div>}
 
                 <div className="form-actions">
                   <button className="btn btn-secondary" type="button" onClick={onClose}>Cancelar</button>
                   <button className="btn btn-primary" type="submit" disabled={saving || !form.email}>
-                    {saving ? "Creando…" : "Crear usuario"}
+                    {saving ? "Procesando…" : jobId ? "Iniciar postulación" : "Crear usuario"}
                   </button>
                 </div>
               </form>
