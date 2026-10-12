@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from app.access_control import APPLICANT, ensure_rbac_catalog, resolve_principal
 from app.db import Base
 from app.domains.hiring import service
-from app.domains.employees.service import roles_for_profile
+from app.domains.employees.service import list_employees, roles_for_profile
 from app.domains.indeed import service as indeed_service
 from app.models import Candidate, Job, JobCandidate, UserProfile
 
@@ -67,6 +67,7 @@ def test_selected_application_provisions_once_without_hiring(context):
     assert employee.hire_date is None
     assert employee.onboarding_status == "NOT_REQUIRED"
     assert roles_for_profile(context, employee.id) == [APPLICANT]
+    assert list_employees(context) == []
     # Login must never bootstrap a document-only applicant into EMPLOYEE.
     principal = resolve_principal(context, {"sub": employee.cognito_sub, "email": employee.email})
     assert principal["roles"] == [APPLICANT]
@@ -104,3 +105,24 @@ def test_paused_job_cannot_start_application(context):
     with pytest.raises(service.HiringConflictError, match="activas"):
         start(context)
     assert context.query(JobCandidate).count() == 0
+
+
+def test_provisions_existing_imported_profile_without_duplicates(context):
+    imported = UserProfile(
+        email="ana@example.com",
+        first_name="Ana",
+        last_name="Pérez",
+        status="ACTIVE",
+        onboarding_status="NOT_REQUIRED",
+    )
+    context.add(imported)
+    context.commit()
+    original_id = imported.id
+    response = start(context)
+    assert response["applicant_access_created"] is True
+    assert response["credentials"]["username"] == "aperez"
+    assert response["employee_created"] is False
+    assert context.query(UserProfile).count() == 1
+    assert context.query(UserProfile).one().id == original_id
+    assert context.query(JobCandidate).one().employee_id == original_id
+    assert roles_for_profile(context, original_id) == [APPLICANT]
