@@ -150,7 +150,13 @@ def create_event(
     db.add(event)
     db.commit()
     db.refresh(event)
-    return _event_payload(event)
+    # The local appointment is authoritative. Google errors must never
+    # discard the HR scheduling operation; admins can retry from the UI.
+    from app.domains.recruitment_calendar import google
+
+    result = _event_payload(event)
+    result["google_sync"] = google.try_sync_event(event)
+    return result
 
 
 def update_event(db: Session, event_id: str, *, changes: dict) -> dict:

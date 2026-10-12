@@ -27,3 +27,7 @@ class RecruitmentEventUpdate(BaseModel):
     location: str | None = Field(default=None, max_length=500)
     notes: str | None = Field(default=None, max_length=4000)
     status: RecruitmentEventStatus | None = None
+
+class GoogleCalendarAccountUpdate(BaseModel):
+    """Configured corporate Calendar identity; never a password or token."""
+    email: str = Field(min_length=6, max_length=254)
