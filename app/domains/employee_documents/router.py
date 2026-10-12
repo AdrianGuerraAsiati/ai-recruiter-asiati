@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_principal, get_db, require_permission
-from app.domains.employee_documents import service
+from app.domains.employee_documents import notifications, service
 from app.domains.employee_documents.schemas import (
     CreateEmployeeDocumentUploadRequest,
     FinalizeEmployeeDocumentUploadRequest,
@@ -92,6 +92,53 @@ def save_my_document_value(
             value=body.value,
         )
         return service.portfolio_payload(db, principal["profile"]["id"])
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.get("/review-queue")
+def document_review_queue(
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.read_all")),
+):
+    return service.review_queue(db)
+
+
+@router.get("/employees/{employee_id}/welcome")
+def employee_welcome_status(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.read_all")),
+):
+    try:
+        service.require_employee(db, employee_id)
+        return notifications.status_for_employee(db, employee_id)
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.post("/employees/{employee_id}/welcome/retry")
+def retry_employee_welcome(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.review")),
+):
+    # Never send a congratulatory hiring notice to a mere applicant.
+    from app.models import JobCandidate
+
+    hired = (
+        db.query(JobCandidate)
+        .filter(
+            JobCandidate.employee_id == employee_id,
+            JobCandidate.application_status == "HIRED",
+        )
+        .first()
+    )
+    if hired is None:
+        raise HTTPException(status_code=409, detail="Solo se notifica a empleados contratados.")
+    try:
+        service.require_employee(db, employee_id)
+        return notifications.send_welcome(db, employee_id)
     except Exception as exc:
         _translate(exc)
 
