@@ -10,6 +10,7 @@ from app.access_control import ADMIN, APPLICANT, EMPLOYEE, assign_role, normaliz
 from app.domains.candidates import repository as candidates_repository
 from app.domains.candidates import service as candidates_service
 from app.domains.employees import service as employees_service
+from app.domains.employee_documents import notifications as document_notifications
 from app.domains.indeed import service as indeed_service
 from app.domains.odoo_sync import contract_delivery
 from app.domains.odoo_sync import employee_delivery
@@ -454,11 +455,25 @@ def hire_candidate(
             pass
         db.refresh(contract_sync)
 
+    # Welcome/document request email is sent only after the formal hire has
+    # committed. Repeated hiring attempts never re-send a delivered message.
+    # SES failures must not roll back an already-hired employee.
+    welcome_email = {"status": "NOT_REQUESTED", "attempt_count": 0, "sent_at": None}
+    if status_changed:
+        try:
+            welcome_email = document_notifications.send_welcome(db, employee.id)
+        except Exception:
+            # An email integration outage must not invalidate a committed hire.
+            welcome_email = {"status": "FAILED", "reason": "WELCOME_EMAIL_UNAVAILABLE"}
+    else:
+        welcome_email = document_notifications.status_for_employee(db, employee.id)
+
     return {
         "job_id": job_id,
         "candidate_id": candidate_id,
         "application_status": link.application_status,
         "status_changed": status_changed,
+        "welcome_email": welcome_email,
         "hired_at": link.hired_at.isoformat() if link.hired_at else None,
         "employee_created": employee_created,
         "employee": employees_service.employee_payload(db, employee),
