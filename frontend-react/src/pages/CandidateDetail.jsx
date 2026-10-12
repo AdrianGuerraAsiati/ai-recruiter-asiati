@@ -4,8 +4,6 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import { EmptyState, LoadingState, ProgressBar } from "../components/ui/StatePanel";
-import CandidateCreateUserModal from "../components/CandidateCreateUserModal.jsx";
-import { useSession } from "../context/SessionContext";
 import RecruitmentFlow from "../features/jobs/RecruitmentFlow";
 
 function recommendationLabel(recommendation) {
@@ -33,8 +31,6 @@ function defaultAppointmentStart() {
 }
 
 function CandidateDetail() {
-  const { hasPermission } = useSession();
-  const canCreateUsers = hasPermission("employees.create");
   const { candidate_id } = useParams();
   const [searchParams] = useSearchParams();
   const jobId = searchParams.get("job_id");
@@ -46,7 +42,6 @@ function CandidateDetail() {
   const [resumeError, setResumeError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [appointmentOpen, setAppointmentOpen] = useState(false);
-  const [userModalOpen, setUserModalOpen] = useState(false);
   const [appointmentSaving, setAppointmentSaving] = useState(false);
   const [appointmentError, setAppointmentError] = useState("");
   const [appointmentNotice, setAppointmentNotice] = useState("");
@@ -138,7 +133,7 @@ function CandidateDetail() {
       setProcessRefresh((count) => count + 1);
     } catch (err) {
       setHiringError(getApiErrorMessage(err, {
-        action: "iniciar la contratación",
+        action: "iniciar la postulación",
         fallback: "No fue posible iniciar el proceso de contratación.",
       }));
     } finally {
@@ -281,11 +276,8 @@ function CandidateDetail() {
           )}
           {jobId && !hasSelectionProcess && !candidate.is_banned && (
             <button type="button" className="btn btn-secondary" onClick={startHiring} disabled={startingHiring}>
-              {startingHiring ? "Iniciando…" : "Empezar contratación"}
+              {startingHiring ? "Iniciando…" : "Iniciar postulación"}
             </button>
-          )}
-          {canCreateUsers && (
-            <button type="button" className="btn btn-primary" onClick={() => setUserModalOpen(true)} disabled={candidate.is_banned}>Crear usuario</button>
           )}
           {canOpenResume && (
             <button
@@ -341,8 +333,6 @@ function CandidateDetail() {
           </div>
         </div>
       )}
-
-      <CandidateCreateUserModal open={userModalOpen} candidateId={candidate_id} candidate={candidate} onClose={() => setUserModalOpen(false)} />
       {appointmentOpen && (
         <div
           className="modal-overlay candidate-appointment-overlay"
