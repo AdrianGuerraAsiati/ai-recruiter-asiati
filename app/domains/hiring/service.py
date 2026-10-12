@@ -275,11 +275,18 @@ def hire_candidate(
     resolved_company_name = str(company_name or getattr(job, "company_name", None) or "").strip() or None
     resolved_hire_date = hire_date or date.today()
 
-    employee = (
-        db.query(UserProfile)
-        .filter(UserProfile.email == resolved_email)
-        .one_or_none()
-    )
+    if link.employee_id:
+        employee = employees_service.require_employee(db, link.employee_id)
+        if normalize_email(employee.email) != resolved_email:
+            raise HiringConflictError(
+                "No puedes cambiar la identidad del postulante durante la contratación."
+            )
+    else:
+        employee = (
+            db.query(UserProfile)
+            .filter(UserProfile.email == resolved_email)
+            .one_or_none()
+        )
     employee_created = False
     temporary_password = None
 
