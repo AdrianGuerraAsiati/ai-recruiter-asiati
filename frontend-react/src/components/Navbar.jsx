@@ -9,7 +9,7 @@ import ThemeToggle from "./ThemeToggle";
 import Icon from "./ui/Icon";
 
 const navItems = [
-  { to: "/dashboard", label: "Inicio", icon: "home", section: "General" },
+  { to: "/dashboard", label: "Inicio", icon: "home", section: "General", roles: ["ADMIN", "EMPLOYEE"] },
   { to: "/jobs", label: "Vacantes", icon: "briefcase", section: "Reclutamiento", permission: "jobs.read" },
   { to: "/applications", label: "Postulaciones", icon: "applications", section: "Reclutamiento", permission: "candidates.read" },
   { to: "/calendar", label: "Agenda", icon: "calendar", section: "Reclutamiento", permission: "candidates.read" },
@@ -54,12 +54,13 @@ const sectionOrder = ["General", "Reclutamiento", "Equipo", "Desarrollo", "Cuent
 
 function primaryRole(roles = []) {
   if (roles.includes("ADMIN")) return "ADMIN";
+  if (roles.includes("APPLICANT") && !roles.includes("EMPLOYEE")) return "APPLICANT";
   return "EMPLOYEE";
 }
 
 function Brand() {
   return (
-    <NavLink to="/dashboard" className="navbar-brand" aria-label="ASIATI Talent Intelligence, inicio">
+    <NavLink to={useSession().principal?.roles?.includes("APPLICANT") ? "/documents" : "/dashboard"} className="navbar-brand" aria-label="ASIATI Talent Intelligence, inicio">
       <BrandMark />
     </NavLink>
   );
@@ -68,6 +69,7 @@ function Brand() {
 function roleLabel(roles = []) {
   const role = primaryRole(roles);
   if (role === "ADMIN") return "Administración";
+  if (role === "APPLICANT") return "Postulante";
   return "Empleado";
 }
 
