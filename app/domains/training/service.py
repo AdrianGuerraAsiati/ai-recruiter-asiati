@@ -19,6 +19,7 @@ from app.models import (
     TrainingQuizAttempt,
     TrainingQuizQuestion,
     UserProfile,
+    UserRole,
 )
 
 from app.domains.training.errors import (
@@ -941,6 +942,13 @@ def ensure_employee_asiati_onboarding(
     employee = require_employee(db, employee_id)
     if employee.status != "ACTIVE" or not employee.cognito_sub:
         return None
+    if (
+        db.query(UserRole)
+        .filter(UserRole.user_id == employee.id, UserRole.role_code == "APPLICANT")
+        .first()
+        is not None
+    ):
+        return None
     if employee.onboarding_status == "NOT_REQUIRED":
         employee.onboarding_status = "PENDING"
 
@@ -979,6 +987,10 @@ def ensure_asiati_onboarding_for_active_employees(
         .filter(
             UserProfile.status == "ACTIVE",
             UserProfile.cognito_sub.isnot(None),
+            ~db.query(UserRole).filter(
+                UserRole.user_id == UserProfile.id,
+                UserRole.role_code == "APPLICANT",
+            ).exists(),
         )
         .all()
     )
