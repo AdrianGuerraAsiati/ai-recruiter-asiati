@@ -105,7 +105,10 @@ export default function TrainingVideoPlayer({
     void drainSegments();
   }
 
-  saveOnExitRef.current = flushCurrentSegment;
+  useEffect(() => {
+    saveOnExitRef.current = flushCurrentSegment;
+  });
+
   useEffect(() => {
     const onHidden = () => {
       if (document.visibilityState === "hidden") {
