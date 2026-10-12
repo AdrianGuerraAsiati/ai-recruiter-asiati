@@ -1,6 +1,7 @@
 // eslint-disable-next-line no-unused-vars
 import React, { useEffect, useMemo, useState } from "react";
 import api from "../api/client";
+import GoogleCalendarConnection from "../components/GoogleCalendarConnection";
 import { useSession } from "../context/SessionContext";
 import { getApiErrorMessage } from "../utils/errors";
 import PageHeader from "../components/ui/PageHeader";
@@ -288,6 +289,8 @@ function RecruitmentCalendar() {
       {error && (
         <FeedbackMessage title="Hay un problema con la agenda">{error}</FeedbackMessage>
       )}
+
+      <GoogleCalendarConnection />
 
       <div className="recruitment-calendar-layout">
         <section className="panel recruitment-calendar-panel">
