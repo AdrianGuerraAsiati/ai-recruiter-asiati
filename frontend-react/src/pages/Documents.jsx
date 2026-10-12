@@ -1,7 +1,6 @@
 // eslint-disable-next-line no-unused-vars
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
-import { useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { useSession } from "../context/SessionContext";
 import { getApiErrorMessage } from "../utils/errors";
@@ -60,17 +59,15 @@ function employeeLabel(employee) {
 function Documents() {
   const { principal, hasPermission } = useSession();
   const ownEmployeeId = principal?.profile?.id || "";
-  const [searchParams, setSearchParams] = useSearchParams();
   const canReadAll = hasPermission("employee_documents.read_all");
   const canReview = hasPermission("employee_documents.review");
   const canUploadOwn = hasPermission("employee_documents.upload_own");
 
   const [employees, setEmployees] = useState([]);
-  const requestedProfileId = hasPermission("employee_documents.read_all")
-    ? searchParams.get("employee_id")
+  const requestedProfileId = canReadAll
+    ? new URLSearchParams(window.location.search).get("employee_id")
     : null;
-  const [localEmployeeId, setLocalEmployeeId] = useState(ownEmployeeId);
-  const selectedEmployeeId = requestedProfileId || localEmployeeId;
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(requestedProfileId || ownEmployeeId);
   const [portfolio, setPortfolio] = useState(null);
   const [filesByType, setFilesByType] = useState({});
   const [valuesByType, setValuesByType] = useState({});
@@ -142,14 +139,7 @@ function Documents() {
   }, [loadPortfolio]);
 
   function selectEmployee(employeeId) {
-    setLocalEmployeeId(employeeId);
-    if (requestedProfileId) {
-      setSearchParams((params) => {
-        const next = new URLSearchParams(params);
-        next.delete("employee_id");
-        return next;
-      }, { replace: true });
-    }
+    setSelectedEmployeeId(employeeId);
     setFilesByType({});
     setValuesByType({});
     setReviewNotes({});
