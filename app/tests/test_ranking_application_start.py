@@ -4,9 +4,10 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.access_control import ensure_rbac_catalog
+from app.access_control import APPLICANT, ensure_rbac_catalog, resolve_principal
 from app.db import Base
 from app.domains.hiring import service
+from app.domains.employees.service import roles_for_profile
 from app.domains.indeed import service as indeed_service
 from app.models import Candidate, Job, JobCandidate, UserProfile
 
@@ -55,7 +56,8 @@ def test_selected_application_provisions_once_without_hiring(context):
     first = start(context)
     link = context.query(JobCandidate).one()
     employee = context.query(UserProfile).one()
-    assert first["employee_created"] is True
+    assert first["employee_created"] is False
+    assert first["applicant_access_created"] is True
     assert first["credentials"]["must_change_password"] is True
     assert first["credentials"]["username"] == "aperez"
     assert len(first["credentials"]["temporary_password"]) >= 12
@@ -63,6 +65,14 @@ def test_selected_application_provisions_once_without_hiring(context):
     assert link.employee_id == employee.id
     assert link.hired_at is None
     assert employee.hire_date is None
+    assert employee.onboarding_status == "NOT_REQUIRED"
+    assert roles_for_profile(context, employee.id) == [APPLICANT]
+    # Login must never bootstrap a document-only applicant into EMPLOYEE.
+    principal = resolve_principal(context, {"sub": employee.cognito_sub, "email": employee.email})
+    assert principal["roles"] == [APPLICANT]
+    assert set(principal["permissions"]) == {
+        "profile.read_own", "employee_documents.read_own", "employee_documents.upload_own",
+    }
 
     repeat = start(context)
     assert repeat["already_started"] is True
