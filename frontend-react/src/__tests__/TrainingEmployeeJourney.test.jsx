@@ -230,6 +230,109 @@ describe("TrainingEmployeeJourney", () => {
     expect(screen.queryByRole("button", { name: "← Anterior" })).not.toBeInTheDocument();
   });
 
+
+  it("pauses and resumes at the same second across signed playback URL refreshes", () => {
+    const props = buildProps();
+    const originalUrl = "https://cdn.example.com/onboarding.mp4?signature=first";
+    const firstLesson = {
+      ...props.activeJourneyLesson,
+      content_type: "VIDEO",
+      video_url: originalUrl,
+      duration_seconds: 120,
+      video_progress: {
+        watched_percent: 25,
+        last_position_seconds: 30,
+        completion_threshold_percent: 80,
+      },
+    };
+    const { rerender } = render(
+      <TrainingEmployeeJourney {...props} activeJourneyLesson={firstLesson} />,
+    );
+
+    const video = screen.getByLabelText("Video: Bienvenida");
+    Object.defineProperty(video, "duration", { configurable: true, value: 120 });
+    fireEvent.loadedMetadata(video);
+    expect(video.currentTime).toBe(30);
+
+    fireEvent.play(video);
+    video.currentTime = 42;
+    fireEvent.pause(video);
+
+    expect(props.updateVideoProgress).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "lesson-1" }),
+      expect.objectContaining({
+        played_from_seconds: 30,
+        played_to_seconds: 42,
+        position_seconds: 42,
+      }),
+    );
+
+    // The backend issues a fresh signed URL after recording progress.
+    const refreshedLesson = {
+      ...firstLesson,
+      video_url: "https://cdn.example.com/onboarding.mp4?signature=second",
+      video_progress: {
+        ...firstLesson.video_progress,
+        watched_percent: 35,
+        last_position_seconds: 42,
+      },
+    };
+    const refreshedModule = {
+      ...props.employeeCourse.course.modules[0],
+      lessons: [refreshedLesson],
+    };
+    rerender(
+      <TrainingEmployeeJourney
+        {...props}
+        employeeCourse={{ course: {
+          ...props.employeeCourse.course,
+          modules: [refreshedModule],
+        } }}
+        activeJourneyLesson={{ ...refreshedLesson, module: refreshedModule }}
+      />,
+    );
+
+    expect(screen.getByLabelText("Video: Bienvenida")).toBe(video);
+    expect(video).toHaveAttribute("src", originalUrl);
+    expect(video.currentTime).toBe(42);
+    expect(screen.getAllByText(/35% reproducido/i).length).toBeGreaterThan(0);
+
+    // Choosing a different lesson must mount that lesson's own video.
+    const otherLesson = {
+      ...firstLesson,
+      id: "lesson-2",
+      title: "Siguiente video",
+      video_url: "https://cdn.example.com/second.mp4",
+      video_progress: { watched_percent: 0, last_position_seconds: 0 },
+    };
+    rerender(
+      <TrainingEmployeeJourney
+        {...props}
+        activeJourneyLesson={{ ...otherLesson, module: refreshedModule }}
+      />,
+    );
+    const otherVideo = screen.getByLabelText("Video: Siguiente video");
+    expect(otherVideo).not.toBe(video);
+    expect(otherVideo).toHaveAttribute("src", otherLesson.video_url);
+  });
+
+  it("starts a previously finished video from zero if replayed", () => {
+    const props = buildProps();
+    const videoLesson = {
+      ...props.activeJourneyLesson,
+      content_type: "VIDEO",
+      video_url: "https://cdn.example.com/completed.mp4",
+      video_progress: { watched_percent: 100, last_position_seconds: 60 },
+      completed: true,
+    };
+    render(<TrainingEmployeeJourney {...props} activeJourneyLesson={videoLesson} />);
+    const video = screen.getByLabelText("Video: Bienvenida");
+    Object.defineProperty(video, "duration", { configurable: true, value: 60 });
+
+    fireEvent.loadedMetadata(video);
+    expect(video.currentTime).toBe(0);
+  });
+
   it("renders the empty assignment state without course detail", () => {
     const props = buildProps();
 

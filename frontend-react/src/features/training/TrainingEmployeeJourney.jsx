@@ -21,6 +21,12 @@ import {
 
 function TrackedTrainingVideo({ lesson, onVideoProgress }) {
   const videoRef = useRef(null);
+  // Progress responses refresh the S3 signed URL. Replacing src on each refresh
+  // makes the browser restart playback, even when the user only paused.
+  // The component is keyed by lesson ID, so keep its first URL until that
+  // lesson is left and remounted.
+  const [playbackUrl] = useState(() => lesson.video_url);
+  const restoredPositionRef = useRef(false);
   const segmentStartRef = useRef(null);
   const lastObservedTimeRef = useRef(null);
   const requestInFlightRef = useRef(false);
@@ -45,6 +51,21 @@ function TrackedTrainingVideo({ lesson, onVideoProgress }) {
       });
     } finally {
       requestInFlightRef.current = false;
+    }
+  }
+
+  function handleLoadedMetadata(event) {
+    if (restoredPositionRef.current) return;
+    restoredPositionRef.current = true;
+
+    const duration = Number(event.currentTarget.duration);
+    const savedPosition = Number(lesson?.video_progress?.last_position_seconds || 0);
+    // An ended video starts from the beginning when replayed. Restoring the
+    // position only seeks the player; it does not count as watched time.
+    if (Number.isFinite(duration) && duration > 0
+      && Number.isFinite(savedPosition) && savedPosition > 0
+      && savedPosition < duration - 1) {
+      event.currentTarget.currentTime = savedPosition;
     }
   }
 
@@ -104,8 +125,9 @@ function TrackedTrainingVideo({ lesson, onVideoProgress }) {
         key={lesson.id}
         controls
         preload="metadata"
-        src={lesson.video_url}
+        src={playbackUrl}
         aria-label={`Video: ${lesson.title}`}
+        onLoadedMetadata={handleLoadedMetadata}
         onPlay={handlePlay}
         onTimeUpdate={handleTimeUpdate}
         onSeeking={handleSeeking}
