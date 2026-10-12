@@ -571,7 +571,7 @@ def set_employee_role(
 
 
 def employee_summary(db: Session) -> dict:
-    profiles = db.query(UserProfile).all()
+    profiles = list_employees(db)
     total = len(profiles)
     active = sum(1 for profile in profiles if profile.status == "ACTIVE")
     disabled = total - active
