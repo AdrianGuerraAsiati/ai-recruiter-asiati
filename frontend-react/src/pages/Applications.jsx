@@ -275,19 +275,25 @@ function Applications() {
           await loadApplications();
         }}
       />
-      <ApplicationAccessModal
-        application={accessTarget}
-        onClose={() => setAccessTarget(null)}
-        onUpdated={loadApplications}
-      />
-      <ApplicationHireModal
-        application={hireTarget}
-        onClose={() => setHireTarget(null)}
-        onHired={async () => {
-          setSuccess("Postulación cerrada como Contratado. El usuario ahora es empleado y recibirá onboarding.");
-          await loadApplications();
-        }}
-      />
+      {accessTarget && (
+        <ApplicationAccessModal
+          key={accessTarget.id}
+          application={accessTarget}
+          onClose={() => setAccessTarget(null)}
+          onUpdated={loadApplications}
+        />
+      )}
+      {hireTarget && (
+        <ApplicationHireModal
+          key={hireTarget.id}
+          application={hireTarget}
+          onClose={() => setHireTarget(null)}
+          onHired={async () => {
+            setSuccess("Postulación cerrada como Contratado. El usuario ahora es empleado y recibirá onboarding.");
+            await loadApplications();
+          }}
+        />
+      )}
     </div>
   );
 }
