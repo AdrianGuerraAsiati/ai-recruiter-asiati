@@ -24,7 +24,11 @@ function initialForm(application) {
     department: "",
     country_code: candidate.country_code || "",
     company_name: "",
-    hire_date: new Date().toLocaleDateString("en-CA"),
+    hire_date: (() => {
+      const now = new Date();
+      const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+      return local.toISOString().slice(0, 10);
+    })(),
   };
 }
 
