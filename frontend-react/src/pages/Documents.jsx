@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import api from "../api/client";
+import DocumentReviewQueue from "../components/DocumentReviewQueue";
 import { useSession } from "../context/SessionContext";
 import { getApiErrorMessage } from "../utils/errors";
 import PageHeader from "../components/ui/PageHeader";
@@ -72,6 +73,9 @@ function Documents() {
   const [filesByType, setFilesByType] = useState({});
   const [valuesByType, setValuesByType] = useState({});
   const [reviewNotes, setReviewNotes] = useState({});
+  const [queueRevision, setQueueRevision] = useState(0);
+  const [welcomeStatus, setWelcomeStatus] = useState(null);
+  const [welcomeBusy, setWelcomeBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState("");
   const [error, setError] = useState("");
@@ -137,6 +141,39 @@ function Documents() {
     }, 0);
     return () => window.clearTimeout(timeoutId);
   }, [loadPortfolio]);
+
+  useEffect(() => {
+    if (!canReadAll || viewingOwn || !selectedEmployeeId) {
+      return undefined;
+    }
+    let active = true;
+    api.get(`/employee-documents/employees/${selectedEmployeeId}/welcome`)
+      .then(({ data }) => { if (active) setWelcomeStatus(data); })
+      .catch(() => { if (active) setWelcomeStatus(null); });
+    return () => { active = false; };
+  }, [canReadAll, selectedEmployeeId, viewingOwn]);
+
+  async function retryWelcome() {
+    if (!selectedEmployeeId || !canReview) return;
+    setWelcomeBusy(true);
+    setError("");
+    try {
+      const { data } = await api.post(
+        `/employee-documents/employees/${selectedEmployeeId}/welcome/retry`,
+      );
+      setWelcomeStatus(data);
+      setSuccess(data.status === "SENT"
+        ? "Correo de bienvenida y documentos enviado al empleado."
+        : "La solicitud de envío quedó registrada; revisa la configuración de SES.");
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "reenviar el correo de bienvenida",
+        fallback: "No fue posible reenviar la solicitud de documentos.",
+      }));
+    } finally {
+      setWelcomeBusy(false);
+    }
+  }
 
   function selectEmployee(employeeId) {
     setSelectedEmployeeId(employeeId);
@@ -285,6 +322,7 @@ function Documents() {
           .filter((row) => row.id)
           .map((row) => [row.id, row.review_comment || ""]),
       ));
+      setQueueRevision((current) => current + 1);
       setSuccess(
         status === "APPROVED"
           ? `${item.label} aprobado.`
@@ -473,6 +511,28 @@ function Documents() {
 
       {error && <FeedbackMessage title="No se pudo completar la operación">{error}</FeedbackMessage>}
       {success && <FeedbackMessage title="Expediente actualizado" tone="success">{success}</FeedbackMessage>}
+
+      {canReadAll && (
+        <DocumentReviewQueue onSelect={selectEmployee} revision={queueRevision} />
+      )}
+
+      {canReadAll && !viewingOwn && welcomeStatus && welcomeStatus.status !== "NOT_REQUESTED" && (
+        <section className="panel" aria-label="Notificación de bienvenida">
+          <h2>Bienvenida y solicitud de documentos</h2>
+          <p>
+            {welcomeStatus.status === "SENT"
+              ? "Correo enviado al empleado."
+              : welcomeStatus.status === "SENDING"
+                ? "Envío en proceso."
+                : "Correo pendiente o con error de entrega."}
+          </p>
+          {canReview && ["PENDING", "FAILED"].includes(welcomeStatus.status) && (
+            <button className="btn btn-secondary" disabled={welcomeBusy} type="button" onClick={() => void retryWelcome()}>
+              {welcomeBusy ? "Enviando…" : "Reintentar correo de bienvenida"}
+            </button>
+          )}
+        </section>
+      )}
 
       {canReadAll && (
         <section className="panel document-employee-selector">
