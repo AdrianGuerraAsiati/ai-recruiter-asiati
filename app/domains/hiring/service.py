@@ -6,7 +6,7 @@ from datetime import date, datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from app.access_control import EMPLOYEE, assign_role, normalize_email
+from app.access_control import ADMIN, APPLICANT, EMPLOYEE, assign_role, normalize_email
 from app.domains.candidates import repository as candidates_repository
 from app.domains.candidates import service as candidates_service
 from app.domains.employees import service as employees_service
@@ -16,7 +16,7 @@ from app.domains.odoo_sync import employee_delivery
 from app.domains.odoo_sync import integration as odoo_integration
 from app.domains.odoo_sync import service as odoo_sync_service
 from app.domains.training import service as training_service
-from app.models import UserProfile
+from app.models import UserProfile, UserRole
 
 
 class HiringValidationError(ValueError):
@@ -55,8 +55,15 @@ def _ensure_employee_role(
     *,
     assigned_by_sub: str,
 ) -> None:
-    if employees_service.roles_for_profile(db, employee.id):
+    roles = employees_service.roles_for_profile(db, employee.id)
+    if EMPLOYEE in roles or ADMIN in roles:
         return
+    if APPLICANT in roles:
+        db.query(UserRole).filter(
+            UserRole.user_id == employee.id,
+            UserRole.role_code == APPLICANT,
+        ).delete(synchronize_session=False)
+        db.flush()
     assign_role(
         db,
         employee,
@@ -157,11 +164,11 @@ def start_candidate_application(
                 company_name=str(getattr(job, "company_name", None) or "").strip() or None,
                 # Hiring date and Odoo employee creation are reserved for /hire.
                 hire_date=None,
-                role_code=EMPLOYEE,
+                role_code=APPLICANT,
                 created_by_sub=created_by_sub,
                 cognito_client=cognito_client,
             )
-            employee_created = True
+            employee_created = False
         except Exception:
             db.rollback()
             raise
@@ -170,7 +177,8 @@ def start_candidate_application(
             db, employee.id, username=resolved_username
         )
 
-    _ensure_employee_role(db, employee, assigned_by_sub=created_by_sub)
+    # A recruiter may issue document-access credentials without hiring.
+    # Promotion to EMPLOYEE occurs only inside hire_candidate().
     link.employee_id = employee.id
     if link.application_status != "SELECTED":
         candidates_repository.set_job_candidate_status(db, link, status="SELECTED")
@@ -190,7 +198,8 @@ def start_candidate_application(
         "candidate_id": candidate_id,
         "application_id": link.id,
         "application_status": link.application_status,
-        "employee_created": employee_created,
+        "employee_created": False,
+        "applicant_access_created": bool(temporary_password),
         "employee": employees_service.employee_payload(db, employee),
         "credentials": (
             {
