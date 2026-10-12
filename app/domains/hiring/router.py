@@ -1,6 +1,6 @@
 """Candidate hiring HTTP routes."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_permission
@@ -62,10 +62,13 @@ def start_candidate_application(
     job_id: str,
     candidate_id: str,
     body: HireCandidateRequest,
+    response: Response,
     db: Session = Depends(get_db),
     principal: dict = Depends(require_permission("employees.create")),
 ):
     """Link a ranked candidate to this vacancy and issue one-time credentials."""
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
     try:
         return service.start_candidate_application(
             db,
