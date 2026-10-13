@@ -1,6 +1,6 @@
 // eslint-disable-next-line no-unused-vars
-import { sentenceCaseLabel } from "../utils/text";
 import React, { useEffect, useMemo, useState } from "react";
+import { sentenceCaseLabel } from "../utils/text";
 import api from "../api/client";
 import GoogleCalendarConnection from "../components/GoogleCalendarConnection";
 import { useSession } from "../context/SessionContext";
