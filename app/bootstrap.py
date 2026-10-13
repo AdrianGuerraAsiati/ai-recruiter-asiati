@@ -15,6 +15,7 @@ from app.domains.candidate_ingestion.candidate_agent_router import router as can
 from app.domains.candidate_ingestion.indeed_agent_router import router as indeed_agent_router
 from app.domains.candidate_ingestion.router import router as candidate_ingestion_router
 from app.domains.candidates.router import assign_router, router as candidates_router
+from app.domains.candidates.name_normalization_router import router as name_normalization_router
 from app.domains.evaluations.router import router as evaluations_router
 from app.domains.employee_scores.router import router as employee_scores_router
 from app.domains.employee_documents.router import router as employee_documents_router
@@ -65,6 +66,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(jobs_router)
     app.include_router(candidates_router)
+    app.include_router(name_normalization_router)
     app.include_router(assign_router)
     app.include_router(evaluations_router)
     app.include_router(employee_scores_router)
