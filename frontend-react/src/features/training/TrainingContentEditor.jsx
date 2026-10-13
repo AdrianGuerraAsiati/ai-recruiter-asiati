@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import "./training-admin-editor.css";
 
 import {
   lessonTypeIcon,
@@ -47,12 +48,31 @@ export default function TrainingContentEditor({
   const [editingLessonId, setEditingLessonId] = useState("");
   const [lessonEdit, setLessonEdit] = useState(null);
   const [activeModuleId, setActiveModuleId] = useState("");
+  const [lessonSearch, setLessonSearch] = useState("");
+  const moduleRailRef = useRef(null);
 
   const canEditExisting = course.status === "DRAFT" || Boolean(course.managed_by_system);
   const modules = course.modules || [];
   const activeModule = modules.find((module) => module.id === activeModuleId) || modules[0] || null;
   const visibleModules = activeModule ? [activeModule] : [];
   const canCreateContent = course.status === "DRAFT" && !course.managed_by_system;
+  const lessonCount = modules.reduce((total, module) => total + (module.lessons?.length || 0), 0);
+  const videoCount = modules.reduce((total, module) => total + (
+    module.lessons || []
+  ).filter((lesson) => lesson.content_type === "VIDEO").length, 0);
+  const moduleLessons = activeModule?.lessons || [];
+  const normalizedSearch = lessonSearch.trim().toLocaleLowerCase("es");
+  const visibleLessons = normalizedSearch
+    ? moduleLessons.filter((lesson) => [
+      lesson.title,
+      lesson.description,
+      lessonTypeLabel(lesson.content_type),
+    ].join(" ").toLocaleLowerCase("es").includes(normalizedSearch))
+    : moduleLessons;
+
+  function scrollModules(direction) {
+    moduleRailRef.current?.scrollBy?.({ left: direction * 380, behavior: "smooth" });
+  }
 
   function beginModuleEdit(module) {
     setEditingModuleId(module.id);
@@ -115,7 +135,7 @@ export default function TrainingContentEditor({
   }
 
   return (
-    <section className="panel">
+    <section className="panel training-editor-panel">
       <div className="panel-heading">
         <div>
           <span className="eyebrow">Contenido</span>
@@ -128,8 +148,18 @@ export default function TrainingContentEditor({
         </div>
       </div>
 
+      <div className="training-editor-summary" aria-label="Resumen del contenido">
+        <div><strong>{modules.length}</strong><span>Módulos</span></div>
+        <div><strong>{lessonCount}</strong><span>Actividades</span></div>
+        <div><strong>{videoCount}</strong><span>Videos</span></div>
+        <div><strong>{canEditExisting ? "Editable" : "Lectura"}</strong><span>Estado de edición</span></div>
+      </div>
+
       {modules.length > 0 && (
-        <div className="training-admin-module-switcher" aria-label="Módulos del curso">
+        <div className="training-editor-module-navigation">
+          <button type="button" className="training-editor-scroll"
+            aria-label="Ver módulos anteriores" onClick={() => scrollModules(-1)}>←</button>
+          <div className="training-admin-module-switcher" aria-label="Módulos del curso" ref={moduleRailRef}>
           {modules.map((module) => (
             <button
               className={`training-admin-module-tab ${module.id === activeModule?.id ? "active" : ""}`}
@@ -138,6 +168,7 @@ export default function TrainingContentEditor({
               aria-pressed={module.id === activeModule?.id}
               onClick={() => {
                 setActiveModuleId(module.id);
+                setLessonSearch("");
                 setEditingModuleId("");
                 setModuleEdit(null);
                 setEditingLessonId("");
@@ -152,6 +183,25 @@ export default function TrainingContentEditor({
               <b>{module.lessons?.length || 0}</b>
             </button>
           ))}
+          </div>
+          <button type="button" className="training-editor-scroll"
+            aria-label="Ver módulos siguientes" onClick={() => scrollModules(1)}>→</button>
+        </div>
+      )}
+
+      {activeModule && (
+        <div className="training-editor-filterbar">
+          <label>
+            Buscar en este módulo
+            <input
+              type="search"
+              aria-label="Buscar lección en módulo"
+              placeholder="Nombre, descripción o tipo de contenido"
+              value={lessonSearch}
+              onChange={(event) => setLessonSearch(event.target.value)}
+            />
+          </label>
+          <span>{visibleLessons.length} de {moduleLessons.length} actividades</span>
         </div>
       )}
 
@@ -234,7 +284,7 @@ export default function TrainingContentEditor({
             </div>
 
             <div className="training-lesson-list">
-              {module.lessons?.map((lesson) => (
+              {visibleLessons.map((lesson) => (
                 <div className="training-lesson-row training-lesson-admin-row" key={lesson.id}>
                   {editingLessonId === lesson.id && lessonEdit ? (
                     <form className="training-inline-form" onSubmit={(event) => saveLesson(event, lesson)}>
@@ -343,6 +393,9 @@ export default function TrainingContentEditor({
                           {lesson.estimated_minutes ? ` · ~${lesson.estimated_minutes} min` : ""}
                           {lesson.is_optional ? " · opcional" : ""}
                         </small>
+                        {lesson.content_type === "VIDEO" && !lesson.video_url && (
+                          <small className="training-editor-missing-media">Pendiente: subir video</small>
+                        )}
                         {lesson.video_url && (
                           <small>
                             {lesson.video_source === "managed"
@@ -396,6 +449,15 @@ export default function TrainingContentEditor({
                   )}
                 </div>
               ))}
+              {visibleLessons.length === 0 && moduleLessons.length > 0 && (
+                <p className="training-editor-no-results">
+                  No hay lecciones que coincidan con tu búsqueda.
+                  <button type="button" onClick={() => setLessonSearch("")}>Limpiar búsqueda</button>
+                </p>
+              )}
+              {moduleLessons.length === 0 && (
+                <p className="training-editor-no-results">Este módulo aún no tiene actividades.</p>
+              )}
             </div>
 
             {canCreateContent && (

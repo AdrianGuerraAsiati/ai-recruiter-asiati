@@ -255,4 +255,69 @@ describe("TrainingContentEditor", () => {
       expect(screen.getByLabelText("Reemplazar video de Introducción")).toBeInTheDocument();
     });
   });
+
+  it("summarizes course content, filters lessons and clears search when switching modules", () => {
+    renderEditor({
+      course: {
+        status: "PUBLISHED",
+        managed_by_system: true,
+        modules: [
+          {
+            id: "module-1", position: 1, title: "Módulo 1 · Bienvenida",
+            lessons: [
+              { id: "video", title: "Video sin material", content_type: "VIDEO", video_url: null },
+              { id: "guide", title: "Guía cultural", description: "Lectura", content_type: "ARTICLE" },
+            ],
+          },
+          {
+            id: "module-2", position: 2, title: "Módulo 2 · Equipo",
+            lessons: [
+              { id: "team", title: "Conoce a tu líder", content_type: "VIDEO", video_url: "https://video.example.com/lider.mp4" },
+            ],
+          },
+        ],
+      },
+    });
+    const summary = document.querySelector(".training-editor-summary");
+    expect(summary).toHaveTextContent("2Módulos");
+    expect(summary).toHaveTextContent("3Actividades");
+    expect(summary).toHaveTextContent("2Videos");
+    expect(screen.getByText("Pendiente: subir video")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Buscar lección en módulo" }), {
+      target: { value: "cultural" },
+    });
+    expect(screen.getByText("Guía cultural")).toBeInTheDocument();
+    expect(screen.queryByText("Video sin material")).not.toBeInTheDocument();
+    expect(screen.getByText("1 de 2 actividades")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Buscar lección en módulo" }), {
+      target: { value: "sin coincidencias" },
+    });
+    expect(screen.getByText("No hay lecciones que coincidan con tu búsqueda.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar búsqueda" }));
+    expect(screen.getByText("Video sin material")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Buscar lección en módulo" }), {
+      target: { value: "Guía" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Módulo 2.*Equipo/i }));
+    expect(screen.getByRole("searchbox", { name: "Buscar lección en módulo" })).toHaveValue("");
+    expect(screen.getByText("Conoce a tu líder")).toBeInTheDocument();
+    expect(screen.queryByText("Guía cultural")).not.toBeInTheDocument();
+  });
+
+  it("scrolls module navigation without changing the selected module", () => {
+    renderEditor();
+    const rail = document.querySelector(".training-admin-module-switcher");
+    const scrollBy = vi.fn();
+    rail.scrollBy = scrollBy;
+
+    fireEvent.click(screen.getByRole("button", { name: "Ver módulos siguientes" }));
+    expect(scrollBy).toHaveBeenCalledWith({ left: 380, behavior: "smooth" });
+    fireEvent.click(screen.getByRole("button", { name: "Ver módulos anteriores" }));
+    expect(scrollBy).toHaveBeenCalledWith({ left: -380, behavior: "smooth" });
+    expect(screen.getByRole("heading", { name: "Bienvenida" })).toBeInTheDocument();
+  });
+
 });
