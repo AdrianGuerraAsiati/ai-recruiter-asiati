@@ -146,6 +146,10 @@ export default function Psychotechnical() {
   }), [items]);
 
   async function regenerateLink(assignment) {
+    const warning = assignment.status === "IN_PROGRESS"
+      ? "La prueba está en curso. Renovar su acceso reiniciará la prueba y descartará cualquier progreso sin enviar. ¿Deseas continuar?"
+      : "Se generará un acceso válido por 7 días y el enlace anterior dejará de funcionar. ¿Deseas continuar?";
+    if (!window.confirm(warning)) return;
     setError("");
     try {
       const { data } = await api.post(
@@ -154,13 +158,13 @@ export default function Psychotechnical() {
       );
       const link = `${window.location.origin}/psychotechnical/take/${data.token}`;
       await navigator.clipboard.writeText(link);
-      setCopyNotice("Nuevo enlace copiado para compartir de forma segura.");
+      setCopyNotice("Acceso renovado por 7 días. Enlace copiado para compartir de forma segura.");
       await loadAssignments();
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, {
-        action: "generar un nuevo enlace",
+        action: "renovar el acceso",
         resource: "prueba psicotécnica",
-        fallback: "No fue posible generar un nuevo enlace.",
+        fallback: "No fue posible renovar el acceso.",
       }));
     }
   }
@@ -320,7 +324,7 @@ export default function Psychotechnical() {
                       type="button"
                       onClick={() => regenerateLink(item)}
                     >
-                      Nuevo enlace
+                      Renovar acceso
                     </button>
                     <button
                       className="btn btn-secondary"
