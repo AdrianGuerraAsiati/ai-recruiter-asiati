@@ -274,7 +274,7 @@ describe("Ranking page", () => {
     renderRanking();
 
     expect(await screen.findByRole("option", { name: "Vacante Vacía 1 · 0 postulantes directos" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Vacante vacía 2 · 0 postulantes directos" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Vacante Vacía 2 · 0 postulantes directos" })).toBeInTheDocument();
     expect(await screen.findByText("Ranking listo para generar")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Evaluar candidatos" })).not.toBeDisabled();
     expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled();
