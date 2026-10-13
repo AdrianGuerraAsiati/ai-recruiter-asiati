@@ -10,6 +10,7 @@ import ApplicationHireModal from "../components/ApplicationHireModal.jsx";
 import ApplicationAccessModal from "../components/ApplicationAccessModal.jsx";
 import { getApiErrorMessage } from "../utils/errors";
 import PageHeader from "../components/ui/PageHeader";
+import "../talent-workspaces.css";
 import {
   EmptyState,
   FeedbackMessage,
