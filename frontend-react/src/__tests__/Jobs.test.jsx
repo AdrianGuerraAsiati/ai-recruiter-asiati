@@ -279,9 +279,9 @@ describe("Jobs page", () => {
     fireEvent.click(screen.getAllByText("Ver")[0]);
 
     await waitFor(() => {
-      expect(screen.getByText("Ana pérez")).toBeInTheDocument();
+      expect(screen.getByText("Ana Pérez")).toBeInTheDocument();
     });
-    expect(screen.getByText("Carlos gómez")).toBeInTheDocument();
+    expect(screen.getByText("Carlos Gómez")).toBeInTheDocument();
   });
 
   it("vacante sin candidatos shows empty message", async () => {
@@ -549,7 +549,7 @@ describe("Jobs page", () => {
     await screen.findByText("Backend Developer");
     fireEvent.click(screen.getAllByText("Ver")[0]);
 
-    await screen.findByText("Ana pérez");
+    await screen.findByText("Ana Pérez");
     expect(screen.queryByRole("button", { name: /Contratar candidato/i })).not.toBeInTheDocument();
   });
 
@@ -575,7 +575,7 @@ describe("Jobs page", () => {
     await screen.findByText("Backend Developer");
     fireEvent.click(screen.getAllByText("Ver")[0]);
 
-    await screen.findByText("Ana pérez");
+    await screen.findByText("Ana Pérez");
     fireEvent.click(screen.getAllByRole("button", { name: /Contratar candidato/i })[0]);
 
     expect(await screen.findByRole("heading", { name: "Contratar y crear empleado" })).toBeInTheDocument();
@@ -632,7 +632,7 @@ describe("Jobs page", () => {
     renderJobs();
     await screen.findByText("Backend Developer");
     fireEvent.click(screen.getAllByText("Ver")[0]);
-    await screen.findByText("Ana pérez");
+    await screen.findByText("Ana Pérez");
     fireEvent.click(screen.getAllByRole("button", { name: /Contratar candidato/i })[0]);
     fireEvent.change(screen.getByLabelText("Usuario de Talent"), {
       target: { value: "ana.perez" },
