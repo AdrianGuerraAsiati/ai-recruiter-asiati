@@ -100,7 +100,7 @@ describe("candidate import page integration", () => {
 
     expect(
       screen.getByRole("option", {
-        name: "Data engineer · 1 postulante directo",
+        name: "Data Engineer · 1 postulante directo",
         selected: true,
       }),
     ).toBeInTheDocument();
