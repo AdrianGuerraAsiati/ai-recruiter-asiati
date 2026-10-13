@@ -23,6 +23,7 @@ const navItems = [
     label: "Asistencia",
     icon: "calendar",
     section: "Equipo",
+    roles: ["ADMIN", "EMPLOYEE"],
     permissionsAny: [
       "talent_id.attendance.read_own",
       "talent_id.manage",
