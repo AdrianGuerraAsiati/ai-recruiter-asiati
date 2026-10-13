@@ -159,3 +159,36 @@ def test_calendar_rejects_invalid_time_window(db):
             notes=None,
             created_by_sub="talent-sub",
         )
+
+
+def test_calendar_rejects_overlap_but_allows_adjacent_slot(db):
+    job, candidate, _ = _application(db)
+    start = datetime(2026, 10, 15, 14, tzinfo=timezone.utc)
+    kwargs = dict(db=db, job_id=job.id, candidate_id=candidate.id,
+                  kind="PHONE_CALL", location=None, notes=None, created_by_sub="admin")
+    first = service.create_event(**kwargs, starts_at=start, ends_at=start + timedelta(minutes=30))
+    with pytest.raises(RecruitmentApplicationNotEligible, match="horario ya está ocupado"):
+        service.create_event(**kwargs, starts_at=start + timedelta(minutes=15),
+                             ends_at=start + timedelta(minutes=45))
+    next_event = service.create_event(**kwargs, starts_at=start + timedelta(minutes=30),
+                                      ends_at=start + timedelta(minutes=60))
+    with pytest.raises(RecruitmentApplicationNotEligible, match="horario ya está ocupado"):
+        service.update_event(db, next_event["id"],
+                             changes={"starts_at": start + timedelta(minutes=10)})
+    assert first["id"] != next_event["id"]
+
+
+def test_calendar_delete_clears_slot(db, monkeypatch):
+    from app.domains.recruitment_calendar import google
+    calls = []
+    monkeypatch.setattr(google, "delete_event", lambda event: calls.append(event.id))
+    job, candidate, _ = _application(db)
+    start = datetime(2026, 10, 15, 14, tzinfo=timezone.utc)
+    kwargs = dict(db=db, job_id=job.id, candidate_id=candidate.id,
+                  kind="PHONE_CALL", location=None, notes=None, created_by_sub="admin",
+                  starts_at=start, ends_at=start + timedelta(minutes=30))
+    first = service.create_event(**kwargs)
+    assert service.delete_event(db, first["id"])["deleted"]
+    assert calls == [first["id"]]
+    assert db.query(RecruitmentEvent).count() == 0
+    assert service.create_event(**kwargs)["status"] == "SCHEDULED"
