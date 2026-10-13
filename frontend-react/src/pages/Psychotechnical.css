@@ -730,3 +730,331 @@
     justify-items: start;
   }
 }
+
+
+/* Isolate the public assessment reader from the application dark-theme tokens.
+   The public surface is always light, including its headings, fieldsets,
+   progress controls, feedback and native form elements. */
+.psychotechnical-public {
+  color-scheme: light;
+  --assessment-ink: #172b3e;
+  --assessment-muted: #526579;
+  --assessment-stroke: #dce5eb;
+  --assessment-focus: #0e697a;
+  box-sizing: border-box;
+  color: var(--assessment-ink);
+}
+.psychotechnical-public *,
+.psychotechnical-public *::before,
+.psychotechnical-public *::after {
+  box-sizing: border-box;
+}
+.psychotechnical-public-card,
+.psychotechnical-test-shell {
+  color: var(--assessment-ink);
+}
+.psychotechnical-public :is(h1, h2, h3, legend, strong) {
+  color: var(--assessment-ink);
+  opacity: 1;
+}
+.psychotechnical-public .eyebrow,
+.psychotechnical-public-code {
+  color: #135c72;
+}
+.psychotechnical-public-card > h1,
+.psychotechnical-test-header h1 {
+  color: #122c41;
+  font-size: clamp(1.85rem, 3.5vw, 2.7rem);
+  line-height: 1.16;
+  letter-spacing: -.025em;
+  overflow-wrap: anywhere;
+}
+.psychotechnical-public-card > p,
+.psychotechnical-test-header > div > p {
+  color: var(--assessment-muted);
+}
+.psychotechnical-public-summary strong,
+.psychotechnical-progress-copy strong,
+.psychotechnical-public-notice strong {
+  color: #162e43;
+}
+.psychotechnical-public-summary > div {
+  min-width: 0;
+  align-content: start;
+}
+.psychotechnical-public-summary strong {
+  overflow-wrap: anywhere;
+  font-size: .95rem;
+}
+.psychotechnical-public-notice {
+  color: #19384a;
+}
+.psychotechnical-public-notice p {
+  margin-bottom: 0;
+}
+.psychotechnical-public .psychotechnical-time-warning strong {
+  color: #654900;
+}
+.psychotechnical-question {
+  min-width: 0;
+  color: var(--assessment-ink);
+  background: #fff;
+}
+.psychotechnical-question legend {
+  color: #193447;
+}
+.psychotechnical-options label {
+  min-width: 0;
+  color: #1e364a;
+  background: #fff;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.psychotechnical-options label.is-selected {
+  color: #123e49;
+}
+.psychotechnical-options input[type="radio"] {
+  flex-shrink: 0;
+  accent-color: #126d78;
+}
+.psychotechnical-public .btn.btn-primary {
+  background: #126b7b;
+  border-color: #126b7b;
+  color: #fff;
+  font-weight: 700;
+}
+.psychotechnical-public .btn.btn-primary:hover:not(:disabled) {
+  background: #0e5363;
+  border-color: #0e5363;
+  color: #fff;
+}
+.psychotechnical-public :is(button, input):focus-visible {
+  outline: 3px solid #14839c;
+  outline-offset: 3px;
+}
+.psychotechnical-public .btn:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+.psychotechnical-public-card .psychotechnical-public-code {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+.psychotechnical-test-header .eyebrow {
+  display: inline-block;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .psychotechnical-public {
+    padding: 16px 12px 32px;
+  }
+  .psychotechnical-public-card {
+    padding: 24px 18px;
+    border-radius: 16px;
+  }
+  .psychotechnical-public-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 20px 0;
+  }
+  .psychotechnical-public-summary > div:last-child {
+    grid-column: 1 / -1;
+  }
+  .psychotechnical-public-notice,
+  .psychotechnical-time-warning {
+    padding: 14px;
+  }
+  .psychotechnical-test-header,
+  .psychotechnical-question-group,
+  .psychotechnical-submit-bar {
+    padding-inline: 16px;
+  }
+  .psychotechnical-test-shell {
+    border-radius: 16px;
+  }
+  .psychotechnical-question {
+    padding: 12px;
+  }
+  .psychotechnical-submit-bar .btn {
+    width: 100%;
+  }
+}
+
+.psychotechnical-public-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+}
+.psychotechnical-public-kicker .eyebrow {
+  color: #184456;
+}
+.psychotechnical-public-kicker .psychotechnical-public-code {
+  display: inline-flex;
+  margin: 0;
+  color: #176c86;
+}
+.psychotechnical-public :is(.psychotechnical-public-error, .psychotechnical-expired-banner) {
+  font-weight: 600;
+}
+
+
+/* Focused exam workspace: readable answer cards and clear current state. */
+.psychotechnical-public--test {
+  background: #f1f5f8;
+  padding: clamp(14px, 3vw, 40px) 16px 90px;
+}
+.psychotechnical-public--test .psychotechnical-test-shell {
+  width: min(980px, 100%);
+  border-color: #d5e0e8;
+  box-shadow: 0 16px 42px rgba(19, 44, 62, .09);
+}
+.psychotechnical-test-header {
+  gap: 14px 20px;
+  border-bottom: 1px solid #d6e5eb;
+  padding: 24px clamp(16px, 4vw, 36px) 18px;
+  background: #fff;
+}
+.psychotechnical-test-header h1 {
+  margin: 6px 0 10px;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+}
+.psychotechnical-test-header p {
+  margin: 0;
+  line-height: 1.55;
+  font-size: .92rem;
+}
+.psychotechnical-progress-copy {
+  padding: 8px 16px;
+  border-radius: 12px;
+  background: #edf7f8;
+  min-width: 100px;
+  align-self: start;
+}
+.psychotechnical-progress-copy strong {
+  color: #125166;
+  font-size: 1.45rem;
+  font-variant-numeric: tabular-nums;
+}
+.psychotechnical-progress-copy span {
+  color: #3f6576;
+  font-size: .75rem;
+}
+.psychotechnical-progress-track {
+  height: 8px;
+}
+.psychotechnical-question-group {
+  padding: 28px clamp(16px, 4vw, 36px) 0;
+}
+.psychotechnical-question-group h2 {
+  font-size: 1.1rem;
+  margin: 0 0 12px;
+}
+.psychotechnical-group-description {
+  font-size: .89rem;
+  margin: 0 0 20px;
+  line-height: 1.6;
+}
+.psychotechnical-question {
+  margin-bottom: 16px;
+  padding: 20px;
+  border: 1px solid #d6e2e9;
+  border-radius: 15px;
+  background: #fff;
+  min-inline-size: 0;
+}
+.psychotechnical-question legend {
+  max-width: 100%;
+  padding: 0 8px;
+  font-size: .97rem;
+  line-height: 1.5;
+}
+.psychotechnical-options {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 265px), 1fr));
+  gap: 10px;
+}
+.psychotechnical-options label {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+  border-radius: 11px;
+  background: #f8fafb;
+  border: 1px solid #d9e4ea;
+  transition: background .15s, border-color .15s;
+}
+.psychotechnical-options label:hover {
+  background: #edf7f8;
+  border-color: #72a5b0;
+}
+.psychotechnical-options label.is-selected {
+  background: #e1f3f2;
+  border: 2px solid #136977;
+  padding: 12px 14px;
+}
+.psychotechnical-options input[type="radio"] {
+  width: 19px;
+  height: 19px;
+  margin: 0;
+}
+.psychotechnical-options--allocation {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.psychotechnical-submit-bar {
+  padding: 16px clamp(16px, 4vw, 36px);
+  background: #fff;
+  border-top: 1px solid #d8e4e9;
+}
+.psychotechnical-submit-bar strong {
+  color: #203d52;
+}
+.psychotechnical-submit-bar .btn {
+  min-width: 155px;
+}
+@media (max-width: 650px) {
+  .psychotechnical-public--test {
+    padding: 10px 8px 48px;
+  }
+  .psychotechnical-test-header {
+    position: relative;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 18px 14px;
+  }
+  .psychotechnical-test-header > div:first-child {
+    min-width: 0;
+  }
+  .psychotechnical-progress-copy {
+    padding: 6px 8px;
+    min-width: 76px;
+    justify-items: center;
+    text-align: center;
+  }
+  .psychotechnical-progress-copy strong {
+    font-size: 1.12rem;
+  }
+  .psychotechnical-test-header p {
+    font-size: .82rem;
+  }
+  .psychotechnical-question-group {
+    padding: 20px 12px 0;
+  }
+  .psychotechnical-question {
+    padding: 12px;
+  }
+  .psychotechnical-options,
+  .psychotechnical-options--allocation {
+    grid-template-columns: 1fr;
+  }
+  .psychotechnical-valanti-pair {
+    grid-template-columns: 1fr;
+  }
+  .psychotechnical-submit-bar {
+    padding: 14px;
+    gap: 12px;
+  }
+  .psychotechnical-submit-bar .btn {
+    width: 100%;
+  }
+}

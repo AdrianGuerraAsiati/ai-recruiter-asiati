@@ -209,14 +209,16 @@ export default function PsychotechnicalTake() {
     return (
       <main className="psychotechnical-public">
         <div className="psychotechnical-public-card">
-          <span className="eyebrow">Talent Intelligence · ASIATI</span>
-          <div className="psychotechnical-public-code">{assignment?.test_code} · v{assignment?.source_version}</div>
+          <div className="psychotechnical-public-kicker">
+            <span className="eyebrow">Talent Intelligence · ASIATI</span>
+            <span className="psychotechnical-public-code">{assignment?.test_code} · v{assignment?.source_version}</span>
+          </div>
           <h1>{assignment?.test_name || "Prueba psicotécnica"}</h1>
           <p>{assignment?.test_description}</p>
 
           <div className="psychotechnical-public-summary">
             <div><span>Ítems</span><strong>{assignment?.question_count}</strong></div>
-            <div><span>Tiempo estimado</span><strong>{assignment?.duration_minutes} min</strong></div>
+            <div><span>{assignment?.test_key === ATTENTION ? "Tiempo límite" : "Tiempo estimado"}</span><strong>{assignment?.test_key === ATTENTION ? formatTimer(assignment?.duration_seconds || 440) : `${assignment?.duration_minutes} min`}</strong></div>
             <div><span>Candidato</span><strong>{assignment?.candidate_name || "Asignado"}</strong></div>
           </div>
 
