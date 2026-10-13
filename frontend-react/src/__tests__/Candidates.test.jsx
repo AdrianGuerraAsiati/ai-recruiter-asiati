@@ -98,7 +98,7 @@ describe("Candidates evaluation", () => {
     const open = vi.spyOn(window, "open").mockReturnValue(viewer);
 
     renderCandidates();
-    await screen.findByText("Ana test");
+    await screen.findByText("Ana Test");
 
     expect(
       screen.queryByRole("button", { name: /Descargar CV/i }),
@@ -138,7 +138,7 @@ describe("Candidates evaluation", () => {
 
     renderCandidates();
 
-    await screen.findByText("Ana test");
+    await screen.findByText("Ana Test");
 
     fireEvent.change(
       screen.getByRole("combobox", { name: "Vacante para Ana Test" }),
@@ -183,7 +183,7 @@ describe("Candidates evaluation", () => {
     });
 
     renderCandidates();
-    await screen.findByText("Ana test");
+    await screen.findByText("Ana Test");
     fireEvent.change(screen.getByRole("combobox", { name: "Vacante para Ana Test" }), { target: { value: "job-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Evaluar candidato" }));
 
@@ -213,7 +213,7 @@ describe("Candidates evaluation", () => {
 
     renderCandidates();
 
-    await screen.findByText("Ana test");
+    await screen.findByText("Ana Test");
 
     fireEvent.change(
       screen.getByRole("combobox", { name: "Vacante para Ana Test" }),
@@ -254,7 +254,7 @@ describe("Candidates evaluation", () => {
     });
 
     renderCandidates();
-    await screen.findByText("Ana test");
+    await screen.findByText("Ana Test");
 
     expect(screen.queryByRole("button", { name: /Eliminar/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Vetar" }));
@@ -276,7 +276,7 @@ describe("Candidates evaluation", () => {
   it("shows Agregar candidato on Candidates page and opens the upload modal", async () => {
     renderCandidates();
 
-    await screen.findByText("Ana test");
+    await screen.findByText("Ana Test");
 
     const addButton = screen.getByRole(
       "button",
@@ -325,7 +325,7 @@ describe("Candidates evaluation", () => {
     });
 
     renderCandidates();
-    await screen.findByText("Ana test");
+    await screen.findByText("Ana Test");
 
     fireEvent.change(screen.getByLabelText("Ordenar candidatos"), {
       target: { value: "name_asc" },
@@ -341,7 +341,7 @@ describe("Candidates evaluation", () => {
 
   it("filters candidates by assigned vacancy country", async () => {
     renderCandidates();
-    await screen.findByText("Ana test");
+    await screen.findByText("Ana Test");
 
     fireEvent.change(screen.getByLabelText("Filtrar candidatos por país"), {
       target: { value: "CO" },
