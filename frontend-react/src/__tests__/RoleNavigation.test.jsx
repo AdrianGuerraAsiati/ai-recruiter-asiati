@@ -54,6 +54,17 @@ describe("role navigation", () => {
     document.body.classList.remove("nav-desktop-collapsed", "nav-mobile-open");
   });
 
+  it("hides attendance for applicants even with profile read permission", () => {
+    renderRole("APPLICANT", ["profile.read_own", "talent_id.attendance.read_own"]);
+    expect(screen.queryByText("Asistencia")).not.toBeInTheDocument();
+    expect(screen.getByText("Mi perfil")).toBeInTheDocument();
+  });
+
+  it("shows attendance for employees with own attendance permission", () => {
+    renderRole("EMPLOYEE", ["profile.read_own", "talent_id.attendance.read_own"]);
+    expect(screen.getByText("Asistencia")).toBeInTheDocument();
+  });
+
   it("shows the employee workspace only", () => {
     renderRole("EMPLOYEE", [
       "training.read",
