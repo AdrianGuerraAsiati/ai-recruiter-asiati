@@ -52,7 +52,7 @@ describe("Applications: document access and employee creation", () => {
 
   it("permits hiring only from an existing application with portal access", async () => {
     mount();
-    expect(await screen.findByText("Ana pérez")).toBeInTheDocument();
+    expect(await screen.findByText("Ana Pérez")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Revisar documentos" }))
       .toHaveAttribute("href", "/documents?employee_id=profile-1");
     expect(screen.getByText(/aperez · Credenciales/i)).toBeInTheDocument();

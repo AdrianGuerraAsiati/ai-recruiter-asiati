@@ -193,8 +193,8 @@ describe("Ranking page", () => {
 
     renderRanking();
 
-    expect(await screen.findByRole("option", { name: "Vacante vacía · 0 postulantes directos" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Vacante con candidatos · 2 postulantes directos" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "Vacante Vacía · 0 postulantes directos" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Vacante Con Candidatos · 2 postulantes directos" })).toBeInTheDocument();
   });
 
   it("shows the evaluable country pool even with zero direct applicants", async () => {
@@ -251,8 +251,8 @@ describe("Ranking page", () => {
 
     renderRanking();
 
-    expect(await screen.findByRole("option", { name: "Vacante activa · 1 postulante directo" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Vacante sin conteo · 0 postulantes directos" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "Vacante Activa · 1 postulante directo" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Vacante Sin Conteo · 0 postulantes directos" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Vacante pausada/ })).not.toBeInTheDocument();
   });
 
@@ -273,8 +273,8 @@ describe("Ranking page", () => {
 
     renderRanking();
 
-    expect(await screen.findByRole("option", { name: "Vacante vacía 1 · 0 postulantes directos" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Vacante vacía 2 · 0 postulantes directos" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "Vacante Vacía 1 · 0 postulantes directos" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Vacante Vacía 2 · 0 postulantes directos" })).toBeInTheDocument();
     expect(await screen.findByText("Ranking listo para generar")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Evaluar candidatos" })).not.toBeDisabled();
     expect(screen.getByRole("button", { name: "Recalcular ranking" })).not.toBeDisabled();
