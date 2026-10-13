@@ -33,8 +33,8 @@ import NotFound from "./pages/NotFound";
 import "./ui-system.css";
 
 
-function ProtectedRoute({ children, permission, permissionsAny = [] }) {
-  const { status, hasPermission } = useSession();
+function ProtectedRoute({ children, permission, permissionsAny = [], rolesAny = [] }) {
+  const { status, hasPermission, principal } = useSession();
 
   if (status === "loading") {
     return <div className="session-loading"><span aria-hidden="true" />Validando acceso seguro…</div>;
@@ -45,7 +45,8 @@ function ProtectedRoute({ children, permission, permissionsAny = [] }) {
   }
 
   const hasRequiredPermission = (
-    (!permission || hasPermission(permission))
+    (rolesAny.length === 0 || rolesAny.some((role) => principal?.roles?.includes(role)))
+    && (!permission || hasPermission(permission))
     && (
       permissionsAny.length === 0
       || permissionsAny.some((candidate) => hasPermission(candidate))
@@ -60,9 +61,9 @@ function ProtectedRoute({ children, permission, permissionsAny = [] }) {
 }
 
 
-function ProtectedPage({ children, permission, permissionsAny }) {
+function ProtectedPage({ children, permission, permissionsAny, rolesAny }) {
   return (
-    <ProtectedRoute permission={permission} permissionsAny={permissionsAny}>
+    <ProtectedRoute permission={permission} permissionsAny={permissionsAny} rolesAny={rolesAny}>
       <Layout>{children}</Layout>
     </ProtectedRoute>
   );
@@ -102,6 +103,7 @@ function AppRoutes() {
         path="/attendance"
         element={(
           <ProtectedPage
+            rolesAny={["ADMIN", "EMPLOYEE"]}
             permissionsAny={[
               "talent_id.attendance.read_own",
               "talent_id.manage",
