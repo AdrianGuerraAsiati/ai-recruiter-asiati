@@ -1,4 +1,5 @@
 // eslint-disable-next-line no-unused-vars
+import { sentenceCaseLabel } from "../utils/text";
 import React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -194,10 +195,10 @@ function Applications() {
                 {items.map((application) => (
                   <tr key={application.id}>
                     <td>
-                      <strong>{application.candidate.name}</strong>
+                      <strong>{sentenceCaseLabel(application.candidate.name)}</strong>
                       <small>{application.candidate.email || "Sin correo"}</small>
                     </td>
-                    <td>{application.job.title}</td>
+                    <td>{sentenceCaseLabel(application.job.title)}</td>
                     <td>
                       <select
                         aria-label={`Estado de ${application.candidate.name}`}
