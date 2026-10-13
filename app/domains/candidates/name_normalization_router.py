@@ -94,7 +94,7 @@ class NameApproval(BaseModel):
 
 
 class ApplyRequest(BaseModel):
-    approvals: list[NameApproval] = Field(min_length=1, max_length=100)
+    approvals: list[NameApproval] = Field(min_length=1, max_length=2000)
 
 
 class RevertRequest(BaseModel):
