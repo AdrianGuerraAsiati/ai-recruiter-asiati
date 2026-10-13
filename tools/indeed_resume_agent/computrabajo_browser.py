@@ -23,9 +23,9 @@ _ALLOWED_HOST_SUFFIXES = ("computrabajo.com", "computrabajo.com.co")
 
 # Fail closed: vacancy labels and form answers must not become candidate names.
 _CANDIDATE_NAME_INVALID = re.compile(
-    r"\\b(?:oferta|vacante|empleo|computrabajo|curr[ií]culum|carnet|"
+    r"\b(?:oferta|vacante|empleo|computrabajo|curr[ií]culum|carnet|"
     r"veh[ií]culo|disponibilidad|experiencia|perfil profesional|"
-    r"director financiero|estoy trabajando)\\b",
+    r"director financiero|estoy trabajando)\b",
     re.IGNORECASE,
 )
 
