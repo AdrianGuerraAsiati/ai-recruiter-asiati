@@ -98,7 +98,7 @@ describe("RecruitmentCalendar", () => {
 
     expect(await screen.findByRole("heading", { name: "Agenda de selección" })).toBeInTheDocument();
     expect((await screen.findAllByText("Ana pérez")).length).toBeGreaterThan(0);
-    expect(screen.getByText("Ejecutivo Comercial SR")).toBeInTheDocument();
+    expect(screen.getByText("Ejecutivo comercial sr")).toBeInTheDocument();
     expect(screen.getByText("Videollamada · Google Meet")).toBeInTheDocument();
   });
 
