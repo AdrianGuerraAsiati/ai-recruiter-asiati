@@ -1058,3 +1058,14 @@
     width: 100%;
   }
 }
+
+.psychotechnical-automatic-label {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 11px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
