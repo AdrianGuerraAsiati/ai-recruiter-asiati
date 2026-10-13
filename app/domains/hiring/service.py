@@ -121,6 +121,10 @@ def start_candidate_application(
         if normalize_email(employee.email) != resolved_email:
             raise HiringConflictError("El expediente está vinculado a otro correo. Revisa la identidad.")
         if employee.cognito_sub:
+            psychotechnical_assignments = psychotechnical_service.ensure_hiring_assignments(
+                db, candidate_id=candidate_id, job_id=job_id,
+                created_by_sub=created_by_sub,
+            )
             return {
             "job_id": job_id,
             "candidate_id": candidate_id,
@@ -130,6 +134,7 @@ def start_candidate_application(
             "employee": employees_service.employee_payload(db, employee),
             "credentials": None,
             "already_started": True,
+            "psychotechnical_assignments": psychotechnical_assignments,
             }
 
     employee = (
@@ -205,6 +210,10 @@ def start_candidate_application(
         )
     db.commit()
     db.refresh(link)
+    psychotechnical_assignments = psychotechnical_service.ensure_hiring_assignments(
+        db, candidate_id=candidate_id, job_id=job_id,
+        created_by_sub=created_by_sub,
+    )
 
     return {
         "job_id": job_id,
@@ -224,6 +233,7 @@ def start_candidate_application(
             else None
         ),
         "already_started": False,
+        "psychotechnical_assignments": psychotechnical_assignments,
     }
 
 
@@ -424,13 +434,6 @@ def hire_candidate(
     db.refresh(employee)
     db.refresh(assignment)
 
-    psychotechnical_assignments = psychotechnical_service.ensure_hiring_assignments(
-        db,
-        candidate_id=candidate_id,
-        job_id=job_id,
-        created_by_sub=created_by_sub,
-    )
-
     odoo_delivery = None
     try:
         odoo_delivery = employee_delivery.sync_employee_now(
@@ -495,7 +498,6 @@ def hire_candidate(
             else None
         ),
         "onboarding_assignment": training_service.assignment_payload(db, assignment),
-        "psychotechnical_assignments": psychotechnical_assignments,
         "odoo_applicant_sync": odoo_sync_service.applicant_sync_payload(applicant_sync),
         "odoo_sync": odoo_sync_service.sync_payload(odoo_sync),
         "odoo_delivery": odoo_delivery,
