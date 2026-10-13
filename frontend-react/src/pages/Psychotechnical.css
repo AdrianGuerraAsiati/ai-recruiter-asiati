@@ -880,3 +880,21 @@
     width: 100%;
   }
 }
+
+.psychotechnical-public-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+}
+.psychotechnical-public-kicker .eyebrow {
+  color: #184456;
+}
+.psychotechnical-public-kicker .psychotechnical-public-code {
+  display: inline-flex;
+  margin: 0;
+  color: #176c86;
+}
+.psychotechnical-public :is(.psychotechnical-public-error, .psychotechnical-expired-banner) {
+  font-weight: 600;
+}
