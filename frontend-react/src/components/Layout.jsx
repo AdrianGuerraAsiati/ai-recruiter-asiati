@@ -19,6 +19,7 @@ const pageTitles = {
   "/progress": "Mi progreso",
   "/profile": "Mi perfil",
   "/documents": "Documentos",
+  "/my-psychotechnical": "Ficha psicotécnica",
   "/integrations": "Integraciones",
   "/forbidden": "Acceso restringido",
 };
