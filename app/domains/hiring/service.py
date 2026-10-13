@@ -17,6 +17,7 @@ from app.domains.odoo_sync import employee_delivery
 from app.domains.odoo_sync import integration as odoo_integration
 from app.domains.odoo_sync import service as odoo_sync_service
 from app.domains.training import service as training_service
+from app.domains.psychotechnical import service as psychotechnical_service
 from app.models import UserProfile, UserRole
 
 
@@ -423,6 +424,13 @@ def hire_candidate(
     db.refresh(employee)
     db.refresh(assignment)
 
+    psychotechnical_assignments = psychotechnical_service.ensure_hiring_assignments(
+        db,
+        candidate_id=candidate_id,
+        job_id=job_id,
+        created_by_sub=created_by_sub,
+    )
+
     odoo_delivery = None
     try:
         odoo_delivery = employee_delivery.sync_employee_now(
@@ -487,6 +495,7 @@ def hire_candidate(
             else None
         ),
         "onboarding_assignment": training_service.assignment_payload(db, assignment),
+        "psychotechnical_assignments": psychotechnical_assignments,
         "odoo_applicant_sync": odoo_sync_service.applicant_sync_payload(applicant_sync),
         "odoo_sync": odoo_sync_service.sync_payload(odoo_sync),
         "odoo_delivery": odoo_delivery,
