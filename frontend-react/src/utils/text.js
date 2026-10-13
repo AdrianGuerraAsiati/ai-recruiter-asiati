@@ -50,10 +50,10 @@ export function titleCase(value) {
     .join("");
 }
 
-/** Display-only sentence casing for imported candidate names and vacancy titles. */
+/** Display-only capitalization of every word in candidate names and vacancy titles. */
 export function sentenceCaseLabel(value) {
   const source = String(value ?? "").trim();
   if (!source) return "";
   const lower = source.toLocaleLowerCase("es");
-  return lower.replace(/\p{L}/u, (character) => character.toLocaleUpperCase("es"));
+  return lower.replace(/(^|[^\p{L}])(\p{L})/gu, (_match, prefix, letter) => prefix + letter.toLocaleUpperCase("es"));
 }
