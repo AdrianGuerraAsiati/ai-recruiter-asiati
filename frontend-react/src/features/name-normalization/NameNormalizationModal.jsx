@@ -16,7 +16,7 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
     setScanning(true);
     try {
       const [response, auditHistory] = await Promise.all([
-        api.get("/candidates/name-normalization/preview?limit=250"),
+        api.get("/candidates/name-normalization/preview?limit=2000"),
         api.get("/candidates/name-normalization/history"),
       ]);
       setAudit(response.data);
@@ -125,7 +125,7 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
         {message && <p role="status">{message}</p>}
         {audit && <>
           <p><strong>{audit.total_scanned}</strong> candidatos auditados · <strong>{audit.suspected_count}</strong> sospechosos · {items.length} en revisión.</p>
-          {audit.has_more && <p role="alert">Hay más casos fuera del límite de 250. No se analizarán en esta ejecución.</p>}
+          {audit.has_more && <p role="alert">Hay más casos fuera del límite de 2000. No se analizarán en esta ejecución.</p>}
           <p className="muted">Se revisan todos los nombres, pero Bedrock solo analiza los sospechosos y guarda las propuestas para evitar repetir cobros. Nada se modifica sin aprobación.</p>
           <div className="ui-actions" style={{ marginBottom: 16 }}>
             <button type="button" className="btn btn-secondary" disabled={!items.length || working} onClick={analyze}>
