@@ -210,7 +210,9 @@ function Documents() {
 
   async function uploadRequirement(item) {
     const file = filesByType[item.document_type];
-    if (!file || !viewingOwn) return;
+    const adminContract = item.admin_only && canReview && canReadAll && !viewingOwn;
+    if (!file || (!viewingOwn && !adminContract)) return;
+    if (item.admin_only && !adminContract) return;
 
     setBusyKey(item.document_type);
     setError("");
@@ -222,7 +224,10 @@ function Documents() {
         content_type: file.type,
         size_bytes: file.size,
       };
-      const { data } = await api.post("/employee-documents/me/upload", manifest);
+      const uploadBase = adminContract
+        ? `/employee-documents/employees/${selectedEmployeeId}/contract`
+        : "/employee-documents/me";
+      const { data } = await api.post(`${uploadBase}/upload`, manifest);
       const formData = new FormData();
       Object.entries(data.upload?.fields || {}).forEach(([key, value]) => {
         formData.append(key, value);
@@ -235,7 +240,7 @@ function Documents() {
       });
       if (!uploadResponse.ok) throw new Error("S3 upload failed");
 
-      await api.post("/employee-documents/me/complete", {
+      await api.post(`${uploadBase}/complete`, {
         ...manifest,
         key: data.key,
       });
@@ -344,12 +349,12 @@ function Documents() {
   const fileItems = items.filter((item) => item.kind === "FILE");
   const textItems = items.filter((item) => item.kind === "TEXT");
   const summary = portfolio?.summary || {
-    total: 13,
+    total: 14,
     submitted: 0,
     approved: 0,
     pending_review: 0,
     changes_requested: 0,
-    missing: 13,
+    missing: 14,
     approval_percent: 0,
   };
 
@@ -366,7 +371,7 @@ function Documents() {
         <div className="document-requirement-header">
           <div>
             <span className="document-requirement-kind">
-              {item.kind === "FILE" ? "Documento" : "Información"}
+              {item.admin_only ? "Documento obligatorio de Talento Humano" : item.kind === "FILE" ? "Documento" : "Información"}
             </span>
             <h3>{item.label}</h3>
             <p>{item.description}</p>
@@ -399,7 +404,8 @@ function Documents() {
               </div>
             )}
 
-            {viewingOwn && canUploadOwn && (
+            {((viewingOwn && canUploadOwn && !item.admin_only) ||
+              (item.admin_only && canReadAll && canReview && !viewingOwn)) && (
               <div className="document-upload-row">
                 <label className="document-file-picker">
                   <span>{item.id ? "Reemplazar archivo" : "Seleccionar archivo"}</span>
