@@ -39,3 +39,24 @@ def test_rejects_foreign_profile_url_without_navigation():
     with pytest.raises(ValueError, match="COMPUTRABAJO_INVALID_CANDIDATE_URL"):
         asyncio.run(browser._read_candidate_profile_name_async("https://example.com/profile"))
     page.navigate.assert_not_awaited()
+
+@pytest.mark.parametrize("invalid_name", [
+    "Oferta Director financiero - Latam",
+    "Vacante Analista de Datos",
+    "Computrabajo Perfil Profesional",
+    "Disponibilidad Inmediata",
+    "Estoy trabajando actualmente",
+])
+def test_candidate_profile_rejects_metadata_as_identity(invalid_name):
+    browser, _page = fake_browser({"name": invalid_name})
+    with pytest.raises(RuntimeError, match="COMPUTRABAJO_NAME_UNVERIFIED"):
+        asyncio.run(browser._read_candidate_profile_name_async(DETAIL))
+
+
+@pytest.mark.parametrize("real_name", [
+    "María Fernanda Torres",
+    "Carlos Andrés Gómez",
+])
+def test_candidate_profile_accepts_verified_person_name(real_name):
+    browser, _page = fake_browser({"name": real_name})
+    assert asyncio.run(browser._read_candidate_profile_name_async(DETAIL)) == real_name
