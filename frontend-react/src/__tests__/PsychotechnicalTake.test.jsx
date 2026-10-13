@@ -80,6 +80,49 @@ describe("Public psychotechnical flow", () => {
     });
   });
 
+  it("allows the attention test without a countdown and requires all answers", async () => {
+    api.get.mockResolvedValueOnce({
+      data: {
+        status: "PENDING",
+        candidate_name: "Ana Pérez",
+        test_key: "ATTENTION_DETAIL_V00",
+        test_name: "Atención al detalle",
+        test_code: "ATENCIÓN-DETALLE",
+        question_count: 2,
+        duration_seconds: 440,
+      },
+    });
+    api.post.mockImplementation((url) => {
+      if (url.endsWith("/start")) {
+        return Promise.resolve({
+          data: {
+            assignment: {
+              test_key: "ATTENTION_DETAIL_V00",
+              test_name: "Atención al detalle",
+              duration_seconds: 440,
+            },
+            questions: [
+              { id: "AD01", section: "ALPHANUMERIC", prompt: "Selecciona A09RT3", options: [{ id: "A", label: "A09RT3" }, { id: "B", label: "A90RT3" }] },
+              { id: "AD02", section: "LETTERS", prompt: "Compara ABC", options: [{ id: "A", label: "Iguales" }, { id: "B", label: "Diferentes" }] },
+            ],
+          },
+        });
+      }
+      return Promise.resolve({ data: { status: "COMPLETED" } });
+    });
+    renderPage();
+    expect(await screen.findByText("Sin límite de tiempo")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Comenzar prueba" }));
+    expect(await screen.findByText("Selecciona A09RT3")).toBeInTheDocument();
+    expect(screen.queryByText(/tiempo restante|tiempo finalizado/i)).not.toBeInTheDocument();
+    const submit = screen.getByRole("button", { name: "Enviar prueba" });
+    expect(submit).toBeDisabled();
+    fireEvent.click(screen.getByLabelText("A09RT3"));
+    expect(submit).toBeDisabled();
+    fireEvent.click(screen.getByLabelText("Iguales"));
+    expect(submit).toBeEnabled();
+  });
+
   it("explains the complementary and non-clinical scope before starting", async () => {
     renderPage();
 
