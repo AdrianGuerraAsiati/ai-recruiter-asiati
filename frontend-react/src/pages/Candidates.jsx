@@ -11,6 +11,7 @@ import PageHeader from "../components/ui/PageHeader";
 import Icon from "../components/ui/Icon";
 import { EmptyState, FeedbackMessage, ProgressBar } from "../components/ui/StatePanel";
 import CandidateImportModal from "../features/candidate-import/CandidateImportModal.jsx";
+import NameNormalizationModal from "../features/name-normalization/NameNormalizationModal.jsx";
 
 const PAGE_SIZE = 20;
 
@@ -36,6 +37,7 @@ function Candidates() {
   const [restrictionReason, setRestrictionReason] = useState("");
   const [restrictionSaving, setRestrictionSaving] = useState(false);
   const [odooImporting, setOdooImporting] = useState(false);
+  const [showNameNormalization, setShowNameNormalization] = useState(false);
   const [countrySavingId, setCountrySavingId] = useState("");
 
   const requestedJobId = searchParams.get("job_id") || "";
@@ -386,6 +388,11 @@ function Candidates() {
         actions={(
           <div className="ui-actions">
             {canManageCandidates && (
+              <button type="button" className="btn btn-secondary" onClick={() => setShowNameNormalization(true)}>
+                <Icon name="scan-text" size={17} /> Normalizar todos los nombres
+              </button>
+            )}
+            {canManageCandidates && (
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -697,6 +704,13 @@ function Candidates() {
             </form>
           </section>
         </div>
+      )}
+
+      {showNameNormalization && canManageCandidates && (
+        <NameNormalizationModal
+          onClose={() => setShowNameNormalization(false)}
+          onApplied={() => void loadData(page)}
+        />
       )}
 
       {selectedEvaluation && (
