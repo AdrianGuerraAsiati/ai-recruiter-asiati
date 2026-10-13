@@ -76,7 +76,7 @@ describe("CandidateDetail Indeed canonical resume", () => {
 
     renderDetail();
 
-    await screen.findByText("Ana perez");
+    await screen.findByText("Ana Perez");
     expect(screen.getByText(/Perfil pendiente de evaluación/i)).toBeInTheDocument();
     expect(screen.getByText(/Pendiente de evaluación para la vacante seleccionada/i)).toBeInTheDocument();
   });
@@ -104,7 +104,7 @@ describe("CandidateDetail Indeed canonical resume", () => {
 
     renderDetail();
 
-    await screen.findByText("Ana perez");
+    await screen.findByText("Ana Perez");
     expect(screen.getByText(/La evaluación no pudo completarse/i)).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("null%");
   });
@@ -174,7 +174,7 @@ describe("CandidateDetail Indeed canonical resume", () => {
 
     renderDetail();
 
-    await screen.findByText("Ana perez");
+    await screen.findByText("Ana Perez");
     expect(screen.getByText(/Indeed Smart Sourcing/i)).toBeInTheDocument();
     expect(screen.getByText(/Procesando CV/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Ver CV/i })).not.toBeInTheDocument();
