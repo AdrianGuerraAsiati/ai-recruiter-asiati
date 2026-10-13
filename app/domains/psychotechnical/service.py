@@ -679,3 +679,55 @@ def cancel_assignment(db: Session, assignment_id: str) -> dict:
     db.commit()
     db.refresh(assignment)
     return _assignment_payload(assignment)
+
+
+def ensure_hiring_assignments(
+    db: Session,
+    *,
+    candidate_id: str,
+    job_id: str,
+    created_by_sub: str,
+    expires_days: int = 14,
+) -> dict:
+    """Assign all ASIATI tests when an application starts; preserve past results.
+
+    Existing assignments (including completed, expired and canceled ones) are
+    deliberately retained. A reissue requires an explicit administrator action.
+    New one-time links are returned only on first assignment.
+    """
+    existing = (
+        db.query(PsychotechnicalAssignment)
+        .filter(
+            PsychotechnicalAssignment.candidate_id == candidate_id,
+        )
+        .order_by(PsychotechnicalAssignment.created_at.desc())
+        .all()
+    )
+    # Applicants can have multiple vacancies; do not overwrite their tests.
+    by_key = {}
+    for row in existing:
+        by_key.setdefault(row.test_key, row)
+    new_links = []
+    for test_key in catalog.TESTS:
+        if test_key in by_key:
+            continue
+        assignment, token = create_assignment(
+            db,
+            candidate_id=candidate_id,
+            job_id=job_id,
+            test_key=test_key,
+            expires_days=expires_days,
+            created_by_sub=created_by_sub,
+        )
+        new_links.append({
+            "assignment_id": assignment.id,
+            "test_key": test_key,
+            "token": token,
+        })
+        by_key[test_key] = assignment
+    return {
+        "total": len(catalog.TESTS),
+        "created": len(new_links),
+        "assignments": [_assignment_payload(by_key[key]) for key in catalog.TESTS],
+        "new_links": new_links,
+    }

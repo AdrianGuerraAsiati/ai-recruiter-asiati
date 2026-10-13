@@ -10,6 +10,7 @@ from app.domains.hiring import service
 from app.domains.employees.service import list_employees, roles_for_profile
 from app.domains.indeed import service as indeed_service
 from app.models import Candidate, Job, JobCandidate, UserProfile
+from app.domains.psychotechnical.models import PsychotechnicalAssignment
 
 
 class FakeCognito:
@@ -62,6 +63,8 @@ def test_selected_application_provisions_once_without_hiring(context):
     assert first["credentials"]["username"] == "aperez"
     assert len(first["credentials"]["temporary_password"]) >= 12
     assert first["application_status"] == "SELECTED"
+    assert first["psychotechnical_assignments"]["created"] == 4
+    assert context.query(PsychotechnicalAssignment).count() == 4
     assert link.employee_id == employee.id
     assert link.hired_at is None
     assert employee.hire_date is None
@@ -78,6 +81,8 @@ def test_selected_application_provisions_once_without_hiring(context):
     repeat = start(context)
     assert repeat["already_started"] is True
     assert repeat["credentials"] is None
+    assert repeat["psychotechnical_assignments"]["created"] == 0
+    assert context.query(PsychotechnicalAssignment).count() == 4
     assert context.query(JobCandidate).count() == 1
     assert context.query(UserProfile).count() == 1
 
@@ -85,6 +90,8 @@ def test_selected_application_provisions_once_without_hiring(context):
     assert another_vacancy["employee_created"] is False
     assert another_vacancy["credentials"] is None
     assert context.query(JobCandidate).count() == 2
+    assert another_vacancy["psychotechnical_assignments"]["created"] == 0
+    assert context.query(PsychotechnicalAssignment).count() == 4
     assert context.query(UserProfile).count() == 1
 
 

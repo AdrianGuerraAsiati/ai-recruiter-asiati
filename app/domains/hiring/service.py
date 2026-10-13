@@ -17,6 +17,7 @@ from app.domains.odoo_sync import employee_delivery
 from app.domains.odoo_sync import integration as odoo_integration
 from app.domains.odoo_sync import service as odoo_sync_service
 from app.domains.training import service as training_service
+from app.domains.psychotechnical import service as psychotechnical_service
 from app.models import UserProfile, UserRole
 
 
@@ -120,6 +121,10 @@ def start_candidate_application(
         if normalize_email(employee.email) != resolved_email:
             raise HiringConflictError("El expediente está vinculado a otro correo. Revisa la identidad.")
         if employee.cognito_sub:
+            psychotechnical_assignments = psychotechnical_service.ensure_hiring_assignments(
+                db, candidate_id=candidate_id, job_id=job_id,
+                created_by_sub=created_by_sub,
+            )
             return {
             "job_id": job_id,
             "candidate_id": candidate_id,
@@ -129,6 +134,7 @@ def start_candidate_application(
             "employee": employees_service.employee_payload(db, employee),
             "credentials": None,
             "already_started": True,
+            "psychotechnical_assignments": psychotechnical_assignments,
             }
 
     employee = (
@@ -204,6 +210,10 @@ def start_candidate_application(
         )
     db.commit()
     db.refresh(link)
+    psychotechnical_assignments = psychotechnical_service.ensure_hiring_assignments(
+        db, candidate_id=candidate_id, job_id=job_id,
+        created_by_sub=created_by_sub,
+    )
 
     return {
         "job_id": job_id,
@@ -223,6 +233,7 @@ def start_candidate_application(
             else None
         ),
         "already_started": False,
+        "psychotechnical_assignments": psychotechnical_assignments,
     }
 
 
