@@ -103,6 +103,23 @@ def update_event(
         _translate(exc)
 
 
+@router.delete("/events/{event_id}")
+def delete_event(
+    event_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("candidates.manage")),
+):
+    try:
+        return service.delete_event(db, event_id)
+    except (google.GoogleCalendarRemoteError, google.GoogleCalendarConfigurationError):
+        raise HTTPException(
+            status_code=502,
+            detail="No se pudo eliminar la cita de Google Calendar. Inténtalo nuevamente.",
+        )
+    except Exception as exc:
+        _translate(exc)
+
+
 def _google_error(exc: Exception):
     if isinstance(exc, google.GoogleCalendarEmailError):
         raise HTTPException(status_code=422, detail="La cuenta debe pertenecer a un dominio corporativo autorizado.")
