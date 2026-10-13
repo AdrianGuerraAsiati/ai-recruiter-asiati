@@ -450,6 +450,29 @@ def try_sync_event(event: RecruitmentEvent) -> dict:
         return {"synced": False, "reason": "GOOGLE_UNAVAILABLE"}
 
 
+def delete_event(event: RecruitmentEvent, *, store=None, http_client=None) -> dict:
+    """Delete the deterministic Talent event from Google before deleting it locally."""
+    if not status(store=store)["connected"]:
+        return {"deleted": False, "reason": "NOT_CONNECTED"}
+    secret = _store(store).read()
+    target_email = _target_email(_calendar_secret(secret))
+    owns_client = http_client is None
+    http = http_client or httpx.Client(timeout=12)
+    try:
+        token = _access_token(secret, http)
+        url = GOOGLE_EVENTS_URL + "/" + quote(target_email, safe="") + "/events/" + _google_event_id(event)
+        response = http.delete(url, headers={"Authorization": "Bearer " + token},
+                               params={"sendUpdates": "none"})
+        if response.status_code not in (200, 204, 404, 410):
+            raise GoogleCalendarRemoteError("GOOGLE_CALENDAR_EVENT_DELETE_HTTP_" + str(response.status_code))
+        return {"deleted": True}
+    except httpx.RequestError as exc:
+        raise GoogleCalendarRemoteError("GOOGLE_CALENDAR_EVENT_DELETE_NETWORK_ERROR") from exc
+    finally:
+        if owns_client:
+            http.close()
+
+
 def sync_upcoming(db: Session, *, limit: int = 100, store=None, http_client=None) -> dict:
     """Retry recent/upcoming Talent events without touching unrelated Google events."""
     if not status(store=store)["connected"]:
