@@ -56,3 +56,85 @@
 @media(prefers-reduced-motion:reduce) {
  .employee-documents-page .document-requirement-card { transition:none; }
 }
+
+
+/* Accessible drag/drop document picker: consistent appearance across browsers. */
+.employee-documents-page .document-dropzone {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 152px;
+  padding: 18px 16px;
+  border: 1.5px dashed color-mix(in srgb, var(--talent-accent) 55%, var(--border));
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--talent-accent) 6%, var(--surface));
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .16s ease, background-color .16s ease;
+}
+.employee-documents-page .document-dropzone:hover,
+.employee-documents-page .document-dropzone:focus-within {
+  border-color: var(--talent-accent);
+  background: color-mix(in srgb, var(--talent-accent) 12%, var(--surface));
+}
+.employee-documents-page .document-dropzone:focus-within {
+  outline: 2px solid var(--talent-accent);
+  outline-offset: 2px;
+}
+.employee-documents-page .document-dropzone.has-file {
+  border-style: solid;
+  background: color-mix(in srgb, var(--success) 8%, var(--surface));
+}
+.employee-documents-page .document-dropzone.is-busy {
+  opacity: .6;
+  cursor: wait;
+}
+.employee-documents-page .document-dropzone-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: inherit;
+}
+.employee-documents-page .document-dropzone-input:disabled { cursor: wait; }
+.employee-documents-page .document-dropzone-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 4px;
+  border-radius: 12px;
+  color: var(--talent-accent);
+  background: color-mix(in srgb, var(--talent-accent) 17%, var(--surface));
+  font-size: 24px;
+  font-weight: 700;
+}
+.employee-documents-page .document-dropzone strong,
+.employee-documents-page .document-dropzone-filename {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+.employee-documents-page .document-dropzone-helper,
+.employee-documents-page .document-dropzone small {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.employee-documents-page .document-dropzone-action {
+  margin-top: 3px;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--talent-accent);
+}
+.employee-documents-page .document-upload-row { display: flex; flex-direction: column; gap: 12px; }
+.employee-documents-page .document-upload-row .btn-primary { width: 100%; }
+@media (max-width: 700px) {
+  .employee-documents-page .document-dropzone { min-height: 138px; padding: 16px 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .employee-documents-page .document-dropzone { transition: none; }
+}

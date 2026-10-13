@@ -407,21 +407,40 @@ function Documents() {
             {((viewingOwn && canUploadOwn && !item.admin_only) ||
               (item.admin_only && canReadAll && canReview && !viewingOwn)) && (
               <div className="document-upload-row">
-                <label className="document-file-picker">
-                  <span>{item.id ? "Reemplazar archivo" : "Seleccionar archivo"}</span>
+                <label
+                  className={`document-dropzone ${filesByType[item.document_type] ? "has-file" : ""} ${isBusy ? "is-busy" : ""}`}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (isBusy) return;
+                    const file = event.dataTransfer?.files?.[0] || null;
+                    if (file) onFileChange(item.document_type, { target: { files: [file], value: "" } });
+                  }}
+                >
                   <input
                     key={inputKey}
+                    className="document-dropzone-input"
                     type="file"
+                    aria-label={`Seleccionar archivo para ${item.label}`}
                     accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     onChange={(event) => onFileChange(item.document_type, event)}
                     disabled={isBusy}
                   />
+                  <span className="document-dropzone-icon" aria-hidden="true">↑</span>
+                  {filesByType[item.document_type] ? (
+                    <>
+                      <strong className="document-dropzone-filename">{filesByType[item.document_type].name}</strong>
+                      <small>{formatBytes(filesByType[item.document_type].size)} · Listo para enviar</small>
+                      <span className="document-dropzone-action">Cambiar archivo</span>
+                    </>
+                  ) : (
+                    <>
+                      <strong>{item.id ? "Seleccionar nueva versión" : "Adjuntar documento"}</strong>
+                      <span className="document-dropzone-helper">Haz clic aquí o arrastra tu archivo</span>
+                      <small>PDF, JPG, PNG, DOC o DOCX · Máx. 15 MB</small>
+                    </>
+                  )}
                 </label>
-                {filesByType[item.document_type] && (
-                  <small className="document-file-selection">
-                    {filesByType[item.document_type].name} · {formatBytes(filesByType[item.document_type].size)}
-                  </small>
-                )}
                 <button
                   className="btn btn-primary btn-sm"
                   type="button"

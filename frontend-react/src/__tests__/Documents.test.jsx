@@ -94,6 +94,17 @@ describe("Employee document review workspace", () => {
     expect(screen.getByText("Aprobados")).toBeInTheDocument();
   });
 
+  it("shows an accessible file picker with a selected filename", async () => {
+    render(<Documents />);
+    await screen.findByText("Documento de identidad");
+    const input = screen.getByLabelText("Seleccionar archivo para Documento de identidad");
+    expect(input).toHaveAttribute("type", "file");
+    const file = new File(["test"], "documento-nuevo.pdf", { type: "application/pdf" });
+    fireEvent.change(input, { target: { files: [file] } });
+    expect(screen.getByText("documento-nuevo.pdf")).toBeInTheDocument();
+    expect(screen.getByText("Cambiar archivo")).toBeInTheDocument();
+  });
+
   it("lets the employee resubmit complementary information", async () => {
     render(<Documents />);
     await screen.findByText("Dirección de residencia");
