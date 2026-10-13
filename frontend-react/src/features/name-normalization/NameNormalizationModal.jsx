@@ -6,6 +6,7 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
   const [audit, setAudit] = useState(null);
   const [suggestions, setSuggestions] = useState({});
   const [approved, setApproved] = useState({});
+  const [rejected, setRejected] = useState({});
   const [working, setWorking] = useState(false);
   const [scanning, setScanning] = useState(true);
   const [processed, setProcessed] = useState(0);
@@ -84,6 +85,7 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
       const result = await api.post("/candidates/name-normalization/apply", { approvals: payload });
       setMessage("Nombres actualizados: " + result.data.applied + ". Lote: " + result.data.batch_id);
       setApproved({});
+      setRejected({});
       setSuggestions({});
       await load();
       onApplied?.();
@@ -103,6 +105,7 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
       setMessage("Nombres revertidos: " + response.data.reverted);
       setSuggestions({});
       setApproved({});
+      setRejected({});
       await load();
       onApplied?.();
     } catch (err) {
@@ -114,6 +117,15 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
 
   const items = audit?.items || [];
   const count = Object.values(approved).filter(Boolean).length;
+  const rejectedCount = Object.values(rejected).filter(Boolean).length;
+  const readyCount = Object.values(suggestions).filter((item) => item.status === "REVIEW_REQUIRED").length;
+  const approveAll = () => {
+    const next = {};
+    for (const suggestion of Object.values(suggestions)) {
+      if (suggestion.status === "REVIEW_REQUIRED" && !rejected[suggestion.candidate_id]) next[suggestion.candidate_id] = true;
+    }
+    setApproved(next);
+  };
   return (
     <div className="modal-overlay" onClick={() => { if (!working) onClose(); }}>
       <section className="modal" role="dialog" aria-modal="true" aria-labelledby="normalize-title"
@@ -129,6 +141,7 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
         {message && <p role="status">{message}</p>}
         {audit && <>
           <p><strong>{audit.total_scanned}</strong> candidatos auditados · <strong>{audit.suspected_count}</strong> sospechosos · {items.length} en revisión.</p>
+          <p role="status"><strong>{count}</strong> aprobados · <strong>{rejectedCount}</strong> rechazados · <strong>{Math.max(items.length - count - rejectedCount, 0)}</strong> pendientes.</p>
           {audit.has_more && <p role="alert">Hay más casos fuera del límite de 2000. No se analizarán en esta ejecución.</p>}
           <p className="muted">Se revisan todos los nombres, pero Bedrock solo analiza los sospechosos y guarda las propuestas para evitar repetir cobros. Nada se modifica sin aprobación.</p>
           <div className="ui-actions" style={{ marginBottom: 16 }}>
@@ -137,19 +150,54 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
             </button>
             {working && <span role="status">Analizados {processed}/{items.length}</span>}
           </div>
+          <div className="ui-actions" style={{ marginBottom: 12, flexWrap: "wrap" }}>
+            <button type="button" className="btn btn-secondary" disabled={working || readyCount === 0} onClick={approveAll}>Aprobar todas las propuestas disponibles</button>
+            <button type="button" className="btn btn-secondary" disabled={working || count === 0} onClick={() => setApproved({})}>Desmarcar aprobaciones</button>
+            <span className="muted">Aprobar solo marca para aplicar; no cambia la base de datos todavía.</span>
+          </div>
           <div style={{ maxHeight: "48vh", overflow: "auto" }}>
-            <table className="table" style={{ width: "100%" }}>
-              <thead><tr><th>Aprobar</th><th>Nombre actual</th><th>Propuesta</th><th>Evidencia / Estado</th></tr></thead>
+            <table className="table" style={{ width: "100%", minWidth: 840, tableLayout: "auto" }}>
+              <thead><tr><th>Nombre actual / CV</th><th>Nombre propuesto</th><th>Evidencia / estado</th><th style={{ minWidth: 180 }}>Decisión</th></tr></thead>
               <tbody>{items.map((item) => {
                 const suggestion = suggestions[item.candidate_id];
                 const eligible = suggestion?.status === "REVIEW_REQUIRED";
+                const isApproved = Boolean(approved[item.candidate_id]);
+                const isRejected = Boolean(rejected[item.candidate_id]);
                 return <tr key={item.candidate_id}>
-                  <td><input type="checkbox" checked={Boolean(approved[item.candidate_id])}
-                    aria-label={"Aprobar nombre propuesto para " + item.current_name}
-                    disabled={!eligible || working}
-                    onChange={(event) => setApproved((previous) => ({ ...previous, [item.candidate_id]: event.target.checked }))} /></td>
-                  <td>{item.current_name}<div><button type="button" className="btn btn-secondary" onClick={() => void openCv(item.candidate_id)}>Ver CV</button></div></td><td>{suggestion?.suggested_name || "—"}</td>
-                  <td>{suggestion?.evidence || suggestion?.status || item.reason}</td>
+                  <td style={{ minWidth: 175, verticalAlign: "top", overflowWrap: "anywhere" }}>
+                    <strong>{item.current_name}</strong>
+                    <div style={{ marginTop: 8 }}>
+                      <button type="button" className="btn btn-secondary" onClick={() => void openCv(item.candidate_id)}>Ver CV</button>
+                    </div>
+                  </td>
+                  <td style={{ minWidth: 160, verticalAlign: "top", overflowWrap: "anywhere" }}>
+                    {suggestion?.suggested_name || "—"}
+                  </td>
+                  <td style={{ minWidth: 220, verticalAlign: "top", overflowWrap: "anywhere" }}>
+                    {suggestion?.evidence || suggestion?.status || item.reason}
+                  </td>
+                  <td style={{ verticalAlign: "top" }}>
+                    {eligible ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <button type="button" className={isApproved ? "btn btn-primary" : "btn btn-secondary"}
+                          aria-pressed={isApproved} disabled={working}
+                          onClick={() => {
+                            setApproved((previous) => ({ ...previous, [item.candidate_id]: !isApproved }));
+                            setRejected((previous) => ({ ...previous, [item.candidate_id]: false }));
+                          }}>
+                          {isApproved ? "✓ Aprobado" : "Aprobar nombre"}
+                        </button>
+                        <button type="button" className="btn btn-secondary"
+                          aria-pressed={isRejected} disabled={working}
+                          onClick={() => {
+                            setRejected((previous) => ({ ...previous, [item.candidate_id]: !isRejected }));
+                            setApproved((previous) => ({ ...previous, [item.candidate_id]: false }));
+                          }}>
+                          {isRejected ? "Rechazado · Deshacer" : "Rechazar"}
+                        </button>
+                      </div>
+                    ) : <span className="muted">Pendiente de propuesta</span>}
+                  </td>
                 </tr>;
               })}</tbody>
             </table>
