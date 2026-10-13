@@ -338,3 +338,30 @@ def revert_name_normalization_batch(
     except Exception:
         db.rollback()
         raise
+
+
+@router.get("/history")
+def list_name_normalization_history(
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_permission("candidates.manage")),
+):
+    candidates = db.query(Candidate.metadata_).filter(
+        Candidate.owner_sub == user["sub"]
+    ).all()
+    batches = {}
+    for (metadata,) in candidates:
+        for entry in (metadata or {}).get("name_normalization_history") or []:
+            key = entry.get("batch_id")
+            if not key:
+                continue
+            batch = batches.setdefault(key, {
+                "batch_id": key, "count": 0,
+                "approved_at": entry.get("approved_at"),
+            })
+            batch["count"] += 1
+            if entry.get("approved_at") and entry["approved_at"] > (batch["approved_at"] or ""):
+                batch["approved_at"] = entry["approved_at"]
+    items = sorted(
+        batches.values(), key=lambda item: item.get("approved_at") or "", reverse=True
+    )
+    return {"items": items[:30]}
