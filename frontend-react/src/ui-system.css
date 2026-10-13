@@ -1246,3 +1246,21 @@ body.nav-mobile-open {
     grid-template-columns: 1fr;
   }
 }
+
+/* ADN360: keep the first field visible below the application dialog header. */
+.candidate-user-modal .modal-header {
+  position: relative;
+  top: auto;
+  margin: 0 0 20px;
+  padding: 0 0 20px;
+  backdrop-filter: none;
+}
+.candidate-user-modal .employee-form {
+  padding-top: 4px;
+}
+.candidate-user-modal .form-group label {
+  display: block;
+  line-height: 1.45;
+  height: auto;
+  overflow: visible;
+}

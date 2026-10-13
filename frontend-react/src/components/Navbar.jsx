@@ -60,7 +60,7 @@ function primaryRole(roles = []) {
 
 function Brand() {
   return (
-    <NavLink to={useSession().principal?.roles?.includes("APPLICANT") ? "/documents" : "/dashboard"} className="navbar-brand" aria-label="ASIATI Talent Intelligence, inicio">
+    <NavLink to={useSession().principal?.roles?.includes("APPLICANT") ? "/documents" : "/dashboard"} className="navbar-brand" aria-label="ADN360 | ASIATI, inicio">
       <BrandMark />
     </NavLink>
   );

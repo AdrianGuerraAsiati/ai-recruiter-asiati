@@ -39,6 +39,7 @@ def test_cors_origins_preserve_public_contract():
         "http://localhost:5175",
         "https://ai.adrianguerra.net",
         "https://air.adrianguerra.net",
+        "https://adn360.asiaticorp.com",
     )
 
 

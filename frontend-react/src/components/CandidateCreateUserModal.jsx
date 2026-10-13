@@ -189,12 +189,12 @@ export default function CandidateCreateUserModal({
         >
           <div className="modal-header">
             <div>
-              <span className="eyebrow">Acceso a Talent</span>
+              <span className="eyebrow">Acceso a ADN360</span>
               <h2 id="candidate-user-modal-title">{jobId ? "Iniciar postulación" : "Crear usuario"}</h2>
               <p>
                 {jobId
-                  ? `Vincularás a ${titleName} con la vacante ${jobTitle}. Talent iniciará su proceso de contratación y generará acceso provisional si aún no tiene cuenta.`
-                  : `Crea el acceso de ${titleName}. Talent generará una contraseña temporal y asignará el onboarding corporativo.`}
+                  ? `Vincularás a ${titleName} con la vacante ${jobTitle}. ADN360 iniciará su proceso de contratación y generará acceso provisional si aún no tiene cuenta.`
+                  : `Crea el acceso de ${titleName}. ADN360 generará una contraseña temporal y asignará el onboarding corporativo.`}
               </p>
             </div>
             <button className="btn-close" type="button" aria-label="Cerrar" onClick={onClose}>×</button>
@@ -208,7 +208,7 @@ export default function CandidateCreateUserModal({
 
               <form className="employee-form" onSubmit={submit}>
                 <div className="form-group">
-                  <label htmlFor="candidate-user-username">Usuario de Talent</label>
+                  <label htmlFor="candidate-user-username">Usuario de ADN360</label>
                   <input
                     id="candidate-user-username"
                     value={form.username}

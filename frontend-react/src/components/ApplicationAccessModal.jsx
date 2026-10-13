@@ -68,7 +68,7 @@ export default function ApplicationAccessModal({ application, onClose, onUpdated
         {error && <div className="alert" role="alert">{error}</div>}
         <form className="employee-form" onSubmit={saveUsername}>
           <div className="form-group">
-            <label htmlFor="applicant-access-username">Usuario de Talent</label>
+            <label htmlFor="applicant-access-username">Usuario de ADN360</label>
             <input id="applicant-access-username" value={username} onChange={(event) => setUsername(event.target.value.toLowerCase())} required minLength={3} maxLength={40} autoComplete="off" />
           </div>
           <div className="form-actions">

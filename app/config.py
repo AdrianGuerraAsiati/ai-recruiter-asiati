@@ -11,6 +11,7 @@ CORS_ORIGINS = (
     "http://localhost:5175",
     "https://ai.adrianguerra.net",
     "https://air.adrianguerra.net",
+    "https://adn360.asiaticorp.com",
 )
 
 

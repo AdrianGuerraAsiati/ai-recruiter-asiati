@@ -85,17 +85,17 @@ function Login() {
 
   return (
     <main className="auth-page">
-      <section className="auth-story auth-talent-story" aria-label="Presentación de ASIATI Talent Intelligence">
+      <section className="auth-story auth-talent-story" aria-label="Presentación de ASIATI ADN360">
         <AuthBrand />
         <div className="auth-story-content auth-talent-story-content">
           <span className="eyebrow eyebrow-dark"><i /> Plataforma de talento ASIATI</span>
           <h1>Del primer contacto al <em>crecimiento de cada persona.</em></h1>
           <p>
-            Talent Intelligence conecta selección, gestión de equipo y desarrollo
+            ADN360 conecta selección, gestión de equipo y desarrollo
             en una sola experiencia para tomar mejores decisiones sobre las personas.
           </p>
 
-          <div className="auth-capability-grid" aria-label="Capacidades de Talent Intelligence">
+          <div className="auth-capability-grid" aria-label="Capacidades de ADN360">
             <article>
               <span>01</span>
               <div>
@@ -130,14 +130,14 @@ function Login() {
           <span>Desarrollo</span>
         </div>
 
-        <p className="auth-story-footer">ASIATI · Talent Intelligence · Selección · Equipo · Desarrollo</p>
+        <p className="auth-story-footer">ASIATI · ADN360 · Selección · Equipo · Desarrollo</p>
       </section>
 
       <section className="auth-panel">
         <div className="auth-mobile-brand"><AuthBrand /></div>
         <div className="auth-card">
           <div className="auth-heading auth-login-heading">
-            <span className="eyebrow">Talent Intelligence</span>
+            <span className="eyebrow">ADN360</span>
             <h2>Bienvenido</h2>
             <p>Accede a tu espacio de reclutamiento, equipo o aprendizaje según tu rol.</p>
             <div className="auth-role-strip" aria-label="Áreas de la plataforma">
@@ -192,7 +192,7 @@ function Login() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Tu usuario de Talent"
+                  placeholder="Tu usuario de ADN360"
                   autoComplete="username"
                   required
                 />
