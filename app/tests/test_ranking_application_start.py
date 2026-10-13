@@ -7,6 +7,8 @@ from sqlalchemy.orm import sessionmaker
 from app.access_control import APPLICANT, ensure_rbac_catalog, resolve_principal
 from app.db import Base
 from app.domains.hiring import service
+from app.domains.psychotechnical import own_router
+from app.domains.psychotechnical.models import PsychotechnicalAssignment
 from app.domains.employees.service import list_employees, roles_for_profile
 from app.domains.indeed import service as indeed_service
 from app.models import Candidate, Job, JobCandidate, UserProfile
@@ -133,3 +135,19 @@ def test_provisions_existing_imported_profile_without_duplicates(context):
     assert context.query(UserProfile).one().id == original_id
     assert context.query(JobCandidate).one().employee_id == original_id
     assert roles_for_profile(context, original_id) == [APPLICANT]
+
+
+def test_existing_applicant_receives_default_tests_when_opening_ficha(context):
+    first = start(context)
+    profile_id = first["employee"]["id"]
+    context.query(PsychotechnicalAssignment).delete()
+    context.commit()
+
+    principal = {"profile": {"id": profile_id}, "sub": "applicant-sub"}
+    result = own_router.own_assignments(db=context, principal=principal)
+    assert len(result["items"]) == 4
+    assert context.query(PsychotechnicalAssignment).count() == 4
+
+    again = own_router.own_assignments(db=context, principal=principal)
+    assert len(again["items"]) == 4
+    assert context.query(PsychotechnicalAssignment).count() == 4
