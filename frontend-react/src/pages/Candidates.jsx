@@ -1,5 +1,6 @@
 // eslint-disable-next-line no-unused-vars
 import React, { useCallback, useEffect, useState } from "react";
+import { sentenceCaseLabel } from "../utils/text";
 import { useSearchParams } from "react-router-dom";
 
 import api from "../api/client";
@@ -479,7 +480,7 @@ function Candidates() {
           <article className="card candidate-card candidate-card--directory" key={candidate.candidate_id}>
             <div className="candidate-header candidate-directory-header">
               <div>
-                <h2>{candidate.name}</h2>
+                <h2>{sentenceCaseLabel(candidate.name)}</h2>
                 <p className="muted candidate-directory-subtitle">
                   Candidato registrado · {candidate.country_code
                     ? `${countryFlag(candidate.country_code)} ${countryName(candidate.country_code)}`
@@ -568,7 +569,7 @@ function Candidates() {
                 <option value="">Seleccione vacante</option>
                 {jobs.map((job) => (
                   <option key={job.job_id} value={job.job_id}>
-                    {job.title}
+                    {sentenceCaseLabel(job.title)}
                   </option>
                 ))}
               </select>

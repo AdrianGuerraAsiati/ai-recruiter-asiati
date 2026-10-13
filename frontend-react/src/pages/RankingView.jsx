@@ -1,5 +1,6 @@
 // eslint-disable-next-line no-unused-vars
 import React from "react";
+import { sentenceCaseLabel } from "../utils/text";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -901,7 +902,7 @@ async function recalculateRanking() {
               const count = Number(job.candidate_count || 0);
               return (
                 <option key={job.job_id} value={job.job_id}>
-                  {job.title}{count === 0 ? " · 0 postulantes directos" : ` · ${count} postulante${count === 1 ? "" : "s"} directo${count === 1 ? "" : "s"}`}
+                  {sentenceCaseLabel(job.title)}{count === 0 ? " · 0 postulantes directos" : ` · ${count} postulante${count === 1 ? "" : "s"} directo${count === 1 ? "" : "s"}`}
                 </option>
               );
             })}
@@ -1241,7 +1242,7 @@ async function recalculateRanking() {
                 <div className="ranking-candidate-header">
                   <div className="ranking-candidate-header-left">
                     <span className="ranking-candidate-position">#{position}</span>
-                    <span className="ranking-candidate-name">{candidate.candidate_name}</span>
+                    <span className="ranking-candidate-name">{sentenceCaseLabel(candidate.candidate_name)}</span>
                     {candidate.applied_to_job && (
                       <span className="ranking-applied-chip">Aplicó a esta vacante</span>
                     )}
@@ -1539,7 +1540,7 @@ async function recalculateRanking() {
             <div className="modal-header">
               <div>
                 <span className="eyebrow">Análisis del candidato</span>
-                <h2 id="ranking-analysis-title">{selectedCandidate.candidate_name}</h2>
+                <h2 id="ranking-analysis-title">{sentenceCaseLabel(selectedCandidate.candidate_name)}</h2>
               </div>
               <button
                 className="btn btn-close"

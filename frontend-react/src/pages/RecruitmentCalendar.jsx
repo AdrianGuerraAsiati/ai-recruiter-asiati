@@ -1,5 +1,6 @@
 // eslint-disable-next-line no-unused-vars
 import React, { useEffect, useMemo, useState } from "react";
+import { sentenceCaseLabel } from "../utils/text";
 import api from "../api/client";
 import GoogleCalendarConnection from "../components/GoogleCalendarConnection";
 import { useSession } from "../context/SessionContext";
@@ -405,7 +406,7 @@ function RecruitmentCalendar() {
                           title={`${KIND_LABELS[event.kind]} · ${event.candidate.name}`}
                         >
                           <strong>{formatTime(event.starts_at)}</strong>
-                          <span>{event.candidate.name}</span>
+                          <span>{sentenceCaseLabel(event.candidate.name)}</span>
                         </button>
                       ))}
                     </div>
@@ -432,8 +433,8 @@ function RecruitmentCalendar() {
                 <article className="recruitment-upcoming-item" key={event.id}>
                   <div>
                     <span className="calendar-event-kind">{KIND_LABELS[event.kind]}</span>
-                    <strong>{event.candidate.name}</strong>
-                    <small>{event.job.title}</small>
+                    <strong>{sentenceCaseLabel(event.candidate.name)}</strong>
+                    <small>{sentenceCaseLabel(event.job.title)}</small>
                   </div>
                   <time>{formatLongDate(event.starts_at)}</time>
                   {event.kind === "ONSITE_INTERVIEW" && <small>ASIATI</small>}
@@ -484,7 +485,7 @@ function RecruitmentCalendar() {
                   <option value="">Selecciona una postulación</option>
                   {applications.map((application) => (
                     <option value={applicationValue(application)} key={application.id}>
-                      {application.candidate.name} · {application.job.title}
+                      {sentenceCaseLabel(application.candidate.name)} · {sentenceCaseLabel(application.job.title)}
                     </option>
                   ))}
                 </select>
