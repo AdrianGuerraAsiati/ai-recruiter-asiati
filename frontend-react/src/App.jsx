@@ -27,6 +27,7 @@ import Profile from "./pages/Profile";
 import Documents from "./pages/Documents";
 import Psychotechnical from "./pages/Psychotechnical";
 import PsychotechnicalTake from "./pages/PsychotechnicalTake";
+import MyPsychotechnical from "./pages/MyPsychotechnical";
 import Forbidden from "./pages/Forbidden";
 import NotFound from "./pages/NotFound";
 import "./ui-system.css";
@@ -117,6 +118,7 @@ function AppRoutes() {
       <Route path="/calendar" element={<ProtectedPage permission="candidates.read"><RecruitmentCalendar /></ProtectedPage>} />
       <Route path="/candidates" element={<ProtectedPage permission="candidates.read"><Candidates /></ProtectedPage>} />
       <Route path="/psychotechnical/take/:token" element={<PsychotechnicalTake />} />
+      <Route path="/my-psychotechnical" element={<ProtectedPage><MyPsychotechnical /></ProtectedPage>} />
       <Route path="/ranking" element={<ProtectedPage permission="ranking.read"><Ranking /></ProtectedPage>} />
       <Route path="/psychotechnical" element={<ProtectedPage permission="psychotechnical.read"><Psychotechnical /></ProtectedPage>} />
       <Route path="/integrations" element={<ProtectedPage permission="integrations.manage"><Integrations /></ProtectedPage>} />
