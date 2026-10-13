@@ -292,3 +292,49 @@ def revert_normalized_name(
     candidate.metadata_ = metadata
     db.commit()
     return {"reverted": True, "candidate_id": cid}
+
+
+class RevertBatchRequest(BaseModel):
+    batch_id: str
+
+
+@router.post("/revert-batch")
+def revert_name_normalization_batch(
+    body: RevertBatchRequest,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_permission("candidates.manage")),
+):
+    try:
+        batch = str(UUID(body.batch_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Lote inválido.") from exc
+    try:
+        candidates = db.query(Candidate).filter(
+            Candidate.owner_sub == user["sub"]
+        ).order_by(Candidate.id).with_for_update().all()
+        changes = []
+        for candidate in candidates:
+            metadata = dict(candidate.metadata_ or {})
+            history = list(metadata.get("name_normalization_history") or [])
+            if history and history[-1].get("batch_id") == batch:
+                last = history[-1]
+                if candidate.name != last.get("new_name"):
+                    raise HTTPException(
+                        status_code=409, detail="Un candidato cambió desde la normalización."
+                    )
+                changes.append((candidate, metadata, history, last))
+        if not changes:
+            raise HTTPException(status_code=404, detail="Lote no encontrado o ya revertido.")
+        for candidate, metadata, history, last in changes:
+            candidate.name = last["previous_name"]
+            metadata["name_normalization_history"] = history[:-1]
+            metadata["name_normalization_last_reverted"] = {
+                **last, "reverted_by": user["sub"],
+                "reverted_at": datetime.now(timezone.utc).isoformat(),
+            }
+            candidate.metadata_ = metadata
+        db.commit()
+        return {"reverted": len(changes), "batch_id": batch}
+    except Exception:
+        db.rollback()
+        raise
