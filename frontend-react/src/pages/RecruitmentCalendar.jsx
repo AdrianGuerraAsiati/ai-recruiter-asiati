@@ -13,8 +13,8 @@ import {
 import "./RecruitmentCalendar.css";
 
 const KIND_LABELS = {
-  PHONE_CALL: "Llamada telefónica",
-  ONSITE_INTERVIEW: "Entrevista presencial",
+  PHONE_CALL: "Videollamada · Google Meet",
+  ONSITE_INTERVIEW: "Visita presencial · ASIATI",
 };
 
 const STATUS_LABELS = {
@@ -206,7 +206,7 @@ function RecruitmentCalendar() {
         kind: form.kind,
         starts_at: new Date(form.starts_at).toISOString(),
         ends_at: new Date(form.ends_at).toISOString(),
-        location: form.location || null,
+        location: form.kind === "ONSITE_INTERVIEW" ? "ASIATI" : null,
         notes: form.notes || null,
       };
       if (editingEvent) {
@@ -376,7 +376,7 @@ function RecruitmentCalendar() {
                     <small>{event.job.title}</small>
                   </div>
                   <time>{formatLongDate(event.starts_at)}</time>
-                  {event.location && <small>{event.location}</small>}
+                  {event.kind === "ONSITE_INTERVIEW" && <small>ASIATI</small>}
                   {canManage && (
                     <div className="calendar-item-actions">
                       <button className="btn btn-secondary btn-sm" type="button" onClick={() => openEdit(event)}>
@@ -436,20 +436,11 @@ function RecruitmentCalendar() {
                 <div className="form-group">
                   <label htmlFor="calendar-kind">Tipo</label>
                   <select id="calendar-kind" value={form.kind} onChange={(event) => changeKind(event.target.value)}>
-                    <option value="PHONE_CALL">Llamada telefónica</option>
-                    <option value="ONSITE_INTERVIEW">Entrevista presencial</option>
+                    <option value="PHONE_CALL">Videollamada (Google Meet)</option>
+                    <option value="ONSITE_INTERVIEW">Visita presencial (ASIATI)</option>
                   </select>
                 </div>
-                <div className="form-group">
-                  <label htmlFor="calendar-location">Lugar</label>
-                  <input
-                    id="calendar-location"
-                    value={form.location}
-                    placeholder={form.kind === "PHONE_CALL" ? "Opcional" : "Oficina ASIATI, sala…"}
-                    onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))}
-                  />
-                </div>
-                <div className="form-group">
+<div className="form-group">
                   <label htmlFor="calendar-start">Inicio</label>
                   <input id="calendar-start" type="datetime-local" value={form.starts_at} required onChange={(event) => setForm((current) => ({ ...current, starts_at: event.target.value }))} />
                 </div>
@@ -459,6 +450,7 @@ function RecruitmentCalendar() {
                 </div>
               </div>
 
+              <p className="calendar-meeting-hint">{form.kind === "PHONE_CALL" ? "Se creará automáticamente un enlace de Google Meet en Google Calendar." : "La entrevista se realizará presencialmente en ASIATI."}</p>
               <div className="form-group">
                 <label htmlFor="calendar-notes">Notas</label>
                 <textarea
