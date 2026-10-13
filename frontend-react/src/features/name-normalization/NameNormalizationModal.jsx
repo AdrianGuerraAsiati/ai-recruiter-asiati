@@ -129,7 +129,7 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
   return (
     <div className="modal-overlay" onClick={() => { if (!working) onClose(); }}>
       <section className="modal" role="dialog" aria-modal="true" aria-labelledby="normalize-title"
-        style={{ width: "min(95vw, 1080px)", maxHeight: "90vh", overflowY: "auto" }}
+        style={{ width: "min(96vw, 1100px)", maxWidth: "none", maxHeight: "94vh", overflowY: "auto", boxSizing: "border-box" }}
         onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div><h2 id="normalize-title">Normalizar todos los nombres</h2>
@@ -155,52 +155,60 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
             <button type="button" className="btn btn-secondary" disabled={working || count === 0} onClick={() => setApproved({})}>Desmarcar aprobaciones</button>
             <span className="muted">Aprobar solo marca para aplicar; no cambia la base de datos todavía.</span>
           </div>
-          <div style={{ maxHeight: "48vh", overflow: "auto" }}>
-            <table className="table" style={{ width: "100%", minWidth: 840, tableLayout: "auto" }}>
-              <thead><tr><th>Nombre actual / CV</th><th>Nombre propuesto</th><th>Evidencia / estado</th><th style={{ minWidth: 180 }}>Decisión</th></tr></thead>
-              <tbody>{items.map((item) => {
-                const suggestion = suggestions[item.candidate_id];
-                const eligible = suggestion?.status === "REVIEW_REQUIRED";
-                const isApproved = Boolean(approved[item.candidate_id]);
-                const isRejected = Boolean(rejected[item.candidate_id]);
-                return <tr key={item.candidate_id}>
-                  <td style={{ minWidth: 175, verticalAlign: "top", overflowWrap: "anywhere" }}>
-                    <strong>{item.current_name}</strong>
-                    <div style={{ marginTop: 8 }}>
-                      <button type="button" className="btn btn-secondary" onClick={() => void openCv(item.candidate_id)}>Ver CV</button>
-                    </div>
-                  </td>
-                  <td style={{ minWidth: 160, verticalAlign: "top", overflowWrap: "anywhere" }}>
-                    {suggestion?.suggested_name || "—"}
-                  </td>
-                  <td style={{ minWidth: 220, verticalAlign: "top", overflowWrap: "anywhere" }}>
-                    {suggestion?.evidence || suggestion?.status || item.reason}
-                  </td>
-                  <td style={{ verticalAlign: "top" }}>
-                    {eligible ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        <button type="button" className={isApproved ? "btn btn-primary" : "btn btn-secondary"}
-                          aria-pressed={isApproved} disabled={working}
-                          onClick={() => {
-                            setApproved((previous) => ({ ...previous, [item.candidate_id]: !isApproved }));
-                            setRejected((previous) => ({ ...previous, [item.candidate_id]: false }));
-                          }}>
-                          {isApproved ? "✓ Aprobado" : "Aprobar nombre"}
-                        </button>
-                        <button type="button" className="btn btn-secondary"
-                          aria-pressed={isRejected} disabled={working}
-                          onClick={() => {
-                            setRejected((previous) => ({ ...previous, [item.candidate_id]: !isRejected }));
-                            setApproved((previous) => ({ ...previous, [item.candidate_id]: false }));
-                          }}>
-                          {isRejected ? "Rechazado · Deshacer" : "Rechazar"}
-                        </button>
+          <div style={{ display: "grid", gap: 12, marginBottom: 18 }}>
+            {items.map((item) => {
+              const suggestion = suggestions[item.candidate_id];
+              const eligible = suggestion?.status === "REVIEW_REQUIRED";
+              const isApproved = Boolean(approved[item.candidate_id]);
+              const isRejected = Boolean(rejected[item.candidate_id]);
+              return (
+                <article key={item.candidate_id} style={{
+                  background: "rgba(255,255,255,0.035)", border: "1px solid rgba(180,220,230,0.18)",
+                  borderRadius: 12, padding: 16, minWidth: 0
+                }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 225px), 1fr))", gap: 18 }}>
+                    <div style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+                      <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Nombre actual</div>
+                      <strong>{item.current_name}</strong>
+                      <div style={{ marginTop: 12 }}>
+                        <button type="button" className="btn btn-secondary" onClick={() => void openCv(item.candidate_id)}>Ver CV original</button>
                       </div>
-                    ) : <span className="muted">Pendiente de propuesta</span>}
-                  </td>
-                </tr>;
-              })}</tbody>
-            </table>
+                    </div>
+                    <div style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+                      <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Nombre propuesto</div>
+                      <strong>{suggestion?.suggested_name || "Sin propuesta"}</strong>
+                      <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>Evidencia</div>
+                      <p style={{ margin: "4px 0 0", overflowWrap: "anywhere" }}>
+                        {suggestion?.evidence || suggestion?.status || item.reason}
+                      </p>
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>Decisión</div>
+                      {eligible ? (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                          <button type="button" className={isApproved ? "btn btn-primary" : "btn btn-secondary"}
+                            aria-pressed={isApproved} disabled={working}
+                            onClick={() => {
+                              setApproved((previous) => ({ ...previous, [item.candidate_id]: !isApproved }));
+                              setRejected((previous) => ({ ...previous, [item.candidate_id]: false }));
+                            }}>
+                            {isApproved ? "✓ Aprobado" : "Aprobar nombre"}
+                          </button>
+                          <button type="button" className="btn btn-secondary" aria-pressed={isRejected}
+                            disabled={working}
+                            onClick={() => {
+                              setRejected((previous) => ({ ...previous, [item.candidate_id]: !isRejected }));
+                              setApproved((previous) => ({ ...previous, [item.candidate_id]: false }));
+                            }}>
+                            {isRejected ? "Rechazado · Deshacer" : "Rechazar"}
+                          </button>
+                        </div>
+                      ) : <span className="muted">Primero analiza el CV con IA.</span>}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
           {history.length > 0 && (
             <div style={{ marginTop: 24 }}>
