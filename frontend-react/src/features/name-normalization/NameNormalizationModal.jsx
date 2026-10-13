@@ -11,11 +11,16 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
   const [processed, setProcessed] = useState(0);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [history, setHistory] = useState([]);
   const load = useCallback(async () => {
     setScanning(true);
     try {
-      const response = await api.get("/candidates/name-normalization/preview?limit=250");
+      const [response, auditHistory] = await Promise.all([
+        api.get("/candidates/name-normalization/preview?limit=250"),
+        api.get("/candidates/name-normalization/history"),
+      ]);
       setAudit(response.data);
+      setHistory(auditHistory.data?.items || []);
     } catch (err) {
       setError(getApiErrorMessage(err, { fallback: "No se pudo revisar la base de candidatos." }));
     } finally {
@@ -25,7 +30,7 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
   useEffect(() => { void load(); }, [load]);
 
   async function analyze() {
-    if (!window.confirm("¿Analizar los nombres sospechosos con Bedrock? Puede generar consumo AWS. Los CV ya analizados se reutilizan.")) return;
+    if (!window.confirm("¿Analizar los nombres sospechosos con Bedrock? Puede generar consumo AWS. Las propuestas creadas previamente desde este botón se reutilizan.")) return;
     setWorking(true);
     setError("");
     setProcessed(0);
@@ -85,6 +90,24 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
     }
   }
 
+  async function undoBatch(batchId) {
+    if (!window.confirm("¿Revertir este lote completo? Solo se restaurarán nombres que no hayan cambiado desde su aprobación.")) return;
+    setWorking(true);
+    setError("");
+    try {
+      const response = await api.post("/candidates/name-normalization/revert-batch", { batch_id: batchId });
+      setMessage("Nombres revertidos: " + response.data.reverted);
+      setSuggestions({});
+      setApproved({});
+      await load();
+      onApplied?.();
+    } catch (err) {
+      setError(getApiErrorMessage(err, { fallback: "No fue posible revertir el lote." }));
+    } finally {
+      setWorking(false);
+    }
+  }
+
   const items = audit?.items || [];
   const count = Object.values(approved).filter(Boolean).length;
   return (
@@ -127,6 +150,18 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
               })}</tbody>
             </table>
           </div>
+          {history.length > 0 && (
+            <div style={{ marginTop: 24 }}>
+              <h3>Historial de normalizaciones</h3>
+              {history.map((batch) => (
+                <div key={batch.batch_id} className="ui-actions" style={{ marginBottom: 8 }}>
+                  <span>{batch.count} candidatos · {new Date(batch.approved_at).toLocaleString("es-CO")}</span>
+                  <button type="button" className="btn btn-secondary" disabled={working}
+                    onClick={() => void undoBatch(batch.batch_id)}>Revertir lote</button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="form-actions" style={{ marginTop: 18 }}>
             <button type="button" className="btn btn-secondary" onClick={onClose} disabled={working}>Cerrar</button>
             <button type="button" className="btn btn-primary" onClick={apply} disabled={!count || working}>
