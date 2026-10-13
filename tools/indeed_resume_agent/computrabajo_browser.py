@@ -4,6 +4,7 @@ import asyncio
 import base64
 import concurrent.futures
 import json
+import re
 import threading
 import time
 from datetime import datetime, timezone
@@ -19,6 +20,25 @@ from .config import AgentConfig
 
 _COMPUTRABAJO_PORTAL = "https://empresa.co.computrabajo.com/"
 _ALLOWED_HOST_SUFFIXES = ("computrabajo.com", "computrabajo.com.co")
+
+# Fail closed: vacancy labels and form answers must not become candidate names.
+_CANDIDATE_NAME_INVALID = re.compile(
+    r"\b(?:oferta|vacante|empleo|computrabajo|curr[ií]culum|carnet|"
+    r"veh[ií]culo|disponibilidad|experiencia|perfil profesional|"
+    r"director financiero|estoy trabajando)\b",
+    re.IGNORECASE,
+)
+
+
+def valid_computrabajo_candidate_name(value: object) -> bool:
+    name = " ".join(str(value or "").split())
+    if not 5 <= len(name) <= 100 or _CANDIDATE_NAME_INVALID.search(name):
+        return False
+    if any(char.isdigit() for char in name) or "@" in name or ":" in name:
+        return False
+    words = name.split()
+    return 2 <= len(words) <= 6 and sum(c.isalpha() for c in name) >= 5
+
 
 
 def safe_computrabajo_url(raw_url: str | None = None) -> str:
@@ -750,6 +770,41 @@ class ComputrabajoBrowserUse:
             ), timeout=max(300.0, max_pages * 12.0),
         )
 
+    async def _read_candidate_profile_name_async(self, detail_url: str) -> str:
+        """Read only the name shown in an authorized Computrabajo profile."""
+        parsed = urlparse(detail_url)
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname != "empresa.co.computrabajo.com"
+            or parsed.path.casefold() != "/company/matchcvdetail/matchdetail"
+        ):
+            raise ValueError("COMPUTRABAJO_INVALID_CANDIDATE_URL")
+        cdp = await self._ensure_started()
+        await cdp.cdp_client.send.Page.navigate(
+            params={"url": detail_url}, session_id=cdp.session_id,
+        )
+        await self._wait_ready(cdp)
+        info = await self._evaluate(cdp, """(() => {
+            if (location.hostname !== 'empresa.co.computrabajo.com' ||
+                location.pathname.toLowerCase() !== '/company/matchcvdetail/matchdetail')
+                return {error:'COMPUTRABAJO_PROFILE_REQUIRED'};
+            const content = (document.body?.innerText || '').toLowerCase();
+            if (/su oferta de empleo ha vencido|oferta de empleo ha vencido|contratar una membresía/i.test(content))
+                return {error:'COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED'};
+            return {name:(document.querySelector('h1.fs22, h1')?.textContent || '').trim().slice(0,180)};
+        })()""")
+        if not isinstance(info, dict):
+            raise RuntimeError("COMPUTRABAJO_PROFILE_INVALID")
+        if info.get("error"):
+            raise RuntimeError(str(info["error"]))
+        name = " ".join(str(info.get("name") or "").split())
+        if not valid_computrabajo_candidate_name(name):
+            raise RuntimeError("COMPUTRABAJO_NAME_UNVERIFIED")
+        return name
+
+    def read_candidate_profile_name(self, detail_url: str) -> str:
+        return self._call(self._read_candidate_profile_name_async(detail_url), timeout=90.0)
+
     async def _collect_candidate_async(self, candidate: dict) -> dict:
         """Navigate to one discovered profile and obtain CV bytes within browser session.
 
@@ -788,11 +843,12 @@ class ComputrabajoBrowserUse:
             raise RuntimeError("COMPUTRABAJO_PROFILE_INVALID")
         if info.get("error"):
             raise RuntimeError(str(info["error"]))
-        name = str(candidate.get("candidate_name") or info.get("name") or "").strip()
-        if not name:
-            raise RuntimeError("COMPUTRABAJO_NAME_MISSING")
         if not info.get("attachment_url") and not info.get("name"):
             raise RuntimeError("COMPUTRABAJO_PROFILE_CONTENT_UNAVAILABLE")
+        # A listing's title can refer to the VACANCY. Prefer the opened profile.
+        name = " ".join(str(info.get("name") or "").split())
+        if not valid_computrabajo_candidate_name(name):
+            raise RuntimeError("COMPUTRABAJO_NAME_UNVERIFIED")
         if info.get("attachment_url"):
             encoded = json.dumps(str(info["attachment_url"]))
             result = await self._evaluate(cdp, """(async () => {

@@ -26,7 +26,7 @@ def fake_browser(meta, fetch_result=None):
 
 def test_attachment_preferred_over_generated_profile_pdf():
     browser, page = fake_browser(
-        {"attachment_url": "https://empresa.co.computrabajo.com/Company/CvDownloader/Company/CvDetail/Download?ims=4567", "name": "Sample"},
+        {"attachment_url": "https://empresa.co.computrabajo.com/Company/CvDownloader/Company/CvDetail/Download?ims=4567", "name": "María Torres"},
         {"content": base64.b64encode(b"%PDF-1.7\\nattached").decode(), "type": "application/pdf"},
     )
     result = asyncio.run(browser._collect_candidate_async({"detail_url": DETAIL, "candidate_name": "Example"}))
@@ -36,7 +36,7 @@ def test_attachment_preferred_over_generated_profile_pdf():
 
 
 def test_missing_attachment_uses_profile_pdf():
-    browser, page = fake_browser({"attachment_url": "", "name": "Sample"})
+    browser, page = fake_browser({"attachment_url": "", "name": "María Torres"})
     result = asyncio.run(browser._collect_candidate_async({"detail_url": DETAIL, "candidate_name": "Example"}))
     assert result["kind"] == "profile"
     page.printToPDF.assert_awaited_once()
@@ -70,7 +70,7 @@ def test_page_without_candidate_profile_is_not_printed_as_pdf():
 
 def test_attachment_access_denied_does_not_fall_back_to_print():
     browser, page = fake_browser(
-        {"name": "Sample",
+        {"name": "María Torres",
          "attachment_url": "https://empresa.co.computrabajo.com/Company/CvDownloader/Company/CvDetail/Download?ims=4567"},
         {"access_denied": True},
     )
