@@ -6,6 +6,7 @@ import DocumentReviewQueue from "../components/DocumentReviewQueue";
 import { useSession } from "../context/SessionContext";
 import { getApiErrorMessage } from "../utils/errors";
 import PageHeader from "../components/ui/PageHeader";
+import "../talent-workspaces.css";
 import {
   FeedbackMessage,
   LoadingState,

@@ -1,0 +1,58 @@
+/* Talent Intelligence — recruitment and document workspace refresh.
+   Scoped to the two workflows so the remaining application stays unchanged. */
+.applications-page, .employee-documents-page { --talent-accent:#39c9ef; --talent-edge:color-mix(in srgb,var(--talent-accent) 23%,var(--border)); gap:24px; }
+.applications-page .ui-page-header, .employee-documents-page .ui-page-header { padding-block:10px 3px; }
+.applications-page .ui-page-header h1, .employee-documents-page .ui-page-header h1 { font-size:clamp(2rem,3vw,3rem); letter-spacing:-.045em; }
+.applications-page .metrics-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.applications-page .metrics-grid > * { min-width:0; border-radius:20px; border:1px solid var(--talent-edge); box-shadow:0 14px 36px rgba(0,0,0,.07); }
+.applications-page .employee-list-panel, .employee-documents-page .document-summary-panel,
+.employee-documents-page .document-employee-selector { border:1px solid var(--talent-edge); border-radius:22px; box-shadow:0 16px 42px rgba(0,0,0,.08); }
+.applications-page .employee-list-panel { padding:clamp(18px,2.4vw,32px); }
+.applications-page .employee-toolbar { display:flex; gap:18px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin-bottom:22px; }
+.applications-page .employee-toolbar h2 { margin-top:5px; font-size:1.45rem; }
+.applications-page .employee-filters { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.applications-page .employee-filters input { min-width:min(320px,100%); }
+.applications-page .employee-filters input, .applications-page .employee-filters select { min-height:44px; border-radius:12px; }
+.applications-page .employee-table-wrap { border:1px solid var(--border); border-radius:16px; }
+.applications-page .employee-table { width:100%; min-width:860px; }
+.applications-page .employee-table thead th { padding:15px 16px; font-size:.7rem; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-soft); }
+.applications-page .employee-table td { padding:19px 16px; vertical-align:middle; }
+.applications-page .employee-table td:first-child strong { display:block; max-width:240px; font-size:.86rem; line-height:1.45; }
+.applications-page .employee-table td:first-child small { display:block; margin-top:5px; overflow-wrap:anywhere; color:var(--ink-soft); }
+.applications-page .employee-table td:nth-child(2) { max-width:230px; font-weight:600; }
+.applications-page .employee-table td:nth-child(3) select { width:100%; min-width:125px; border-radius:12px; font-weight:600; }
+.applications-page .employee-table .ui-actions { display:grid !important; grid-template-columns:repeat(2,minmax(125px,1fr)); gap:8px !important; min-width:290px; }
+.applications-page .employee-table .ui-actions > * { display:inline-flex; align-items:center; justify-content:center; min-height:38px; padding:8px 10px; border-radius:11px; font-size:.77rem; line-height:1.2; text-align:center; overflow-wrap:anywhere; }
+.applications-page .employee-table .ui-actions .btn-primary { background:var(--talent-accent); color:#032531; }
+.employee-documents-page .document-summary-panel { grid-template-columns:minmax(0,1fr) minmax(280px,.7fr); padding:clamp(18px,2.4vw,30px); }
+.employee-documents-page .document-summary-metrics > div { border-radius:15px; border-color:var(--talent-edge); }
+.employee-documents-page .document-requirement-grid { gap:16px; }
+.employee-documents-page .document-requirement-card { padding:clamp(18px,2vw,26px); border:1px solid var(--talent-edge); border-radius:20px; box-shadow:0 12px 30px rgba(0,0,0,.06); gap:17px; }
+.employee-documents-page .document-requirement-card:hover { border-color:color-mix(in srgb,var(--talent-accent) 50%,var(--border)); }
+.employee-documents-page .document-requirement-header h3 { font-size:1.05rem; line-height:1.3; }
+.employee-documents-page .document-requirement-header p { font-size:.83rem; }
+.employee-documents-page .document-review-status { border-radius:999px; padding:7px 11px; white-space:nowrap; }
+.employee-documents-page .document-current-file { border-radius:14px; }
+.employee-documents-page .document-current-file strong { overflow-wrap:anywhere; }
+.employee-documents-page .document-upload-row { border:1px dashed color-mix(in srgb,var(--talent-accent) 52%,var(--border)); border-radius:14px; padding:14px; background:color-mix(in srgb,var(--talent-accent) 5%,var(--surface)); }
+.employee-documents-page .document-file-picker { border-radius:11px; }
+.employee-documents-page .document-upload-row .btn-primary { min-height:42px; border-radius:11px; }
+.employee-documents-page .document-review-comment { border-left:3px solid var(--warning); border-radius:0 12px 12px 0; padding:13px 16px; background:color-mix(in srgb,var(--warning) 10%,var(--surface)); }
+.employee-documents-page .document-admin-review { border-top:1px solid var(--border); padding-top:16px; }
+.employee-documents-page .document-section-count { border-radius:999px; }
+@media(max-width:1050px) {
+ .applications-page .metrics-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .employee-documents-page .document-summary-panel { grid-template-columns:1fr; }
+}
+@media(max-width:700px) {
+ .applications-page,.employee-documents-page { gap:16px; }
+ .applications-page .metrics-grid,.employee-documents-page .document-requirement-grid { grid-template-columns:1fr; }
+ .applications-page .employee-filters,.applications-page .employee-filters input,.applications-page .employee-filters select { width:100%; min-width:0; }
+ .applications-page .employee-list-panel { padding:16px; }
+ .employee-documents-page .document-employee-selector { grid-template-columns:1fr; }
+ .employee-documents-page .document-requirement-header { flex-wrap:wrap; }
+ .employee-documents-page .document-requirement-card { padding:17px; }
+}
+@media(prefers-reduced-motion:reduce) {
+ .employee-documents-page .document-requirement-card { transition:none; }
+}
