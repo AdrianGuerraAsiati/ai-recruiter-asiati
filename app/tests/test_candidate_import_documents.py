@@ -269,3 +269,17 @@ def test_expand_zip_enforces_remaining_expanded_bytes():
             remaining_documents=500,
             remaining_bytes=len(first) + len(second) - 1,
         )
+
+
+def test_computrabajo_generic_filename_is_not_candidate_identity():
+    documents = _documents()
+    payload = _docx_bytes(["HOJA DE VIDA", "capacidad para planificar y coordinar operaciones.", "candidate@example.com"])
+    with pytest.raises(documents.InvalidDocument, match="CANDIDATE_NAME_UNVERIFIED"):
+        documents.extract_document(payload, "computrabajo-cv.docx")
+
+
+def test_computrabajo_real_header_name_can_be_imported():
+    documents = _documents()
+    payload = _docx_bytes(["María Fernanda Rojas", "capacidad para planificar y coordinar operaciones.", "candidate@example.com"])
+    parsed = documents.extract_document(payload, "computrabajo-cv.docx")
+    assert parsed.display_name == "María Fernanda Rojas"
