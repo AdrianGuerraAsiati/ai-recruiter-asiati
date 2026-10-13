@@ -194,7 +194,7 @@ describe("Ranking page", () => {
     renderRanking();
 
     expect(await screen.findByRole("option", { name: "Vacante Vacía · 0 postulantes directos" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Vacante con candidatos · 2 postulantes directos" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Vacante Con Candidatos · 2 postulantes directos" })).toBeInTheDocument();
   });
 
   it("shows the evaluable country pool even with zero direct applicants", async () => {
@@ -252,7 +252,7 @@ describe("Ranking page", () => {
     renderRanking();
 
     expect(await screen.findByRole("option", { name: "Vacante Activa · 1 postulante directo" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Vacante sin conteo · 0 postulantes directos" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Vacante Sin Conteo · 0 postulantes directos" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Vacante pausada/ })).not.toBeInTheDocument();
   });
 
