@@ -32,9 +32,7 @@ def preview_candidate_name_normalization(
 ):
     # Scan the complete current directory. This is a dry-run audit, not
     # a guessed name replacement and not an LLM invocation.
-    rows = db.query(Candidate.id, Candidate.name).filter(
-        Candidate.owner_sub == user["sub"]
-    ).order_by(Candidate.id).all()
+    rows = db.query(Candidate.id, Candidate.name).order_by(Candidate.id).all()
     flagged = []
     reasons = {}
     for candidate_id, name in rows:
@@ -176,7 +174,7 @@ def suggest_candidate_names(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail="Identificador inválido.") from exc
         candidate = db.query(Candidate).filter(
-            Candidate.id == cid, Candidate.owner_sub == user["sub"]
+            Candidate.id == cid
         ).one_or_none()
         if not candidate:
             raise HTTPException(status_code=404, detail="Candidato no encontrado.")
@@ -232,7 +230,7 @@ def apply_normalized_names(
     try:
         for approval, cid in zip(body.approvals, ids):
             candidate = db.query(Candidate).filter(
-                Candidate.id == cid, Candidate.owner_sub == user["sub"]
+                Candidate.id == cid
             ).with_for_update().one_or_none()
             if candidate is None or candidate.name != approval.expected_current_name:
                 raise HTTPException(status_code=409, detail="El candidato ha cambiado.")
@@ -272,7 +270,7 @@ def revert_normalized_name(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Identificador inválido.") from exc
     candidate = db.query(Candidate).filter(
-        Candidate.id == cid, Candidate.owner_sub == user["sub"]
+        Candidate.id == cid
     ).with_for_update().one_or_none()
     if candidate is None:
         raise HTTPException(status_code=404, detail="Candidato no encontrado.")
@@ -309,9 +307,7 @@ def revert_name_normalization_batch(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Lote inválido.") from exc
     try:
-        candidates = db.query(Candidate).filter(
-            Candidate.owner_sub == user["sub"]
-        ).order_by(Candidate.id).with_for_update().all()
+        candidates = db.query(Candidate).order_by(Candidate.id).with_for_update().all()
         changes = []
         for candidate in candidates:
             metadata = dict(candidate.metadata_ or {})
@@ -345,9 +341,7 @@ def list_name_normalization_history(
     db: Session = Depends(get_db),
     user: dict = Depends(require_permission("candidates.manage")),
 ):
-    candidates = db.query(Candidate.metadata_).filter(
-        Candidate.owner_sub == user["sub"]
-    ).all()
+    candidates = db.query(Candidate.metadata_).all()
     batches = {}
     for (metadata,) in candidates:
         for entry in (metadata or {}).get("name_normalization_history") or []:
