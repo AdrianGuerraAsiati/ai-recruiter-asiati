@@ -89,6 +89,8 @@ class NameApproval(BaseModel):
     candidate_id: str
     expected_current_name: str
     proposed_name: str
+    source: str = "bedrock"
+    review_reason: str = ""
 
 
 class ApplyRequest(BaseModel):
@@ -237,17 +239,26 @@ def apply_normalized_names(
             metadata = dict(candidate.metadata_ or {})
             cached = metadata.get("name_normalization") or {}
             name = " ".join(approval.proposed_name.split())
-            if (cached.get("status") != "REVIEW_REQUIRED"
-                    or cached.get("suggested_name") != name
-                    or not _valid_name(name, cached.get("evidence") or "")):
-                raise HTTPException(status_code=409, detail="Propuesta no verificada.")
+            if approval.source == "manual":
+                reason = approval.review_reason.strip()
+                if not _NAME.fullmatch(name) or not (5 <= len(name) <= 90) or _SUSPECT.search(name) or len(reason) < 10:
+                    raise HTTPException(status_code=422, detail="Nombre o justificación manual inválidos.")
+            elif approval.source == "bedrock":
+                if (cached.get("status") != "REVIEW_REQUIRED"
+                        or cached.get("suggested_name") != name
+                        or not _valid_name(name, cached.get("evidence") or "")):
+                    raise HTTPException(status_code=409, detail="Propuesta no verificada.")
+            else:
+                raise HTTPException(status_code=422, detail="Origen de la propuesta inválido.")
             history = list(metadata.get("name_normalization_history") or [])
             history.append({
                 "change_id": str(uuid.uuid4()), "batch_id": batch,
                 "previous_name": candidate.name, "new_name": name,
                 "approved_by": user["sub"],
                 "approved_at": datetime.now(timezone.utc).isoformat(),
-                "document_sha256": cached.get("document_sha256"),
+                "document_sha256": cached.get("document_sha256") if approval.source == "bedrock" else None,
+                "source": approval.source,
+                "review_reason": approval.review_reason.strip() if approval.source == "manual" else "",
             })
             metadata["name_normalization_history"] = history[-30:]
             candidate.metadata_ = metadata
