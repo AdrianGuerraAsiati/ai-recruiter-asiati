@@ -689,7 +689,7 @@ def ensure_hiring_assignments(
     created_by_sub: str,
     expires_days: int = 14,
 ) -> dict:
-    """Assign all ASIATI tests at formal hire; retries never reset past results.
+    """Assign all ASIATI tests when an application starts; preserve past results.
 
     Existing assignments (including completed, expired and canceled ones) are
     deliberately retained. A reissue requires an explicit administrator action.
@@ -699,11 +699,14 @@ def ensure_hiring_assignments(
         db.query(PsychotechnicalAssignment)
         .filter(
             PsychotechnicalAssignment.candidate_id == candidate_id,
-            PsychotechnicalAssignment.job_id == job_id,
         )
+        .order_by(PsychotechnicalAssignment.created_at.desc())
         .all()
     )
-    by_key = {row.test_key: row for row in existing}
+    # Applicants can have multiple vacancies; do not overwrite their tests.
+    by_key = {}
+    for row in existing:
+        by_key.setdefault(row.test_key, row)
     new_links = []
     for test_key in catalog.TESTS:
         if test_key in by_key:
