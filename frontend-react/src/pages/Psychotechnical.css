@@ -1069,3 +1069,70 @@
   font-size: 12px;
   font-weight: 600;
 }
+
+/* Application-centric psychotechnical dashboard */
+.psychotechnical-application-list {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+.psychotechnical-application-group {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.psychotechnical-application-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 20px 22px;
+  background: var(--surface-soft);
+  border-bottom: 1px solid var(--border);
+}
+.psychotechnical-application-header > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.psychotechnical-application-header h3 {
+  margin: 7px 0 3px;
+  font-size: 1.12rem;
+}
+.psychotechnical-application-header p {
+  margin: 0 0 5px;
+  color: var(--ink-soft);
+}
+.psychotechnical-application-header small {
+  color: var(--ink-faint);
+}
+.psychotechnical-application-progress {
+  display: grid;
+  gap: 4px;
+  min-width: 130px;
+  justify-items: end;
+  text-align: right;
+}
+.psychotechnical-application-progress strong {
+  font-size: 1.3rem;
+  color: var(--ink);
+}
+.psychotechnical-application-progress span {
+  color: var(--ink-soft);
+  font-size: .78rem;
+}
+.psychotechnical-application-group .psychotechnical-assignment {
+  padding: 18px 22px;
+}
+.psychotechnical-test-title {
+  margin: 9px 0 0;
+  font-size: 1rem;
+}
+@media (max-width: 680px) {
+  .psychotechnical-application-list { padding: 10px; gap: 12px; }
+  .psychotechnical-application-header { padding: 16px; align-items: flex-start; }
+  .psychotechnical-application-progress { justify-items: start; text-align: left; }
+  .psychotechnical-application-group .psychotechnical-assignment { padding: 16px; }
+}
