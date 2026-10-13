@@ -27,7 +27,7 @@ def refresh_candidate_matches(
     candidate_id: str,
     threshold: int = Query(default=40, ge=0, le=100),
     db: Session = Depends(get_db),
-    _user: dict = Depends(require_permission("ranking.manage")),
+    _user: dict = Depends(require_permission("ranking.recalculate")),
 ):
     """Explicit, repeat-safe pre-matching snapshot; no Bedrock or postulations."""
     from uuid import UUID
