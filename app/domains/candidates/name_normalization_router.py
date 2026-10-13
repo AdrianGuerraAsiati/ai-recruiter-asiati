@@ -26,7 +26,7 @@ def _flag(name: str) -> str | None:
 
 @router.get("/preview")
 def preview_candidate_name_normalization(
-    limit: int = Query(100, ge=1, le=250),
+    limit: int = Query(2000, ge=1, le=5000),
     db: Session = Depends(get_db),
     user: dict = Depends(require_permission("candidates.manage")),
 ):
