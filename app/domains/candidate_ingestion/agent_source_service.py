@@ -98,7 +98,8 @@ def _named_candidate_filename(candidate_name: str, external_id: str, content_typ
     """Keep a readable, unique source filename without trusting the browser's generic name."""
     ascii_name = unicodedata.normalize("NFKD", candidate_name).encode("ascii", "ignore").decode()
     stem = re.sub(r"[^a-zA-Z0-9]+", "-", ascii_name).strip("-").lower()[:72]
-    if not stem or stem in {"computrabajo-cv", "computrabajo-profile", "cv", "hoja-de-vida"}:
+    bad_terms = {"computrabajo", "curriculum", "resume", "capacidad", "planificar", "coordinar", "experiencia", "habilidades", "operaciones"}
+    if not stem or stem in {"computrabajo-cv", "computrabajo-profile", "cv", "hoja-de-vida"} or any(term in bad_terms for term in stem.split("-")):
         raise CandidateSourceValidationError(422, "CANDIDATE_SOURCE_NAME_UNVERIFIED")
     suffix = re.sub(r"[^a-zA-Z0-9-]", "", external_id)[:20]
     extension = ".docx" if content_type == DOCX_CONTENT_TYPE else ".pdf"
