@@ -260,3 +260,5 @@
  .recruitment-calendar-overlay { padding:12px; }
  .recruitment-calendar-overlay .recruitment-calendar-modal { max-height:94dvh; padding:20px; }
 }
+
+.recruitment-calendar-modal .calendar-meeting-hint { padding:12px 14px; margin:0 0 16px; border:1px solid var(--border); border-radius:12px; color:var(--ink-soft); background:var(--surface-soft); font-size:.86rem; }

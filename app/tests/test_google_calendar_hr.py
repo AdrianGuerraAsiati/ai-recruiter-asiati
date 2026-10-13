@@ -174,7 +174,7 @@ def test_idempotent_event_sync_reuses_google_id_and_updates_in_place(store, even
     assert len(http.posts) == 1
     assert len(http.puts) == 0
     remote = next(iter(http.events.values()))
-    assert remote["summary"] == "Entrevista presencial · Ana Prueba"
+    assert remote["summary"] == "Visita presencial · Ana Prueba"
     assert remote["transparency"] == "opaque"
     assert remote["start"]["dateTime"].endswith("Z")
     assert "attendees" not in remote
@@ -275,3 +275,31 @@ def test_google_account_change_refuses_wrong_identity(store):
             http_client=FakeGoogleHttp(identity=google.DEFAULT_ACCOUNT_EMAIL),
         )
     assert google.status(store=store)["connected"] is False
+
+
+def test_video_appointment_requests_real_google_meet(store, event):
+    store.data["talent_calendar"] = {
+        "connected_email": google.DEFAULT_ACCOUNT_EMAIL,
+        "refresh_token": "test-calendar-refresh",
+    }
+    event.kind = "PHONE_CALL"
+    http = FakeGoogleHttp()
+    result = google.sync_event(event, store=store, http_client=http)
+    assert result["synced"]
+    assert http.posts[0][1]["conferenceDataVersion"] == 1
+    remote = next(iter(http.events.values()))
+    assert remote["location"] == ""
+    assert remote["conferenceData"]["createRequest"]["conferenceSolutionKey"]["type"] == "hangoutsMeet"
+    assert remote["summary"] == "Videollamada · Ana Prueba"
+
+
+def test_onsite_appointment_does_not_create_meet(store, event):
+    store.data["talent_calendar"] = {
+        "connected_email": google.DEFAULT_ACCOUNT_EMAIL,
+        "refresh_token": "test-calendar-refresh",
+    }
+    http = FakeGoogleHttp()
+    google.sync_event(event, store=store, http_client=http)
+    remote = next(iter(http.events.values()))
+    assert "conferenceData" not in remote
+    assert remote["location"] == "ASIATI"

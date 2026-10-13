@@ -99,7 +99,7 @@ describe("RecruitmentCalendar", () => {
     expect(await screen.findByRole("heading", { name: "Agenda de selección" })).toBeInTheDocument();
     expect((await screen.findAllByText("Ana Pérez")).length).toBeGreaterThan(0);
     expect(screen.getByText("Ejecutivo Comercial SR")).toBeInTheDocument();
-    expect(screen.getByText("Llamada telefónica")).toBeInTheDocument();
+    expect(screen.getByText("Videollamada · Google Meet")).toBeInTheDocument();
   });
 
   it("creates a phone call for an eligible application", async () => {

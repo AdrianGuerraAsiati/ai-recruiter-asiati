@@ -13,8 +13,8 @@ import {
 import "./RecruitmentCalendar.css";
 
 const KIND_LABELS = {
-  PHONE_CALL: "Llamada telefónica",
-  ONSITE_INTERVIEW: "Entrevista presencial",
+  PHONE_CALL: "Videollamada · Google Meet",
+  ONSITE_INTERVIEW: "Visita presencial · ASIATI",
 };
 
 const STATUS_LABELS = {
@@ -63,6 +63,17 @@ function defaultWindow(kind = "PHONE_CALL", day = new Date()) {
     starts_at: isoLocalInput(start),
     ends_at: isoLocalInput(end),
   };
+}
+
+function meetingDurationMinutes(startsAt, endsAt) {
+  const minutes = Math.round((new Date(endsAt) - new Date(startsAt)) / 60000);
+  return Number.isFinite(minutes) && minutes > 0 ? minutes : 30;
+}
+
+function endFromDuration(startsAt, minutes) {
+  const start = new Date(startsAt);
+  if (Number.isNaN(start.getTime())) return "";
+  return isoLocalInput(new Date(start.getTime() + Number(minutes) * 60000));
 }
 
 function sameDay(left, right) {
@@ -195,9 +206,37 @@ function RecruitmentCalendar() {
     });
   }
 
+  const durationMinutes = meetingDurationMinutes(form.starts_at, form.ends_at);
+  const commonDurations = [15, 30, 45, 60, 90, 120, 180, 240];
+  const durationOptions = commonDurations.includes(durationMinutes)
+    ? commonDurations
+    : [...commonDurations, durationMinutes].sort((a, b) => a - b);
+
+  function changeStart(startsAt) {
+    setForm((current) => ({
+      ...current,
+      starts_at: startsAt,
+      ends_at: endFromDuration(startsAt, meetingDurationMinutes(current.starts_at, current.ends_at)),
+    }));
+  }
+
+  function changeDuration(minutes) {
+    setForm((current) => ({
+      ...current,
+      ends_at: endFromDuration(current.starts_at, minutes),
+    }));
+  }
+
   async function saveEvent(event) {
     event.preventDefault();
     if (!form.application) return;
+    const start = new Date(form.starts_at);
+    const end = new Date(form.ends_at);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())
+      || end <= start || !sameDay(start, end)) {
+      setError("Elige una hora de inicio y una duración que terminen el mismo día.");
+      return;
+    }
     const [jobId, candidateId] = form.application.split("::");
     setSaving(true);
     setError("");
@@ -206,7 +245,7 @@ function RecruitmentCalendar() {
         kind: form.kind,
         starts_at: new Date(form.starts_at).toISOString(),
         ends_at: new Date(form.ends_at).toISOString(),
-        location: form.location || null,
+        location: form.kind === "ONSITE_INTERVIEW" ? "ASIATI" : null,
         notes: form.notes || null,
       };
       if (editingEvent) {
@@ -376,7 +415,7 @@ function RecruitmentCalendar() {
                     <small>{event.job.title}</small>
                   </div>
                   <time>{formatLongDate(event.starts_at)}</time>
-                  {event.location && <small>{event.location}</small>}
+                  {event.kind === "ONSITE_INTERVIEW" && <small>ASIATI</small>}
                   {canManage && (
                     <div className="calendar-item-actions">
                       <button className="btn btn-secondary btn-sm" type="button" onClick={() => openEdit(event)}>
@@ -410,6 +449,7 @@ function RecruitmentCalendar() {
               <button className="btn btn-ghost" type="button" onClick={() => setEditorOpen(false)} disabled={saving}>Cerrar</button>
             </div>
 
+            {error && <FeedbackMessage title="No se pudo guardar la cita">{error}</FeedbackMessage>}
             <form onSubmit={saveEvent}>
               <div className="form-group">
                 <label htmlFor="calendar-application">Candidato y vacante</label>
@@ -436,29 +476,25 @@ function RecruitmentCalendar() {
                 <div className="form-group">
                   <label htmlFor="calendar-kind">Tipo</label>
                   <select id="calendar-kind" value={form.kind} onChange={(event) => changeKind(event.target.value)}>
-                    <option value="PHONE_CALL">Llamada telefónica</option>
-                    <option value="ONSITE_INTERVIEW">Entrevista presencial</option>
+                    <option value="PHONE_CALL">Videollamada (Google Meet)</option>
+                    <option value="ONSITE_INTERVIEW">Visita presencial (ASIATI)</option>
                   </select>
                 </div>
-                <div className="form-group">
-                  <label htmlFor="calendar-location">Lugar</label>
-                  <input
-                    id="calendar-location"
-                    value={form.location}
-                    placeholder={form.kind === "PHONE_CALL" ? "Opcional" : "Oficina ASIATI, sala…"}
-                    onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))}
-                  />
+<div className="form-group">
+                  <label htmlFor="calendar-start">Fecha y hora de inicio</label>
+                  <input id="calendar-start" type="datetime-local" value={form.starts_at} required onChange={(event) => changeStart(event.target.value)} />
                 </div>
                 <div className="form-group">
-                  <label htmlFor="calendar-start">Inicio</label>
-                  <input id="calendar-start" type="datetime-local" value={form.starts_at} required onChange={(event) => setForm((current) => ({ ...current, starts_at: event.target.value }))} />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="calendar-end">Fin</label>
-                  <input id="calendar-end" type="datetime-local" value={form.ends_at} required onChange={(event) => setForm((current) => ({ ...current, ends_at: event.target.value }))} />
+                  <label htmlFor="calendar-duration">Duración total</label>
+                  <select id="calendar-duration" value={durationMinutes} onChange={(event) => changeDuration(Number(event.target.value))}>
+                    {durationOptions.map((minutes) => (
+                      <option key={minutes} value={minutes}>{minutes < 60 ? `${minutes} minutos` : minutes % 60 === 0 ? `${minutes / 60} ${minutes === 60 ? "hora" : "horas"}` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
+              <p className="calendar-meeting-hint">{form.kind === "PHONE_CALL" ? "Google Calendar creará automáticamente un enlace de Meet." : "La visita se realizará presencialmente en ASIATI."}</p>
               <div className="form-group">
                 <label htmlFor="calendar-notes">Notas</label>
                 <textarea

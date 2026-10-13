@@ -337,7 +337,7 @@ def _utc_iso(date: datetime) -> str:
 
 
 def _event_body(event: RecruitmentEvent) -> dict:
-    kind = "Llamada" if event.kind == "PHONE_CALL" else "Entrevista presencial"
+    kind = "Videollamada" if event.kind == "PHONE_CALL" else "Visita presencial"
     cancelled = event.status == "CANCELED"
     prefix = "[Cancelada] " if cancelled else ""
     description = (
@@ -347,18 +347,38 @@ def _event_body(event: RecruitmentEvent) -> dict:
     )
     if event.notes:
         description += "Notas: " + str(event.notes) + "\n"
-    return {
+    body = {
         "id": _google_event_id(event),
         "summary": prefix + kind + " · " + event.candidate.name,
         "description": description,
         "start": {"dateTime": _utc_iso(event.starts_at)},
         "end": {"dateTime": _utc_iso(event.ends_at)},
-        "location": event.location or "",
+        "location": "ASIATI" if event.kind == "ONSITE_INTERVIEW" else "",
         "transparency": "transparent" if cancelled else "opaque",
         "extendedProperties": {
             "private": {"talent_event_id": str(event.id), "origin": "talent_asiati"}
         },
     }
+    if event.kind == "PHONE_CALL":
+        body["conferenceData"] = {
+            "createRequest": {
+                "requestId": "talent-" + str(event.id).replace("-", "").lower(),
+                "conferenceSolutionKey": {"type": "hangoutsMeet"},
+            }
+        }
+    return body
+
+
+def _existing_conference(http, base_url: str, event_id: str, headers: dict) -> dict | None:
+    """Preserve the existing Meet link when updating an event."""
+    try:
+        response = http.get(base_url + "/" + quote(event_id, safe=""), headers=headers,
+                            params={"conferenceDataVersion": 1})
+        if response.status_code == 200:
+            return response.json().get("conferenceData")
+    except httpx.RequestError:
+        pass
+    return None
 
 
 def sync_event(event: RecruitmentEvent, *, store=None, http_client=None) -> dict:
@@ -380,14 +400,22 @@ def sync_event(event: RecruitmentEvent, *, store=None, http_client=None) -> dict
         # First attempt deterministic insert; a conflict means this Talent
         # appointment already exists in Google, so update its known ID.
         response = http.post(
-            url, headers=headers, params={"sendUpdates": "none"}, json=body
+            url, headers=headers, params={"sendUpdates": "none", "conferenceDataVersion": 1}, json=body
         )
         if response.status_code == 409:
             response = http.put(
                 url + "/" + quote(body["id"], safe=""),
                 headers=headers,
-                params={"sendUpdates": "none"},
-                json=body,
+                params={"sendUpdates": "none", "conferenceDataVersion": 1},
+                json={
+                    **body,
+                    **(
+                        {"conferenceData": conference}
+                        if event.kind == "PHONE_CALL"
+                        and (conference := _existing_conference(http, url, body["id"], headers))
+                        else {"conferenceData": None} if event.kind == "ONSITE_INTERVIEW" else {}
+                    ),
+                },
             )
         if response.status_code not in (200, 201):
             raise GoogleCalendarRemoteError(
@@ -398,6 +426,7 @@ def sync_event(event: RecruitmentEvent, *, store=None, http_client=None) -> dict
             "synced": True,
             "google_event_id": body["id"],
             "google_event_url": result.get("htmlLink"),
+            "meet_url": result.get("hangoutLink") or next((entry.get("uri") for entry in result.get("conferenceData", {}).get("entryPoints", []) if entry.get("entryPointType") == "video"), None),
         }
     except httpx.RequestError as exc:
         raise GoogleCalendarRemoteError("GOOGLE_CALENDAR_EVENT_SYNC_NETWORK_ERROR") from exc
@@ -408,7 +437,7 @@ def sync_event(event: RecruitmentEvent, *, store=None, http_client=None) -> dict
 
 def try_sync_event(event: RecruitmentEvent) -> dict:
     """Never rollback a Talent appointment if Google's integration is offline."""
-    if os.getenv("TALENT_GOOGLE_CALENDAR_AUTOSYNC", "false").casefold() not in {
+    if os.getenv("TALENT_GOOGLE_CALENDAR_AUTOSYNC", "true").casefold() not in {
         "true", "1", "yes", "on"
     }:
         return {"synced": False, "reason": "AUTOSYNC_DISABLED"}
