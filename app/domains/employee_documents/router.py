@@ -104,6 +104,46 @@ def document_review_queue(
     return service.review_queue(db)
 
 
+@router.post("/employees/{employee_id}/contract/upload", status_code=201)
+def create_employee_contract_upload(
+    employee_id: str,
+    body: CreateEmployeeDocumentUploadRequest,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.review")),
+):
+    if body.document_type != "EMPLOYMENT_CONTRACT":
+        raise HTTPException(status_code=422, detail="Solo se permite cargar el contrato laboral.")
+    try:
+        return service.create_upload(
+            db, employee_id=employee_id, document_type=body.document_type,
+            filename=body.filename, content_type=body.content_type,
+            size_bytes=body.size_bytes, admin_upload=True,
+        )
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.post("/employees/{employee_id}/contract/complete")
+def complete_employee_contract_upload(
+    employee_id: str,
+    body: FinalizeEmployeeDocumentUploadRequest,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("employee_documents.review")),
+):
+    if body.document_type != "EMPLOYMENT_CONTRACT":
+        raise HTTPException(status_code=422, detail="Solo se permite cargar el contrato laboral.")
+    try:
+        service.finalize_upload(
+            db, employee_id=employee_id, uploaded_by_sub=principal["sub"],
+            document_type=body.document_type, filename=body.filename,
+            key=body.key, content_type=body.content_type, size_bytes=body.size_bytes,
+            admin_upload=True,
+        )
+        return service.portfolio_payload(db, employee_id, include_admin_only=True)
+    except Exception as exc:
+        _translate(exc)
+
+
 @router.get("/employees/{employee_id}/welcome")
 def employee_welcome_status(
     employee_id: str,
@@ -150,7 +190,7 @@ def employee_documents(
     _principal: dict = Depends(require_permission("employee_documents.read_all")),
 ):
     try:
-        return service.portfolio_payload(db, employee_id)
+        return service.portfolio_payload(db, employee_id, include_admin_only=True)
     except Exception as exc:
         _translate(exc)
 
@@ -165,6 +205,8 @@ def download_document(
         document = service.require_document(db, document_id)
         own_document = document.employee_id == principal["profile"]["id"]
         can_read_all = "employee_documents.read_all" in set(principal.get("permissions") or [])
+        if document.document_type == "EMPLOYMENT_CONTRACT" and not can_read_all:
+            raise HTTPException(status_code=403, detail="El contrato laboral solo puede consultarlo Talento Humano.")
         if not own_document and not can_read_all:
             raise HTTPException(status_code=403, detail="No puedes consultar este documento.")
         return service.download_payload(db, document_id)
