@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "../../api/client";
 import { getApiErrorMessage } from "../../utils/errors";
 
@@ -27,7 +27,11 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
       setScanning(false);
     }
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    // Initial fetch synchronizes this modal with the secured API.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load();
+  }, [load]);
 
   async function analyze() {
     if (!window.confirm("¿Analizar los nombres sospechosos con Bedrock? Puede generar consumo AWS. Las propuestas creadas previamente desde este botón se reutilizan.")) return;
