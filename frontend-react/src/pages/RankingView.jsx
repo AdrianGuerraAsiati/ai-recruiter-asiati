@@ -450,11 +450,15 @@ async function evaluateCandidates() {
             "La evaluación terminó, pero no hay candidatos elegibles para esta vacante según país y modalidad.",
         });
       } else if (completedTask.last_error_code === "PARTIAL_EVALUATION_FAILURES") {
+        const errorMessage = String(completedTask.last_error_message || "");
+        const isReusedEvaluationNotice =
+          /\d+ candidato\(s\) no pudieron reevaluarse; los resultados exitosos se conservaron\.?/i.test(errorMessage);
+        const reusedCount = errorMessage.match(/(\d+) candidato\(s\) no pudieron reevaluarse/i)?.[1];
         setActionFeedback({
-          type: "error",
-          message:
-            completedTask.last_error_message
-            || "El ranking se generó, pero algunos candidatos no pudieron evaluarse.",
+          type: isReusedEvaluationNotice ? "info" : "error",
+          message: isReusedEvaluationNotice
+            ? `${reusedCount} candidatos conservaron su evaluación anterior. No fue necesario calificarlos nuevamente porque ya tenían una evaluación registrada y la descripción de la vacante no ha cambiado. Se conservaron sus puntuaciones y resultados.`
+            : errorMessage || "El ranking se generó, pero algunos candidatos no pudieron evaluarse.",
         });
       } else {
         setActionFeedback({
