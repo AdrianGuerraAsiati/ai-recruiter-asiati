@@ -142,7 +142,7 @@ def create_event(
         kind=kind,
         starts_at=starts_at,
         ends_at=ends_at,
-        location=(location or "").strip() or None,
+        location="ASIATI" if kind == "ONSITE_INTERVIEW" else None,
         notes=(notes or "").strip() or None,
         status="SCHEDULED",
         created_by_sub=created_by_sub,
@@ -177,11 +177,14 @@ def update_event(db: Session, event_id: str, *, changes: dict) -> dict:
     for field in ("kind", "starts_at", "ends_at", "status"):
         if field in changes and changes[field] is not None:
             setattr(event, field, changes[field])
-    for field in ("location", "notes"):
+    for field in ("notes",):
         if field in changes:
             value = changes[field]
             setattr(event, field, (value or "").strip() or None)
 
     db.commit()
     db.refresh(event)
-    return _event_payload(event)
+    result = _event_payload(event)
+    from app.domains.recruitment_calendar import google
+    result["google_sync"] = google.try_sync_event(event)
+    return result
