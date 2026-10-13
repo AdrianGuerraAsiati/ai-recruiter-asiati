@@ -1,3 +1,4 @@
+import { sentenceCaseLabel } from "../utils/text";
 import { useState } from "react";
 
 import api from "../api/client";
@@ -61,7 +62,7 @@ export default function ApplicationAccessModal({ application, onClose, onUpdated
           <div>
             <span className="eyebrow">Acceso para cargar documentos</span>
             <h2 id="applicant-access-title">Credenciales del postulante</h2>
-            <p>{application.candidate.name} · {application.job.title}</p>
+            <p>{sentenceCaseLabel(application.candidate.name)} · {sentenceCaseLabel(application.job.title)}</p>
           </div>
           <button className="btn-close" type="button" aria-label="Cerrar" disabled={saving} onClick={onClose}>×</button>
         </div>
