@@ -21,6 +21,34 @@ from app.domains.ranking.exceptions import (
 
 router = APIRouter(prefix="/api/jobs", tags=["ranking"])
 
+
+@router.get("/prematch/candidates/{candidate_id}")
+def preview_candidate_matches(
+    candidate_id: str,
+    threshold: int = Query(default=40, ge=0, le=100),
+    db: Session = Depends(get_db),
+    _user: dict = Depends(require_permission("ranking.read")),
+):
+    """Fast local preview; never calls Bedrock or creates a postulation."""
+    from uuid import UUID
+    from app.models import Job
+    from app.domains.ranking.prematch import compare_candidate_job
+
+    try:
+        candidate_id = str(UUID(candidate_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="Identificador inválido.") from exc
+    candidate = candidates_repository.get_candidate(db, candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado.")
+    jobs = db.query(Job).filter(Job.status == "ACTIVE").all()
+    results = [{"job_id": str(job.id), "job_title": job.title,
+                **compare_candidate_job(candidate, job, threshold=threshold)}
+               for job in jobs]
+    results.sort(key=lambda row: (row["status"] != "SUGGESTED", -row.get("score", 0), row["job_title"]))
+    return {"candidate_id": candidate_id, "threshold": threshold, "items": results}
+
+
 @router.get("/coverage/summary")
 def get_talent_coverage_summary(
     db: Session = Depends(get_db),
