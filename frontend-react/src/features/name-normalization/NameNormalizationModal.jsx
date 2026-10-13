@@ -46,6 +46,21 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
     }
   }
 
+  async function openCv(candidateId) {
+    const tab = window.open("about:blank", "_blank");
+    if (tab) tab.opener = null;
+    try {
+      const response = await api.get("/candidates/" + candidateId + "/download");
+      const url = response.data?.download_url;
+      if (!url) throw new Error("CV unavailable");
+      if (tab) tab.location.replace(url);
+      else window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      if (tab) tab.close();
+      setError(getApiErrorMessage(err, { fallback: "No se pudo abrir el CV original." }));
+    }
+  }
+
   async function apply() {
     const chosen = Object.values(suggestions).filter((item) => approved[item.candidate_id] && item.status === "REVIEW_REQUIRED");
     if (!chosen.length || !window.confirm("¿Confirmas que verificaste visualmente estos " + chosen.length + " nombres?")) return;
@@ -106,7 +121,7 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
                     aria-label={"Aprobar nombre propuesto para " + item.current_name}
                     disabled={!eligible || working}
                     onChange={(event) => setApproved((previous) => ({ ...previous, [item.candidate_id]: event.target.checked }))} /></td>
-                  <td>{item.current_name}</td><td>{suggestion?.suggested_name || "—"}</td>
+                  <td>{item.current_name}<div><button type="button" className="btn btn-secondary" onClick={() => void openCv(item.candidate_id)}>Ver CV</button></div></td><td>{suggestion?.suggested_name || "—"}</td>
                   <td>{suggestion?.evidence || suggestion?.status || item.reason}</td>
                 </tr>;
               })}</tbody>
