@@ -65,6 +65,17 @@ function defaultWindow(kind = "PHONE_CALL", day = new Date()) {
   };
 }
 
+function meetingDurationMinutes(startsAt, endsAt) {
+  const minutes = Math.round((new Date(endsAt) - new Date(startsAt)) / 60000);
+  return Number.isFinite(minutes) && minutes > 0 ? minutes : 30;
+}
+
+function endFromDuration(startsAt, minutes) {
+  const start = new Date(startsAt);
+  if (Number.isNaN(start.getTime())) return "";
+  return isoLocalInput(new Date(start.getTime() + Number(minutes) * 60000));
+}
+
 function sameDay(left, right) {
   return left.getFullYear() === right.getFullYear()
     && left.getMonth() === right.getMonth()
@@ -195,9 +206,37 @@ function RecruitmentCalendar() {
     });
   }
 
+  const durationMinutes = meetingDurationMinutes(form.starts_at, form.ends_at);
+  const commonDurations = [15, 30, 45, 60, 90, 120, 180, 240];
+  const durationOptions = commonDurations.includes(durationMinutes)
+    ? commonDurations
+    : [...commonDurations, durationMinutes].sort((a, b) => a - b);
+
+  function changeStart(startsAt) {
+    setForm((current) => ({
+      ...current,
+      starts_at: startsAt,
+      ends_at: endFromDuration(startsAt, meetingDurationMinutes(current.starts_at, current.ends_at)),
+    }));
+  }
+
+  function changeDuration(minutes) {
+    setForm((current) => ({
+      ...current,
+      ends_at: endFromDuration(current.starts_at, minutes),
+    }));
+  }
+
   async function saveEvent(event) {
     event.preventDefault();
     if (!form.application) return;
+    const start = new Date(form.starts_at);
+    const end = new Date(form.ends_at);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())
+      || end <= start || !sameDay(start, end)) {
+      setError("Elige una hora de inicio y una duración que terminen el mismo día.");
+      return;
+    }
     const [jobId, candidateId] = form.application.split("::");
     setSaving(true);
     setError("");
@@ -450,12 +489,16 @@ function RecruitmentCalendar() {
                   />
                 </div>
                 <div className="form-group">
-                  <label htmlFor="calendar-start">Inicio</label>
-                  <input id="calendar-start" type="datetime-local" value={form.starts_at} required onChange={(event) => setForm((current) => ({ ...current, starts_at: event.target.value }))} />
+                  <label htmlFor="calendar-start">Fecha y hora de inicio</label>
+                  <input id="calendar-start" type="datetime-local" value={form.starts_at} required onChange={(event) => changeStart(event.target.value)} />
                 </div>
                 <div className="form-group">
-                  <label htmlFor="calendar-end">Fin</label>
-                  <input id="calendar-end" type="datetime-local" value={form.ends_at} required onChange={(event) => setForm((current) => ({ ...current, ends_at: event.target.value }))} />
+                  <label htmlFor="calendar-duration">Duración total</label>
+                  <select id="calendar-duration" value={durationMinutes} onChange={(event) => changeDuration(Number(event.target.value))}>
+                    {durationOptions.map((minutes) => (
+                      <option key={minutes} value={minutes}>{minutes < 60 ? `${minutes} minutos` : minutes % 60 === 0 ? `${minutes / 60} ${minutes === 60 ? "hora" : "horas"}` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
