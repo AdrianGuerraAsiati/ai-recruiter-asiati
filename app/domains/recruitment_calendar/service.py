@@ -182,6 +182,7 @@ def update_event(db: Session, event_id: str, *, changes: dict) -> dict:
             value = changes[field]
             setattr(event, field, (value or "").strip() or None)
 
+    event.location = "ASIATI" if event.kind == "ONSITE_INTERVIEW" else None
     db.commit()
     db.refresh(event)
     result = _event_payload(event)
