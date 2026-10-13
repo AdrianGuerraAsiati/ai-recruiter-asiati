@@ -172,7 +172,7 @@ export default function NameNormalizationModal({ onClose, onApplied }) {
               const suggestion = suggestions[item.candidate_id];
               const manual = String(manualNames[item.candidate_id] || "").trim();
               const manualReason = String(manualReasons[item.candidate_id] || "").trim();
-              const eligible = (manual ? /^[\p{L}][\p{L} '\-]*(?:\s+[\p{L}][\p{L} '\-]*)+$/u.test(manual) && manualReason.length >= 10 : suggestion?.status === "REVIEW_REQUIRED");
+              const eligible = (manual ? /^[\p{L}][\p{L} '-]*(?:\s+[\p{L}][\p{L} '-]*)+$/u.test(manual) && manualReason.length >= 10 : suggestion?.status === "REVIEW_REQUIRED");
               const isApproved = Boolean(approved[item.candidate_id]);
               const isRejected = Boolean(rejected[item.candidate_id]);
               return (
