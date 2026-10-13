@@ -41,7 +41,11 @@ _GENERIC_NAME_LINES = {
     "hoja de vida",
     "resume",
     "résumé",
+    "computrabajo cv",
+    "computrabajo profile",
+    "computrabajo",
 }
+_NAME_DESCRIPTION_WORDS = {"capacidad", "experiencia", "conocimientos", "habilidades", "responsable", "funciones", "operaciones", "planificar", "coordinar", "perfil", "profesional", "laboral", "administrador", "empresa", "manejo", "gestión", "gestion", "objetivo", "trabajo"}
 
 
 class DocumentImportError(ValueError):
@@ -239,7 +243,9 @@ def _plausible_name(line: str) -> bool:
     if any(character.isdigit() for character in normalized):
         return False
     words = normalized.split()
-    if not 2 <= len(words) <= 6:
+    if not 2 <= len(words) <= 5:
+        return False
+    if any(word.casefold().strip(".,:;") in _NAME_DESCRIPTION_WORDS for word in words):
         return False
     letters = sum(character.isalpha() for character in normalized)
     return letters >= 4 and letters / max(len(normalized), 1) >= 0.6
@@ -249,7 +255,10 @@ def _display_name(lines: list[str], filename: str) -> str:
     for line in lines[:_NAME_LINE_LIMIT]:
         if _plausible_name(line):
             return re.sub(r"\s+", " ", line).strip()
-    return _fallback_display_name(filename)
+    fallback = _fallback_display_name(filename)
+    if fallback.casefold() in _GENERIC_NAME_LINES or fallback.casefold().startswith("computrabajo "):
+        raise InvalidDocument("CANDIDATE_NAME_UNVERIFIED")
+    return fallback
 
 
 def extract_document(data: bytes, filename: str) -> ParsedDocument:
