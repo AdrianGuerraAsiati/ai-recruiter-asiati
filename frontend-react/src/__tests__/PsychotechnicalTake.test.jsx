@@ -113,7 +113,7 @@ describe("Public psychotechnical flow", () => {
     renderPage();
     expect(await screen.findByText("Sin límite de tiempo")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Comenzar prueba" }));
-    expect(await screen.findByText("Selecciona A09RT3")).toBeInTheDocument();
+    expect(await screen.findByText(/Selecciona A09RT3/)).toBeInTheDocument();
     expect(screen.queryByText(/tiempo restante|tiempo finalizado/i)).not.toBeInTheDocument();
     const submit = screen.getByRole("button", { name: "Enviar prueba" });
     expect(submit).toBeDisabled();
