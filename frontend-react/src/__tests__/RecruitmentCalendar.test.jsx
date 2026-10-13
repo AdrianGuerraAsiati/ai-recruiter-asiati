@@ -97,7 +97,7 @@ describe("RecruitmentCalendar", () => {
     render(<RecruitmentCalendar />);
 
     expect(await screen.findByRole("heading", { name: "Agenda de selección" })).toBeInTheDocument();
-    expect((await screen.findAllByText("Ana Pérez")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Ana pérez")).length).toBeGreaterThan(0);
     expect(screen.getByText("Ejecutivo Comercial SR")).toBeInTheDocument();
     expect(screen.getByText("Videollamada · Google Meet")).toBeInTheDocument();
   });
@@ -105,7 +105,7 @@ describe("RecruitmentCalendar", () => {
   it("creates a phone call for an eligible application", async () => {
     render(<RecruitmentCalendar />);
 
-    await screen.findAllByText("Ana Pérez");
+    await screen.findAllByText("Ana pérez");
     fireEvent.click(screen.getByRole("button", { name: "Agendar cita" }));
 
     fireEvent.change(screen.getByLabelText("Candidato y vacante"), {
@@ -132,7 +132,7 @@ describe("RecruitmentCalendar", () => {
 
     render(<RecruitmentCalendar />);
 
-    await screen.findAllByText("Ana Pérez");
+    await screen.findAllByText("Ana pérez");
     expect(screen.queryByRole("button", { name: "Agendar cita" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Editar" })).not.toBeInTheDocument();
   });
