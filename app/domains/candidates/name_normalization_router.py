@@ -58,3 +58,237 @@ def preview_candidate_name_normalization(
         "has_more": len(flagged) < sum(reasons.values()),
         "auto_changed": 0,
     }
+
+
+# Bounded, admin-initiated Bedrock proposal generation.
+import hashlib
+import json
+import os
+import uuid
+from datetime import datetime, timezone
+from uuid import UUID
+
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
+from fastapi import HTTPException
+from pydantic import BaseModel, Field
+
+_MODEL = "us.amazon.nova-pro-v1:0"
+_NAME = re.compile(r"^[^\W\d_]+(?:[ '-][^\W\d_]+){1,6}$", re.UNICODE)
+_INSTRUCTIONS = (
+    "Analyze this CV image and identify ONLY the applicant's full personal "
+    "name explicitly visible on the image. Never infer from emails, recruiter "
+    "names, reference contacts, or job vacancy titles. Return ONLY JSON with "
+    "full_name and exact_visible_evidence keys; null if not visible."
+)
+
+
+class SuggestRequest(BaseModel):
+    candidate_ids: list[str] = Field(min_length=1, max_length=5)
+
+
+class NameApproval(BaseModel):
+    candidate_id: str
+    expected_current_name: str
+    proposed_name: str
+
+
+class ApplyRequest(BaseModel):
+    approvals: list[NameApproval] = Field(min_length=1, max_length=100)
+
+
+class RevertRequest(BaseModel):
+    candidate_id: str
+    change_id: str
+
+
+def _valid_name(name, evidence):
+    return bool(
+        5 <= len(name) <= 90
+        and _NAME.fullmatch(name)
+        and not _SUSPECT.search(name)
+        and name.casefold() in evidence.casefold()
+    )
+
+
+def _cv_image(cid):
+    import pymupdf
+    session = boto3.Session(
+        profile_name=os.getenv("BEDROCK_AWS_PROFILE") or None,
+        region_name="us-east-2",
+    )
+    bucket = os.getenv("S3_BUCKET")
+    if not bucket:
+        raise RuntimeError("S3_BUCKET_NOT_CONFIGURED")
+    raw = session.client("s3").get_object(
+        Bucket=bucket, Key=f"documents/cv-{cid}.pdf"
+    )["Body"].read(15 * 1024 * 1024 + 1)
+    if len(raw) > 15 * 1024 * 1024:
+        raise RuntimeError("CV_TOO_LARGE")
+    with pymupdf.open(stream=raw, filetype="pdf") as doc:
+        if not doc.page_count:
+            raise RuntimeError("EMPTY_CV")
+        page = doc[0]
+        ratio = min(1.8, 1500 / max(page.rect.width, page.rect.height, 1))
+        png = page.get_pixmap(
+            matrix=pymupdf.Matrix(ratio, ratio), alpha=False
+        ).tobytes("png")
+    return session, hashlib.sha256(raw).hexdigest(), png
+
+
+def _ask_bedrock(session, png):
+    response = session.client("bedrock-runtime").converse(
+        modelId=_MODEL,
+        system=[{"text": _INSTRUCTIONS}],
+        messages=[{"role": "user", "content": [
+            {"text": "Find the applicant's visible name; reply with JSON only."},
+            {"image": {"format": "png", "source": {"bytes": png}}},
+        ]}],
+        inferenceConfig={"maxTokens":240, "temperature":0},
+    )
+    raw = "".join(b.get("text", "") for b in response["output"]["message"]["content"]).strip()
+    raw = raw.removeprefix(chr(96) * 3 + "json").removeprefix(chr(96) * 3).removesuffix(chr(96) * 3).strip()
+    try:
+        item = json.loads(raw)
+    except (ValueError, TypeError):
+        return "", "", "UNRESOLVED"
+    if not isinstance(item, dict):
+        return "", "", "UNRESOLVED"
+    name = " ".join(str(item.get("full_name") or "").split())
+    evidence = " ".join(str(item.get("exact_visible_evidence") or "").split())
+    if not _valid_name(name, evidence):
+        return "", "", "UNRESOLVED"
+    return name, evidence[:200], "REVIEW_REQUIRED"
+
+
+@router.post("/suggest")
+def suggest_candidate_names(
+    body: SuggestRequest,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_permission("candidates.manage")),
+):
+    if len(body.candidate_ids) != len(set(body.candidate_ids)):
+        raise HTTPException(status_code=400, detail="Identificadores duplicados.")
+    results = []
+    for raw_id in body.candidate_ids:
+        try:
+            cid = str(UUID(raw_id))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Identificador inválido.") from exc
+        candidate = db.query(Candidate).filter(
+            Candidate.id == cid, Candidate.owner_sub == user["sub"]
+        ).one_or_none()
+        if not candidate:
+            raise HTTPException(status_code=404, detail="Candidato no encontrado.")
+        if not _flag(candidate.name):
+            results.append({"candidate_id": cid, "status": "ALREADY_VALID"})
+            continue
+        try:
+            session, digest, image = _cv_image(cid)
+            metadata = dict(candidate.metadata_ or {})
+            cache = metadata.get("name_normalization") or {}
+            cached = cache.get("document_sha256") == digest and cache.get("model") == _MODEL
+            if cached:
+                name = cache.get("suggested_name") or ""
+                evidence = cache.get("evidence") or ""
+                status = cache.get("status") or "UNRESOLVED"
+            else:
+                name, evidence, status = _ask_bedrock(session, image)
+                metadata["name_normalization"] = {
+                    "document_sha256": digest,
+                    "model": _MODEL,
+                    "suggested_name": name,
+                    "evidence": evidence,
+                    "status": status,
+                    "evaluated_at": datetime.now(timezone.utc).isoformat(),
+                }
+                candidate.metadata_ = metadata
+                db.commit()
+            results.append({
+                "candidate_id": cid, "current_name": candidate.name,
+                "suggested_name": name, "evidence": evidence,
+                "status": status, "cached": cached,
+            })
+        except (ClientError, BotoCoreError, RuntimeError, ValueError, OSError) as exc:
+            db.rollback()
+            results.append({"candidate_id": cid, "status": "PROCESSING_ERROR",
+                            "error_type": type(exc).__name__})
+    return {"items": results}
+
+
+@router.post("/apply")
+def apply_normalized_names(
+    body: ApplyRequest,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_permission("candidates.manage")),
+):
+    try:
+        ids = [str(UUID(item.candidate_id)) for item in body.approvals]
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Identificador inválido.") from exc
+    if len(ids) != len(set(ids)):
+        raise HTTPException(status_code=400, detail="Identificadores duplicados.")
+    batch = str(uuid.uuid4())
+    try:
+        for approval, cid in zip(body.approvals, ids):
+            candidate = db.query(Candidate).filter(
+                Candidate.id == cid, Candidate.owner_sub == user["sub"]
+            ).with_for_update().one_or_none()
+            if candidate is None or candidate.name != approval.expected_current_name:
+                raise HTTPException(status_code=409, detail="El candidato ha cambiado.")
+            metadata = dict(candidate.metadata_ or {})
+            cached = metadata.get("name_normalization") or {}
+            name = " ".join(approval.proposed_name.split())
+            if (cached.get("status") != "REVIEW_REQUIRED"
+                    or cached.get("suggested_name") != name
+                    or not _valid_name(name, cached.get("evidence") or "")):
+                raise HTTPException(status_code=409, detail="Propuesta no verificada.")
+            history = list(metadata.get("name_normalization_history") or [])
+            history.append({
+                "change_id": str(uuid.uuid4()), "batch_id": batch,
+                "previous_name": candidate.name, "new_name": name,
+                "approved_by": user["sub"],
+                "approved_at": datetime.now(timezone.utc).isoformat(),
+                "document_sha256": cached.get("document_sha256"),
+            })
+            metadata["name_normalization_history"] = history[-30:]
+            candidate.metadata_ = metadata
+            candidate.name = name
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return {"applied": len(ids), "batch_id": batch}
+
+
+@router.post("/revert")
+def revert_normalized_name(
+    body: RevertRequest,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_permission("candidates.manage")),
+):
+    try:
+        cid = str(UUID(body.candidate_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Identificador inválido.") from exc
+    candidate = db.query(Candidate).filter(
+        Candidate.id == cid, Candidate.owner_sub == user["sub"]
+    ).with_for_update().one_or_none()
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado.")
+    metadata = dict(candidate.metadata_ or {})
+    history = list(metadata.get("name_normalization_history") or [])
+    if not history or history[-1].get("change_id") != body.change_id:
+        raise HTTPException(status_code=409, detail="Solo se puede revertir el último cambio.")
+    last = history[-1]
+    if candidate.name != last["new_name"]:
+        raise HTTPException(status_code=409, detail="El nombre fue modificado posteriormente.")
+    candidate.name = last["previous_name"]
+    metadata["name_normalization_history"] = history[:-1]
+    metadata["name_normalization_last_reverted"] = {
+        **last, "reverted_by": user["sub"],
+        "reverted_at": datetime.now(timezone.utc).isoformat(),
+    }
+    candidate.metadata_ = metadata
+    db.commit()
+    return {"reverted": True, "candidate_id": cid}
