@@ -449,6 +449,7 @@ function RecruitmentCalendar() {
               <button className="btn btn-ghost" type="button" onClick={() => setEditorOpen(false)} disabled={saving}>Cerrar</button>
             </div>
 
+            {error && <FeedbackMessage title="No se pudo guardar la cita">{error}</FeedbackMessage>}
             <form onSubmit={saveEvent}>
               <div className="form-group">
                 <label htmlFor="calendar-application">Candidato y vacante</label>
