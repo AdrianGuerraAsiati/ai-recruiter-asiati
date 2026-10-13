@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
-import { titleCase } from "../utils/text";
+import { sentenceCaseLabel } from "../utils/text";
 import { COUNTRY_OPTIONS, countryName } from "../data/countries";
 import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
@@ -1141,7 +1141,7 @@ function Jobs() {
             <div className="modal-header">
               <div>
                 <span className="eyebrow">Vacante</span>
-                <h2 id="job-details-title">{titleCase(viewJob.title)}</h2>
+                <h2 id="job-details-title">{sentenceCaseLabel(viewJob.title)}</h2>
                 <span className={`status-pill job-detail-status ${viewJob.status === "PAUSED" ? "is-paused" : ""}`}>
                   <i /> {viewJob.status === "PAUSED" ? "Pausada" : "Activa"}
                 </span>
@@ -1152,7 +1152,7 @@ function Jobs() {
             <div className="job-detail-section">
               <h3>Información de la vacante</h3>
               <div className="job-detail-info-grid">
-                <div><span className="muted">Título</span><strong>{titleCase(viewJob.title)}</strong></div>
+                <div><span className="muted">Título</span><strong>{sentenceCaseLabel(viewJob.title)}</strong></div>
                 <div><span className="muted">Fecha de creación</span><strong>{formatDate(viewJob.created_at)}</strong></div>
                 <div><span className="muted">Candidatos</span><strong>{viewJob.candidate_count || 0}</strong></div>
                 <div><span className="muted">Ubicación</span><strong>{[viewJob.city, countryName(viewJob.country_code)].filter(Boolean).join(", ") || "Sin definir"}</strong></div>
@@ -1256,7 +1256,7 @@ function Jobs() {
                     <div className="job-detail-candidate-row" key={c.candidate_id}>
                       <div className="job-detail-candidate-avatar" aria-hidden="true">{(c.name || "?").charAt(0).toUpperCase()}</div>
                       <div className="job-detail-candidate-info">
-                        <strong>{c.name || "Sin nombre"}</strong>
+                        <strong>{sentenceCaseLabel(c.name) || "Sin nombre"}</strong>
                         <span>{c.email || "Sin correo registrado"}</span>
                         <small>{c.filename || "CV sin nombre"}</small>
                         {c.application_status === "HIRED" && (
@@ -1310,7 +1310,7 @@ function Jobs() {
 
       <JobHireModal
         candidate={hireTarget}
-        jobTitle={titleCase(viewJob?.title) || "Vacante"}
+        jobTitle={sentenceCaseLabel(viewJob?.title) || "Vacante"}
         form={hireForm}
         hiring={hiring}
         error={hireError}
