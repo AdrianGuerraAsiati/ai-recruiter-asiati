@@ -770,6 +770,41 @@ class ComputrabajoBrowserUse:
             ), timeout=max(300.0, max_pages * 12.0),
         )
 
+    async def _read_candidate_profile_name_async(self, detail_url: str) -> str:
+        """Read only the name shown in an authorized Computrabajo profile."""
+        parsed = urlparse(detail_url)
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname != "empresa.co.computrabajo.com"
+            or parsed.path.casefold() != "/company/matchcvdetail/matchdetail"
+        ):
+            raise ValueError("COMPUTRABAJO_INVALID_CANDIDATE_URL")
+        cdp = await self._ensure_started()
+        await cdp.cdp_client.send.Page.navigate(
+            params={"url": detail_url}, session_id=cdp.session_id,
+        )
+        await self._wait_ready(cdp)
+        info = await self._evaluate(cdp, """(() => {
+            if (location.hostname !== 'empresa.co.computrabajo.com' ||
+                location.pathname.toLowerCase() !== '/company/matchcvdetail/matchdetail')
+                return {error:'COMPUTRABAJO_PROFILE_REQUIRED'};
+            const content = (document.body?.innerText || '').toLowerCase();
+            if (/su oferta de empleo ha vencido|oferta de empleo ha vencido|contratar una membresía/i.test(content))
+                return {error:'COMPUTRABAJO_OFFER_EXPIRED_ACCESS_DENIED'};
+            return {name:(document.querySelector('h1.fs22, h1')?.textContent || '').trim().slice(0,180)};
+        })()""")
+        if not isinstance(info, dict):
+            raise RuntimeError("COMPUTRABAJO_PROFILE_INVALID")
+        if info.get("error"):
+            raise RuntimeError(str(info["error"]))
+        name = " ".join(str(info.get("name") or "").split())
+        if not valid_computrabajo_candidate_name(name):
+            raise RuntimeError("COMPUTRABAJO_NAME_UNVERIFIED")
+        return name
+
+    def read_candidate_profile_name(self, detail_url: str) -> str:
+        return self._call(self._read_candidate_profile_name_async(detail_url), timeout=90.0)
+
     async def _collect_candidate_async(self, candidate: dict) -> dict:
         """Navigate to one discovered profile and obtain CV bytes within browser session.
 
