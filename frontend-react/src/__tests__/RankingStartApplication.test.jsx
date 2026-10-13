@@ -73,6 +73,8 @@ describe("Ranking application initiation", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Iniciar postulación" }));
     const dialog = await screen.findByRole("dialog", { name: "Iniciar postulación" });
     await waitFor(() => expect(within(dialog).getByLabelText("Correo").value).toBe("ana@example.com"));
+    expect(within(dialog).getByLabelText("Usuario de ADN360")).toHaveValue("aperez");
+    expect(within(dialog).getByText(/ADN360 iniciará su proceso de contratación/)).toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Iniciar postulación" }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
