@@ -22,6 +22,28 @@ from app.domains.ranking.exceptions import (
 router = APIRouter(prefix="/api/jobs", tags=["ranking"])
 
 
+@router.post("/prematch/candidates/{candidate_id}/refresh")
+def refresh_candidate_matches(
+    candidate_id: str,
+    threshold: int = Query(default=40, ge=0, le=100),
+    db: Session = Depends(get_db),
+    _user: dict = Depends(require_permission("ranking.recalculate")),
+):
+    """Explicit, repeat-safe pre-matching snapshot; no Bedrock or postulations."""
+    from uuid import UUID
+    from app.models import Job
+    from app.domains.ranking.prematch_store import refresh_candidate_suggestions
+    try:
+        candidate_id = str(UUID(candidate_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="Identificador inválido.") from exc
+    candidate = candidates_repository.get_candidate(db, candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado.")
+    jobs = db.query(Job).filter(Job.status == "ACTIVE").all()
+    return refresh_candidate_suggestions(db, candidate, jobs, threshold=threshold)
+
+
 @router.get("/prematch/candidates/{candidate_id}")
 def preview_candidate_matches(
     candidate_id: str,
