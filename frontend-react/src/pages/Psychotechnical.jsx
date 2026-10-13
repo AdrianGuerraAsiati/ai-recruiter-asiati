@@ -145,6 +145,31 @@ export default function Psychotechnical() {
     completed: items.filter((item) => item.status === "COMPLETED").length,
   }), [items]);
 
+  const applicationGroups = useMemo(() => {
+    const grouped = new Map();
+    for (const item of items) {
+      // An application is the candidate-vacancy pair. Unassigned tests stay
+      // in a separate candidate-only group rather than being mixed in.
+      const key = JSON.stringify([item.candidate_id, item.job_id || null]);
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          key,
+          candidateName: item.candidate_name || "Candidato",
+          candidateEmail: item.candidate_email || "",
+          jobTitle: item.job_title || "Sin vacante asociada",
+          candidateId: item.candidate_id,
+          jobId: item.job_id,
+          tests: [],
+        });
+      }
+      grouped.get(key).tests.push(item);
+    }
+    return Array.from(grouped.values()).sort((a, b) =>
+      a.candidateName.localeCompare(b.candidateName, "es") ||
+      a.jobTitle.localeCompare(b.jobTitle, "es")
+    );
+  }, [items]);
+
   async function regenerateLink(assignment) {
     const warning = assignment.status === "IN_PROGRESS"
       ? "La prueba está en curso. Renovar su acceso reiniciará la prueba y descartará cualquier progreso sin enviar. ¿Deseas continuar?"
@@ -292,8 +317,23 @@ export default function Psychotechnical() {
             description="Las cuatro pruebas se asignan automáticamente cuando se inicia una postulación. Sus resultados aparecerán aquí."
           />
         ) : (
-          <div className="psychotechnical-list">
-            {items.map((item) => (
+          <div className="psychotechnical-application-list">
+            {applicationGroups.map((group) => (
+              <section className="psychotechnical-application-group" key={group.key}>
+                <header className="psychotechnical-application-header">
+                  <div>
+                    <span className="eyebrow">Postulación · {group.jobId ? "Vacante" : "Sin vinculación"}</span>
+                    <h3>{group.candidateName}</h3>
+                    <p>{group.jobTitle}</p>
+                    {group.candidateEmail && <small>{group.candidateEmail}</small>}
+                  </div>
+                  <div className="psychotechnical-application-progress">
+                    <strong>{group.tests.filter((test) => test.status === "COMPLETED").length} de {group.tests.length}</strong>
+                    <span>pruebas completadas</span>
+                  </div>
+                </header>
+                <div className="psychotechnical-list">
+                {group.tests.map((item) => (
               <article className="psychotechnical-assignment" key={item.id}>
                 <div className="psychotechnical-assignment-main">
                   <div>
@@ -303,10 +343,7 @@ export default function Psychotechnical() {
                       </span>
                       <span className="psychotechnical-test-badge">{item.test_code}</span>
                     </div>
-                    <h3>{item.candidate_name || "Candidato"}</h3>
-                    <p>{item.test_name}</p>
-                    <small>{item.candidate_email || "Sin correo registrado"}</small>
-                    <small>{item.job_title ? ` · Vacante: ${item.job_title}` : " · Sin vacante asociada"}</small>
+                    <h4 className="psychotechnical-test-title">{item.test_name}</h4>
                   </div>
                   <div className="psychotechnical-assignment-meta">
                     <span>Vence</span>
@@ -336,6 +373,9 @@ export default function Psychotechnical() {
                   </div>
                 )}
               </article>
+                ))}
+                </div>
+              </section>
             ))}
           </div>
         )}
