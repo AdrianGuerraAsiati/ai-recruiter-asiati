@@ -1136,3 +1136,36 @@
   .psychotechnical-application-progress { justify-items: start; text-align: left; }
   .psychotechnical-application-group .psychotechnical-assignment { padding: 16px; }
 }
+
+
+/* Public assessment: high-contrast choices regardless of inherited theme. */
+.psychotechnical-public--test .psychotechnical-test-header h1 {
+  color: #142c40;
+  opacity: 1;
+}
+.psychotechnical-public--test .psychotechnical-options label,
+.psychotechnical-public--test .psychotechnical-options label span {
+  color: #163349;
+  opacity: 1;
+  font-weight: 650;
+}
+.psychotechnical-public--test .psychotechnical-options label {
+  background: #f5f9fb;
+  border: 1px solid #aebfcb;
+  cursor: pointer;
+}
+.psychotechnical-public--test .psychotechnical-options label:hover {
+  background: #e8f4f6;
+  border-color: #287f90;
+}
+.psychotechnical-public--test .psychotechnical-options label.is-selected {
+  background: #def3ee;
+  border: 2px solid #076977;
+}
+.psychotechnical-public--test .psychotechnical-options label.is-selected span {
+  color: #0c3843;
+  font-weight: 750;
+}
+.psychotechnical-public--test .psychotechnical-options input[type="radio"] {
+  accent-color: #076977;
+}

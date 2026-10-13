@@ -10,13 +10,6 @@ const TEMPERAMENT = "TEMPERAMENT_GTH_F017";
 const VALANTI = "VALANTI_ASIATI";
 const ATTENTION = "ATTENTION_DETAIL_V00";
 
-function formatTimer(seconds) {
-  const safe = Math.max(0, Number(seconds) || 0);
-  const minutes = Math.floor(safe / 60);
-  const rest = safe % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
-}
-
 function instructionsFor(assignment) {
   if (assignment?.test_key === VALANTI) {
     return "En cada par distribuye exactamente tres puntos usando una de las opciones 3-0, 0-3, 2-1 o 1-2. En la segunda parte el puntaje mayor corresponde a la frase que consideras más inaceptable.";
@@ -81,7 +74,6 @@ export default function PsychotechnicalTake() {
   const [phase, setPhase] = useState("loading");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [remainingSeconds, setRemainingSeconds] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,16 +97,6 @@ export default function PsychotechnicalTake() {
     };
   }, [token]);
 
-  useEffect(() => {
-    if (phase !== "test" || assignment?.test_key !== ATTENTION || remainingSeconds == null || remainingSeconds <= 0) {
-      return undefined;
-    }
-    const id = window.setInterval(() => {
-      setRemainingSeconds((current) => Math.max(0, Number(current || 0) - 1));
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [assignment?.test_key, phase, remainingSeconds]);
-
   async function start() {
     setError("");
     try {
@@ -122,11 +104,6 @@ export default function PsychotechnicalTake() {
       setAssignment(data.assignment);
       setQuestions(data.questions || []);
       setAnswers({});
-      setRemainingSeconds(
-        data.assignment?.test_key === ATTENTION
-          ? Number(data.assignment?.duration_seconds || 440)
-          : null,
-      );
       setPhase("test");
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, {
@@ -142,12 +119,7 @@ export default function PsychotechnicalTake() {
     () => groupQuestions(assignment, questions),
     [assignment, questions],
   );
-  const timed = assignment?.test_key === ATTENTION;
-  const timeExpired = timed && remainingSeconds === 0;
-  const requiresAllAnswers = assignment?.test_key !== ATTENTION;
-  const canSubmit = requiresAllAnswers
-    ? answered === questions.length && questions.length > 0
-    : answered > 0;
+  const canSubmit = questions.length > 0 && answered === questions.length;
 
   async function submit(event) {
     event.preventDefault();
@@ -218,7 +190,7 @@ export default function PsychotechnicalTake() {
 
           <div className="psychotechnical-public-summary">
             <div><span>Ítems</span><strong>{assignment?.question_count}</strong></div>
-            <div><span>{assignment?.test_key === ATTENTION ? "Tiempo límite" : "Tiempo estimado"}</span><strong>{assignment?.test_key === ATTENTION ? formatTimer(assignment?.duration_seconds || 440) : `${assignment?.duration_minutes} min`}</strong></div>
+            <div><span>Modalidad</span><strong>Sin límite de tiempo</strong></div>
             <div><span>Candidato</span><strong>{assignment?.candidate_name || "Asignado"}</strong></div>
           </div>
 
@@ -230,13 +202,6 @@ export default function PsychotechnicalTake() {
               y su resultado no determina por sí solo una contratación.
             </p>
           </div>
-
-          {assignment?.test_key === ATTENTION && (
-            <div className="psychotechnical-time-warning">
-              <strong>Prueba con tiempo.</strong>
-              <span>Al comenzar tendrás {formatTimer(assignment?.duration_seconds || 440)}. Cuando llegue a 00:00 ya no podrás modificar respuestas.</span>
-            </div>
-          )}
 
           {error && <p className="psychotechnical-public-error">{error}</p>}
 
@@ -258,28 +223,13 @@ export default function PsychotechnicalTake() {
             <p>{instructionsFor(assignment)}</p>
           </div>
           <div className="psychotechnical-progress-copy">
-            {timed ? (
-              <>
-                <strong className={timeExpired ? "is-expired" : ""}>{formatTimer(remainingSeconds)}</strong>
-                <span>{timeExpired ? "tiempo finalizado" : "tiempo restante"}</span>
-              </>
-            ) : (
-              <>
-                <strong>{answered}/{questions.length}</strong>
-                <span>respondidas</span>
-              </>
-            )}
+            <strong>{answered}/{questions.length}</strong>
+            <span>respondidas</span>
           </div>
           <div className="psychotechnical-progress-track" aria-label={`Progreso ${progress}%`}>
             <i style={{ width: `${progress}%` }} />
           </div>
         </header>
-
-        {timeExpired && (
-          <div className="psychotechnical-expired-banner" role="status">
-            El tiempo terminó. Tus respuestas quedaron bloqueadas; envía lo que alcanzaste a completar.
-          </div>
-        )}
 
         {groups.map((group) => (
           <section className="psychotechnical-question-group" key={group.key}>
@@ -292,7 +242,7 @@ export default function PsychotechnicalTake() {
 
               if (question.kind === "paired_allocation") {
                 return (
-                  <fieldset className="psychotechnical-question psychotechnical-question--pair" key={question.id} disabled={timeExpired}>
+                  <fieldset className="psychotechnical-question psychotechnical-question--pair" key={question.id}>
                     <legend>{questionNumber}. Distribuye los 3 puntos</legend>
                     <div className="psychotechnical-valanti-pair">
                       <span>{question.left}</span>
@@ -317,7 +267,7 @@ export default function PsychotechnicalTake() {
               }
 
               return (
-                <fieldset className="psychotechnical-question" key={question.id} disabled={timeExpired}>
+                <fieldset className="psychotechnical-question" key={question.id}>
                   <legend>{questionNumber}. {question.prompt}</legend>
                   {question.target && (
                     <div className="psychotechnical-target" aria-label="Modelo a comparar">
@@ -348,16 +298,8 @@ export default function PsychotechnicalTake() {
 
         <footer className="psychotechnical-submit-bar">
           <div>
-            <strong>
-              {requiresAllAnswers
-                ? (answered === questions.length ? "Todas las preguntas respondidas" : `Faltan ${questions.length - answered} respuestas`)
-                : (timeExpired ? "Tiempo finalizado" : `${answered} de ${questions.length} respondidas`)}
-            </strong>
-            <span>
-              {requiresAllAnswers
-                ? "Revisa tus respuestas antes de enviar."
-                : "En Atención al Detalle la eficiencia considera cuántos ítems alcanzaste a responder."}
-            </span>
+            <strong>{answered === questions.length ? "Todas las preguntas respondidas" : `Faltan ${questions.length - answered} respuestas`}</strong>
+            <span>Responde todas las preguntas y revisa tus respuestas antes de enviar. No hay límite de tiempo.</span>
           </div>
           <button
             className="btn btn-primary"
