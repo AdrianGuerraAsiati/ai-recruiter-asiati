@@ -1,3 +1,4 @@
+import { sentenceCaseLabel } from "../utils/text";
 // eslint-disable-next-line no-unused-vars
 import React, { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
@@ -248,7 +249,7 @@ function CandidateDetail() {
         <div className="candidate-avatar">{candidate?.name?.slice(0, 2).toUpperCase() || "CV"}</div>
         <div>
           <span className="eyebrow">Perfil de candidato</span>
-          <h1>{candidate?.name || "Candidato"}</h1>
+          <h1>{sentenceCaseLabel(candidate?.name) || "Candidato"}</h1>
           <p>{resumeName}</p>
           {sourceName && <p><strong>Origen:</strong> {sourceName}</p>}
           {isIndeedTest && <p className="muted">Candidato de prueba de Indeed</p>}
