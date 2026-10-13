@@ -94,25 +94,12 @@ export default function Psychotechnical() {
   const candidateIdFilter = searchParams.get("candidate_id") || "";
   const [catalog, setCatalog] = useState([]);
   const [items, setItems] = useState([]);
-  const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
   const [testFilter, setTestFilter] = useState("");
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
 
-  const [assignOpen, setAssignOpen] = useState(false);
-  const [candidateQuery, setCandidateQuery] = useState("");
-  const [candidateOptions, setCandidateOptions] = useState([]);
-  const [candidateLoading, setCandidateLoading] = useState(false);
-  const [form, setForm] = useState({
-    candidate_id: "",
-    job_id: "",
-    test_key: "",
-    expires_days: 7,
-  });
-  const [saving, setSaving] = useState(false);
-  const [createdLink, setCreatedLink] = useState("");
   const [copyNotice, setCopyNotice] = useState("");
 
   const loadAssignments = useCallback(async () => {
@@ -147,108 +134,16 @@ export default function Psychotechnical() {
   }, [loadAssignments, query]);
 
   useEffect(() => {
-    Promise.all([
-      api.get("/psychotechnical/catalog"),
-      api.get("/jobs"),
-    ])
-      .then(([catalogResponse, jobsResponse]) => {
-        const available = catalogResponse.data?.items || [];
-        setCatalog(available);
-        setForm((current) => ({
-          ...current,
-          test_key: current.test_key || available[0]?.key || "",
-        }));
-        setJobs((jobsResponse.data || []).filter((job) => job.status !== "PAUSED"));
-      })
-      .catch(() => {
-        setCatalog([]);
-        setJobs([]);
-      });
+    api.get("/psychotechnical/catalog")
+      .then(({ data }) => setCatalog(data?.items || []))
+      .catch(() => setCatalog([]));
   }, []);
-
-  useEffect(() => {
-    if (!assignOpen) return undefined;
-    const normalized = candidateQuery.trim();
-    if (normalized.length < 2) return undefined;
-
-    const id = window.setTimeout(async () => {
-      setCandidateLoading(true);
-      try {
-        const { data } = await api.get(
-          `/candidates?page=1&page_size=20&q=${encodeURIComponent(normalized)}`,
-        );
-        setCandidateOptions((data?.items || []).filter((candidate) => !candidate.is_banned));
-      } catch {
-        setCandidateOptions([]);
-      } finally {
-        setCandidateLoading(false);
-      }
-    }, 250);
-
-    return () => window.clearTimeout(id);
-  }, [assignOpen, candidateQuery]);
 
   const metrics = useMemo(() => ({
     pending: items.filter((item) => item.status === "PENDING").length,
     inProgress: items.filter((item) => item.status === "IN_PROGRESS").length,
     completed: items.filter((item) => item.status === "COMPLETED").length,
   }), [items]);
-
-  const selectedTest = useMemo(
-    () => catalog.find((test) => test.key === form.test_key) || catalog[0] || null,
-    [catalog, form.test_key],
-  );
-
-  function openAssignment(testKey = "") {
-    setForm({
-      candidate_id: candidateIdFilter || "",
-      job_id: "",
-      test_key: testKey || catalog[0]?.key || "",
-      expires_days: 7,
-    });
-    setCandidateQuery("");
-    setCandidateOptions([]);
-    setCreatedLink("");
-    setCopyNotice("");
-    setError("");
-    setAssignOpen(true);
-  }
-
-  async function createAssignment(event) {
-    event.preventDefault();
-    if (!form.candidate_id || !form.test_key || saving) return;
-    setSaving(true);
-    setError("");
-    try {
-      const { data } = await api.post("/psychotechnical/assignments", {
-        candidate_id: form.candidate_id,
-        job_id: form.job_id || null,
-        test_key: form.test_key,
-        expires_days: Number(form.expires_days),
-      });
-      const link = `${window.location.origin}/psychotechnical/take/${data.token}`;
-      setCreatedLink(link);
-      await loadAssignments();
-    } catch (requestError) {
-      setError(getApiErrorMessage(requestError, {
-        action: "asignar la prueba psicotécnica",
-        resource: "prueba psicotécnica",
-        fallback: "No fue posible asignar la prueba.",
-      }));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function copyLink() {
-    if (!createdLink) return;
-    try {
-      await navigator.clipboard.writeText(createdLink);
-      setCopyNotice("Enlace copiado.");
-    } catch {
-      setCopyNotice("Copia el enlace manualmente.");
-    }
-  }
 
   async function regenerateLink(assignment) {
     setError("");
@@ -257,9 +152,9 @@ export default function Psychotechnical() {
         `/psychotechnical/assignments/${assignment.id}/link`,
         { expires_days: 7 },
       );
-      setCreatedLink(`${window.location.origin}/psychotechnical/take/${data.token}`);
-      setCopyNotice("");
-      setAssignOpen(true);
+      const link = `${window.location.origin}/psychotechnical/take/${data.token}`;
+      await navigator.clipboard.writeText(link);
+      setCopyNotice("Nuevo enlace copiado para compartir de forma segura.");
       await loadAssignments();
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, {
@@ -289,11 +184,7 @@ export default function Psychotechnical() {
         eyebrow="Gestión de talento humano"
         title="Pruebas psicotécnicas"
         description="Digitaliza los formatos internos de ASIATI: Sentido Común, Temperamento, VALANTI y Atención al Detalle. Cada resultado se conserva separado del Ranking IA."
-        actions={(
-          <button className="btn btn-primary" type="button" onClick={() => openAssignment()}>
-            Asignar prueba
-          </button>
-        )}
+
       />
 
       <div className="psychotechnical-safety-note">
@@ -315,9 +206,7 @@ export default function Psychotechnical() {
               <p>{test.description}</p>
               <div className="psychotechnical-catalog-footer">
                 <small>{test.question_count} ítems</small>
-                <button className="btn btn-secondary" type="button" onClick={() => openAssignment(test.key)}>
-                  Asignar
-                </button>
+                <span className="psychotechnical-automatic-label">Automática</span>
               </div>
             </article>
           ))}
@@ -325,6 +214,7 @@ export default function Psychotechnical() {
       )}
 
       {error && <FeedbackMessage title="No pudimos completar la operación">{error}</FeedbackMessage>}
+      {copyNotice && <FeedbackMessage title="Enlace actualizado" tone="success">{copyNotice}</FeedbackMessage>}
 
       <section className="psychotechnical-metrics" aria-label="Resumen de pruebas">
         <article className="panel psychotechnical-metric">
@@ -395,8 +285,7 @@ export default function Psychotechnical() {
           <EmptyState
             icon="check"
             title="No hay pruebas con este filtro"
-            description="Asigna una prueba a un candidato para comenzar el seguimiento."
-            action={<button className="btn btn-primary" type="button" onClick={() => openAssignment()}>Asignar prueba</button>}
+            description="Las cuatro pruebas se asignan automáticamente cuando se inicia una postulación. Sus resultados aparecerán aquí."
           />
         ) : (
           <div className="psychotechnical-list">
@@ -448,141 +337,7 @@ export default function Psychotechnical() {
         )}
       </section>
 
-      {assignOpen && (
-        <div className="modal-overlay" role="presentation" onMouseDown={() => !saving && setAssignOpen(false)}>
-          <section
-            className="modal psychotechnical-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="psychotechnical-assign-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="modal-header">
-              <div>
-                <span className="eyebrow">Nueva asignación</span>
-                <h2 id="psychotechnical-assign-title">Asignar prueba psicotécnica</h2>
-                <p>Selecciona uno de los formatos internos digitalizados de ASIATI.</p>
-              </div>
-              <button className="btn-close" type="button" aria-label="Cerrar" onClick={() => setAssignOpen(false)} disabled={saving}>×</button>
-            </div>
 
-            {createdLink ? (
-              <div className="psychotechnical-link-ready">
-                <span className="psychotechnical-link-icon">✓</span>
-                <h3>Prueba asignada</h3>
-                <p>Comparte este enlace únicamente con el candidato. Expira según el plazo configurado.</p>
-                <div className="psychotechnical-link-box">
-                  <input value={createdLink} readOnly aria-label="Enlace de la prueba" />
-                  <button className="btn btn-primary" type="button" onClick={copyLink}>Copiar</button>
-                </div>
-                {copyNotice && <small>{copyNotice}</small>}
-                <div className="form-actions">
-                  <button className="btn btn-secondary" type="button" onClick={() => setAssignOpen(false)}>Cerrar</button>
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={createAssignment}>
-                <div className="form-group">
-                  <label htmlFor="psychotechnical-test">Prueba</label>
-                  <select
-                    id="psychotechnical-test"
-                    value={form.test_key}
-                    required
-                    onChange={(event) => setForm((current) => ({ ...current, test_key: event.target.value }))}
-                  >
-                    <option value="">Selecciona una prueba</option>
-                    {catalog.map((test) => (
-                      <option key={test.key} value={test.key}>{test.name} · {test.code}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="psychotechnical-candidate-search">Candidato</label>
-                  <input
-                    id="psychotechnical-candidate-search"
-                    type="search"
-                    placeholder="Escribe nombre o correo…"
-                    value={candidateQuery}
-                    disabled={Boolean(candidateIdFilter)}
-                    onChange={(event) => {
-                      setCandidateQuery(event.target.value);
-                      setCandidateOptions([]);
-                      setForm((current) => ({ ...current, candidate_id: "" }));
-                    }}
-                  />
-                  {candidateIdFilter && <small>El candidato quedó preseleccionado desde su perfil.</small>}
-                  {candidateLoading && <small>Buscando candidatos…</small>}
-                  {candidateOptions.length > 0 && (
-                    <div className="psychotechnical-candidate-options">
-                      {candidateOptions.map((candidate) => (
-                        <button
-                          key={candidate.candidate_id}
-                          type="button"
-                          className={form.candidate_id === candidate.candidate_id ? "is-selected" : ""}
-                          onClick={() => {
-                            setForm((current) => ({ ...current, candidate_id: candidate.candidate_id }));
-                            setCandidateQuery(candidate.name || candidate.email || "");
-                            setCandidateOptions([]);
-                          }}
-                        >
-                          <strong>{candidate.name || "Sin nombre"}</strong>
-                          <span>{candidate.email || "Sin correo"}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {form.candidate_id && <small className="psychotechnical-selected">✓ Candidato seleccionado</small>}
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="psychotechnical-job">Vacante asociada</label>
-                  <select
-                    id="psychotechnical-job"
-                    value={form.job_id}
-                    onChange={(event) => setForm((current) => ({ ...current, job_id: event.target.value }))}
-                  >
-                    <option value="">Sin vacante específica</option>
-                    {jobs.map((job) => (
-                      <option key={job.job_id} value={job.job_id}>{job.title}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="psychotechnical-expiry">Vigencia del enlace</label>
-                  <select
-                    id="psychotechnical-expiry"
-                    value={form.expires_days}
-                    onChange={(event) => setForm((current) => ({ ...current, expires_days: Number(event.target.value) }))}
-                  >
-                    <option value={3}>3 días</option>
-                    <option value={7}>7 días</option>
-                    <option value={14}>14 días</option>
-                    <option value={30}>30 días</option>
-                  </select>
-                </div>
-
-                {selectedTest && (
-                  <div className="psychotechnical-test-preview">
-                    <strong>{selectedTest.name}</strong>
-                    <span>{selectedTest.code} · v{selectedTest.source_version} · {selectedTest.question_count} ítems · ~{selectedTest.duration_minutes} min</span>
-                    <small>{selectedTest.description}</small>
-                    <small>El resultado permanece separado del Ranking IA.</small>
-                  </div>
-                )}
-
-                <div className="form-actions">
-                  <button className="btn btn-secondary" type="button" onClick={() => setAssignOpen(false)} disabled={saving}>Cancelar</button>
-                  <button className="btn btn-primary" type="submit" disabled={saving || !form.candidate_id || !form.test_key}>
-                    {saving ? "Asignando…" : "Generar enlace"}
-                  </button>
-                </div>
-              </form>
-            )}
-          </section>
-        </div>
-      )}
     </div>
   );
 }

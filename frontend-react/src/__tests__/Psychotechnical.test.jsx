@@ -1,6 +1,6 @@
 // eslint-disable-next-line no-unused-vars
 import React from "react";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -118,42 +118,13 @@ describe("Psychotechnical recruiter workspace", () => {
     expect(screen.getByText(/se conserva separado del Ranking IA/i)).toBeInTheDocument();
   });
 
-  it("assigns a selected ASIATI test and exposes a candidate-specific link", async () => {
-    api.post.mockResolvedValueOnce({
-      data: {
-        assignment: { id: "assessment-2" },
-        token: "secret-test-token",
-      },
-    });
-
+  it("shows automatic assignment without manual assignment controls", async () => {
     renderPage();
-    await screen.findByText("Ana Pérez");
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Asignar prueba" })[0]);
-    fireEvent.change(screen.getByLabelText("Prueba"), {
-      target: { value: "TEMPERAMENT_GTH_F017" },
-    });
-    fireEvent.change(screen.getByLabelText("Candidato"), {
-      target: { value: "Carlos" },
-    });
-
-    const candidate = await screen.findByRole("button", { name: /Carlos Ruiz/i });
-    fireEvent.click(candidate);
-    fireEvent.click(screen.getByRole("button", { name: "Generar enlace" }));
-
-    await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith(
-        "/psychotechnical/assignments",
-        {
-          candidate_id: "candidate-2",
-          job_id: null,
-          test_key: "TEMPERAMENT_GTH_F017",
-          expires_days: 7,
-        },
-      );
-    });
-
-    const linkInput = await screen.findByLabelText("Enlace de la prueba");
-    expect(linkInput.value).toContain("/psychotechnical/take/secret-test-token");
+    expect(await screen.findByText("Ana Pérez")).toBeInTheDocument();
+    expect(screen.getAllByText("Automática")).toHaveLength(catalog.length);
+    expect(screen.queryByRole("button", { name: /^Asignar( prueba)?$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Generar enlace" })).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalledWith("/psychotechnical/assignments", expect.anything());
   });
+
 });
