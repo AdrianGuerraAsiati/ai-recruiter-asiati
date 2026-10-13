@@ -12,7 +12,7 @@ PRINCIPAL = {"profile": {"id": "user-profile-123"}, "sub": "applicant-sub"}
 
 def test_own_assignments_uses_profile_link_not_email():
     db = MagicMock()
-    db.query.return_value.join.return_value.filter.return_value.distinct.return_value.order_by.return_value.all.return_value = []
+    db.query.return_value.filter.return_value.order_by.return_value.all.return_value = []
     result = own_router.own_assignments(db=db, principal=PRINCIPAL)
     assert result == {"items": []}
     assert db.query.called

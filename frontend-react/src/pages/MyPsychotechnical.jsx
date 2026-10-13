@@ -57,7 +57,7 @@ export default function MyPsychotechnical() {
         description="Consulta las pruebas que te asignó Talento Humano y complétalas desde tu cuenta." />
       {error && <p role="alert">{error}</p>}
       {loading && <p role="status">Consultando tus pruebas…</p>}
-      {!loading && items.length === 0 && (
+      {!loading && !error && items.length === 0 && (
         <section className="card" style={{ padding: 24 }}>
           <h2>No tienes pruebas asignadas</h2>
           <p className="muted">Cuando Talento Humano te asigne una prueba psicotécnica, aparecerá aquí.</p>

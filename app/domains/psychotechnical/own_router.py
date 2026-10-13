@@ -45,13 +45,32 @@ def own_assignments(
     principal: dict = Depends(get_current_principal),
 ):
     profile_id = _profile_id(principal)
+    # Backfill applicants created before automatic test allocation was enabled.
+    # Always scope the lookup to the authenticated profile; never trust an
+    # employee/candidate identifier supplied by the browser.
+    applications = (
+        db.query(JobCandidate)
+        .filter(JobCandidate.employee_id == profile_id)
+        .order_by(JobCandidate.id.asc())
+        .all()
+    )
+    candidate_jobs = {}
+    for application in applications:
+        candidate_jobs.setdefault(str(application.candidate_id), str(application.job_id))
+    for candidate_id, job_id in candidate_jobs.items():
+        service.ensure_hiring_assignments(
+            db,
+            candidate_id=candidate_id,
+            job_id=job_id,
+            created_by_sub="system:psychotechnical-default",
+        )
+
     rows = (
         db.query(PsychotechnicalAssignment)
-        .join(JobCandidate, JobCandidate.candidate_id == PsychotechnicalAssignment.candidate_id)
-        .filter(JobCandidate.employee_id == profile_id)
-        .distinct()
+        .filter(PsychotechnicalAssignment.candidate_id.in_(list(candidate_jobs)))
         .order_by(PsychotechnicalAssignment.created_at.desc())
         .all()
+        if candidate_jobs else []
     )
     items = []
     for assignment in rows:
