@@ -808,12 +808,12 @@ class ComputrabajoBrowserUse:
             raise RuntimeError("COMPUTRABAJO_PROFILE_INVALID")
         if info.get("error"):
             raise RuntimeError(str(info["error"]))
+        if not info.get("attachment_url") and not info.get("name"):
+            raise RuntimeError("COMPUTRABAJO_PROFILE_CONTENT_UNAVAILABLE")
         # A listing's title can refer to the VACANCY. Prefer the opened profile.
         name = " ".join(str(info.get("name") or "").split())
         if not valid_computrabajo_candidate_name(name):
             raise RuntimeError("COMPUTRABAJO_NAME_UNVERIFIED")
-        if not info.get("attachment_url") and not info.get("name"):
-            raise RuntimeError("COMPUTRABAJO_PROFILE_CONTENT_UNAVAILABLE")
         if info.get("attachment_url"):
             encoded = json.dumps(str(info["attachment_url"]))
             result = await self._evaluate(cdp, """(async () => {
