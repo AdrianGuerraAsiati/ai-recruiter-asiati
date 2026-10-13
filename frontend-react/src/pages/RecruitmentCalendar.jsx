@@ -271,6 +271,27 @@ function RecruitmentCalendar() {
     }
   }
 
+  async function deleteAppointment() {
+    if (!editingEvent || saving) return;
+    if (!window.confirm("¿Eliminar esta cita? También se eliminará de Google Calendar y quedará libre el horario.")) return;
+    setSaving(true);
+    setError("");
+    try {
+      await api.delete(`/recruitment-calendar/events/${editingEvent.id}`);
+      setEditorOpen(false);
+      setEditingEvent(null);
+      await load();
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, {
+        action: "eliminar la cita",
+        resource: "agenda de selección",
+        fallback: "No se pudo eliminar la cita. Vuelve a intentarlo.",
+      }));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function setEventStatus(event, status) {
     setSaving(true);
     setError("");
@@ -506,9 +527,9 @@ function RecruitmentCalendar() {
               </div>
 
               <div className="modal-footer recruitment-calendar-modal-actions">
-                {editingEvent?.status === "SCHEDULED" && (
-                  <button className="btn btn-danger" type="button" disabled={saving} onClick={() => void setEventStatus(editingEvent, "CANCELED").then(() => setEditorOpen(false))}>
-                    Cancelar cita
+                {editingEvent && (
+                  <button className="btn btn-danger" type="button" disabled={saving} onClick={() => void deleteAppointment()}>
+                    Eliminar cita
                   </button>
                 )}
                 {editingEvent?.status && editingEvent.status !== "SCHEDULED" && (
