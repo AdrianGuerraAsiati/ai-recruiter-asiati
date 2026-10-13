@@ -407,7 +407,15 @@ def sync_event(event: RecruitmentEvent, *, store=None, http_client=None) -> dict
                 url + "/" + quote(body["id"], safe=""),
                 headers=headers,
                 params={"sendUpdates": "none", "conferenceDataVersion": 1},
-                json={**body, **({"conferenceData": self_conference} if (self_conference := _existing_conference(http, url, body["id"], headers)) else {})},
+                json={
+                    **body,
+                    **(
+                        {"conferenceData": conference}
+                        if event.kind == "PHONE_CALL"
+                        and (conference := _existing_conference(http, url, body["id"], headers))
+                        else {"conferenceData": None} if event.kind == "ONSITE_INTERVIEW" else {}
+                    ),
+                },
             )
         if response.status_code not in (200, 201):
             raise GoogleCalendarRemoteError(
