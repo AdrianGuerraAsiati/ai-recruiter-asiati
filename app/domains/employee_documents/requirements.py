@@ -5,6 +5,13 @@ from __future__ import annotations
 
 EMPLOYEE_DOCUMENT_REQUIREMENTS = (
     {
+        "value": "EMPLOYMENT_CONTRACT",
+        "label": "Contrato laboral",
+        "kind": "FILE",
+        "admin_only": True,
+        "description": "Talento Humano debe redactar, revisar y cargar el contrato correspondiente al empleado. Talent no lo genera automáticamente.",
+    },
+    {
         "value": "RESUME",
         "label": "Hoja de vida actualizada",
         "kind": "FILE",
