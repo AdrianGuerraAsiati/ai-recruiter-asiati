@@ -400,7 +400,7 @@ function RecruitmentCalendar() {
       </div>
 
       {editorOpen && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={() => !saving && setEditorOpen(false)}>
+        <div className="modal-overlay recruitment-calendar-overlay" role="presentation" onMouseDown={() => !saving && setEditorOpen(false)}>
           <section className="modal recruitment-calendar-modal" role="dialog" aria-modal="true" aria-labelledby="calendar-editor-title" onMouseDown={(event) => event.stopPropagation()}>
             <div className="modal-header">
               <div>
