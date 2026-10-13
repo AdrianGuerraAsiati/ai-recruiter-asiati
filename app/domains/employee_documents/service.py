@@ -34,9 +34,11 @@ def normalize_document_type(value: str) -> str:
     return normalized
 
 
-def _require_kind(document_type: str, kind: str) -> dict:
+def _require_kind(document_type: str, kind: str, *, admin_upload: bool = False) -> dict:
     normalized = normalize_document_type(document_type)
     requirement = get_requirement(normalized)
+    if requirement.get("admin_only") and not admin_upload:
+        raise ValueError("Este documento solo puede cargarlo Talento Humano.")
     if requirement["kind"] != kind:
         if kind == "FILE":
             raise ValueError("Este requisito se completa como información y no como archivo.")
@@ -70,6 +72,7 @@ def _missing_payload(requirement: dict) -> dict:
         "label": requirement["label"],
         "kind": requirement["kind"],
         "description": requirement["description"],
+        "admin_only": bool(requirement.get("admin_only")),
         "original_filename": None,
         "content_type": None,
         "size_bytes": None,
@@ -97,6 +100,7 @@ def document_payload(document: EmployeeDocument) -> dict:
         "label": requirement["label"],
         "kind": requirement["kind"],
         "description": requirement["description"],
+        "admin_only": bool(requirement.get("admin_only")),
         "original_filename": document.original_filename,
         "content_type": document.content_type,
         "size_bytes": document.size_bytes,
@@ -108,7 +112,7 @@ def document_payload(document: EmployeeDocument) -> dict:
     }
 
 
-def list_documents(db: Session, employee_id: str) -> list[dict]:
+def list_documents(db: Session, employee_id: str, *, include_admin_only: bool = False) -> list[dict]:
     require_employee(db, employee_id)
     rows = (
         db.query(EmployeeDocument)
@@ -118,6 +122,8 @@ def list_documents(db: Session, employee_id: str) -> list[dict]:
     by_type = {row.document_type: row for row in rows}
     items = []
     for requirement in EMPLOYEE_DOCUMENT_REQUIREMENTS:
+        if requirement.get("admin_only") and not include_admin_only:
+            continue
         row = by_type.get(requirement["value"])
         items.append(document_payload(row) if row else _missing_payload(requirement))
     return items
@@ -150,9 +156,9 @@ def _summary(items: list[dict]) -> dict:
     }
 
 
-def portfolio_payload(db: Session, employee_id: str) -> dict:
+def portfolio_payload(db: Session, employee_id: str, *, include_admin_only: bool = False) -> dict:
     employee = require_employee(db, employee_id)
-    items = list_documents(db, employee_id)
+    items = list_documents(db, employee_id, include_admin_only=include_admin_only)
     return {
         "employee": {
             "id": employee.id,
@@ -174,9 +180,10 @@ def create_upload(
     filename: str,
     content_type: str,
     size_bytes: int,
+    admin_upload: bool = False,
 ) -> dict:
     require_employee(db, employee_id)
-    requirement = _require_kind(document_type, "FILE")
+    requirement = _require_kind(document_type, "FILE", admin_upload=admin_upload)
     upload = storage.create_document_upload(
         employee_id=employee_id,
         filename=filename,
@@ -197,9 +204,10 @@ def finalize_upload(
     key: str,
     content_type: str,
     size_bytes: int,
+    admin_upload: bool = False,
 ) -> EmployeeDocument:
     require_employee(db, employee_id)
-    requirement = _require_kind(document_type, "FILE")
+    requirement = _require_kind(document_type, "FILE", admin_upload=admin_upload)
     normalized_document_type = requirement["value"]
     verified = storage.verify_document_object(
         employee_id=employee_id,
