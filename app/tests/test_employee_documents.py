@@ -61,7 +61,7 @@ def test_portfolio_exposes_exact_required_intake_checklist():
         "status": "INCOMPLETE",
     }
     assert [item["label"] for item in payload["items"]] == [
-        item["label"] for item in EMPLOYEE_DOCUMENT_REQUIREMENTS
+        item["label"] for item in EMPLOYEE_DOCUMENT_REQUIREMENTS if not item.get("admin_only")
     ]
     assert {item["kind"] for item in payload["items"]} == {"FILE", "TEXT"}
 
@@ -376,3 +376,37 @@ def test_storage_verify_rejects_foreign_employee_key():
             expected_content_type="application/pdf",
             expected_size_bytes=321,
         )
+
+
+def test_contract_is_admin_only_and_missing_in_hr_portfolio(monkeypatch):
+    engine, db = _db()
+    employee = _employee(db)
+    own = service.portfolio_payload(db, employee.id)
+    assert all(row["document_type"] != "EMPLOYMENT_CONTRACT" for row in own["items"])
+    hr = service.portfolio_payload(db, employee.id, include_admin_only=True)
+    contract = next(row for row in hr["items"] if row["document_type"] == "EMPLOYMENT_CONTRACT")
+    assert contract["review_status"] == "MISSING"
+    assert contract["admin_only"] is True
+    assert hr["summary"]["total"] == 14
+
+    with pytest.raises(ValueError, match="solo puede cargarlo"):
+        service.create_upload(
+            db, employee_id=employee.id, document_type="EMPLOYMENT_CONTRACT",
+            filename="contrato.pdf", content_type="application/pdf", size_bytes=200,
+        )
+
+    monkeypatch.setattr(service.storage, "verify_document_object", lambda **kwargs: {
+        "key": kwargs["key"],
+        "content_type": kwargs["expected_content_type"],
+        "size_bytes": kwargs["expected_size_bytes"],
+    })
+    row = service.finalize_upload(
+        db, employee_id=employee.id, uploaded_by_sub="talento-admin",
+        document_type="EMPLOYMENT_CONTRACT", filename="contrato.pdf",
+        key=f"training/employee-documents/{employee.id}/contract.pdf",
+        content_type="application/pdf", size_bytes=200, admin_upload=True,
+    )
+    assert row.review_status == "PENDING_REVIEW"
+    assert service.portfolio_payload(db, employee.id, include_admin_only=True)["summary"]["pending_review"] == 1
+    db.close()
+    engine.dispose()
