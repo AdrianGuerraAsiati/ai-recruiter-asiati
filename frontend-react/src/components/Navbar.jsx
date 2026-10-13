@@ -46,6 +46,7 @@ const navItems = [
     section: "Cuenta",
     permissionsAny: ["employee_documents.read_own", "employee_documents.read_all"],
   },
+  { to: "/my-psychotechnical", label: "Ficha psicotécnica", icon: "check", section: "Cuenta", roles: ["APPLICANT", "EMPLOYEE"] },
   { to: "/profile", label: "Mi perfil", icon: "profile", section: "Cuenta", permission: "profile.read_own" },
   { to: "/integrations", label: "Integraciones", icon: "integrations", section: "Sistema", permission: "integrations.manage" },
 ];
