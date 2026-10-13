@@ -1,6 +1,6 @@
 // eslint-disable-next-line no-unused-vars
-import { sentenceCaseLabel } from "../utils/text";
 import React, { useCallback, useEffect, useState } from "react";
+import { sentenceCaseLabel } from "../utils/text";
 import { useSearchParams } from "react-router-dom";
 
 import api from "../api/client";
