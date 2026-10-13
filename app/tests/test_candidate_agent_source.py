@@ -101,6 +101,7 @@ def test_computrabajo_candidate_is_handed_to_shared_ingestion_queue(monkeypatch)
     }
     assert created["document"]["document_sha256"] == hashlib.sha256(payload).hexdigest()
     assert storage.calls[0]["content_type"] == "application/pdf"
+    assert storage.calls[0]["filename"] == "ada-lovelace-idscandidate-42.pdf"
 
 
 def test_computrabajo_replay_with_same_document_is_idempotent(monkeypatch):
@@ -224,3 +225,14 @@ def test_existing_unqueued_candidate_is_dispatched_on_retry(monkeypatch):
     assert result.existing is True and result.queued is True
     assert queued == ["event-retry"]
     assert db.commits == 1
+
+
+def test_generated_source_filename_rejects_generic_titles():
+    with pytest.raises(agent_source_service.CandidateSourceValidationError, match="CANDIDATE_SOURCE_NAME_UNVERIFIED"):
+        agent_source_service._named_candidate_filename("Computrabajo CV", "123", "application/pdf")
+    with pytest.raises(agent_source_service.CandidateSourceValidationError, match="CANDIDATE_SOURCE_NAME_UNVERIFIED"):
+        agent_source_service._named_candidate_filename("capacidad para coordinar operaciones", "123", "application/pdf")
+
+
+def test_source_filename_preserves_docx_and_unique_identifier():
+    assert agent_source_service._named_candidate_filename("María Pérez", "candidate-123", agent_source_service.DOCX_CONTENT_TYPE) == "maria-perez-candidate-123.docx"

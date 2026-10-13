@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import io
+import re
+import unicodedata
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -90,6 +92,18 @@ def _safe_filename(filename: str | None, *, content_type: str) -> str:
     safe = "".join(ch if ch.isalnum() or ch in " ._-" else "_" for ch in stem).strip()
     extension = ".docx" if content_type == DOCX_CONTENT_TYPE else ".pdf"
     return f"{safe or 'candidate-resume'}{extension}"
+
+
+def _named_candidate_filename(candidate_name: str, external_id: str, content_type: str) -> str:
+    """Keep a readable, unique source filename without trusting the browser's generic name."""
+    ascii_name = unicodedata.normalize("NFKD", candidate_name).encode("ascii", "ignore").decode()
+    stem = re.sub(r"[^a-zA-Z0-9]+", "-", ascii_name).strip("-").lower()[:72]
+    bad_terms = {"computrabajo", "curriculum", "resume", "capacidad", "planificar", "coordinar", "experiencia", "habilidades", "operaciones"}
+    if not stem or stem in {"computrabajo-cv", "computrabajo-profile", "cv", "hoja-de-vida"} or any(term in bad_terms for term in stem.split("-")):
+        raise CandidateSourceValidationError(422, "CANDIDATE_SOURCE_NAME_UNVERIFIED")
+    suffix = re.sub(r"[^a-zA-Z0-9-]", "", external_id)[:20]
+    extension = ".docx" if content_type == DOCX_CONTENT_TYPE else ".pdf"
+    return f"{stem}-{suffix}{extension}"
 
 
 def ingest_candidate_document(
@@ -183,7 +197,7 @@ def ingest_candidate_document(
     # Computrabajo is a candidate source only: NEVER resolve or assign a Talent job.
     # Provider-side offers are navigation paths, not jobs in the Talent domain.
 
-    safe_filename = _safe_filename(filename, content_type=canonical_type)
+    safe_filename = _named_candidate_filename(normalized_name, normalized_external_id, canonical_type)
     source_storage = storage or EmailIngestionStorage()
     source_key = source_storage.store_source_document(
         event_id=str(event.id),
