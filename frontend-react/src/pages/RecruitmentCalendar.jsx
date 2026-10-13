@@ -527,7 +527,7 @@ function RecruitmentCalendar() {
               </div>
 
               <div className="modal-footer recruitment-calendar-modal-actions">
-                {editingEvent?.status === "SCHEDULED" && (
+                {editingEvent && (
                   <button className="btn btn-danger" type="button" disabled={saving} onClick={() => void deleteAppointment()}>
                     Eliminar cita
                   </button>
