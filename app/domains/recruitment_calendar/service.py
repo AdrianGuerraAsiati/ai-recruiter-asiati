@@ -25,6 +25,21 @@ def _validate_window(starts_at: datetime, ends_at: datetime) -> None:
         raise RecruitmentEventValidationError("La hora final debe ser posterior a la inicial.")
 
 
+def _ensure_available(db: Session, starts_at: datetime, ends_at: datetime, *, exclude_id: str | None = None) -> None:
+    # Half-open time intervals: consecutive appointments are permitted.
+    query = db.query(RecruitmentEvent).filter(
+        RecruitmentEvent.status != "CANCELED",
+        RecruitmentEvent.starts_at < ends_at,
+        RecruitmentEvent.ends_at > starts_at,
+    )
+    if exclude_id:
+        query = query.filter(RecruitmentEvent.id != exclude_id)
+    if db.query(query.exists()).scalar():
+        raise RecruitmentApplicationNotEligible(
+            "Ese horario ya está ocupado por otra cita. Selecciona una hora diferente."
+        )
+
+
 def _persisted_datetime(value: datetime) -> datetime:
     """Normalize dialects such as SQLite that drop timezone metadata on read."""
 
@@ -135,6 +150,7 @@ def create_event(
     if kind not in EVENT_KINDS:
         raise RecruitmentEventValidationError("Tipo de cita no válido.")
     _validate_window(starts_at, ends_at)
+    _ensure_available(db, starts_at, ends_at)
 
     event = RecruitmentEvent(
         job_id=job_id,
@@ -173,6 +189,8 @@ def update_event(db: Session, event_id: str, *, changes: dict) -> dict:
     if next_status not in EVENT_STATUSES:
         raise RecruitmentEventValidationError("Estado de cita no válido.")
     _validate_window(next_start, next_end)
+    if next_status != "CANCELED":
+        _ensure_available(db, next_start, next_end, exclude_id=event_id)
 
     for field in ("kind", "starts_at", "ends_at", "status"):
         if field in changes and changes[field] is not None:
@@ -189,3 +207,16 @@ def update_event(db: Session, event_id: str, *, changes: dict) -> dict:
     from app.domains.recruitment_calendar import google
     result["google_sync"] = google.try_sync_event(event)
     return result
+
+
+def delete_event(db: Session, event_id: str) -> dict:
+    """Remove the Google appointment before removing the local source of truth."""
+    event = repository.get_event(db, event_id)
+    if event is None:
+        raise RecruitmentEventNotFound()
+    from app.domains.recruitment_calendar import google
+
+    google.delete_event(event)
+    db.delete(event)
+    db.commit()
+    return {"deleted": True, "id": event_id}
