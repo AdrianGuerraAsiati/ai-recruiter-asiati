@@ -228,3 +228,29 @@ def test_imported_employee_without_cognito_can_finish(db, environment, monkeypat
     assert employee.status == "DISABLED"
     assert len(calls) == 1
     assert cognito.calls == []
+
+
+def test_in_progress_request_cannot_run_twice(db, environment, monkeypatch):
+    request = db.get(EmployeeTerminationRequest, "synthetic-request")
+    request.status = "IN_PROGRESS"
+    db.commit()
+    writes = []
+    monkeypatch.setattr(executor, "close_contract_and_archive", lambda *a, **kw: writes.append(kw))
+    with pytest.raises(TerminationError, match="ya está siendo procesada"):
+        executor.execute_termination(
+            db, request_id="synthetic-request",
+            odoo_client=environment, cognito_client=CognitoStub(),
+        )
+    assert state(db)[0].status == "IN_PROGRESS"
+    assert not writes
+
+
+def test_missing_request_has_no_external_side_effect(db, environment, monkeypatch):
+    writes = []
+    monkeypatch.setattr(executor, "close_contract_and_archive", lambda *a, **kw: writes.append(kw))
+    with pytest.raises(TerminationError, match="inexistente"):
+        executor.execute_termination(
+            db, request_id="nonexistent",
+            odoo_client=environment, cognito_client=CognitoStub(),
+        )
+    assert not writes
