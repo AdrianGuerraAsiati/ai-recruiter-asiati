@@ -44,7 +44,7 @@ def checks() -> dict[str, bool]:
         "talent_database_is_dedicated_postgres": isolated_db,
         "odoo_target_is_expected_staging": odoo_isolated,
         "cognito_uses_separate_pool": bool(
-            production_pool and staging_pool and staging_pool != production_pool
+            production_pool and staging_pool == 'us-east-2_k6Q52r2rR' and staging_pool != production_pool
         ),
         "termination_execution_opted_in": (
             os.getenv("EMPLOYEE_TERMINATION_EXECUTION_ENABLED") == "true"
