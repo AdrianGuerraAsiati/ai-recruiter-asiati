@@ -19,7 +19,7 @@ def close_odoo_employment(client, *, employee_odoo_id: str, effective_date: date
 
     employees = client.search_read(
         "hr.employee", [["id", "=", employee_id]],
-        fields=["id", "active"], limit=2,
+        fields=["id", "active"], limit=2, context={"active_test": False},
     )
     if len(employees) != 1:
         raise TerminationError("No existe un empleado único y verificable en Odoo.")
