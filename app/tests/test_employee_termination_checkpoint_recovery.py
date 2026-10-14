@@ -53,13 +53,13 @@ def environment(monkeypatch):
         staging,
         "staging_settings",
         lambda: SimpleNamespace(
-            database="isolated-odoo-staging",
-            base_url="https://isolated-staging.example.test",
+            database="asiati-test160526-39554181",
+            base_url="https://asiati-test160526-39554181.dev.odoo.com",
         ),
     )
     return SimpleNamespace(
-        database="isolated-odoo-staging",
-        base_url="https://isolated-staging.example.test",
+        database="asiati-test160526-39554181",
+        base_url="https://asiati-test160526-39554181.dev.odoo.com",
     )
 
 
