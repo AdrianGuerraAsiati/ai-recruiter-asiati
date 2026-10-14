@@ -56,7 +56,7 @@ def close_contract_and_archive(client, *, employee_odoo_id: str, effective_date:
     contracts = _contracts(client, employee_id)
     for contract in contracts:
         _verify_owner(contract, employee_id)
-    open_contracts = [c for c in contracts if c.get("state") == "open"]
+    if not contracts and _one_employee(client, employee_id).get("active"):\n        raise TerminationError("Empleado sin historial contractual: revisión manual.")\n    open_contracts = [c for c in contracts if c.get("state") == "open"]
     if len(open_contracts) > 1:
         raise TerminationError("Más de un contrato abierto; revisión manual.")
     if any(c.get("state") in {"draft", "pending"} for c in contracts):
