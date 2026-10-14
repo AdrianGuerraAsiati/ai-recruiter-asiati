@@ -34,7 +34,7 @@ class CognitoStub:
 def environment(monkeypatch):
     monkeypatch.setenv("APP_ENV", "staging")
     monkeypatch.setenv("EMPLOYEE_TERMINATION_EXECUTION_ENABLED", "true")
-    monkeypatch.setenv("COGNITO_STAGING_USER_POOL_ID", "us-east-2_stagingTest")
+    monkeypatch.setenv("COGNITO_STAGING_USER_POOL_ID", "us-east-2_k6Q52r2rR")
     monkeypatch.setenv("COGNITO_USER_POOL_ID", "us-east-2_production")
     # These tests exercise transactional checkpoints against in-memory SQLite;
     # a separate set below verifies the non-bypassable production DB guard.
@@ -101,7 +101,7 @@ def test_success_then_idempotent_retry_with_checkpoints(db, environment, monkeyp
     assert request.attempt_count == 1
     assert len(odoo_calls) == 1
     assert cognito.calls == [{
-        "UserPoolId": "us-east-2_stagingTest",
+        "UserPoolId": "us-east-2_k6Q52r2rR",
         "Username": "synthetic-sub",
     }]
     second = executor.execute_termination(
@@ -178,7 +178,7 @@ def test_odoo_failure_retries_without_marking_checkpoint(db, environment, monkey
 @pytest.mark.parametrize("staging_pool,production_pool", [
     ("", "us-east-2_production"),
     ("us-east-2_production", "us-east-2_production"),
-    ("us-east-2_stagingTest", ""),
+    ("us-east-2_k6Q52r2rR", ""),
 ])
 def test_missing_or_shared_cognito_pool_is_blocked_before_odoo(
     db, environment, monkeypatch, staging_pool, production_pool
