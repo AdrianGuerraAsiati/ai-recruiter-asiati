@@ -64,6 +64,10 @@ def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
     # Do not trust APP_ENV alone: the injected client must target the separate staging DB.
     from app.domains.odoo_sync.staging import staging_settings
     target = staging_settings()
+    if (target.database != "asiati-test160526-39554181"
+            or urlparse(target.base_url).hostname
+            != "asiati-test160526-39554181.dev.odoo.com"):
+        raise TerminationError("La configuración Odoo no es el staging E2E autorizado.")
     client_db = getattr(odoo_client, "database", None)
     client_url = getattr(odoo_client, "base_url", None)
     if client_db != target.database or (urlparse(str(client_url)).hostname != urlparse(target.base_url).hostname):
