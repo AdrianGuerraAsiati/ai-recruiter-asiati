@@ -56,7 +56,17 @@ def close_contract_and_archive(client, *, employee_odoo_id: str, effective_date:
     contracts = _contracts(client, employee_id)
     for contract in contracts:
         _verify_owner(contract, employee_id)
-    if not contracts and _one_employee(client, employee_id).get("active"):\n        raise TerminationError("Empleado sin historial contractual: revisión manual.")\n    open_contracts = [c for c in contracts if c.get("state") == "open"]
+    if not contracts and _one_employee(client, employee_id).get("active"):
+        raise TerminationError("Empleado sin historial contractual: revisión manual.")
+    open_contracts = [c for c in contracts if c.get("state") == "open"]
+    matching_closed = [
+        c for c in contracts
+        if c.get("state") == "close"
+        and str(c.get("date_end")) == effective_date.isoformat()
+    ]
+    if not open_contracts and _one_employee(client, employee_id).get("active"):
+        if len(matching_closed) != 1:
+            raise TerminationError("No existe un cierre previo verificable para esta fecha.")
     if len(open_contracts) > 1:
         raise TerminationError("Más de un contrato abierto; revisión manual.")
     if any(c.get("state") in {"draft", "pending"} for c in contracts):
