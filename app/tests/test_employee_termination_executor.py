@@ -25,7 +25,23 @@ def test_execution_refuses_wrong_odoo_target_before_database_access(monkeypatch)
     monkeypatch.setenv("EMPLOYEE_TERMINATION_EXECUTION_ENABLED", "true")
     monkeypatch.setenv("APP_ENV", "staging")
     monkeypatch.setattr(staging, "staging_settings", lambda: SimpleNamespace(
-        database="test-db", base_url="https://staging.example.com"))
+        database="asiati-test160526-39554181", base_url="https://asiati-test160526-39554181.dev.odoo.com"))
     client = SimpleNamespace(database="production-db", base_url="https://prod.example.com")
     with pytest.raises(TerminationError, match="exclusivamente a staging"):
         execute_termination(None, request_id="sample", odoo_client=client, cognito_client=None)
+
+
+def test_execution_refuses_misconfigured_odoo_stage_even_if_client_matches(monkeypatch):
+    from types import SimpleNamespace
+    from app.domains.odoo_sync import staging
+
+    monkeypatch.setenv("EMPLOYEE_TERMINATION_EXECUTION_ENABLED", "true")
+    monkeypatch.setenv("APP_ENV", "staging")
+    dangerous = SimpleNamespace(
+        database="production-db",
+        base_url="https://production.example.com",
+    )
+    monkeypatch.setattr(staging, "staging_settings", lambda: dangerous)
+    with pytest.raises(TerminationError, match="staging E2E autorizado"):
+        execute_termination(None, request_id="sample",
+                            odoo_client=dangerous, cognito_client=None)

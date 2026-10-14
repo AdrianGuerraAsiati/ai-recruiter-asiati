@@ -15,11 +15,44 @@ def _staging_cognito_pool_id() -> str:
     """Fail closed: Cognito access changes must never target the production pool."""
     staging_pool = os.getenv("COGNITO_STAGING_USER_POOL_ID", "").strip()
     production_pool = os.getenv("COGNITO_USER_POOL_ID", "").strip()
-    if not staging_pool or not production_pool or staging_pool == production_pool:
+    if (staging_pool != "us-east-2_k6Q52r2rR" or not production_pool
+            or staging_pool == production_pool):
         raise TerminationError(
             "Se requiere un User Pool Cognito de staging distinto del de producción."
         )
     return staging_pool
+
+
+def _verified_staging_cognito_user(client, *, pool_id: str, username: str, expected_sub: str):
+    """Resolve the real Cognito username and verify its immutable subject."""
+    result = client.admin_get_user(UserPoolId=pool_id, Username=username)
+    subjects = [
+        str(attr.get("Value") or "")
+        for attr in result.get("UserAttributes", [])
+        if attr.get("Name") == "sub"
+    ]
+    if len(subjects) != 1 or subjects[0] != expected_sub:
+        raise TerminationError("La identidad Cognito no coincide: retiro bloqueado.")
+    return result
+
+
+def _assert_isolated_talent_database(db):
+    """Fail closed on non-PostgreSQL or production Talent SQLAlchemy sessions.
+
+    The dedicated E2E PostgreSQL database must never be the normal Talent DB.
+    No network queries or external side effects take place in this guard.
+    """
+    expected = os.getenv("EMPLOYEE_TERMINATION_STAGING_DATABASE", "").strip()
+    if expected != "talent_e2e_terminations":
+        raise TerminationError("Base Talent E2E dedicada no configurada.")
+    try:
+        bind = db.get_bind()
+        dialect = bind.dialect.name
+        actual = bind.url.database
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise TerminationError("No se pudo verificar la base Talent Staging.") from exc
+    if dialect != "postgresql" or actual != expected:
+        raise TerminationError("Ejecución bloqueada: la base Talent no es la E2E aislada.")
 
 
 def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
@@ -31,10 +64,16 @@ def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
     # Do not trust APP_ENV alone: the injected client must target the separate staging DB.
     from app.domains.odoo_sync.staging import staging_settings
     target = staging_settings()
+    if (target.database != "asiati-test160526-39554181"
+            or urlparse(target.base_url).hostname
+            != "asiati-test160526-39554181.dev.odoo.com"):
+        raise TerminationError("La configuración Odoo no es el staging E2E autorizado.")
     client_db = getattr(odoo_client, "database", None)
     client_url = getattr(odoo_client, "base_url", None)
     if client_db != target.database or (urlparse(str(client_url)).hostname != urlparse(target.base_url).hostname):
         raise TerminationError("El cliente Odoo no apunta exclusivamente a staging.")
+
+    _assert_isolated_talent_database(db)
 
     request = db.query(EmployeeTerminationRequest).filter(
         EmployeeTerminationRequest.id == request_id
@@ -54,6 +93,15 @@ def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
     # Resolve a separate Cognito target BEFORE the first Odoo write. Imported
     # employees without a Cognito account do not need a pool.
     staging_pool_id = _staging_cognito_pool_id() if employee.cognito_sub else None
+    if employee.cognito_sub:
+        # Talent's display login_username is NOT the username in Cognito.
+        # The existing provisioning service creates Cognito users using email.
+        if not employee.email:
+            raise TerminationError("Cuenta Cognito sin correo vinculado.")
+        _verified_staging_cognito_user(
+            cognito_client, pool_id=staging_pool_id,
+            username=employee.email, expected_sub=employee.cognito_sub,
+        )
 
     request.status = "IN_PROGRESS"
     request.attempt_count = int(request.attempt_count or 0) + 1
@@ -78,10 +126,22 @@ def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
         if "access_disabled" not in steps:
             # Imported Odoo employees may have no Cognito account.
             if employee.cognito_sub:
-                # Use the immutable Cognito sub, not the editable employee email.
-                cognito_client.admin_disable_user(
-                    UserPoolId=staging_pool_id, Username=employee.cognito_sub
+                # Check identity again before mutation; Cognito's AdminDisableUser
+                # requires the actual username (Talent creates it using email).
+                current_user = _verified_staging_cognito_user(
+                    cognito_client, pool_id=staging_pool_id,
+                    username=employee.email, expected_sub=employee.cognito_sub,
                 )
+                if current_user.get("Enabled") is not False:
+                    cognito_client.admin_disable_user(
+                        UserPoolId=staging_pool_id, Username=employee.email
+                    )
+                updated_user = _verified_staging_cognito_user(
+                    cognito_client, pool_id=staging_pool_id,
+                    username=employee.email, expected_sub=employee.cognito_sub,
+                )
+                if updated_user.get("Enabled") is not False:
+                    raise TerminationError("Cognito no confirmó el bloqueo del acceso.")
             employee.status = "DISABLED"
             steps = [*steps, "access_disabled"]
             request.steps_completed = steps

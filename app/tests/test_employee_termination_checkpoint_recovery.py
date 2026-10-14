@@ -18,15 +18,25 @@ from app.models import EmployeeTerminationRequest, UserProfile
 
 
 class CognitoStub:
-    def __init__(self, failures=0):
+    def __init__(self, failures=0, subject="synthetic-sub"):
         self.failures = failures
         self.calls = []
+        self.subject = subject
+        self.enabled = True
+
+    def admin_get_user(self, **kwargs):
+        return {
+            "Username": kwargs["Username"],
+            "Enabled": self.enabled,
+            "UserAttributes": [{"Name": "sub", "Value": self.subject}],
+        }
 
     def admin_disable_user(self, **kwargs):
         self.calls.append(kwargs)
         if self.failures:
             self.failures -= 1
             raise RuntimeError("simulated Cognito outage")
+        self.enabled = False
         return {}
 
 
@@ -34,19 +44,22 @@ class CognitoStub:
 def environment(monkeypatch):
     monkeypatch.setenv("APP_ENV", "staging")
     monkeypatch.setenv("EMPLOYEE_TERMINATION_EXECUTION_ENABLED", "true")
-    monkeypatch.setenv("COGNITO_STAGING_USER_POOL_ID", "us-east-2_stagingTest")
+    monkeypatch.setenv("COGNITO_STAGING_USER_POOL_ID", "us-east-2_k6Q52r2rR")
     monkeypatch.setenv("COGNITO_USER_POOL_ID", "us-east-2_production")
+    # These tests exercise transactional checkpoints against in-memory SQLite;
+    # a separate set below verifies the non-bypassable production DB guard.
+    monkeypatch.setattr(executor, "_assert_isolated_talent_database", lambda db: None)
     monkeypatch.setattr(
         staging,
         "staging_settings",
         lambda: SimpleNamespace(
-            database="isolated-odoo-staging",
-            base_url="https://isolated-staging.example.test",
+            database="asiati-test160526-39554181",
+            base_url="https://asiati-test160526-39554181.dev.odoo.com",
         ),
     )
     return SimpleNamespace(
-        database="isolated-odoo-staging",
-        base_url="https://isolated-staging.example.test",
+        database="asiati-test160526-39554181",
+        base_url="https://asiati-test160526-39554181.dev.odoo.com",
     )
 
 
@@ -98,8 +111,8 @@ def test_success_then_idempotent_retry_with_checkpoints(db, environment, monkeyp
     assert request.attempt_count == 1
     assert len(odoo_calls) == 1
     assert cognito.calls == [{
-        "UserPoolId": "us-east-2_stagingTest",
-        "Username": "synthetic-sub",
+        "UserPoolId": "us-east-2_k6Q52r2rR",
+        "Username": "synthetic@example.test",
     }]
     second = executor.execute_termination(
         db, request_id="synthetic-request", odoo_client=environment,
@@ -175,7 +188,7 @@ def test_odoo_failure_retries_without_marking_checkpoint(db, environment, monkey
 @pytest.mark.parametrize("staging_pool,production_pool", [
     ("", "us-east-2_production"),
     ("us-east-2_production", "us-east-2_production"),
-    ("us-east-2_stagingTest", ""),
+    ("us-east-2_k6Q52r2rR", ""),
 ])
 def test_missing_or_shared_cognito_pool_is_blocked_before_odoo(
     db, environment, monkeypatch, staging_pool, production_pool
@@ -254,3 +267,83 @@ def test_missing_request_has_no_external_side_effect(db, environment, monkeypatc
             odoo_client=environment, cognito_client=CognitoStub(),
         )
     assert not writes
+
+
+def test_staging_database_guard_requires_explicit_database_name(db, monkeypatch):
+    monkeypatch.delenv("EMPLOYEE_TERMINATION_STAGING_DATABASE", raising=False)
+    with pytest.raises(TerminationError, match="E2E dedicada"):
+        executor._assert_isolated_talent_database(db)
+
+
+def test_staging_database_guard_rejects_sqlite(db, monkeypatch):
+    monkeypatch.setenv("EMPLOYEE_TERMINATION_STAGING_DATABASE", "talent_e2e_terminations")
+    with pytest.raises(TerminationError, match="E2E aislada"):
+        executor._assert_isolated_talent_database(db)
+
+
+@pytest.mark.parametrize("dialect,database", [
+    ("postgresql", "ai_recruiter"),
+    ("postgresql", "talent_e2e_terminations_backup"),
+    ("sqlite", "talent_e2e_terminations"),
+])
+def test_staging_database_guard_rejects_wrong_engine(monkeypatch, dialect, database):
+    monkeypatch.setenv("EMPLOYEE_TERMINATION_STAGING_DATABASE", "talent_e2e_terminations")
+    bind = SimpleNamespace(dialect=SimpleNamespace(name=dialect),
+                           url=SimpleNamespace(database=database))
+    fake_db = SimpleNamespace(get_bind=lambda: bind)
+    with pytest.raises(TerminationError, match="E2E aislada"):
+        executor._assert_isolated_talent_database(fake_db)
+
+
+def test_staging_database_guard_accepts_only_dedicated_postgres(monkeypatch):
+    monkeypatch.setenv("EMPLOYEE_TERMINATION_STAGING_DATABASE", "talent_e2e_terminations")
+    bind = SimpleNamespace(dialect=SimpleNamespace(name="postgresql"),
+                           url=SimpleNamespace(database="talent_e2e_terminations"))
+    fake_db = SimpleNamespace(get_bind=lambda: bind)
+    executor._assert_isolated_talent_database(fake_db)
+
+
+def test_wrong_staging_cognito_sub_blocks_before_odoo(db, environment, monkeypatch):
+    writes = []
+    monkeypatch.setattr(executor, "close_contract_and_archive", lambda *a, **kw: writes.append(kw))
+    cognito = CognitoStub(subject="another-user-sub")
+    with pytest.raises(TerminationError, match="identidad Cognito no coincide"):
+        executor.execute_termination(
+            db, request_id="synthetic-request",
+            odoo_client=environment, cognito_client=cognito,
+        )
+    request, employee = state(db)
+    assert request.status == "PENDING"
+    assert request.attempt_count == 0
+    assert employee.status == "ACTIVE"
+    assert not writes
+    assert cognito.calls == []
+
+
+def test_missing_cognito_email_blocks_before_odoo(db, environment, monkeypatch):
+    employee = db.get(UserProfile, "synthetic-employee")
+    employee.email = None
+    db.commit()
+    writes = []
+    monkeypatch.setattr(executor, "close_contract_and_archive", lambda *a, **kw: writes.append(kw))
+    with pytest.raises(TerminationError, match="correo vinculado"):
+        executor.execute_termination(
+            db, request_id="synthetic-request",
+            odoo_client=environment, cognito_client=CognitoStub(),
+        )
+    assert state(db)[0].status == "PENDING"
+    assert not writes
+
+
+def test_cognito_already_disabled_after_unknown_ack(db, environment, monkeypatch):
+    writes = []
+    monkeypatch.setattr(executor, "close_contract_and_archive", lambda *a, **kw: writes.append(kw))
+    cognito = CognitoStub()
+    cognito.enabled = False
+    result = executor.execute_termination(
+        db, request_id="synthetic-request",
+        odoo_client=environment, cognito_client=cognito,
+    )
+    assert result["status"] == "COMPLETED"
+    assert len(writes) == 1
+    assert cognito.calls == []
