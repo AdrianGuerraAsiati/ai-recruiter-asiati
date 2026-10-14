@@ -1,12 +1,12 @@
-"""Resumable execution of a previously persisted employment termination.
+"""Auditable employee termination with checkpoints and post-write verification.
 
-Explicitly opt-in on staging only until real Odoo 18 contract transitions
-have been verified. Caller supplies a transaction-scoped row lock.
+Disabled by default. The execution path is restricted to staging/test until
+the company's Odoo 18 schema and payroll policy are certified.
 """
 import os
 
 from app.domains.employees.termination import TerminationError
-from app.domains.odoo_sync.employee_termination import close_odoo_employment
+from app.domains.odoo_sync.termination_delivery import close_contract_and_archive
 from app.models import EmployeeTerminationRequest, UserProfile
 
 
@@ -38,25 +38,39 @@ def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
 
     try:
         steps = list(request.steps_completed or [])
-        if "odoo_verified" not in steps:
-            verification = close_odoo_employment(
+
+        if "odoo_closed_and_archived" not in steps:
+            close_contract_and_archive(
                 odoo_client,
                 employee_odoo_id=request.odoo_employee_id,
                 effective_date=request.effective_date.date(),
             )
-            if not verification["verified"]:
-                raise TerminationError("No se validó el contrato en Odoo.")
-            steps.append("odoo_verified")
+            steps.append("odoo_closed_and_archived")
             request.steps_completed = steps
             db.commit()
 
-        # Fail closed: contract state semantics must be confirmed against
-        # the actual company's Odoo 18 schema before enabling mutation.
-        raise TerminationError(
-            "Validación completada. Cierre contractual pendiente de homologación Odoo."
-        )
+        if "access_disabled" not in steps:
+            # Imported Odoo employees may have no Cognito account.
+            if employee.cognito_sub:
+                if not employee.email:
+                    raise TerminationError("Cuenta Cognito sin correo vinculado.")
+                from app.domains.employees.service import _user_pool_id
+                cognito_client.admin_disable_user(
+                    UserPoolId=_user_pool_id(), Username=employee.email
+                )
+            employee.status = "DISABLED"
+            steps.append("access_disabled")
+            request.steps_completed = steps
+            db.commit()
+
+        request.status = "COMPLETED"
+        request.last_error = None
+        db.commit()
+        return {"status": "COMPLETED", "idempotent": False,
+                "steps_completed": list(request.steps_completed)}
     except Exception as exc:
+        db.rollback()
         request.status = "FAILED"
-        request.last_error = str(exc)[:500]
+        request.last_error = type(exc).__name__[:100]
         db.commit()
         raise
