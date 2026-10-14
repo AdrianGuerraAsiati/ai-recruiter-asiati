@@ -11,6 +11,17 @@ from app.domains.odoo_sync.termination_delivery import close_contract_and_archiv
 from app.models import EmployeeTerminationRequest, UserProfile
 
 
+def _staging_cognito_pool_id() -> str:
+    """Fail closed: Cognito access changes must never target the production pool."""
+    staging_pool = os.getenv("COGNITO_STAGING_USER_POOL_ID", "").strip()
+    production_pool = os.getenv("COGNITO_USER_POOL_ID", "").strip()
+    if not staging_pool or not production_pool or staging_pool == production_pool:
+        raise TerminationError(
+            "Se requiere un User Pool Cognito de staging distinto del de producción."
+        )
+    return staging_pool
+
+
 def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
     if os.getenv("EMPLOYEE_TERMINATION_EXECUTION_ENABLED") != "true":
         raise TerminationError("Ejecución de retiros deshabilitada.")
@@ -40,6 +51,10 @@ def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
     if request.status == "IN_PROGRESS":
         raise TerminationError("La solicitud ya está siendo procesada.")
 
+    # Resolve a separate Cognito target BEFORE the first Odoo write. Imported
+    # employees without a Cognito account do not need a pool.
+    staging_pool_id = _staging_cognito_pool_id() if employee.cognito_sub else None
+
     request.status = "IN_PROGRESS"
     request.attempt_count = int(request.attempt_count or 0) + 1
     request.last_error = None
@@ -61,11 +76,9 @@ def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
         if "access_disabled" not in steps:
             # Imported Odoo employees may have no Cognito account.
             if employee.cognito_sub:
-                if not employee.email:
-                    raise TerminationError("Cuenta Cognito sin correo vinculado.")
-                from app.domains.employees.service import _user_pool_id
+                # Use the immutable Cognito sub, not the editable employee email.
                 cognito_client.admin_disable_user(
-                    UserPoolId=_user_pool_id(), Username=employee.email
+                    UserPoolId=staging_pool_id, Username=employee.cognito_sub
                 )
             employee.status = "DISABLED"
             steps.append("access_disabled")
