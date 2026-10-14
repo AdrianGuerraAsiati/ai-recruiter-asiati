@@ -9,6 +9,11 @@ from sqlalchemy.orm import Session
 from app.access_control import ADMIN, EMPLOYEE
 from app.deps import get_db, require_permission
 from app.domains.employees import service
+from app.domains.employees.termination import (
+    TerminationError, TerminationReason, build_termination_plan,
+)
+from datetime import date
+from pydantic import BaseModel, Field
 from app.domains.employees.schemas import (
     CreateEmployeeRequest,
     SetEmployeeRoleRequest,
@@ -323,5 +328,43 @@ def update_employee_role(
             assigned_by_sub=principal.get("sub"),
         )
         return service.employee_payload(db, employee)
+    except Exception as exc:
+        _translate_service_error(exc)
+
+
+class TerminationPreviewRequest(BaseModel):
+    effective_date: date
+    reason: TerminationReason
+    notes: str = Field(min_length=10, max_length=2000)
+
+
+@router.post("/{employee_id}/termination/preview")
+def preview_employee_termination(
+    employee_id: str,
+    body: TerminationPreviewRequest,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("employees.disable")),
+):
+    """Read-only readiness check; does not end employment or change Odoo/Cognito."""
+    _enforce_not_self(principal, employee_id)
+    try:
+        employee = service.require_employee(db, employee_id)
+        plan = build_termination_plan(
+            employee_id=employee.id,
+            odoo_employee_id=employee.odoo_employee_id,
+            effective_date=body.effective_date,
+            reason=body.reason,
+            notes=body.notes,
+        )
+        return {
+            "ready_for_staging_review": True,
+            "executed": False,
+            "employee_id": plan.employee_id,
+            "odoo_employee_id": plan.odoo_employee_id,
+            "steps": list(plan.steps),
+            "message": "Simulación validada. Ningún contrato ni acceso fue modificado.",
+        }
+    except TerminationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except Exception as exc:
         _translate_service_error(exc)
