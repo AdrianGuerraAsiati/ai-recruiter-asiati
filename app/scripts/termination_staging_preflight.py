@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 
 from sqlalchemy.engine.url import make_url
+from sqlalchemy.exc import ArgumentError
 
 
 EXPECTED_DB = "talent_e2e_terminations"
@@ -22,7 +23,7 @@ def checks() -> dict[str, bool]:
             parsed.get_backend_name() == "postgresql"
             and parsed.database == EXPECTED_DB
         )
-    except (ValueError, AttributeError):
+    except (ArgumentError, ValueError, AttributeError):
         isolated_db = False
 
     try:
@@ -52,10 +53,11 @@ def checks() -> dict[str, bool]:
 
 
 def main():
-    for key, ready in checks().items():
+    readiness = checks()
+    for key, ready in readiness.items():
         print(f"{key}: {'OK' if ready else 'NOT_READY'}")
     # Exit nonzero when run in real stage; allow production to display NOT_READY.
-    if not all(checks().values()):
+    if not all(readiness.values()):
         raise SystemExit(2)
 
 
