@@ -36,9 +36,14 @@ profiles, Cognito users or runtime AWS credentials.
 3. An Odoo.sh staging fixture with `hr.employee.name` beginning with
    `TALENT-E2E-TERMINATION-` and exactly one **open** synthetic contract.
    Inspect payroll automations before creating or activating the fixture.
-4. A synthetic Cognito user created with `AdminCreateUser`,
-   `MessageAction=SUPPRESS` inside the staging-only pool. Never import
-   production users. Store its **sub** in the synthetic Talent `UserProfile`.
+4. A synthetic Cognito user, **already created**, named
+   `talent-e2e-termination-002@example.invalid` in the dedicated staging pool
+   using `AdminCreateUser`, `MessageAction=SUPPRESS`. Store its immutable
+   **sub** in the synthetic Talent `UserProfile`, and set the matching
+   `UserProfile.email` to the literal Cognito username above. The portal's
+   `login_username` is NOT the Cognito username; the executor resolves by
+   email, verifies `sub`, then disables by email and re-reads the state.
+   Never import real production users.
 5. The isolated Talent DB needs the `user_profiles` and
    `employee_termination_requests` schemas. Use repository-defined schema
    and the additive SQL migration, only against the separate E2E database.
