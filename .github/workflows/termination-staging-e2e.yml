@@ -1,0 +1,111 @@
+name: Manual — Talent Termination Staging E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      employee_id:
+        description: "ID of fresh, synthetic Odoo staging employee TALENT-E2E-TERMINATION-002"
+        required: true
+        type: string
+      effective_date:
+        description: "Contract end date (YYYY-MM-DD, not future)"
+        required: true
+        type: string
+      mode:
+        description: "Read-only inspection or real staging-only writes"
+        required: true
+        type: choice
+        default: dry-run
+        options:
+          - dry-run
+          - execute
+      confirmation:
+        description: "For execute ONLY: EXECUTE-E2E-TERMINATION-<employee_id>"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  manual-staging-termination:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: termination-e2e-staging
+    permissions:
+      contents: read
+      id-token: write
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: talent_e2e_terminations
+          POSTGRES_USER: talent_e2e
+          POSTGRES_PASSWORD: e2e_local_ephemeral_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U talent_e2e -d talent_e2e_terminations"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      AWS_REGION: us-east-2
+      DATABASE_URL: postgresql://talent_e2e:e2e_local_ephemeral_only@127.0.0.1:5432/talent_e2e_terminations
+      APP_ENV: staging
+      EMPLOYEE_TERMINATION_EXECUTION_ENABLED: "true"
+      EMPLOYEE_TERMINATION_STAGING_DATABASE: talent_e2e_terminations
+      COGNITO_USER_POOL_ID: us-east-2_7rUnNHfEi
+      COGNITO_STAGING_USER_POOL_ID: us-east-2_k6Q52r2rR
+      ODOO_ENABLED: "false"
+      ODOO_STAGING_BASE_URL: https://asiati-test160526-39554181.dev.odoo.com
+      ODOO_STAGING_DATABASE: asiati-test160526-39554181
+      ODOO_STAGING_USERNAME: sistemas@asiati.com.co
+      ODOO_STAGING_SECRET_ID: /ai-recruiter/staging/odoo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install backend dependencies
+        run: pip install -r requirements.txt
+
+      - name: Assume staging-only AWS OIDC role
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::890876258895:role/AiRecruiterTerminationE2EStagingRole
+          aws-region: us-east-2
+          role-session-name: talent-termination-e2e
+
+      - name: Verify STAGING-only IAM role
+        run: |
+          set -euo pipefail
+          test "$(aws sts get-caller-identity --query Account --output text)" = "890876258895"
+          [[ "$(aws sts get-caller-identity --query Arn --output text)" == *"AiRecruiterTerminationE2EStagingRole"* ]]
+          echo "E2E_STAGING_ROLE_OK"
+
+      - name: Read-only isolation preflight
+        run: python -m app.scripts.termination_staging_preflight
+
+      - name: Manual synthetic Odoo + Cognito E2E
+        env:
+          E2E_EMPLOYEE_ID: ${{ inputs.employee_id }}
+          E2E_DATE: ${{ inputs.effective_date }}
+          E2E_MODE: ${{ inputs.mode }}
+          E2E_CONFIRM: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          args=(--employee-id "$E2E_EMPLOYEE_ID" --effective-date "$E2E_DATE")
+          if [[ "$E2E_MODE" == execute ]]; then
+            args+=(--execute --confirm "$E2E_CONFIRM")
+          elif [[ "$E2E_MODE" != dry-run ]]; then
+            echo "Unexpected E2E mode" >&2
+            exit 2
+          fi
+          python -m app.scripts.verify_talent_staging_termination_e2e "${args[@]}"
