@@ -241,3 +241,32 @@ class OdooContractSync(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+
+class EmployeeTerminationRequest(Base):
+    """Immutable intent plus audited progress; never deletes employee history."""
+
+    __tablename__ = "employee_termination_requests"
+    __table_args__ = (
+        UniqueConstraint("employee_id", name="uq_employee_termination_employee"),
+        UniqueConstraint("idempotency_key", name="uq_employee_termination_key"),
+        CheckConstraint(
+            "status IN ('PENDING', 'IN_PROGRESS', 'FAILED', 'COMPLETED')",
+            name="ck_employee_termination_status",
+        ),
+    )
+
+    id = Column(Text, primary_key=True, default=lambda: str(uuid.uuid4()))
+    employee_id = Column(Text, ForeignKey("user_profiles.id"), nullable=False)
+    odoo_employee_id = Column(Text, nullable=False)
+    idempotency_key = Column(Text, nullable=False)
+    effective_date = Column(DateTime(timezone=False), nullable=False)
+    reason = Column(Text, nullable=False)
+    notes = Column(Text, nullable=False)
+    requested_by_sub = Column(Text, nullable=False)
+    status = Column(Text, nullable=False, default="PENDING")
+    last_error = Column(Text, nullable=True)
+    steps_completed = Column(JSON, nullable=False, default=list)
+    attempt_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
