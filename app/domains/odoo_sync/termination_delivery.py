@@ -98,7 +98,7 @@ def close_contract_and_archive(client, *, employee_odoo_id: str, effective_date:
 
     return {
         "employee_odoo_id": employee_id,
-        "contract_id": int(open_contracts[0]["id"]) if open_contracts else None,
+        "contract_id": int(open_contracts[0]["id"]) if open_contracts else (int(matching_closed[0]["id"]) if len(matching_closed) == 1 else None),
         "odoo_closed": True,
         "odoo_archived": True,
     }
