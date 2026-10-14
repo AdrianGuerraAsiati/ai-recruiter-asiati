@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.access_control import ADMIN, EMPLOYEE
 from app.deps import get_db, require_permission
 from app.domains.employees import service
+from app.domains.employees import termination_requests
 from app.domains.employees.termination import (
     TerminationError, TerminationReason, build_termination_plan,
 )
@@ -368,3 +369,51 @@ def preview_employee_termination(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except Exception as exc:
         _translate_service_error(exc)
+
+
+class TerminationRequestBody(TerminationPreviewRequest):
+    idempotency_key: str = Field(min_length=8, max_length=128)
+
+
+@router.post("/{employee_id}/termination/requests", status_code=202)
+def create_employee_termination_request(
+    employee_id: str,
+    body: TerminationRequestBody,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("employees.disable")),
+):
+    """Record intent only: execution is intentionally not enabled."""
+    _enforce_not_self(principal, employee_id)
+    try:
+        request = termination_requests.request_termination(
+            db,
+            employee_id=employee_id,
+            effective_date=body.effective_date,
+            reason=body.reason,
+            notes=body.notes,
+            actor_sub=str(principal.get("sub") or ""),
+            idempotency_key=body.idempotency_key,
+        )
+        return termination_requests.termination_request_payload(request)
+    except TerminationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/{employee_id}/termination/requests")
+def get_employee_termination_request(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employees.read")),
+):
+    from app.models import EmployeeTerminationRequest
+
+    service.require_employee(db, employee_id)
+    request = db.query(EmployeeTerminationRequest).filter(
+        EmployeeTerminationRequest.employee_id == employee_id
+    ).one_or_none()
+    return {
+        "request": (
+            termination_requests.termination_request_payload(request)
+            if request else None
+        )
+    }
