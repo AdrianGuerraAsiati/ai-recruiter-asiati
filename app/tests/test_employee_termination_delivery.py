@@ -23,6 +23,8 @@ class SyntheticOdoo:
 
     def search_read(self, model, domain, **kwargs):
         if model == "hr.employee":
+            if not self.employee["active"] and not kwargs.get("context", {}).get("active_test") is False:
+                return []
             return [dict(self.employee)]
         return [dict(c) for c in self.contracts]
 
@@ -48,6 +50,7 @@ def test_closes_and_archives_once():
     close_contract_and_archive(client, employee_odoo_id="42",
                                effective_date=date(2026, 10, 14))
     assert len(client.calls) == 2
+    assert client.employee["active"] is False
 
 
 def test_retry_after_unknown_odoo_acknowledgement():
