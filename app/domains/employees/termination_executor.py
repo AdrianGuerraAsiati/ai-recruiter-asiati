@@ -22,6 +22,25 @@ def _staging_cognito_pool_id() -> str:
     return staging_pool
 
 
+def _assert_isolated_talent_database(db):
+    """Fail closed on non-PostgreSQL or production Talent SQLAlchemy sessions.
+
+    The dedicated E2E PostgreSQL database must never be the normal Talent DB.
+    No network queries or external side effects take place in this guard.
+    """
+    expected = os.getenv("EMPLOYEE_TERMINATION_STAGING_DATABASE", "").strip()
+    if expected != "talent_e2e_terminations":
+        raise TerminationError("Base Talent E2E dedicada no configurada.")
+    try:
+        bind = db.get_bind()
+        dialect = bind.dialect.name
+        actual = bind.url.database
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise TerminationError("No se pudo verificar la base Talent Staging.") from exc
+    if dialect != "postgresql" or actual != expected:
+        raise TerminationError("Ejecución bloqueada: la base Talent no es la E2E aislada.")
+
+
 def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
     if os.getenv("EMPLOYEE_TERMINATION_EXECUTION_ENABLED") != "true":
         raise TerminationError("Ejecución de retiros deshabilitada.")
@@ -35,6 +54,8 @@ def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
     client_url = getattr(odoo_client, "base_url", None)
     if client_db != target.database or (urlparse(str(client_url)).hostname != urlparse(target.base_url).hostname):
         raise TerminationError("El cliente Odoo no apunta exclusivamente a staging.")
+
+    _assert_isolated_talent_database(db)
 
     request = db.query(EmployeeTerminationRequest).filter(
         EmployeeTerminationRequest.id == request_id
