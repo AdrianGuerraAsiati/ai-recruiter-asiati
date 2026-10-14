@@ -87,7 +87,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(aws sts get-caller-identity --query Account --output text)" = "890876258895"
-          test "$(aws sts get-caller-identity --query Arn --output text)" = *"AiRecruiterTerminationE2EStagingRole"*
+          [[ "$(aws sts get-caller-identity --query Arn --output text)" == *"AiRecruiterTerminationE2EStagingRole"* ]]
           echo "E2E_STAGING_ROLE_OK"
 
       - name: Read-only isolation preflight
