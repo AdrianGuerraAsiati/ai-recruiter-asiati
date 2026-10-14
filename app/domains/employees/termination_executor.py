@@ -69,7 +69,9 @@ def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
                 employee_odoo_id=request.odoo_employee_id,
                 effective_date=request.effective_date.date(),
             )
-            steps.append("odoo_closed_and_archived")
+            # Assign a fresh list: mutating an already-assigned JSON list is not
+            # reliably detected by SQLAlchemy after a commit.
+            steps = [*steps, "odoo_closed_and_archived"]
             request.steps_completed = steps
             db.commit()
 
@@ -81,7 +83,7 @@ def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
                     UserPoolId=staging_pool_id, Username=employee.cognito_sub
                 )
             employee.status = "DISABLED"
-            steps.append("access_disabled")
+            steps = [*steps, "access_disabled"]
             request.steps_completed = steps
             db.commit()
 
