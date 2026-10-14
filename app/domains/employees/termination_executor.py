@@ -15,7 +15,8 @@ def _staging_cognito_pool_id() -> str:
     """Fail closed: Cognito access changes must never target the production pool."""
     staging_pool = os.getenv("COGNITO_STAGING_USER_POOL_ID", "").strip()
     production_pool = os.getenv("COGNITO_USER_POOL_ID", "").strip()
-    if not staging_pool or not production_pool or staging_pool == production_pool:
+    if (staging_pool != "us-east-2_k6Q52r2rR" or not production_pool
+            or staging_pool == production_pool):
         raise TerminationError(
             "Se requiere un User Pool Cognito de staging distinto del de producción."
         )
