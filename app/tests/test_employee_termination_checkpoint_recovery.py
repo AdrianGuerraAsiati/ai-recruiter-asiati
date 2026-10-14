@@ -36,6 +36,9 @@ def environment(monkeypatch):
     monkeypatch.setenv("EMPLOYEE_TERMINATION_EXECUTION_ENABLED", "true")
     monkeypatch.setenv("COGNITO_STAGING_USER_POOL_ID", "us-east-2_stagingTest")
     monkeypatch.setenv("COGNITO_USER_POOL_ID", "us-east-2_production")
+    # These tests exercise transactional checkpoints against in-memory SQLite;
+    # a separate set below verifies the non-bypassable production DB guard.
+    monkeypatch.setattr(executor, "_assert_isolated_talent_database", lambda db: None)
     monkeypatch.setattr(
         staging,
         "staging_settings",
@@ -254,3 +257,37 @@ def test_missing_request_has_no_external_side_effect(db, environment, monkeypatc
             odoo_client=environment, cognito_client=CognitoStub(),
         )
     assert not writes
+
+
+def test_staging_database_guard_requires_explicit_database_name(db, monkeypatch):
+    monkeypatch.delenv("EMPLOYEE_TERMINATION_STAGING_DATABASE", raising=False)
+    with pytest.raises(TerminationError, match="E2E dedicada"):
+        executor._assert_isolated_talent_database(db)
+
+
+def test_staging_database_guard_rejects_sqlite(db, monkeypatch):
+    monkeypatch.setenv("EMPLOYEE_TERMINATION_STAGING_DATABASE", "talent_e2e_terminations")
+    with pytest.raises(TerminationError, match="E2E aislada"):
+        executor._assert_isolated_talent_database(db)
+
+
+@pytest.mark.parametrize("dialect,database", [
+    ("postgresql", "ai_recruiter"),
+    ("postgresql", "talent_e2e_terminations_backup"),
+    ("sqlite", "talent_e2e_terminations"),
+])
+def test_staging_database_guard_rejects_wrong_engine(monkeypatch, dialect, database):
+    monkeypatch.setenv("EMPLOYEE_TERMINATION_STAGING_DATABASE", "talent_e2e_terminations")
+    bind = SimpleNamespace(dialect=SimpleNamespace(name=dialect),
+                           url=SimpleNamespace(database=database))
+    fake_db = SimpleNamespace(get_bind=lambda: bind)
+    with pytest.raises(TerminationError, match="E2E aislada"):
+        executor._assert_isolated_talent_database(fake_db)
+
+
+def test_staging_database_guard_accepts_only_dedicated_postgres(monkeypatch):
+    monkeypatch.setenv("EMPLOYEE_TERMINATION_STAGING_DATABASE", "talent_e2e_terminations")
+    bind = SimpleNamespace(dialect=SimpleNamespace(name="postgresql"),
+                           url=SimpleNamespace(database="talent_e2e_terminations"))
+    fake_db = SimpleNamespace(get_bind=lambda: bind)
+    executor._assert_isolated_talent_database(fake_db)
