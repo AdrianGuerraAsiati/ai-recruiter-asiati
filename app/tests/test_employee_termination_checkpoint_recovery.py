@@ -18,15 +18,25 @@ from app.models import EmployeeTerminationRequest, UserProfile
 
 
 class CognitoStub:
-    def __init__(self, failures=0):
+    def __init__(self, failures=0, subject="synthetic-sub"):
         self.failures = failures
         self.calls = []
+        self.subject = subject
+        self.enabled = True
+
+    def admin_get_user(self, **kwargs):
+        return {
+            "Username": kwargs["Username"],
+            "Enabled": self.enabled,
+            "UserAttributes": [{"Name": "sub", "Value": self.subject}],
+        }
 
     def admin_disable_user(self, **kwargs):
         self.calls.append(kwargs)
         if self.failures:
             self.failures -= 1
             raise RuntimeError("simulated Cognito outage")
+        self.enabled = False
         return {}
 
 
@@ -102,7 +112,7 @@ def test_success_then_idempotent_retry_with_checkpoints(db, environment, monkeyp
     assert len(odoo_calls) == 1
     assert cognito.calls == [{
         "UserPoolId": "us-east-2_k6Q52r2rR",
-        "Username": "synthetic-sub",
+        "Username": "synthetic@example.test",
     }]
     second = executor.execute_termination(
         db, request_id="synthetic-request", odoo_client=environment,
@@ -291,3 +301,49 @@ def test_staging_database_guard_accepts_only_dedicated_postgres(monkeypatch):
                            url=SimpleNamespace(database="talent_e2e_terminations"))
     fake_db = SimpleNamespace(get_bind=lambda: bind)
     executor._assert_isolated_talent_database(fake_db)
+
+
+def test_wrong_staging_cognito_sub_blocks_before_odoo(db, environment, monkeypatch):
+    writes = []
+    monkeypatch.setattr(executor, "close_contract_and_archive", lambda *a, **kw: writes.append(kw))
+    cognito = CognitoStub(subject="another-user-sub")
+    with pytest.raises(TerminationError, match="identidad Cognito no coincide"):
+        executor.execute_termination(
+            db, request_id="synthetic-request",
+            odoo_client=environment, cognito_client=cognito,
+        )
+    request, employee = state(db)
+    assert request.status == "PENDING"
+    assert request.attempt_count == 0
+    assert employee.status == "ACTIVE"
+    assert not writes
+    assert cognito.calls == []
+
+
+def test_missing_cognito_email_blocks_before_odoo(db, environment, monkeypatch):
+    employee = db.get(UserProfile, "synthetic-employee")
+    employee.email = None
+    db.commit()
+    writes = []
+    monkeypatch.setattr(executor, "close_contract_and_archive", lambda *a, **kw: writes.append(kw))
+    with pytest.raises(TerminationError, match="correo vinculado"):
+        executor.execute_termination(
+            db, request_id="synthetic-request",
+            odoo_client=environment, cognito_client=CognitoStub(),
+        )
+    assert state(db)[0].status == "PENDING"
+    assert not writes
+
+
+def test_cognito_already_disabled_after_unknown_ack(db, environment, monkeypatch):
+    writes = []
+    monkeypatch.setattr(executor, "close_contract_and_archive", lambda *a, **kw: writes.append(kw))
+    cognito = CognitoStub()
+    cognito.enabled = False
+    result = executor.execute_termination(
+        db, request_id="synthetic-request",
+        odoo_client=environment, cognito_client=cognito,
+    )
+    assert result["status"] == "COMPLETED"
+    assert len(writes) == 1
+    assert cognito.calls == []
