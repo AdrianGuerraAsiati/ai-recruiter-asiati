@@ -47,8 +47,9 @@ def test_closes_and_archives_once():
     assert outcome["odoo_closed"] and outcome["odoo_archived"]
     assert client.contracts[0]["date_end"] == "2026-10-14"
     assert client.employee["active"] is False
-    close_contract_and_archive(client, employee_odoo_id="42",
-                               effective_date=date(2026, 10, 14))
+    retry = close_contract_and_archive(client, employee_odoo_id="42",
+                                       effective_date=date(2026, 10, 14))
+    assert retry["contract_id"] == 17
     assert len(client.calls) == 2
     assert client.employee["active"] is False
 

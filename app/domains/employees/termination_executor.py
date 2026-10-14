@@ -4,6 +4,7 @@ Disabled by default. The execution path is restricted to staging/test until
 the company's Odoo 18 schema and payroll policy are certified.
 """
 import os
+from urllib.parse import urlparse
 
 from app.domains.employees.termination import TerminationError
 from app.domains.odoo_sync.termination_delivery import close_contract_and_archive
@@ -15,6 +16,14 @@ def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
         raise TerminationError("Ejecución de retiros deshabilitada.")
     if os.getenv("APP_ENV", "").lower() not in {"staging", "test"}:
         raise TerminationError("Solo se permite ejecutar retiros en staging.")
+
+    # Do not trust APP_ENV alone: the injected client must target the separate staging DB.
+    from app.domains.odoo_sync.staging import staging_settings
+    target = staging_settings()
+    client_db = getattr(odoo_client, "database", None)
+    client_url = getattr(odoo_client, "base_url", None)
+    if client_db != target.database or (urlparse(str(client_url)).hostname != urlparse(target.base_url).hostname):
+        raise TerminationError("El cliente Odoo no apunta exclusivamente a staging.")
 
     request = db.query(EmployeeTerminationRequest).filter(
         EmployeeTerminationRequest.id == request_id
