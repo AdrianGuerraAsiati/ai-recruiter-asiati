@@ -23,6 +23,19 @@ def _staging_cognito_pool_id() -> str:
     return staging_pool
 
 
+def _verified_staging_cognito_user(client, *, pool_id: str, username: str, expected_sub: str):
+    """Resolve the real Cognito username and verify its immutable subject."""
+    result = client.admin_get_user(UserPoolId=pool_id, Username=username)
+    subjects = [
+        str(attr.get("Value") or "")
+        for attr in result.get("UserAttributes", [])
+        if attr.get("Name") == "sub"
+    ]
+    if len(subjects) != 1 or subjects[0] != expected_sub:
+        raise TerminationError("La identidad Cognito no coincide: retiro bloqueado.")
+    return result
+
+
 def _assert_isolated_talent_database(db):
     """Fail closed on non-PostgreSQL or production Talent SQLAlchemy sessions.
 
@@ -76,6 +89,15 @@ def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
     # Resolve a separate Cognito target BEFORE the first Odoo write. Imported
     # employees without a Cognito account do not need a pool.
     staging_pool_id = _staging_cognito_pool_id() if employee.cognito_sub else None
+    if employee.cognito_sub:
+        # Talent's display login_username is NOT the username in Cognito.
+        # The existing provisioning service creates Cognito users using email.
+        if not employee.email:
+            raise TerminationError("Cuenta Cognito sin correo vinculado.")
+        _verified_staging_cognito_user(
+            cognito_client, pool_id=staging_pool_id,
+            username=employee.email, expected_sub=employee.cognito_sub,
+        )
 
     request.status = "IN_PROGRESS"
     request.attempt_count = int(request.attempt_count or 0) + 1
@@ -100,10 +122,22 @@ def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
         if "access_disabled" not in steps:
             # Imported Odoo employees may have no Cognito account.
             if employee.cognito_sub:
-                # Use the immutable Cognito sub, not the editable employee email.
-                cognito_client.admin_disable_user(
-                    UserPoolId=staging_pool_id, Username=employee.cognito_sub
+                # Check identity again before mutation; Cognito's AdminDisableUser
+                # requires the actual username (Talent creates it using email).
+                current_user = _verified_staging_cognito_user(
+                    cognito_client, pool_id=staging_pool_id,
+                    username=employee.email, expected_sub=employee.cognito_sub,
                 )
+                if current_user.get("Enabled") is not False:
+                    cognito_client.admin_disable_user(
+                        UserPoolId=staging_pool_id, Username=employee.email
+                    )
+                updated_user = _verified_staging_cognito_user(
+                    cognito_client, pool_id=staging_pool_id,
+                    username=employee.email, expected_sub=employee.cognito_sub,
+                )
+                if updated_user.get("Enabled") is not False:
+                    raise TerminationError("Cognito no confirmó el bloqueo del acceso.")
             employee.status = "DISABLED"
             steps = [*steps, "access_disabled"]
             request.steps_completed = steps
