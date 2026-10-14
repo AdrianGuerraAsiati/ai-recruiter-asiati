@@ -8,7 +8,6 @@ import os
 from app.domains.employees.termination import TerminationError
 from app.domains.odoo_sync.employee_termination import close_odoo_employment
 from app.models import EmployeeTerminationRequest, UserProfile
-from app.domains.employees import service
 
 
 def execute_termination(db, *, request_id: str, odoo_client, cognito_client):
