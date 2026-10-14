@@ -177,6 +177,7 @@ class OdooXmlRpcClient:
         limit: int | None = None,
         offset: int | None = None,
         order: str | None = None,
+        context: Mapping[str, Any] | None = None,
     ) -> list[dict]:
         kwargs: dict[str, Any] = {}
         if fields is not None:
@@ -187,6 +188,8 @@ class OdooXmlRpcClient:
             kwargs["offset"] = max(0, int(offset))
         if order:
             kwargs["order"] = str(order)
+        if context is not None:
+            kwargs["context"] = dict(context)
         result = self.execute_kw(model, "search_read", [list(domain)], kwargs)
         return list(result or [])
 
