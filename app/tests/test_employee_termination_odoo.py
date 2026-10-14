@@ -57,3 +57,60 @@ def test_ambiguous_or_missing_records_are_rejected(changes):
 def test_invalid_external_id_does_not_contact_odoo():
     with pytest.raises(TerminationError):
         close_odoo_employment(FakeOdoo(), employee_odoo_id="unknown", effective_date=date(2026, 10, 14))
+
+
+def test_already_archived_employee_is_reported_without_write():
+    client = FakeOdoo(employee=[{"id": 42, "active": False}], contracts=[])
+    result = close_odoo_employment(
+        client, employee_odoo_id="42", effective_date=date(2026, 10, 14)
+    )
+    assert result["already_archived"] is True
+    assert result["active_contract_ids"] == []
+    assert client.writes == []
+
+
+@pytest.mark.parametrize("contract_state", ["pending", "draft"])
+def test_contracts_awaiting_approval_are_rejected(contract_state):
+    client = FakeOdoo(contracts=[{"id": 11, "state": contract_state}])
+    with pytest.raises(TerminationError, match="pendiente"):
+        close_odoo_employment(
+            client, employee_odoo_id="42", effective_date=date(2026, 10, 14)
+        )
+
+
+def test_large_contract_history_is_rejected():
+    client = FakeOdoo(contracts=[
+        {"id": i, "state": "close"} for i in range(100)
+    ])
+    with pytest.raises(TerminationError, match="Demasiados"):
+        close_odoo_employment(
+            client, employee_odoo_id="42", effective_date=date(2026, 10, 14)
+        )
+
+
+@pytest.mark.parametrize("missing", ["active", "date_end", "state"])
+def test_missing_odoo_fields_fail_closed(missing):
+    class IncompleteOdoo(FakeOdoo):
+        def fields_get(self, model, **kwargs):
+            result = super().fields_get(model, **kwargs)
+            result.pop(missing, None)
+            return result
+
+    with pytest.raises(TerminationError):
+        close_odoo_employment(
+            IncompleteOdoo(), employee_odoo_id="42", effective_date=date(2026, 10, 14)
+        )
+
+
+def test_readonly_odoo_contract_fails_closed():
+    class ReadonlyOdoo(FakeOdoo):
+        def fields_get(self, model, **kwargs):
+            result = super().fields_get(model, **kwargs)
+            if model == "hr.contract":
+                result["date_end"]["readonly"] = True
+            return result
+
+    with pytest.raises(TerminationError, match="no permite"):
+        close_odoo_employment(
+            ReadonlyOdoo(), employee_odoo_id="42", effective_date=date(2026, 10, 14)
+        )
