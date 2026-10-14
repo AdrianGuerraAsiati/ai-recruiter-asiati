@@ -11,9 +11,9 @@ This connection is intentionally independent of the production Odoo integration.
 ## Talent environment variables
 
 ```dotenv
-ODOO_STAGING_BASE_URL=https://YOUR-STAGING-HOST.odoo.com
-ODOO_STAGING_DATABASE=YOUR-STAGING-DATABASE
-ODOO_STAGING_USERNAME=STAGING-SERVICE-USER
+ODOO_STAGING_BASE_URL=https://asiati-test160526-39554181.dev.odoo.com
+ODOO_STAGING_DATABASE=asiati-test160526-39554181
+ODOO_STAGING_USERNAME=sistemas@asiati.com.co
 ODOO_STAGING_SECRET_ID=/ai-recruiter/staging/odoo
 ```
 
