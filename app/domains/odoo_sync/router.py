@@ -11,6 +11,7 @@ from app.domains.odoo_sync import (
     employee_import,
     integration,
     job_delivery,
+    staging,
 )
 from app.integrations.odoo.client import OdooClientError
 
@@ -195,3 +196,35 @@ def sync_employee_contract_to_odoo(
             status_code=502,
             detail="No fue posible sincronizar el contrato con Odoo.",
         )
+
+
+@router.get("/staging/diagnostics")
+def staging_readonly_diagnostics(
+    _principal: dict = Depends(require_permission("employees.update")),
+):
+    """Authenticate against the isolated staging API without modifying records."""
+    try:
+        client = staging.build_staging_client()
+        health = client.healthcheck()
+        fields = client.fields_get(
+            "hr.contract",
+            attributes=("type", "readonly", "selection"),
+        )
+        employee_fields = client.fields_get("hr.employee", attributes=("type",))
+    except (integration.OdooNotConfigured, integration.OdooDisabled, OdooClientError) as exc:
+        raise HTTPException(status_code=503, detail="Odoo staging is not available.") from exc
+    return {
+        "environment": "staging",
+        "read_only": True,
+        "health": health,
+        "contract": {
+            "has_state": "state" in fields,
+            "has_date_end": "date_end" in fields,
+            "state_selections": [
+                str(item[0])
+                for item in (fields.get("state", {}).get("selection") or [])
+                if isinstance(item, (tuple, list)) and item
+            ],
+        },
+        "employee": {"has_active": "active" in employee_fields},
+    }
