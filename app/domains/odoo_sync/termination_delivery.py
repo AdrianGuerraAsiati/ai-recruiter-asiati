@@ -11,7 +11,7 @@ from app.domains.odoo_sync.employee_termination import close_odoo_employment
 
 def _one_employee(client, employee_id):
     rows = client.search_read("hr.employee", [["id", "=", employee_id]],
-                              fields=["id", "active"], limit=2)
+                              fields=["id", "active"], limit=2, context={"active_test": False})
     if len(rows) != 1:
         raise TerminationError("El empleado de Odoo no es único o no existe.")
     return rows[0]
