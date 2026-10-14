@@ -49,3 +49,28 @@ def test_reason_is_strict_enum():
     assert {reason.value for reason in TerminationReason} == {
         "RESIGNATION", "CONTRACT_END", "DISMISSAL", "MUTUAL_AGREEMENT", "OTHER"
     }
+
+
+@pytest.mark.parametrize("overrides", [
+    {"employee_id": "  "},
+    {"odoo_employee_id": "   "},
+    {"effective_date": None},
+    {"effective_date": "2026-10-14"},
+    {"notes": ""},
+    {"notes": None},
+    {"notes": "x" * 2001},
+])
+def test_invalid_termination_payloads_are_rejected(overrides):
+    with pytest.raises(TerminationError):
+        build_termination_plan(**(payload() | overrides))
+
+
+def test_plan_normalizes_whitespace():
+    result = build_termination_plan(**(payload() | {
+        "employee_id": " local-123 ",
+        "odoo_employee_id": " 99 ",
+        "notes": "   Renuncia voluntaria documentada.   ",
+    }))
+    assert result.employee_id == "local-123"
+    assert result.odoo_employee_id == "99"
+    assert result.notes == "Renuncia voluntaria documentada."
