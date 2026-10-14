@@ -16,3 +16,16 @@ def test_execution_refuses_production_even_with_feature_flag(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
     with pytest.raises(TerminationError, match="staging"):
         execute_termination(None, request_id="sample", odoo_client=None, cognito_client=None)
+
+
+def test_execution_refuses_wrong_odoo_target_before_database_access(monkeypatch):
+    from types import SimpleNamespace
+    from app.domains.odoo_sync import staging
+
+    monkeypatch.setenv("EMPLOYEE_TERMINATION_EXECUTION_ENABLED", "true")
+    monkeypatch.setenv("APP_ENV", "staging")
+    monkeypatch.setattr(staging, "staging_settings", lambda: SimpleNamespace(
+        database="test-db", base_url="https://staging.example.com"))
+    client = SimpleNamespace(database="production-db", base_url="https://prod.example.com")
+    with pytest.raises(TerminationError, match="exclusivamente a staging"):
+        execute_termination(None, request_id="sample", odoo_client=client, cognito_client=None)
