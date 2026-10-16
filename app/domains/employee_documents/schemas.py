@@ -24,3 +24,8 @@ class SaveEmployeeDocumentValueRequest(BaseModel):
 class ReviewEmployeeDocumentRequest(BaseModel):
     status: Literal["APPROVED", "CHANGES_REQUESTED"]
     comment: str | None = Field(default=None, max_length=2000)
+
+
+class ConfirmContractSignPreparation(BaseModel):
+    # Avoid implicit writes triggered by re-fetching a read-only endpoint.
+    confirm: Literal[True]
