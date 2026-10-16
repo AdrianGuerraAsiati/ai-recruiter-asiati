@@ -155,7 +155,7 @@ export default function PsychotechnicalTake() {
     return (
       <main className="psychotechnical-public">
         <div className="psychotechnical-public-card">
-          <span className="eyebrow">Talent Intelligence · ASIATI</span>
+          <span className="eyebrow">ADN360 · ASIATI</span>
           <h1>No pudimos abrir la prueba</h1>
           <p>{error}</p>
         </div>
@@ -168,7 +168,7 @@ export default function PsychotechnicalTake() {
       <main className="psychotechnical-public">
         <div className="psychotechnical-public-card psychotechnical-complete">
           <div className="psychotechnical-complete-icon">✓</div>
-          <span className="eyebrow">Talent Intelligence · ASIATI</span>
+          <span className="eyebrow">ADN360 · ASIATI</span>
           <h1>Prueba completada</h1>
           <p>Recibimos tus respuestas correctamente. Talento Humano revisará este resultado junto con las demás etapas del proceso.</p>
           <small>No necesitas volver a enviar esta prueba.</small>
@@ -182,7 +182,7 @@ export default function PsychotechnicalTake() {
       <main className="psychotechnical-public">
         <div className="psychotechnical-public-card">
           <div className="psychotechnical-public-kicker">
-            <span className="eyebrow">Talent Intelligence · ASIATI</span>
+            <span className="eyebrow">ADN360 · ASIATI</span>
             <span className="psychotechnical-public-code">{assignment?.test_code} · v{assignment?.source_version}</span>
           </div>
           <h1>{assignment?.test_name || "Prueba psicotécnica"}</h1>
