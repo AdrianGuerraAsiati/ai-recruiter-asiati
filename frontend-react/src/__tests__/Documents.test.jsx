@@ -218,4 +218,66 @@ describe("Employee document review workspace", () => {
     ).toBeInTheDocument();
     expect(api.post).not.toHaveBeenCalled();
   });
+  it("prepares approved HR-only contracts in Odoo Sign staging without sending emails", async () => {
+    useSession.mockReturnValue({
+      principal: { profile: { id: "admin-1" } },
+      hasPermission: (permission) => [
+        "employee_documents.read_own",
+        "employee_documents.read_all",
+        "employee_documents.review",
+      ].includes(permission),
+    });
+    const contract = {
+      id: "contract-1",
+      document_type: "EMPLOYMENT_CONTRACT",
+      label: "Contrato laboral",
+      kind: "FILE",
+      admin_only: true,
+      description: "Contrato preparado por Talento Humano",
+      original_filename: "contrato.pdf",
+      size_bytes: 100,
+      review_status: "APPROVED",
+      odoo_sign_status: "NOT_PREPARED",
+    };
+    const staged = {
+      ready: true,
+      enabled: true,
+      status: "NOT_PREPARED",
+      staging_only: true,
+      message: "Odoo Sign staging disponible.",
+    };
+    api.get.mockImplementation((url) => {
+      if (url === "/employees") return Promise.resolve({
+        data: { items: [{ id: "employee-1", first_name: "Ana", last_name: "Pérez" }] },
+      });
+      if (url === "/employee-documents/employees/employee-1")
+        return Promise.resolve({ data: portfolio([contract]) });
+      if (url === "/employee-documents/employees/employee-1/contract/sign")
+        return Promise.resolve({ data: staged });
+      return Promise.resolve({ data: portfolio([]) });
+    });
+    api.post.mockResolvedValue({
+      data: {
+        ...staged,
+        ready: false,
+        status: "PREPARED",
+        template_url: "https://odoo-staging.example.invalid/web#id=812&model=sign.template",
+      },
+    });
+    render(<Documents />);
+    await screen.findByRole("option", { name: "Ana Pérez" });
+    fireEvent.change(screen.getByLabelText("Empleado a consultar"), {
+      target: { value: "employee-1" },
+    });
+    const prepare = await screen.findByRole("button", { name: "Preparar en Odoo Sign" });
+    await waitFor(() => expect(prepare).toBeEnabled());
+    fireEvent.click(prepare);
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      "/employee-documents/employees/employee-1/contract/sign/prepare",
+      { confirm: true },
+    ));
+    expect(await screen.findByRole("link", { name: /Abrir plantilla en Odoo staging/i }))
+      .toHaveAttribute("target", "_blank");
+  });
+
 });
