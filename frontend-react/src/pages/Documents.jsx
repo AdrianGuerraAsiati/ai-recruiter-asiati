@@ -7,6 +7,7 @@ import { useSession } from "../context/SessionContext";
 import { getApiErrorMessage } from "../utils/errors";
 import PageHeader from "../components/ui/PageHeader";
 import "../talent-workspaces.css";
+import "./ContractSignature.css";
 import {
   FeedbackMessage,
   LoadingState,
@@ -77,6 +78,8 @@ function Documents() {
   const [queueRevision, setQueueRevision] = useState(0);
   const [welcomeStatus, setWelcomeStatus] = useState(null);
   const [welcomeBusy, setWelcomeBusy] = useState(false);
+  const [signReadiness, setSignReadiness] = useState(null);
+  const [signBusy, setSignBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState("");
   const [error, setError] = useState("");
@@ -177,6 +180,7 @@ function Documents() {
   }
 
   function selectEmployee(employeeId) {
+    setSignReadiness(null);
     setSelectedEmployeeId(employeeId);
     setFilesByType({});
     setValuesByType({});
@@ -345,6 +349,47 @@ function Documents() {
     }
   }
 
+
+  useEffect(() => {
+    if (!canReadAll || viewingOwn || !selectedEmployeeId) {
+      return undefined;
+    }
+    let active = true;
+    api.get(`/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract/sign`)
+      .then(({ data }) => { if (active) setSignReadiness(data); })
+      .catch(() => {
+        if (active) setSignReadiness({
+          ready: false,
+          message: "No se pudo consultar Odoo Sign staging.",
+        });
+      });
+    return () => { active = false; };
+  }, [canReadAll, selectedEmployeeId, viewingOwn, queueRevision]);
+
+  async function prepareContractSignature() {
+    if (!canReview || viewingOwn || !signReadiness?.ready || signBusy) return;
+    setSignBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const { data } = await api.post(
+        `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract/sign/prepare`,
+        { confirm: true },
+      );
+      setSignReadiness(data);
+      setSuccess("Contrato preparado en Odoo Sign staging. Debes configurar firmantes y enviar desde Odoo.");
+      await loadPortfolio();
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "preparar contrato en Odoo Sign",
+        resource: "contrato laboral",
+        fallback: "No fue posible preparar el contrato; no se enviaron solicitudes de firma.",
+      }));
+    } finally {
+      setSignBusy(false);
+    }
+  }
+
   const items = portfolio?.items || [];
   const fileItems = items.filter((item) => item.kind === "FILE");
   const textItems = items.filter((item) => item.kind === "TEXT");
@@ -405,7 +450,7 @@ function Documents() {
             )}
 
             {((viewingOwn && canUploadOwn && !item.admin_only) ||
-              (item.admin_only && canReadAll && canReview && !viewingOwn)) && (
+              (item.admin_only && canReadAll && canReview && !viewingOwn && !["PREPARING", "PREPARED"].includes(item.odoo_sign_status))) && (
               <div className="document-upload-row">
                 <label
                   className={`document-dropzone ${filesByType[item.document_type] ? "has-file" : ""} ${isBusy ? "is-busy" : ""}`}
@@ -478,6 +523,31 @@ function Documents() {
           <div className="document-readonly-value">
             <span>Información reportada</span>
             <strong>{item.value_text || "Sin información enviada"}</strong>
+          </div>
+        )}
+
+
+        {item.document_type === "EMPLOYMENT_CONTRACT" && canReview && !viewingOwn && (
+          <div className="contract-sign-workspace" aria-label="Odoo Sign para contrato laboral">
+            <div>
+              <strong>Firma del contrato · Odoo Sign</strong>
+              <p>{signReadiness?.message || "Consultando disponibilidad en Odoo staging…"}</p>
+              <small>Preparar una plantilla no envía correos ni acredita una firma. El envío y los firmantes se configuran en Odoo.</small>
+            </div>
+            {signReadiness?.template_url ? (
+              <a className="btn btn-secondary btn-sm" href={signReadiness.template_url} target="_blank" rel="noopener noreferrer">
+                Abrir plantilla en Odoo staging ↗
+              </a>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={!signReadiness?.ready || item.review_status !== "APPROVED" || signBusy}
+                onClick={() => void prepareContractSignature()}
+              >
+                {signBusy ? "Preparando…" : "Preparar en Odoo Sign"}
+              </button>
+            )}
           </div>
         )}
 
