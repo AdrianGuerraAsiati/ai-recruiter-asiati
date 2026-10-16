@@ -5,6 +5,7 @@ import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
 import PageHeader from "../components/ui/PageHeader";
+import "./Dashboard.css";
 import {
   EmptyState,
   FeedbackMessage,
