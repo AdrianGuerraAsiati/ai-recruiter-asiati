@@ -32,6 +32,16 @@ def staging_enabled() -> bool:
     )
 
 
+def _test_employee_allowed(employee_id: str) -> bool:
+    """Explicit fixture allowlist prevents copying real contracts into staging."""
+    allowed = {
+        value.strip()
+        for value in os.getenv("ODOO_SIGN_TEST_EMPLOYEE_IDS", "").split(",")
+        if value.strip()
+    }
+    return employee_id in allowed
+
+
 def _contract(db: Session, employee_id: str, *, lock: bool = False) -> EmployeeDocument | None:
     service.require_employee(db, employee_id)
     query = db.query(EmployeeDocument).filter(
@@ -69,6 +79,9 @@ def readiness(db: Session, employee_id: str, *, client=None) -> dict:
     if not staging_enabled():
         result["message"] = "La preparación de Odoo Sign en staging aún no está habilitada."
         return result
+    if not _test_employee_allowed(employee_id):
+        result["message"] = "Solo empleados de prueba autorizados pueden preparar contratos en staging."
+        return result
     if not document or not document.storage_key:
         result["message"] = "Talento Humano debe cargar primero el contrato."
         return result
@@ -100,6 +113,8 @@ def prepare(db: Session, employee_id: str, *, client=None) -> dict:
     """Idempotently create an Odoo Sign template, not a signature request."""
     if not staging_enabled():
         raise SignUnavailable("La preparación de Odoo Sign en staging está deshabilitada.")
+    if not _test_employee_allowed(employee_id):
+        raise SignUnavailable("Este empleado no está autorizado para la prueba de Odoo Sign staging.")
 
     document = _contract(db, employee_id, lock=True)
     if document is None or not document.storage_key:
