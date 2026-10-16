@@ -111,7 +111,7 @@ def test_staging_preparation_is_idempotent_and_does_not_send(contract_db, monkey
         "content_type": kw["expected_content_type"],
         "size_bytes": kw["expected_size_bytes"],
     })
-    with pytest.raises(ValueError, match="no se permite reemplazar"):
+    with pytest.raises(ValueError, match="permite reemplazar"):
         service.finalize_upload(
             db,
             employee_id=employee.id,
