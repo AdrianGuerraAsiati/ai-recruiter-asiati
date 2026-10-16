@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_principal, get_db, require_permission
-from app.domains.employee_documents import notifications, service
+from app.domains.employee_documents import notifications, service, signing
 from app.domains.employee_documents.schemas import (
+    ConfirmContractSignPreparation,
     CreateEmployeeDocumentUploadRequest,
     FinalizeEmployeeDocumentUploadRequest,
     ReviewEmployeeDocumentRequest,
@@ -183,6 +184,38 @@ def retry_employee_welcome(
         _translate(exc)
 
 
+
+@router.get("/employees/{employee_id}/contract/sign")
+def employee_contract_sign_status(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.read_all")),
+):
+    try:
+        return signing.readiness(db, employee_id)
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.post("/employees/{employee_id}/contract/sign/prepare")
+def prepare_employee_contract_in_odoo_sign(
+    employee_id: str,
+    body: ConfirmContractSignPreparation,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.review")),
+):
+    if not body.confirm:
+        raise HTTPException(status_code=422, detail="Confirma la preparación del contrato.")
+    try:
+        return signing.prepare(db, employee_id)
+    except signing.SignNotReady as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except signing.SignUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        _translate(exc)
+
+
 @router.get("/employees/{employee_id}")
 def employee_documents(
     employee_id: str,
@@ -231,6 +264,6 @@ def review_document(
             comment=body.comment,
             reviewed_by_sub=principal["sub"],
         )
-        return service.portfolio_payload(db, document.employee_id)
+        return service.portfolio_payload(db, document.employee_id, include_admin_only=True)
     except Exception as exc:
         _translate(exc)
