@@ -180,7 +180,8 @@
   width: min(560px, 100%);
 }
 
-.applications-page .employee-filters > * {
+.applications-page .employee-filters input,
+.applications-page .employee-filters select {
   min-width: 0;
   width: 100%;
 }
