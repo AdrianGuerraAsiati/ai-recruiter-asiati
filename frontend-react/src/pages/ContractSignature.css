@@ -1,0 +1,39 @@
+/* Contract signing stays scoped to the Document workspace. */
+.employee-documents-page .contract-sign-workspace {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--blue) 22%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--blue) 5%, var(--surface));
+}
+.employee-documents-page .contract-sign-workspace strong {
+  display: block;
+  color: var(--ink);
+  font-size: .91rem;
+}
+.employee-documents-page .contract-sign-workspace p {
+  margin-top: 6px;
+  color: var(--ink-soft);
+  font-size: .84rem;
+  line-height: 1.5;
+}
+.employee-documents-page .contract-sign-workspace small {
+  display: block;
+  margin-top: 8px;
+  color: var(--ink-soft);
+  font-size: .73rem;
+  line-height: 1.55;
+}
+.employee-documents-page .contract-sign-workspace > .btn {
+  justify-self: start;
+  max-width: 100%;
+  text-align: center;
+}
+@media (max-width: 620px) {
+  .employee-documents-page .contract-sign-workspace > .btn {
+    justify-self: stretch;
+    width: 100%;
+  }
+}
