@@ -148,3 +148,24 @@ def delete_document_object(key: str) -> None:
     if not _is_document_key(key):
         raise ValueError("Clave de documento inválida.")
     _s3_client().delete_object(Bucket=get_training_content_bucket(), Key=key)
+
+
+def read_employee_pdf_for_signing(*, employee_id: str, key: str, expected_bytes: int) -> bytes:
+    """Read only a validated employee-owned PDF from the private bucket."""
+    if not str(key or "").startswith(_employee_prefixes(employee_id)):
+        raise ValueError("El documento no corresponde al empleado.")
+    if expected_bytes <= 0 or expected_bytes > MAX_EMPLOYEE_DOCUMENT_BYTES:
+        raise ValueError("Tamaño del contrato no permitido.")
+    response = _s3_client().get_object(
+        Bucket=get_training_content_bucket(), Key=key
+    )
+    try:
+        size = int(response.get("ContentLength") or 0)
+        if size != expected_bytes:
+            raise ValueError("El contrato almacenado cambió de tamaño.")
+        body = response["Body"].read(MAX_EMPLOYEE_DOCUMENT_BYTES + 1)
+    finally:
+        response["Body"].close()
+    if len(body) != expected_bytes or not body.startswith(b"%PDF-"):
+        raise ValueError("Solo pueden prepararse contratos PDF válidos.")
+    return body
