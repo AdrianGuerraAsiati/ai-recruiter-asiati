@@ -8,7 +8,7 @@ function BrandMark({ compact = false }) {
       <span className="asiati-logo-frame asiati-logo-frame--round">
         <img className="asiati-logo" src="/asiati-logo.svg" alt="ASIATI" />
       </span>
-      <span className="asiati-brand-tagline">Talent intelligence</span>
+      <span className="asiati-brand-tagline">ADN360</span>
     </span>
   );
 }
