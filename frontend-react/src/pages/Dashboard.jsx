@@ -286,7 +286,7 @@ function Dashboard() {
 
         <aside className="panel intelligence-panel">
           <div className="intelligence-orb"><span>AI</span></div>
-          <span className="eyebrow eyebrow-dark">Talent intelligence</span>
+          <span className="eyebrow eyebrow-dark">ADN360</span>
           <h2>Del currículum a la evidencia.</h2>
           <p>Compara cada perfil con los requisitos de la vacante y obtén fortalezas, brechas y una recomendación clara.</p>
           <Link className="text-link-light" to="/ranking">Explorar ranking <span aria-hidden="true">↗</span></Link>
