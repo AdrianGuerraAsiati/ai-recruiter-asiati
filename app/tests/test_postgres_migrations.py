@@ -365,6 +365,11 @@ def test_alembic_head_builds_current_postgres_schema():
             "review_comment",
             "reviewed_by_sub",
             "reviewed_at",
+            "odoo_sign_template_id",
+            "odoo_sign_attachment_id",
+            "odoo_sign_source_key",
+            "odoo_sign_status",
+            "odoo_sign_prepared_at",
         }.issubset(employee_document_columns)
 
         user_profile_columns = {
@@ -544,6 +549,6 @@ def test_alembic_head_builds_current_postgres_schema():
         assert talent_admin_grants == {"talent_id.read", "talent_id.manage"}
         psych_columns = {column["name"] for column in inspector.get_columns("psychotechnical_assignments")}
         assert {"candidate_id", "job_id", "test_key", "token_hash", "status"}.issubset(psych_columns)
-        assert revision == "053"
+        assert revision == "054"
     finally:
         engine.dispose()
