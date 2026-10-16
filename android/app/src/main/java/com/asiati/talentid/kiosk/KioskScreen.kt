@@ -154,7 +154,7 @@ private fun ProvisioningScreen(
                 ) {
                     Text(
                         modifier = Modifier.padding(16.dp),
-                        text = "Usa el Device ID y Device Secret generados desde Talent Intelligence. " +
+                        text = "Usa el Device ID y Device Secret generados desde ADN360. " +
                             "El secreto se cifra en Android Keystore y no se mostrará después.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TalentInkSoft,
@@ -238,7 +238,7 @@ private fun ConnectionScreen(
                     eyebrow = "TALENT ID",
                     title = if (loading) "Conectando kiosco" else "No pudimos conectar",
                     subtitle = if (loading) {
-                        "Estamos validando este dispositivo con Talent Intelligence."
+                        "Estamos validando este dispositivo con ADN360."
                     } else {
                         "Revisa la conexión o vuelve a vincular el dispositivo."
                     },
