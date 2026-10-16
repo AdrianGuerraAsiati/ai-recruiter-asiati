@@ -44,7 +44,7 @@ function Register() {
             <span className="success-mark" aria-hidden="true">✓</span>
             <span className="eyebrow">Registro completo</span>
             <h1>Tu cuenta está lista</h1>
-            <p>Ya puedes acceder a ASIATI Talent Intelligence y comenzar a organizar tu proceso de selección.</p>
+            <p>Ya puedes acceder a ADN360 de ASIATI y comenzar a organizar tu proceso de selección.</p>
             <button type="button" className="login-button" onClick={() => navigate("/login")}>Iniciar sesión <span>→</span></button>
           </div>
         </section>
@@ -67,7 +67,7 @@ function Register() {
             <li><span>03</span><div><strong>Decisiones con datos</strong><small>Convierte evidencia en una recomendación útil.</small></div></li>
           </ul>
         </div>
-        <p className="auth-story-footer">ASIATI · Talent Intelligence</p>
+        <p className="auth-story-footer">ASIATI · ADN360</p>
       </section>
 
       <section className="auth-panel">
