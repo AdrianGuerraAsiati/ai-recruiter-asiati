@@ -75,6 +75,11 @@ def send(
 
     # Commit the persistent one-shot guard before ANY remote writes.
     document = signing._contract(db, employee_id, lock=True)
+    if document is not None:
+        # A previous preflight populated the SQLAlchemy identity map. Force a
+        # fresh SELECT FOR UPDATE after acquiring the row lock; otherwise two
+        # concurrent sessions could reuse a stale NOT_SENT value.
+        db.refresh(document, with_for_update=True)
     if (document is None or document.odoo_sign_request_id is not None
             or document.odoo_sign_dispatch_status not in (None, "NOT_SENT")
             or document.odoo_sign_template_id != preflight["template_id"]
@@ -167,6 +172,8 @@ def reconcile(db: Session, employee_id: str, *, client=None) -> dict:
             target, template_id=document.odoo_sign_template_id, subject=expected,
         )
         if not matches:
+            document.odoo_sign_dispatch_status = "UNKNOWN"
+            db.commit()
             return {
                 "status": "UNKNOWN", "request_id": None, "staging_only": True,
                 "message": "No aparece una solicitud remota. No reintentar automáticamente.",
