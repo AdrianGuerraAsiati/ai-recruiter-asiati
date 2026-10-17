@@ -81,10 +81,8 @@ function Documents() {
   const [signReadiness, setSignReadiness] = useState(null);
   const [signBusy, setSignBusy] = useState(false);
   const [signRequest, setSignRequest] = useState(null);
-  const [signRequestId, setSignRequestId] = useState("");
   const [signRequestBusy, setSignRequestBusy] = useState(false);
   const [signSendStatus, setSignSendStatus] = useState(null);
-  const [signSignerIds, setSignSignerIds] = useState({ employee: "", representative: "" });
   const [signSendPreview, setSignSendPreview] = useState(false);
   const [signSendConfirmed, setSignSendConfirmed] = useState(false);
   const [signSendBusy, setSignSendBusy] = useState(false);
@@ -193,9 +191,7 @@ function Documents() {
   function selectEmployee(employeeId) {
     setSignReadiness(null);
     setSignRequest(null);
-    setSignRequestId("");
     setSignSendStatus(null);
-    setSignSignerIds({ employee: "", representative: "" });
     setSignSendPreview(false);
     setSignSendConfirmed(false);
     setSignedArtifact(null);
@@ -406,7 +402,6 @@ function Documents() {
       .then(({ data }) => {
         if (active) {
           setSignRequest(data);
-          setSignRequestId(data?.request_id ? String(data.request_id) : "");
         }
       })
       .catch(() => { if (active) setSignRequest(null); });
@@ -441,31 +436,18 @@ function Documents() {
     if (!canReview || viewingOwn || signSendBusy || !selectedEmployeeId) return;
     if (action === "send" && (!signSendConfirmed || !signSendPreview)) return;
     const prefix = `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract/sign/request`;
-    const ids = {
-      employee_partner_id: Number(signSignerIds.employee),
-      representative_partner_id: Number(signSignerIds.representative),
-    };
-    if (action !== "reconcile" && (
-      !Number.isSafeInteger(ids.employee_partner_id) ||
-      !Number.isSafeInteger(ids.representative_partner_id) ||
-      ids.employee_partner_id <= 0 || ids.representative_partner_id <= 0 ||
-      ids.employee_partner_id === ids.representative_partner_id
-    )) {
-      setError("Selecciona dos IDs de contactos ficticios distintos en Odoo staging.");
-      return;
-    }
     setSignSendBusy(true);
     setError("");
     setSuccess("");
     try {
       if (action === "preview") {
-        const { data } = await api.post(`${prefix}/preview`, ids);
+        const { data } = await api.post(`${prefix}/automatic-preview`);
         setSignSendPreview(Boolean(data?.validated));
         setSuccess("Plantilla, firmantes y contactos ficticios verificados. Aún no se ha enviado.");
       } else {
         const { data } = await api.post(
-          `${prefix}/${action}`,
-          action === "send" ? { ...ids, confirm: true } : undefined,
+          action === "send" ? `${prefix}/automatic-send` : `${prefix}/reconcile`,
+          action === "send" ? { confirm: true } : undefined,
         );
         setSignSendPreview(false);
         setSignSendConfirmed(false);
@@ -475,7 +457,6 @@ function Documents() {
         if (data.request_id) {
           const { data: current } = await api.get(prefix);
           setSignRequest(current);
-          setSignRequestId(String(data.request_id));
           setSuccess("Solicitud de firma creada en Odoo staging; firma y correos permanecen bajo control de Odoo.");
         } else {
           setSuccess("Sin solicitud confirmada. No reintentes el envío: concilia primero con Odoo.");
@@ -541,31 +522,21 @@ function Documents() {
     }
   }
 
-  async function updateStagingSignRequest(refresh = false) {
-    if (!canReview || viewingOwn || signRequestBusy) return;
-    const id = Number(signRequestId);
-    if (!refresh && (!Number.isSafeInteger(id) || id <= 0)) {
-      setError("Indica el ID numérico de una solicitud de firma en Odoo staging.");
-      return;
-    }
+  async function refreshSignRequest() {
+    if (!canReview || viewingOwn || signRequestBusy || !signRequest?.linked) return;
     const path = `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract/sign/request`;
     setSignRequestBusy(true);
     setError("");
     setSuccess("");
     try {
-      const { data } = await api.post(
-        refresh ? `${path}/refresh` : `${path}/link`,
-        refresh ? undefined : { request_id: id, confirm: true },
-      );
+      const { data } = await api.post(`${path}/refresh`);
       setSignRequest(data);
-      setSuccess(refresh
-        ? "Estado de los firmantes actualizado desde Odoo staging."
-        : "Solicitud de prueba vinculada y firmantes verificados.");
+      setSuccess("Estado de los dos firmantes actualizado desde Odoo Sign.");
     } catch (err) {
       setError(getApiErrorMessage(err, {
-        action: refresh ? "consultar firmas" : "vincular solicitud de prueba",
+        action: "consultar firmas",
         resource: "Odoo Sign",
-        fallback: "No se pudo verificar la solicitud en Odoo staging.",
+        fallback: "No se pudo actualizar el estado de firmas.",
       }));
     } finally {
       setSignRequestBusy(false);
@@ -738,7 +709,7 @@ function Documents() {
             <div>
               <strong>Firma del contrato · Odoo Sign</strong>
               <p>{signReadiness?.message || "Consultando disponibilidad en Odoo staging…"}</p>
-              <small>Preparar una plantilla no envía correos ni acredita una firma. El envío y los firmantes se configuran en Odoo.</small>
+              <small>Preparar una plantilla no envía correos ni acredita una firma. Los destinatarios y el envío se administran desde ADN360 cuando estén configurados.</small>
             </div>
             {signReadiness?.template_url ? (
               <a className="btn btn-secondary btn-sm" href={signReadiness.template_url} target="_blank" rel="noopener noreferrer">
@@ -759,33 +730,20 @@ function Documents() {
                 <strong>Seguimiento de solicitud de prueba</strong>
                 <p>
                   {signRequest?.linked
-                    ? `Solicitud #${signRequest.request_id} · ${({
+                    ? `${({
                         PENDING_SIGNATURE: "Esperando ambas firmas",
                         PARTIALLY_SIGNED: "Firma parcial",
                         SIGNED: "Firmada por ambas partes",
                         CANCELLED: "Cancelada",
                         EXPIRED: "Vencida",
                       })[signRequest.status] || signRequest.status}`
-                    : "Envía la solicitud desde Odoo y vincula su ID para consultar los dos firmantes."}
+                    : "Todavía no se ha enviado para firma. ADN360 creará y vinculará la solicitud automáticamente."}
                 </p>
                 {canReview && signSendStatus?.enabled &&
                   signSendStatus?.status === "NOT_SENT" && !signRequest?.linked && (
                     <div className="contract-sign-request-controls">
-                      <strong>Envío automático de prueba</strong>
-                      <label htmlFor="odoo-sign-employee-partner">ID de contacto de empleado ficticio</label>
-                      <input id="odoo-sign-employee-partner" type="number" min="1" step="1"
-                        value={signSignerIds.employee}
-                        onChange={(event) => {
-                          setSignSignerIds((prev) => ({ ...prev, employee: event.target.value }));
-                          setSignSendPreview(false);
-                        }} />
-                      <label htmlFor="odoo-sign-representative-partner">ID de representante legal ficticio</label>
-                      <input id="odoo-sign-representative-partner" type="number" min="1" step="1"
-                        value={signSignerIds.representative}
-                        onChange={(event) => {
-                          setSignSignerIds((prev) => ({ ...prev, representative: event.target.value }));
-                          setSignSendPreview(false);
-                        }} />
+                      <strong>Firmantes de prueba configurados</strong>
+                      <p>Empleado y representante legal: ADN360 verificará sus contactos directamente en Odoo staging.</p>
                       <button type="button" className="btn btn-secondary btn-sm" disabled={signSendBusy}
                         onClick={() => void runStagingSignSend("preview")}>
                         {signSendBusy ? "Validando…" : "Validar solicitud antes de enviar"}
@@ -821,22 +779,14 @@ function Documents() {
                     <span>Representante legal: {signRequest.representative || "Pendiente"}</span>
                   </div>
                 )}
-                {signRequest?.linked ? (
+                {signRequest?.linked && (
                   <button type="button" className="btn btn-secondary btn-sm" disabled={signRequestBusy}
-                    onClick={() => void updateStagingSignRequest(true)}>
+                    onClick={() => void refreshSignRequest()}>
                     {signRequestBusy ? "Consultando…" : "Actualizar estado de firmas"}
                   </button>
-                ) : (
-                  <div className="contract-sign-request-controls">
-                    <label htmlFor="odoo-sign-request-id">ID de solicitud en Odoo staging</label>
-                    <input id="odoo-sign-request-id" type="number" min="1" step="1" value={signRequestId}
-                      onChange={(event) => setSignRequestId(event.target.value)}
-                      placeholder="Ej. 139" />
-                    <button type="button" className="btn btn-secondary btn-sm" disabled={signRequestBusy}
-                      onClick={() => void updateStagingSignRequest(false)}>
-                      {signRequestBusy ? "Validando…" : "Vincular solicitud de prueba"}
-                    </button>
-                  </div>
+                )}
+                {canReview && signSendStatus && !signSendStatus.enabled && !signRequest?.linked && (
+                  <p>El envío de solicitudes todavía no está habilitado en ADN360. No se necesita ningún ID de Odoo.</p>
                 )}
                 {signRequest?.status === "SIGNED" && !signedArtifact?.archived && (
                   <button type="button" className="btn btn-primary btn-sm"
@@ -850,7 +800,7 @@ function Documents() {
                     Descargar contrato firmado
                   </button>
                 )}
-                <small>Odoo gestiona las firmas. El archivado necesita verificación del PDF final en staging.</small>
+                <small>Odoo gestiona las firmas. ADN360 asocia internamente la solicitud; no necesitas copiar identificadores.</small>
               </div>
             )}
           </div>

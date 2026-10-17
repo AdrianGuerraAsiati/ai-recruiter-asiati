@@ -147,6 +147,28 @@ def send(
         ) from exc
 
 
+def send_automatic(db: Session, employee_id: str, *, client=None) -> dict:
+    """Send without exposing Odoo contacts/IDs to Talent Human admin."""
+    if not sign_dispatch.sending_enabled():
+        raise sign_dispatch.DispatchUnavailable(
+            "El envío automático Odoo Sign staging está deshabilitado."
+        )
+    sign_requests._require_fixture(employee_id)
+    try:
+        target = client or staging.build_staging_client()
+        employee_id_odoo, representative_id_odoo = sign_dispatch._resolve_staging_partner_ids(target)
+    except staging.OdooNotConfigured as exc:
+        raise sign_dispatch.DispatchUnavailable("Conexión Odoo staging no configurada.") from exc
+    except OdooClientError as exc:
+        raise sign_dispatch.DispatchUnavailable("No se pudieron verificar los contactos en Odoo staging.") from exc
+    return send(
+        db, employee_id,
+        employee_partner_id=employee_id_odoo,
+        representative_partner_id=representative_id_odoo,
+        client=target,
+    )
+
+
 def reconcile(db: Session, employee_id: str, *, client=None) -> dict:
     """Read remote state by unique subject. Never send another invitation."""
     sign_requests._require_fixture(employee_id)

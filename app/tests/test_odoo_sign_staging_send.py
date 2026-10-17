@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db import Base
-from app.domains.employee_documents import sign_send, sign_dispatch
+from app.domains.employee_documents import sign_send, sign_dispatch, sign_requests
 from app.domains.employee_documents.models import EmployeeDocument
 from app.integrations.odoo.client import OdooRpcError
 from app.models import UserProfile
@@ -68,18 +68,26 @@ class FakeOdoo:
                 {"id": 52, "name": "Representante legal"},
             ]
         if model == "res.partner":
-            partner_id = domain[0][2]
-            return [{
-                "id": partner_id,
-                "email": ("empleado@example.invalid" if partner_id == 301
-                          else "representante@example.invalid"),
-            }]
+            attribute, _, value = domain[0]
+            addresses = {
+                301: "empleado.adn360@example.invalid",
+                302: "representante.adn360@example.invalid",
+            }
+            if attribute == "email":
+                matches = [
+                    {"id": partner_id, "email": address}
+                    for partner_id, address in addresses.items()
+                    if address == value
+                ]
+                return matches[:limit]
+            assert attribute == "id"
+            return [{"id": value, "email": addresses[value]}] if value in addresses else []
         if model == "sign.request.item":
             return [
                 {"id": 501, "role_id": [51, "Empleado"],
-                 "state": "sent", "signer_email": "empleado@example.invalid"},
+                 "state": "sent", "signer_email": "empleado.adn360@example.invalid"},
                 {"id": 502, "role_id": [52, "Representante legal"],
-                 "state": "sent", "signer_email": "representante@example.invalid"},
+                 "state": "sent", "signer_email": "representante.adn360@example.invalid"},
             ]
         if model == "sign.request":
             if not self.sent:
@@ -143,7 +151,7 @@ def fixture(monkeypatch):
     monkeypatch.setenv("ODOO_SIGN_STAGING_TRACK_ENABLED", "true")
     monkeypatch.setenv(
         "ODOO_SIGN_TEST_SIGNER_EMAILS",
-        "empleado@example.invalid,representante@example.invalid",
+        "empleado.adn360@example.invalid,representante.adn360@example.invalid",
     )
     monkeypatch.setenv("ODOO_SIGN_STAGING_SEND_ENABLED", "true")
     yield db, profile, contract, monkeypatch
@@ -251,3 +259,71 @@ def test_reconcile_cannot_run_before_first_send(fixture):
     with pytest.raises(sign_send.DispatchConflict, match="No existe"):
         sign_send.reconcile(db, profile.id, client=FakeOdoo())
     assert contract.odoo_sign_dispatch_status == "NOT_SENT"
+
+
+def test_automatic_preflight_resolves_signers_without_exposing_odoo_ids(fixture):
+    db, profile, contract, _ = fixture
+    odoo = FakeOdoo()
+    result = sign_dispatch.preview_automatic(db, profile.id, client=odoo)
+    assert result["validated"] is True
+    assert result["request_created"] is False
+    assert result["emails_sent"] is False
+    assert "partner_id" not in result
+    assert odoo.create_count == odoo.send_count == 0
+    assert contract.odoo_sign_request_id is None
+
+
+def test_automatic_send_stores_generated_request_without_contact_ids_from_hr(fixture):
+    db, profile, contract, _ = fixture
+    odoo = FakeOdoo()
+    result = sign_send.send_automatic(db, profile.id, client=odoo)
+    assert result["status"] == "SENT"
+    assert contract.odoo_sign_request_id == 139
+    assert odoo.create_count == odoo.send_count == 1
+
+
+@pytest.mark.parametrize("addresses", [
+    "empleado.adn360@example.invalid,empleado.adn360@example.invalid",
+    "representante.adn360@example.invalid,empleado.adn360@example.invalid",
+    "somebody@example.com,representante.adn360@example.invalid",
+    "empleado.adn360@example.invalid",
+    "",
+])
+def test_automatic_send_rejects_invalid_fixtures_without_odoo_writes(
+    fixture, addresses,
+):
+    db, profile, contract, monkeypatch = fixture
+    monkeypatch.setenv("ODOO_SIGN_TEST_SIGNER_EMAILS", addresses)
+    odoo = FakeOdoo()
+    with pytest.raises(
+        (sign_dispatch.DispatchUnavailable, sign_dispatch.DispatchNotReady,
+         sign_requests.SignTrackingUnavailable)
+    ):
+        sign_send.send_automatic(db, profile.id, client=odoo)
+    assert odoo.create_count == odoo.send_count == 0
+    assert contract.odoo_sign_request_id is None
+
+
+def test_automatic_send_disabled_before_any_remote_reads(fixture, monkeypatch):
+    db, profile, contract, _ = fixture
+    monkeypatch.setenv("ODOO_SIGN_STAGING_SEND_ENABLED", "false")
+    odoo = FakeOdoo()
+    with pytest.raises(sign_dispatch.DispatchUnavailable, match="deshabilitado"):
+        sign_send.send_automatic(db, profile.id, client=odoo)
+    assert odoo.create_count == odoo.send_count == 0
+    assert contract.odoo_sign_request_id is None
+
+
+def test_automatic_lookup_rejects_duplicate_contacts(fixture):
+    db, profile, _, monkeypatch = fixture
+    odoo = FakeOdoo()
+    previous = odoo.search_read
+    def duplicated(model, domain, *, fields, limit):
+        if model == "res.partner" and domain[0][0] == "email":
+            item = previous(model, domain, fields=fields, limit=limit)[0]
+            return [item, dict(item, id=950)]
+        return previous(model, domain, fields=fields, limit=limit)
+    odoo.search_read = duplicated
+    with pytest.raises(sign_dispatch.DispatchNotReady, match="único"):
+        sign_dispatch.preview_automatic(db, profile.id, client=odoo)
+    assert odoo.create_count == odoo.send_count == 0
