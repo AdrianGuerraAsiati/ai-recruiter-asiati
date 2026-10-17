@@ -45,7 +45,11 @@ function mount() {
 describe("Applications: document access and employee creation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    api.get.mockResolvedValue({ data: { items: [application], total: 1, pages: 1 } });
+    api.get.mockImplementation((url) => Promise.resolve({ data:
+      url.includes("/hire-readiness")
+        ? { enabled: false, ready: true, status: "LEGACY_FLOW" }
+        : { items: [application], total: 1, pages: 1 },
+    }));
     api.post.mockResolvedValue({ data: { application_status: "HIRED", employee_created: false, credentials: null } });
     api.put.mockResolvedValue({ data: {} });
   });
@@ -61,13 +65,28 @@ describe("Applications: document access and employee creation", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Crear empleado" }));
     const dialog = screen.getByRole("dialog", { name: "Crear empleado" });
-    expect(within(dialog).getByLabelText("Usuario de Talent").value).toBe("aperez");
+    expect(within(dialog).getByLabelText("Usuario de ADN360").value).toBe("aperez");
     fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar contratación" }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       "/jobs/job-1/candidates/candidate-1/hire",
       expect.objectContaining({ username: "aperez", email: "ana@example.com" }),
     ));
     expect(await screen.findByText(/Contratación confirmada y onboarding asignado/)).toBeInTheDocument();
+  });
+
+  it("prevents hiring before the required two signatures and archive", async () => {
+    api.get.mockImplementation((url) => Promise.resolve({ data:
+      url.includes("/hire-readiness")
+        ? { enabled: true, ready: false,
+            message: "Debes obtener ambas firmas y archivar el PDF final antes de crear el empleado." }
+        : { items: [application], total: 1, pages: 1 },
+    }));
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Crear empleado" }));
+    const dialog = screen.getByRole("dialog", { name: "Crear empleado" });
+    expect(await within(dialog).findByText(/Debes obtener ambas firmas/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Confirmar contratación" })).toBeDisabled();
+    expect(api.post).not.toHaveBeenCalled();
   });
 
   it("offers portal credentials before hiring applicants imported without a login", async () => {
