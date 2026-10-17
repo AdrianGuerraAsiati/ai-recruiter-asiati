@@ -228,6 +228,8 @@ def finalize_upload(
         )
         .one_or_none()
     )
+    if existing and existing.odoo_sign_request_id is not None:
+        raise ValueError("Existe una solicitud de firma vinculada. No se permite reemplazar el contrato.")
     if existing and existing.odoo_sign_status in ("PREPARING", "PREPARED"):
         raise ValueError(
             "El contrato ya está en preparación en Odoo Sign. No se permite reemplazar "
@@ -252,6 +254,12 @@ def finalize_upload(
         document.odoo_sign_template_id = None
         document.odoo_sign_attachment_id = None
         document.odoo_sign_prepared_at = None
+        document.odoo_sign_request_id = None
+        document.odoo_sign_request_status = "UNLINKED"
+        document.odoo_sign_employee_state = None
+        document.odoo_sign_representative_state = None
+        document.odoo_sign_checked_at = None
+        document.odoo_sign_completed_at = None
     document.reviewed_by_sub = None
     document.reviewed_at = None
     if existing is None:

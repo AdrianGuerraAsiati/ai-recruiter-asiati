@@ -37,3 +37,36 @@
     width: 100%;
   }
 }
+
+.employee-documents-page .contract-sign-request-panel {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.employee-documents-page .contract-sign-request-panel p {
+  margin: 0;
+}
+.employee-documents-page .contract-sign-request-controls,
+.employee-documents-page .contract-sign-participants {
+  display: grid;
+  gap: 8px;
+}
+.employee-documents-page .contract-sign-request-controls label,
+.employee-documents-page .contract-sign-participants span {
+  color: var(--ink-soft);
+  font-size: .85rem;
+}
+.employee-documents-page .contract-sign-request-controls input {
+  width: 100%;
+  min-height: 40px;
+}
+.employee-documents-page .contract-sign-request-panel .btn {
+  justify-self: start;
+}
+@media (max-width: 620px) {
+  .employee-documents-page .contract-sign-request-panel .btn {
+    width: 100%;
+    justify-self: stretch;
+  }
+}
