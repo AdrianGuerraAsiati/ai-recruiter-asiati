@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_principal, get_db, require_permission
-from app.domains.employee_documents import notifications, service, signing
+from app.domains.employee_documents import notifications, service, signing, sign_requests
 from app.domains.employee_documents.schemas import (
     ConfirmContractSignPreparation,
+    LinkStagingSignRequest,
     CreateEmployeeDocumentUploadRequest,
     FinalizeEmployeeDocumentUploadRequest,
     ReviewEmployeeDocumentRequest,
@@ -211,6 +212,52 @@ def prepare_employee_contract_in_odoo_sign(
     except signing.SignNotReady as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except signing.SignUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        _translate(exc)
+
+
+
+@router.get("/employees/{employee_id}/contract/sign/request")
+def get_staging_sign_request(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.read_all")),
+):
+    try:
+        return sign_requests.local_status(db, employee_id)
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.post("/employees/{employee_id}/contract/sign/request/link")
+def link_staging_sign_request(
+    employee_id: str,
+    body: LinkStagingSignRequest,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.review")),
+):
+    try:
+        return sign_requests.track(db, employee_id, request_id=body.request_id)
+    except sign_requests.SignTrackingConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except sign_requests.SignTrackingUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.post("/employees/{employee_id}/contract/sign/request/refresh")
+def refresh_staging_sign_request(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.review")),
+):
+    try:
+        return sign_requests.track(db, employee_id)
+    except sign_requests.SignTrackingConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except sign_requests.SignTrackingUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         _translate(exc)
