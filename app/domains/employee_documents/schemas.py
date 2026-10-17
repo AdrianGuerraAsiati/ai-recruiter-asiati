@@ -29,3 +29,9 @@ class ReviewEmployeeDocumentRequest(BaseModel):
 class ConfirmContractSignPreparation(BaseModel):
     # Avoid implicit writes triggered by re-fetching a read-only endpoint.
     confirm: Literal[True]
+
+
+class LinkStagingSignRequest(BaseModel):
+    # Explicit HR request only. IDs are checked against staged template + signers.
+    request_id: int = Field(..., gt=0)
+    confirm: Literal[True]
