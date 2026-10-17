@@ -60,6 +60,76 @@ def _validated_partner(target, partner_id: int, allowed_addresses: set[str]) -> 
     return {"id": partner_id, "address": address}
 
 
+def _staging_signer_emails() -> tuple[str, str]:
+    """Two explicitly configured synthetic signer addresses, in role order.
+
+    Production will resolve signers from the candidate and organization's legal
+    representative, not from this staging-only fixture configuration.
+    """
+    configured = [
+        part.strip().casefold()
+        for part in os.getenv("ODOO_SIGN_TEST_SIGNER_EMAILS", "").split(",")
+    ]
+    if (len(configured) != 2 or not configured[0].startswith("empleado.")
+            or not configured[1].startswith("representante.")
+            or not all(part.endswith("@example.invalid") for part in configured)
+            or len(set(configured)) != 2):
+        raise DispatchUnavailable(
+            "Los firmantes ficticios deben configurarse como Empleado y Representante legal, en ese orden."
+        )
+    if set(configured) != sign_requests._allowed_signer_addresses():
+        raise DispatchUnavailable("Los contactos de prueba no están autorizados.")
+    return configured[0], configured[1]
+
+
+def _resolve_staging_partner_ids(target) -> tuple[int, int]:
+    """Resolve Odoo contact IDs privately, never require Odoo access in the UI."""
+    email_addresses = _staging_signer_emails()
+    ids = []
+    for email in email_addresses:
+        results = target.search_read(
+            "res.partner", [("email", "=", email)],
+            fields=["id", "email"], limit=2,
+        )
+        if (len(results) != 1 or
+                str(results[0].get("email") or "").strip().casefold() != email or
+                type(results[0].get("id")) is not int or results[0]["id"] <= 0):
+            raise DispatchNotReady(
+                "No se encontró un contacto de prueba único para el rol de firma en Odoo staging."
+            )
+        ids.append(results[0]["id"])
+    if ids[0] == ids[1]:
+        raise DispatchNotReady("Los dos roles no pueden utilizar el mismo contacto.")
+    return ids[0], ids[1]
+
+
+def preview_automatic(db: Session, employee_id: str, *, client=None) -> dict:
+    """Read-only preview: the HR admin never sees or enters partner IDs."""
+    sign_requests._require_fixture(employee_id)
+    try:
+        target = client or staging.build_staging_client()
+        employee_partner_id, representative_partner_id = _resolve_staging_partner_ids(target)
+        checked = preview(
+            db, employee_id,
+            employee_partner_id=employee_partner_id,
+            representative_partner_id=representative_partner_id,
+            client=target,
+        )
+        # Unlike the legacy debugging API, do not expose Odoo internal IDs.
+        return {
+            "validated": checked["validated"],
+            "environment": "staging",
+            "signing_order": checked["signing_order"],
+            "request_created": False,
+            "emails_sent": False,
+            "note": "Listos los dos contactos ficticios. La solicitud todavía no se ha enviado.",
+        }
+    except staging.OdooNotConfigured as exc:
+        raise DispatchUnavailable("Conexión Odoo staging no configurada.") from exc
+    except OdooClientError as exc:
+        raise DispatchUnavailable("No se pudieron comprobar los contactos en Odoo staging.") from exc
+
+
 def build_wizard_values(
     *, template_id: int, employee_partner_id: int, representative_partner_id: int,
     employee_role_id: int, representative_role_id: int,
