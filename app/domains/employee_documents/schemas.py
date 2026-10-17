@@ -41,3 +41,8 @@ class PreviewOdooSignRequest(BaseModel):
     """Preflight only: numeric Odoo res.partner IDs, no write or mail."""
     employee_partner_id: int = Field(..., gt=0)
     representative_partner_id: int = Field(..., gt=0)
+
+
+class SendOdooSignRequest(PreviewOdooSignRequest):
+    """Manual one-time staging dispatch; never implicit from a GET or refresh."""
+    confirm: Literal[True]

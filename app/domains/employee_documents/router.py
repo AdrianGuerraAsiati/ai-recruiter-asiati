@@ -4,11 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_principal, get_db, require_permission
-from app.domains.employee_documents import notifications, service, signing, sign_requests, signed_artifacts, sign_dispatch
+from app.domains.employee_documents import notifications, service, signing, sign_requests, signed_artifacts, sign_dispatch, sign_send
 from app.domains.employee_documents.schemas import (
     ConfirmContractSignPreparation,
     LinkStagingSignRequest,
     PreviewOdooSignRequest,
+    SendOdooSignRequest,
     CreateEmployeeDocumentUploadRequest,
     FinalizeEmployeeDocumentUploadRequest,
     ReviewEmployeeDocumentRequest,
@@ -249,6 +250,64 @@ def preview_staging_sign_request(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (sign_dispatch.DispatchUnavailable,
             sign_requests.SignTrackingUnavailable) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.get("/employees/{employee_id}/contract/sign/request/send-status")
+def staged_sign_dispatch_status(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.read_all")),
+):
+    from app.domains.employee_documents import signing
+    try:
+        document = signing._contract(db, employee_id)
+        return {
+            "staging_only": True,
+            "enabled": sign_dispatch.sending_enabled(),
+            "status": document.odoo_sign_dispatch_status if document else "NOT_SENT",
+            "request_id": document.odoo_sign_request_id if document else None,
+        }
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.post("/employees/{employee_id}/contract/sign/request/send")
+def send_staged_sign_request(
+    employee_id: str,
+    body: SendOdooSignRequest,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.review")),
+):
+    try:
+        return sign_send.send(
+            db, employee_id,
+            employee_partner_id=body.employee_partner_id,
+            representative_partner_id=body.representative_partner_id,
+        )
+    except (sign_send.DispatchConflict, sign_dispatch.DispatchNotReady) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (sign_send.DispatchOutcomeUnknown, sign_dispatch.DispatchUnavailable,
+            sign_requests.SignTrackingUnavailable) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.post("/employees/{employee_id}/contract/sign/request/reconcile")
+def reconcile_staged_sign_request(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.review")),
+):
+    try:
+        return sign_send.reconcile(db, employee_id)
+    except sign_send.DispatchConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (sign_send.DispatchOutcomeUnknown, sign_requests.SignTrackingUnavailable,
+            sign_dispatch.DispatchUnavailable) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         _translate(exc)

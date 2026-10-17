@@ -336,4 +336,68 @@ describe("Employee document review workspace", () => {
     ));
   });
 
+  it("requires staging preview and explicit confirmation before one-time Sign send", async () => {
+    useSession.mockReturnValue({
+      principal: { profile: { id: "admin-1" } },
+      hasPermission: (p) => [
+        "employee_documents.read_own", "employee_documents.read_all", "employee_documents.review",
+      ].includes(p),
+    });
+    const contract = {
+      id: "contract-1", document_type: "EMPLOYMENT_CONTRACT",
+      label: "Contrato laboral", description: "Contrato de prueba",
+      admin_only: true, kind: "FILE", original_filename: "contrato.pdf",
+      size_bytes: 200, review_status: "APPROVED", odoo_sign_status: "PREPARED",
+    };
+    const base = "/employee-documents/employees/employee-1/contract/sign/request";
+    api.get.mockImplementation((url) => {
+      if (url === "/employees") return Promise.resolve({
+        data: { items: [{ id: "employee-1", first_name: "Ana", last_name: "Pérez" }] },
+      });
+      if (url === "/employee-documents/employees/employee-1")
+        return Promise.resolve({ data: portfolio([contract]) });
+      if (url === "/employee-documents/employees/employee-1/contract/sign")
+        return Promise.resolve({ data: {
+          template_url: "https://odoo-staging.example.invalid/web#id=812",
+          status: "PREPARED", ready: false,
+        } });
+      if (url === base + "/send-status")
+        return Promise.resolve({ data: { enabled: true, status: "NOT_SENT" } });
+      if (url === base)
+        return Promise.resolve({ data: { linked: false, request_id: null } });
+      return Promise.resolve({ data: {} });
+    });
+    api.post.mockImplementation((url) => {
+      if (url === base + "/preview") return Promise.resolve({ data: { validated: true } });
+      if (url === base + "/send") return Promise.resolve({ data: {
+        status: "SENT", request_id: 139,
+      } });
+      return Promise.resolve({ data: {} });
+    });
+    render(<Documents />);
+    await screen.findByRole("option", { name: "Ana Pérez" });
+    fireEvent.change(screen.getByLabelText("Empleado a consultar"), {
+      target: { value: "employee-1" },
+    });
+    const employee = await screen.findByLabelText("ID de contacto de empleado ficticio");
+    fireEvent.change(employee, { target: { value: "301" } });
+    fireEvent.change(screen.getByLabelText("ID de representante legal ficticio"), {
+      target: { value: "302" },
+    });
+    expect(screen.queryByRole("button", { name: "Enviar a Odoo Sign (prueba)" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Validar solicitud antes de enviar" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      base + "/preview", { employee_partner_id: 301, representative_partner_id: 302 },
+    ));
+    const confirm = await screen.findByLabelText("Confirmo el envío único a contactos ficticios de Odoo staging");
+    expect(screen.getByRole("button", { name: "Enviar a Odoo Sign (prueba)" })).toBeDisabled();
+    fireEvent.click(confirm);
+    fireEvent.click(screen.getByRole("button", { name: "Enviar a Odoo Sign (prueba)" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      base + "/send",
+      { employee_partner_id: 301, representative_partner_id: 302, confirm: true },
+    ));
+    expect(await screen.findByText(/Solicitud de firma creada en Odoo staging/)).toBeInTheDocument();
+  });
+
 });

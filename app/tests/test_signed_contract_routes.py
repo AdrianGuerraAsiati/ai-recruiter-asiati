@@ -316,3 +316,78 @@ def test_signature_preview_endpoint_uses_only_reviewer_and_no_send(monkeypatch):
             "test-employee", body, db=object(), _principal={},
         )
     assert exc.value.status_code == 503
+
+
+def test_explicit_signature_send_and_reconcile_routes_sanitize_errors(monkeypatch):
+    from app.domains.employee_documents import sign_send, sign_dispatch
+    body = SimpleNamespace(
+        employee_partner_id=301, representative_partner_id=302, confirm=True,
+    )
+    monkeypatch.setattr(sign_send, "send", lambda db, employee_id, **kw: {
+        "status": "SENT", "request_id": 139,
+    })
+    assert documents.send_staged_sign_request(
+        "test", body, db=object(), _principal={},
+    )["request_id"] == 139
+    monkeypatch.setattr(sign_send, "reconcile", lambda db, employee_id: {
+        "status": "SENT", "request_id": 139,
+    })
+    assert documents.reconcile_staged_sign_request(
+        "test", db=object(), _principal={},
+    )["status"] == "SENT"
+
+    def conflicting(db, employee_id, **kw):
+        raise sign_send.DispatchConflict("Solicitud existente")
+    monkeypatch.setattr(sign_send, "send", conflicting)
+    with pytest.raises(HTTPException) as exc:
+        documents.send_staged_sign_request(
+            "test", body, db=object(), _principal={},
+        )
+    assert exc.value.status_code == 409
+
+    def unknown(db, employee_id, **kw):
+        raise sign_send.DispatchOutcomeUnknown("No reintentar")
+    monkeypatch.setattr(sign_send, "send", unknown)
+    with pytest.raises(HTTPException) as exc:
+        documents.send_staged_sign_request(
+            "test", body, db=object(), _principal={},
+        )
+    assert exc.value.status_code == 503
+
+    def not_ready(db, employee_id, **kw):
+        raise sign_dispatch.DispatchNotReady("Plantilla incompleta")
+    monkeypatch.setattr(sign_send, "send", not_ready)
+    with pytest.raises(HTTPException) as exc:
+        documents.send_staged_sign_request(
+            "test", body, db=object(), _principal={},
+        )
+    assert exc.value.status_code == 409
+
+    monkeypatch.setattr(sign_send, "reconcile", unknown)
+    with pytest.raises(HTTPException) as exc:
+        documents.reconcile_staged_sign_request(
+            "test", db=object(), _principal={},
+        )
+    assert exc.value.status_code == 503
+    monkeypatch.setattr(sign_send, "reconcile", conflicting)
+    with pytest.raises(HTTPException) as exc:
+        documents.reconcile_staged_sign_request(
+            "test", db=object(), _principal={},
+        )
+    assert exc.value.status_code == 409
+
+
+def test_signature_send_status_is_local_no_odoo_call(monkeypatch):
+    from app.domains.employee_documents import signing, sign_dispatch
+    record = SimpleNamespace(
+        odoo_sign_dispatch_status="UNKNOWN", odoo_sign_request_id=None,
+    )
+    monkeypatch.setattr(signing, "_contract", lambda db, employee_id: record)
+    monkeypatch.setattr(sign_dispatch, "sending_enabled", lambda: False)
+    result = documents.staged_sign_dispatch_status(
+        "employee-test", db=object(), _principal={},
+    )
+    assert result == {
+        "staging_only": True, "enabled": False,
+        "status": "UNKNOWN", "request_id": None,
+    }

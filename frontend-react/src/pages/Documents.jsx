@@ -83,6 +83,11 @@ function Documents() {
   const [signRequest, setSignRequest] = useState(null);
   const [signRequestId, setSignRequestId] = useState("");
   const [signRequestBusy, setSignRequestBusy] = useState(false);
+  const [signSendStatus, setSignSendStatus] = useState(null);
+  const [signSignerIds, setSignSignerIds] = useState({ employee: "", representative: "" });
+  const [signSendPreview, setSignSendPreview] = useState(false);
+  const [signSendConfirmed, setSignSendConfirmed] = useState(false);
+  const [signSendBusy, setSignSendBusy] = useState(false);
   const [signedArtifact, setSignedArtifact] = useState(null);
   const [signedBusy, setSignedBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -188,6 +193,10 @@ function Documents() {
     setSignReadiness(null);
     setSignRequest(null);
     setSignRequestId("");
+    setSignSendStatus(null);
+    setSignSignerIds({ employee: "", representative: "" });
+    setSignSendPreview(false);
+    setSignSendConfirmed(false);
     setSignedArtifact(null);
     setSelectedEmployeeId(employeeId);
     setFilesByType({});
@@ -402,6 +411,80 @@ function Documents() {
     });
     return () => { active = false; };
   }, [selectedEmployeeId, viewingOwn]);
+
+  useEffect(() => {
+    if (!canReadAll || viewingOwn || !selectedEmployeeId) return undefined;
+    let active = true;
+    api.get(`/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract/sign/request/send-status`)
+      .then(({ data }) => { if (active) setSignSendStatus(data); })
+      .catch(() => { if (active) setSignSendStatus(null); });
+    return () => { active = false; };
+  }, [canReadAll, selectedEmployeeId, viewingOwn]);
+
+  async function runStagingSignSend(action) {
+    if (!canReview || viewingOwn || signSendBusy || !selectedEmployeeId) return;
+    if (action === "send" && (!signSendConfirmed || !signSendPreview)) return;
+    const prefix = `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract/sign/request`;
+    const ids = {
+      employee_partner_id: Number(signSignerIds.employee),
+      representative_partner_id: Number(signSignerIds.representative),
+    };
+    if (action !== "reconcile" && (
+      !Number.isSafeInteger(ids.employee_partner_id) ||
+      !Number.isSafeInteger(ids.representative_partner_id) ||
+      ids.employee_partner_id <= 0 || ids.representative_partner_id <= 0 ||
+      ids.employee_partner_id === ids.representative_partner_id
+    )) {
+      setError("Selecciona dos IDs de contactos ficticios distintos en Odoo staging.");
+      return;
+    }
+    setSignSendBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      if (action === "preview") {
+        const { data } = await api.post(`${prefix}/preview`, ids);
+        setSignSendPreview(Boolean(data?.validated));
+        setSuccess("Plantilla, firmantes y contactos ficticios verificados. Aún no se ha enviado.");
+      } else {
+        const { data } = await api.post(
+          `${prefix}/${action}`,
+          action === "send" ? { ...ids, confirm: true } : undefined,
+        );
+        setSignSendPreview(false);
+        setSignSendConfirmed(false);
+        setSignSendStatus({
+          enabled: true, status: data.status, request_id: data.request_id,
+        });
+        if (data.request_id) {
+          const { data: current } = await api.get(prefix);
+          setSignRequest(current);
+          setSignRequestId(String(data.request_id));
+          setSuccess("Solicitud de firma creada en Odoo staging; firma y correos permanecen bajo control de Odoo.");
+        } else {
+          setSuccess("Sin solicitud confirmada. No reintentes el envío: concilia primero con Odoo.");
+        }
+      }
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: action === "preview" ? "validar la solicitud" :
+          action === "send" ? "enviar la solicitud" : "reconciliar la solicitud",
+        resource: "Odoo Sign staging",
+        fallback: "No se confirmó el resultado. No repitas el envío; consulta su estado y reconcilia.",
+      }));
+      if (action === "send") {
+        setSignSendPreview(false);
+        setSignSendConfirmed(false);
+      }
+      if (action !== "preview") {
+        api.get(`${prefix}/send-status`)
+          .then(({ data }) => setSignSendStatus(data))
+          .catch(() => {});
+      }
+    } finally {
+      setSignSendBusy(false);
+    }
+  }
 
   async function archiveCompletedSignature() {
     if (signedBusy || !canReview || viewingOwn || signRequest?.status !== "SIGNED") return;
@@ -669,6 +752,53 @@ function Documents() {
                       })[signRequest.status] || signRequest.status}`
                     : "Envía la solicitud desde Odoo y vincula su ID para consultar los dos firmantes."}
                 </p>
+                {canReview && signSendStatus?.enabled &&
+                  signSendStatus?.status === "NOT_SENT" && !signRequest?.linked && (
+                    <div className="contract-sign-request-controls">
+                      <strong>Envío automático de prueba</strong>
+                      <label htmlFor="odoo-sign-employee-partner">ID de contacto de empleado ficticio</label>
+                      <input id="odoo-sign-employee-partner" type="number" min="1" step="1"
+                        value={signSignerIds.employee}
+                        onChange={(event) => {
+                          setSignSignerIds((prev) => ({ ...prev, employee: event.target.value }));
+                          setSignSendPreview(false);
+                        }} />
+                      <label htmlFor="odoo-sign-representative-partner">ID de representante legal ficticio</label>
+                      <input id="odoo-sign-representative-partner" type="number" min="1" step="1"
+                        value={signSignerIds.representative}
+                        onChange={(event) => {
+                          setSignSignerIds((prev) => ({ ...prev, representative: event.target.value }));
+                          setSignSendPreview(false);
+                        }} />
+                      <button type="button" className="btn btn-secondary btn-sm" disabled={signSendBusy}
+                        onClick={() => void runStagingSignSend("preview")}>
+                        {signSendBusy ? "Validando…" : "Validar solicitud antes de enviar"}
+                      </button>
+                      {signSendPreview && (
+                        <>
+                          <label>
+                            <input type="checkbox" checked={signSendConfirmed}
+                              onChange={(event) => setSignSendConfirmed(event.target.checked)} />
+                            Confirmo el envío único a contactos ficticios de Odoo staging
+                          </label>
+                          <button type="button" className="btn btn-primary btn-sm"
+                            disabled={!signSendConfirmed || signSendBusy}
+                            onClick={() => void runStagingSignSend("send")}>
+                            {signSendBusy ? "Enviando…" : "Enviar a Odoo Sign (prueba)"}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                {canReview && ["UNKNOWN", "DISPATCHING"].includes(signSendStatus?.status) && (
+                  <div className="contract-sign-request-controls">
+                    <p>Resultado de envío incierto: no vuelvas a enviarlo.</p>
+                    <button type="button" className="btn btn-secondary btn-sm"
+                      disabled={signSendBusy} onClick={() => void runStagingSignSend("reconcile")}>
+                      {signSendBusy ? "Verificando…" : "Reconciliar solicitud con Odoo"}
+                    </button>
+                  </div>
+                )}
                 {signRequest?.linked && (
                   <div className="contract-sign-participants">
                     <span>Empleado: {signRequest.employee || "Pendiente"}</span>
