@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import re
 from datetime import date, datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -11,6 +13,7 @@ from app.domains.candidates import repository as candidates_repository
 from app.domains.candidates import service as candidates_service
 from app.domains.employees import service as employees_service
 from app.domains.employee_documents import notifications as document_notifications
+from app.domains.employee_documents.models import EmployeeDocument
 from app.domains.indeed import service as indeed_service
 from app.domains.odoo_sync import contract_delivery
 from app.domains.odoo_sync import employee_delivery
@@ -237,6 +240,49 @@ def start_candidate_application(
     }
 
 
+def signed_contract_hiring_gate_enabled() -> bool:
+    """Enable after Odoo Sign production workflow + archival E2E is validated."""
+    return os.getenv("ADN360_REQUIRE_SIGNED_CONTRACT_FOR_HIRE", "").strip().lower() in (
+        "1", "true", "yes"
+    )
+
+
+def hiring_signature_readiness(db: Session, *, link) -> dict:
+    """Read-only gate: do not create a Cognito account or Odoo employee here."""
+    enabled = signed_contract_hiring_gate_enabled()
+    if not enabled:
+        return {"enabled": False, "ready": True, "status": "LEGACY_FLOW",
+                "message": "El bloqueo por firma se habilitará después de las pruebas."}
+    if link.application_status == "HIRED":
+        return {"enabled": True, "ready": True, "status": "ALREADY_HIRED",
+                "message": "La postulación ya está contratada."}
+    if not link.employee_id:
+        return {"enabled": True, "ready": False, "status": "APPLICANT_PROFILE_REQUIRED",
+                "message": "Primero inicia la postulación y crea el perfil del postulante."}
+    document = db.query(EmployeeDocument).filter(
+        EmployeeDocument.employee_id == link.employee_id,
+        EmployeeDocument.document_type == "EMPLOYMENT_CONTRACT",
+    ).one_or_none()
+    if (
+        document is None
+        or document.review_status != "APPROVED"
+        or document.odoo_sign_status != "PREPARED"
+        or document.odoo_sign_source_key != document.storage_key
+        or document.odoo_sign_request_id is None
+        or document.odoo_sign_request_status != "SIGNED"
+        or document.odoo_sign_employee_state not in ("signed", "completed")
+        or document.odoo_sign_representative_state not in ("signed", "completed")
+        or not document.odoo_sign_completed_at
+        or not document.odoo_sign_signed_storage_key
+        or not document.odoo_sign_signed_at
+        or not re.fullmatch(r"[0-9a-f]{64}", document.odoo_sign_signed_sha256 or "")
+    ):
+        return {"enabled": True, "ready": False, "status": "CONTRACT_SIGNATURE_PENDING",
+                "message": "Debes obtener ambas firmas y archivar el PDF final antes de crear el empleado."}
+    return {"enabled": True, "ready": True, "status": "SIGNED_CONTRACT_ARCHIVED",
+            "message": "Ambas firmas verificadas y contrato firmado archivado. Puedes contratar."}
+
+
 def hire_candidate(
     db: Session,
     *,
@@ -268,6 +314,12 @@ def hire_candidate(
         raise candidates_service.JobCandidateNotFound(candidate_id)
     if candidate.is_banned:
         raise HiringConflictError("No puedes contratar un candidato vetado.")
+
+    # Deliberately before ANY Cognito, employee-role, Odoo or onboarding writes.
+    # Applicant login (if already present) remains an APPLICANT until this passes.
+    signature_gate = hiring_signature_readiness(db, link=link)
+    if not signature_gate["ready"]:
+        raise HiringConflictError(signature_gate["message"])
 
     resolved_username = employees_service.normalize_login_username(username)
     resolved_email = normalize_email(email or candidate.email or "")
