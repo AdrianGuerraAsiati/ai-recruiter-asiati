@@ -1,5 +1,5 @@
 import { sentenceCaseLabel } from "../utils/text";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
@@ -38,17 +38,55 @@ export default function ApplicationHireModal({ application, onClose, onHired }) 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [credentials, setCredentials] = useState(null);
+  const [signatureGate, setSignatureGate] = useState(null);
+  const [contract, setContract] = useState({
+    contract_type: "", start_date: "", end_date: "", monthly_wage: "",
+  });
+  useEffect(() => {
+    if (!application) return undefined;
+    let active = true;
+    const path = `/jobs/${encodeURIComponent(application.job.job_id)}/candidates/${encodeURIComponent(application.candidate.candidate_id)}/hire-readiness`;
+    api.get(path).then(({ data }) => {
+      if (active) setSignatureGate(data);
+    }).catch(() => {
+      if (active) setSignatureGate({
+        ready: false, enabled: true,
+        message: "No se pudo verificar el contrato firmado. Intenta nuevamente.",
+      });
+    });
+    return () => { active = false; };
+  }, [application]);
 
   if (!application) return null;
 
   async function submit(event) {
     event.preventDefault();
+    if (!signatureGate?.ready) {
+      setError(signatureGate?.message || "Verificando el contrato firmado…");
+      return;
+    }
+    if (signatureGate.enabled && (!contract.contract_type.trim() || !contract.start_date || Number(contract.monthly_wage) <= 0)) {
+      setError("Completa los datos laborales del contrato firmado antes de sincronizar con Odoo.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
       const { data } = await api.post(
         `/jobs/${application.job.job_id}/candidates/${application.candidate.candidate_id}/hire`,
-        { ...form, country_code: form.country_code || null, company_name: form.company_name || null },
+        {
+          ...form,
+          country_code: form.country_code || null,
+          company_name: form.company_name || null,
+          ...(signatureGate.enabled ? {
+            contract: {
+              contract_type: contract.contract_type.trim(),
+              start_date: contract.start_date,
+              end_date: contract.end_date || null,
+              monthly_wage: contract.monthly_wage,
+            },
+          } : {}),
+        },
       );
       await onHired?.(data);
       if (data?.credentials) setCredentials(data.credentials);
@@ -87,10 +125,17 @@ export default function ApplicationHireModal({ application, onClose, onHired }) 
           <button className="btn-close" type="button" aria-label="Cerrar" disabled={busy} onClick={onClose}>×</button>
         </div>
         <p>Esta acción finaliza la postulación como Contratado, activa la ruta de onboarding y ejecuta la integración configurada con Odoo. El usuario y los documentos existentes se conservarán.</p>
+        {signatureGate?.enabled && (
+          <div className="employee-credentials-warning" role="status">
+            <strong>{signatureGate.ready ? "Contrato verificado y archivado" : "Contratación pendiente de firmas"}</strong>
+            <span>{signatureGate.message}</span>
+          </div>
+        )}
+        {!signatureGate && <p role="status">Verificando estado del contrato firmado…</p>}
         {error && <div className="alert" role="alert">{error}</div>}
         <form className="employee-form" onSubmit={submit}>
           <div className="form-group">
-            <label htmlFor="application-hire-username">Usuario de Talent</label>
+            <label htmlFor="application-hire-username">Usuario de ADN360</label>
             <input id="application-hire-username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase() })} minLength={3} maxLength={40} required />
           </div>
           <div className="employee-form-grid">
@@ -131,9 +176,35 @@ export default function ApplicationHireModal({ application, onClose, onHired }) 
             <label htmlFor="application-hire-date">Fecha de ingreso</label>
             <input id="application-hire-date" type="date" value={form.hire_date} onChange={(e) => setForm({ ...form, hire_date: e.target.value })} required />
           </div>
+          {signatureGate?.enabled && (
+            <fieldset className="employee-form-grid" disabled={busy || !signatureGate.ready}>
+              <legend>Datos del contrato firmado para Odoo</legend>
+              <div className="form-group">
+                <label htmlFor="application-contract-type">Tipo de contrato</label>
+                <input id="application-contract-type" value={contract.contract_type}
+                  onChange={(e) => setContract({ ...contract, contract_type: e.target.value })} required />
+              </div>
+              <div className="form-group">
+                <label htmlFor="application-contract-start">Fecha de inicio contractual</label>
+                <input id="application-contract-start" type="date" value={contract.start_date}
+                  onChange={(e) => setContract({ ...contract, start_date: e.target.value })} required />
+              </div>
+              <div className="form-group">
+                <label htmlFor="application-contract-end">Fecha de terminación (si aplica)</label>
+                <input id="application-contract-end" type="date" value={contract.end_date}
+                  onChange={(e) => setContract({ ...contract, end_date: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="application-contract-wage">Salario mensual</label>
+                <input id="application-contract-wage" type="number" min="0.01" step="0.01"
+                  value={contract.monthly_wage}
+                  onChange={(e) => setContract({ ...contract, monthly_wage: e.target.value })} required />
+              </div>
+            </fieldset>
+          )}
           <div className="form-actions">
             <button className="btn btn-secondary" type="button" disabled={busy} onClick={onClose}>Cancelar</button>
-            <button className="btn btn-primary" type="submit" disabled={busy}>{busy ? "Contratando…" : "Confirmar contratación"}</button>
+            <button className="btn btn-primary" type="submit" disabled={busy || !signatureGate?.ready}>{busy ? "Contratando…" : "Confirmar contratación"}</button>
           </div>
         </form>
       </section>

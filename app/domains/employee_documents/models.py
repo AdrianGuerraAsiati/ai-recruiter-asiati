@@ -83,6 +83,11 @@ class EmployeeDocument(Base):
     odoo_sign_representative_state = Column(Text, nullable=True)
     odoo_sign_checked_at = Column(DateTime(timezone=True), nullable=True)
     odoo_sign_completed_at = Column(DateTime(timezone=True), nullable=True)
+    # Immutable signed artifact stored separately from the unsigned contract.
+    odoo_sign_signed_storage_key = Column(Text, nullable=True)
+    odoo_sign_signed_sha256 = Column(Text, nullable=True)
+    odoo_sign_signed_attachment_id = Column(Integer, nullable=True)
+    odoo_sign_signed_at = Column(DateTime(timezone=True), nullable=True)
 
     employee = relationship("UserProfile")
 

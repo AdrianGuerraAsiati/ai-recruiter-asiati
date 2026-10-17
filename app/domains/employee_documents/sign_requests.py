@@ -138,7 +138,7 @@ def local_status(db: Session, employee_id: str) -> dict:
         "checked_at": document.odoo_sign_checked_at.isoformat() if document.odoo_sign_checked_at else None,
         "staging_only": True,
         "sending_available": False,
-        "signed_pdf_archived": False,
+        "signed_pdf_archived": bool(document.odoo_sign_signed_storage_key),
     }
 
 

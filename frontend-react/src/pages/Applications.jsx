@@ -2,7 +2,7 @@
 import React from "react";
 import { sentenceCaseLabel } from "../utils/text";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import api from "../api/client";
 import { useSession } from "../context/SessionContext";
@@ -35,6 +35,7 @@ const STATUS_OPTIONS = [
 
 
 function Applications() {
+  const navigate = useNavigate();
   const { hasPermission } = useSession();
   const canCreateEmployees = hasPermission("employees.create");
   const canManageAccess = hasPermission("employees.credentials.manage");
@@ -52,6 +53,16 @@ function Applications() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
   const [error, setError] = useState("");
+  const [signatureFlowEnabled, setSignatureFlowEnabled] = useState(false);
+
+  useEffect(() => {
+    if (!canCreateEmployees) return undefined;
+    let active = true;
+    api.get("/jobs/hiring/signature-flow")
+      .then(({ data }) => { if (active) setSignatureFlowEnabled(Boolean(data?.enabled)); })
+      .catch(() => { if (active) setSignatureFlowEnabled(false); });
+    return () => { active = false; };
+  }, [canCreateEmployees]);
 
   const loadApplications = useCallback(async () => {
     setLoading(true);
@@ -94,6 +105,27 @@ function Applications() {
     });
     return counts;
   }, [items]);
+
+  async function prepareContractDossier(application) {
+    if (!signatureFlowEnabled || !canCreateEmployees || !canReviewDocuments) return;
+    setSavingId(application.id);
+    setError("");
+    try {
+      const { data } = await api.post(
+        `/jobs/${encodeURIComponent(application.job.job_id)}/candidates/${encodeURIComponent(application.candidate.candidate_id)}/contract/prepare-dossier`,
+      );
+      await loadApplications();
+      navigate(`/documents?employee_id=${encodeURIComponent(data.profile_id)}`);
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "preparar expediente contractual",
+        resource: "postulación",
+        fallback: "No fue posible preparar el contrato antes de la firma.",
+      }));
+    } finally {
+      setSavingId("");
+    }
+  }
 
   async function updateStatus(application, nextStatus) {
     if (nextStatus === "HIRED") {
@@ -221,6 +253,16 @@ function Applications() {
                         <Link className="btn btn-ghost" to={`/candidates/${application.candidate.candidate_id}?job_id=${application.job.job_id}`}>
                           Ver candidato
                         </Link>
+                        {signatureFlowEnabled && canCreateEmployees && canReviewDocuments
+                          && application.application_status !== "HIRED"
+                          && !["REJECTED", "WITHDRAWN"].includes(application.application_status)
+                          && !application.access?.profile_id && (
+                            <button className="btn btn-secondary" type="button"
+                              disabled={savingId === application.id}
+                              onClick={() => void prepareContractDossier(application)}>
+                              Preparar contrato
+                            </button>
+                          )}
                         {canReviewDocuments && application.access?.profile_id && (
                           <Link
                             className="btn btn-secondary"
@@ -239,7 +281,7 @@ function Applications() {
                             {application.access.username || "Usuario"} · Credenciales
                           </button>
                         )}
-                        {canCreateEmployees && application.application_status !== "HIRED" && application.access?.provisioned && (
+                        {canCreateEmployees && application.application_status !== "HIRED" && (application.access?.provisioned || (signatureFlowEnabled && application.access?.profile_id)) && (
                           <button className="btn btn-primary" type="button" onClick={() => setHireTarget(application)}>
                             Crear empleado
                           </button>

@@ -83,6 +83,8 @@ function Documents() {
   const [signRequest, setSignRequest] = useState(null);
   const [signRequestId, setSignRequestId] = useState("");
   const [signRequestBusy, setSignRequestBusy] = useState(false);
+  const [signedArtifact, setSignedArtifact] = useState(null);
+  const [signedBusy, setSignedBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState("");
   const [error, setError] = useState("");
@@ -186,6 +188,7 @@ function Documents() {
     setSignReadiness(null);
     setSignRequest(null);
     setSignRequestId("");
+    setSignedArtifact(null);
     setSelectedEmployeeId(employeeId);
     setFilesByType({});
     setValuesByType({});
@@ -384,6 +387,60 @@ function Documents() {
       .catch(() => { if (active) setSignRequest(null); });
     return () => { active = false; };
   }, [canReadAll, selectedEmployeeId, viewingOwn]);
+
+
+  useEffect(() => {
+    if (!selectedEmployeeId) return undefined;
+    let active = true;
+    const path = (viewingOwn
+      ? "/employee-documents/me/contract/signed"
+      : `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract/signed`);
+    api.get(path).then(({ data }) => {
+      if (active) setSignedArtifact(data);
+    }).catch(() => {
+      if (active) setSignedArtifact({ archived: false });
+    });
+    return () => { active = false; };
+  }, [selectedEmployeeId, viewingOwn]);
+
+  async function archiveCompletedSignature() {
+    if (signedBusy || !canReview || viewingOwn || signRequest?.status !== "SIGNED") return;
+    setSignedBusy(true);
+    setError("");
+    try {
+      const { data } = await api.post(
+        `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract/signed/archive`,
+      );
+      setSignedArtifact(data);
+      setSuccess("PDF firmado archivado en el expediente. Confirma los datos contractuales antes de contratar.");
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "archivar el PDF firmado",
+        resource: "Odoo Sign",
+        fallback: "El PDF final aún no está disponible para archivar; verifica la configuración de staging.",
+      }));
+    } finally {
+      setSignedBusy(false);
+    }
+  }
+
+  async function downloadSignedContract() {
+    setError("");
+    const path = viewingOwn
+      ? "/employee-documents/me/contract/signed/download"
+      : `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract/signed/download`;
+    try {
+      const { data } = await api.get(path);
+      if (!data?.url) throw new Error("missing-download");
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "descargar el contrato firmado",
+        resource: "expediente laboral",
+        fallback: "No fue posible generar el enlace privado del contrato firmado.",
+      }));
+    }
+  }
 
   async function updateStagingSignRequest(refresh = false) {
     if (!canReview || viewingOwn || signRequestBusy) return;
@@ -635,7 +692,19 @@ function Documents() {
                     </button>
                   </div>
                 )}
-                <small>Sin correos desde ADN360. El PDF firmado aún no se archiva automáticamente.</small>
+                {signRequest?.status === "SIGNED" && !signedArtifact?.archived && (
+                  <button type="button" className="btn btn-primary btn-sm"
+                    disabled={signedBusy} onClick={() => void archiveCompletedSignature()}>
+                    {signedBusy ? "Archivando…" : "Archivar PDF firmado de Odoo"}
+                  </button>
+                )}
+                {signedArtifact?.archived && (
+                  <button type="button" className="btn btn-secondary btn-sm"
+                    onClick={() => void downloadSignedContract()}>
+                    Descargar contrato firmado
+                  </button>
+                )}
+                <small>Odoo gestiona las firmas. El archivado necesita verificación del PDF final en staging.</small>
               </div>
             )}
           </div>
