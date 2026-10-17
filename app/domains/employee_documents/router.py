@@ -4,10 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_principal, get_db, require_permission
-from app.domains.employee_documents import notifications, service, signing, sign_requests, signed_artifacts
+from app.domains.employee_documents import notifications, service, signing, sign_requests, signed_artifacts, sign_dispatch
 from app.domains.employee_documents.schemas import (
     ConfirmContractSignPreparation,
     LinkStagingSignRequest,
+    PreviewOdooSignRequest,
     CreateEmployeeDocumentUploadRequest,
     FinalizeEmployeeDocumentUploadRequest,
     ReviewEmployeeDocumentRequest,
@@ -226,6 +227,29 @@ def get_staging_sign_request(
 ):
     try:
         return sign_requests.local_status(db, employee_id)
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.post("/employees/{employee_id}/contract/sign/request/preview")
+def preview_staging_sign_request(
+    employee_id: str,
+    body: PreviewOdooSignRequest,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.review")),
+):
+    """Read-only: validate the two Odoo Sign wizard recipients; never send mail."""
+    try:
+        return sign_dispatch.preview(
+            db, employee_id,
+            employee_partner_id=body.employee_partner_id,
+            representative_partner_id=body.representative_partner_id,
+        )
+    except sign_dispatch.DispatchNotReady as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (sign_dispatch.DispatchUnavailable,
+            sign_requests.SignTrackingUnavailable) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         _translate(exc)
 
