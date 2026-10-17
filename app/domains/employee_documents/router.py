@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_principal, get_db, require_permission
-from app.domains.employee_documents import notifications, service, signing, sign_requests
+from app.domains.employee_documents import notifications, service, signing, sign_requests, signed_artifacts
 from app.domains.employee_documents.schemas import (
     ConfirmContractSignPreparation,
     LinkStagingSignRequest,
@@ -259,6 +259,61 @@ def refresh_staging_sign_request(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except sign_requests.SignTrackingUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.get("/employees/{employee_id}/contract/signed")
+def signed_contract_status(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.read_all")),
+):
+    try:
+        return signed_artifacts.status(db, employee_id)
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.post("/employees/{employee_id}/contract/signed/archive")
+def archive_signed_contract(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.review")),
+):
+    try:
+        return signed_artifacts.archive(db, employee_id)
+    except signed_artifacts.ArchiveNotReady as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except signed_artifacts.ArchiveUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.get("/employees/{employee_id}/contract/signed/download")
+def download_signed_contract_as_hr(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.read_all")),
+):
+    try:
+        return signed_artifacts.download(db, employee_id)
+    except signed_artifacts.ArchiveNotReady as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.get("/me/contract/signed/download")
+def download_own_signed_contract(
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("employee_documents.read_own")),
+):
+    try:
+        return signed_artifacts.download(db, principal["profile"]["id"])
+    except signed_artifacts.ArchiveNotReady as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
         _translate(exc)
 
