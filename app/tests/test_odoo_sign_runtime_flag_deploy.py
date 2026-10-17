@@ -1,7 +1,6 @@
-"""Ensure staging Sign flags reach the deployed API without default-on behavior.
+"""Static deployment contract: Odoo Sign flags must reach the API container.
 
-Production deploy must not silently drop enabled features from Secrets Manager.
-These checks are static and never access AWS credentials or Odoo.
+No AWS credentials are read by these tests.
 """
 from pathlib import Path
 
@@ -32,8 +31,8 @@ def test_runtime_secret_keys_are_forwarded_to_lightsail():
     secret_load = workflow.split("for OPTIONAL_KEY in ", 1)[1].split("; do", 1)[0]
     to_deploy = workflow.split("sudo -H -E /tmp/ai-recruiter-deploy-api.sh")[0].splitlines()[-1]
     for key in SIGN_KEYS:
-        assert key in secret_load, f"{key} must load from runtime secret"
-        assert key + '=" in to_deploy, f"{key} must reach deploy-api.sh"
+        assert key in secret_load
+        assert (key + '="$' + key + '"') in to_deploy
 
 
 def test_api_container_receives_flags_with_fail_closed_defaults():
@@ -42,70 +41,7 @@ def test_api_container_receives_flags_with_fail_closed_defaults():
     docker_envs = script.split("run_api() {", 1)[1].split("local container_env", 1)[0]
     verification = script.split("local container_env", 1)[1]
     for key in SIGN_KEYS:
-        assert '-e "' + key + '= in docker_envs
-        assert '"' + key + '= in verification
+        assert ('-e "' + key + '=$' + key + '"') in docker_envs
+        assert ('"' + key + '=$' + key + '"') in verification
     for key in FLAG_KEYS:
-        assert key + '="${' + key + ':-false}"' in defaults
- + key + '"' in to_deploy, f"{key} must reach deploy-api.sh"
-
-
-def test_api_container_receives_flags_with_fail_closed_defaults():
-    script = (ROOT / "scripts/deploy-api.sh").read_text()
-    defaults = script.split("run_api() {", 1)[0]
-    docker_envs = script.split("run_api() {", 1)[1].split("local container_env", 1)[0]
-    verification = script.split("local container_env", 1)[1]
-    for key in SIGN_KEYS:
-        assert f'-e "{key}=${key}"' in docker_envs
-        assert f'"{key}=${key}"' in verification
-    for key in FLAG_KEYS:
-        assert f'{key}="${{{key}:-false}}"' in defaults
- + key + '"' in docker_envs
-        assert f'"{key}=${key}"' in verification
-    for key in FLAG_KEYS:
-        assert f'{key}="${{{key}:-false}}"' in defaults
- + key + '"' in to_deploy, f"{key} must reach deploy-api.sh"
-
-
-def test_api_container_receives_flags_with_fail_closed_defaults():
-    script = (ROOT / "scripts/deploy-api.sh").read_text()
-    defaults = script.split("run_api() {", 1)[0]
-    docker_envs = script.split("run_api() {", 1)[1].split("local container_env", 1)[0]
-    verification = script.split("local container_env", 1)[1]
-    for key in SIGN_KEYS:
-        assert f'-e "{key}=${key}"' in docker_envs
-        assert f'"{key}=${key}"' in verification
-    for key in FLAG_KEYS:
-        assert f'{key}="${{{key}:-false}}"' in defaults
- + key + '"' in verification
-    for key in FLAG_KEYS:
-        assert f'{key}="${{{key}:-false}}"' in defaults
- + key + '"' in to_deploy, f"{key} must reach deploy-api.sh"
-
-
-def test_api_container_receives_flags_with_fail_closed_defaults():
-    script = (ROOT / "scripts/deploy-api.sh").read_text()
-    defaults = script.split("run_api() {", 1)[0]
-    docker_envs = script.split("run_api() {", 1)[1].split("local container_env", 1)[0]
-    verification = script.split("local container_env", 1)[1]
-    for key in SIGN_KEYS:
-        assert f'-e "{key}=${key}"' in docker_envs
-        assert f'"{key}=${key}"' in verification
-    for key in FLAG_KEYS:
-        assert f'{key}="${{{key}:-false}}"' in defaults
- + key + '"' in docker_envs
-        assert f'"{key}=${key}"' in verification
-    for key in FLAG_KEYS:
-        assert f'{key}="${{{key}:-false}}"' in defaults
- + key + '"' in to_deploy, f"{key} must reach deploy-api.sh"
-
-
-def test_api_container_receives_flags_with_fail_closed_defaults():
-    script = (ROOT / "scripts/deploy-api.sh").read_text()
-    defaults = script.split("run_api() {", 1)[0]
-    docker_envs = script.split("run_api() {", 1)[1].split("local container_env", 1)[0]
-    verification = script.split("local container_env", 1)[1]
-    for key in SIGN_KEYS:
-        assert f'-e "{key}=${key}"' in docker_envs
-        assert f'"{key}=${key}"' in verification
-    for key in FLAG_KEYS:
-        assert f'{key}="${{{key}:-false}}"' in defaults
+        assert (key + '="' + '$' + '{' + key + ':-false}"') in defaults
