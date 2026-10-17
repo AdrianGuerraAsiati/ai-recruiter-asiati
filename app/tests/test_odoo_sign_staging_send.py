@@ -171,7 +171,7 @@ def test_send_once_links_verified_request_and_never_returns_token(fixture):
     assert contract.odoo_sign_dispatch_status == "SENT"
     assert contract.odoo_sign_dispatch_subject == f"ADN360-STAGING-{contract.id}"
     assert odoo.create_count == odoo.send_count == 1
-    with pytest.raises(sign_dispatch.DispatchNotReady, match="intento"):
+    with pytest.raises(sign_dispatch.DispatchNotReady, match="solicitud de firma vinculada"):
         send(db, profile, odoo)
     assert odoo.create_count == 1
 
