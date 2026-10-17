@@ -94,6 +94,7 @@ function Documents() {
   const [busyKey, setBusyKey] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [idCopyStatus, setIdCopyStatus] = useState("");
 
   const viewingOwn = selectedEmployeeId === ownEmployeeId;
   const selectedEmployee = useMemo(
@@ -199,11 +200,26 @@ function Documents() {
     setSignSendConfirmed(false);
     setSignedArtifact(null);
     setSelectedEmployeeId(employeeId);
+    setIdCopyStatus("");
     setFilesByType({});
     setValuesByType({});
     setReviewNotes({});
     setSuccess("");
     setError("");
+  }
+
+  async function copySelectedProfileId() {
+    const profileId = portfolio?.employee?.id;
+    if (!canReadAll || viewingOwn || !profileId || profileId !== selectedEmployeeId) return;
+    try {
+      if (!window.navigator.clipboard?.writeText) {
+        throw new Error("clipboard-unavailable");
+      }
+      await window.navigator.clipboard.writeText(profileId);
+      setIdCopyStatus("ID copiado");
+    } catch {
+      setIdCopyStatus("No se pudo copiar automáticamente. Selecciona el UUID para copiarlo.");
+    }
   }
 
   function onFileChange(documentType, event) {
@@ -968,6 +984,23 @@ function Documents() {
                 El expediente queda completo únicamente cuando los {summary.total} requisitos
                 tengan visto bueno.
               </p>
+              {canReadAll && !viewingOwn && portfolio.employee?.id === selectedEmployeeId && (
+                <div className="document-profile-id">
+                  <span className="document-profile-id-label">UUID del perfil en ADN360</span>
+                  <div className="document-profile-id-actions">
+                    <code data-testid="selected-profile-uuid">{portfolio.employee.id}</code>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => void copySelectedProfileId()}
+                      aria-label="Copiar UUID del perfil"
+                    >
+                      Copiar ID
+                    </button>
+                  </div>
+                  {idCopyStatus && <span role="status" className="document-profile-id-feedback">{idCopyStatus}</span>}
+                </div>
+              )}
               <ProgressBar
                 value={summary.approval_percent}
                 label="Requisitos aprobados"
