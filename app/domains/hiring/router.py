@@ -10,6 +10,8 @@ from app.domains.candidates.exceptions import (
     JobNotFound,
 )
 from app.domains.employees import service as employees_service
+from app.domains.candidates import service as candidate_service
+from app.domains.candidates import repository as candidate_repository
 from app.domains.hiring import service
 from app.domains.hiring.schemas import HireCandidateRequest
 from app.domains.training import service as training_service
@@ -82,6 +84,26 @@ def start_candidate_application(
             last_name=body.last_name,
             department=body.department,
         )
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.get("/{job_id}/candidates/{candidate_id}/hire-readiness")
+def hire_candidate_readiness(
+    job_id: str,
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("employees.create")),
+):
+    try:
+        candidate_service.require_job(db, job_id, principal["sub"])
+        candidate_service.require_candidate(db, candidate_id, principal["sub"])
+        link = candidate_repository.get_job_candidate(
+            db, job_id=job_id, candidate_id=candidate_id, owner_sub=None,
+        )
+        if link is None:
+            raise JobCandidateNotFound(candidate_id)
+        return service.hiring_signature_readiness(db, link=link)
     except Exception as exc:
         _translate(exc)
 
