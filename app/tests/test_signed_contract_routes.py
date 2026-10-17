@@ -391,3 +391,55 @@ def test_signature_send_status_is_local_no_odoo_call(monkeypatch):
         "staging_only": True, "enabled": False,
         "status": "UNKNOWN", "request_id": None,
     }
+
+
+def test_automatic_sign_routes_hide_odoo_internal_ids(monkeypatch):
+    from app.domains.employee_documents import sign_dispatch, sign_send
+    monkeypatch.setattr(
+        sign_dispatch, "preview_automatic",
+        lambda db, employee_id: {
+            "validated": True, "signing_order": ["Empleado", "Representante legal"],
+            "emails_sent": False, "request_created": False,
+        },
+    )
+    checked = documents.preview_auto_staged_sign_request(
+        "fixture", db=object(), _principal={},
+    )
+    assert checked["validated"] is True
+    assert "partner_id" not in checked
+    monkeypatch.setattr(
+        sign_send, "send_automatic",
+        lambda db, employee_id: {
+            "status": "SENT", "request_id": 139, "staging_only": True,
+        },
+    )
+    sent = documents.send_auto_staged_sign_request(
+        "fixture", SimpleNamespace(confirm=True), db=object(), _principal={},
+    )
+    assert sent["request_id"] == 139
+
+
+def test_automatic_sign_routes_translate_provider_failures(monkeypatch):
+    from app.domains.employee_documents import sign_dispatch, sign_send
+    def not_ready(db, employee_id):
+        raise sign_dispatch.DispatchNotReady("Faltan campos de firma")
+    monkeypatch.setattr(sign_dispatch, "preview_automatic", not_ready)
+    with pytest.raises(HTTPException) as exc:
+        documents.preview_auto_staged_sign_request("fixture", db=object(), _principal={})
+    assert exc.value.status_code == 409
+
+    def unavailable(db, employee_id):
+        raise sign_dispatch.DispatchUnavailable("Sin conexión staging")
+    monkeypatch.setattr(sign_dispatch, "preview_automatic", unavailable)
+    with pytest.raises(HTTPException) as exc:
+        documents.preview_auto_staged_sign_request("fixture", db=object(), _principal={})
+    assert exc.value.status_code == 503
+
+    def unknown(db, employee_id):
+        raise sign_send.DispatchOutcomeUnknown("Resultado incierto")
+    monkeypatch.setattr(sign_send, "send_automatic", unknown)
+    with pytest.raises(HTTPException) as exc:
+        documents.send_auto_staged_sign_request(
+            "fixture", SimpleNamespace(confirm=True), db=object(), _principal={},
+        )
+    assert exc.value.status_code == 503
