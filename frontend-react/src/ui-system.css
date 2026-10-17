@@ -218,7 +218,7 @@ table tbody tr:hover {
   top: 0;
   z-index: 3;
   margin: calc(clamp(20px, 2.5vw, 30px) * -1);
-  margin-bottom: 22px;
+  margin-bottom: clamp(30px, 3vw, 40px);
   padding: clamp(20px, 2.5vw, 30px);
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface) 95%, transparent);
@@ -1263,4 +1263,47 @@ body.nav-mobile-open {
   line-height: 1.45;
   height: auto;
   overflow: visible;
+}
+
+/* Long employee forms need a non-overlapping header and predictable field rhythm.
+   Keep the legacy sticky-header behavior for dialogs that depend on it. */
+.modal.employee-modal .modal-header {
+  position: relative;
+  top: auto;
+  margin: 0 0 var(--space-8);
+  padding: 0 0 var(--space-6);
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.modal.employee-modal > p {
+  max-width: 66ch;
+  margin: 0 0 var(--space-6);
+  line-height: 1.65;
+}
+
+.modal.employee-modal .employee-form {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.modal.employee-modal .employee-form .form-group {
+  margin-bottom: 0;
+}
+
+.modal.employee-modal .employee-form-grid {
+  gap: var(--space-5);
+}
+
+.modal.employee-modal .employee-form .form-actions {
+  margin-top: var(--space-1);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 620px) {
+  .modal.employee-modal .employee-form,
+  .modal.employee-modal .employee-form-grid {
+    gap: var(--space-4);
+  }
 }
