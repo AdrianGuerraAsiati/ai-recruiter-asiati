@@ -54,6 +54,49 @@ def odoo_readonly_diagnostics(
     return {"connection": status, "health": health, "models": models, "read_only": True}
 
 
+
+@router.get("/staging/sign/diagnostics")
+def staging_sign_schema_diagnostics(
+    _principal: dict = Depends(require_permission("integrations.manage")),
+):
+    """Read-only metadata, no signatory data, no credentials, no Odoo writes."""
+    try:
+        target = staging.build_staging_client()
+        health = target.healthcheck()
+    except (integration.OdooNotConfigured, OdooClientError) as exc:
+        raise HTTPException(status_code=503, detail="Odoo staging no está disponible.") from exc
+    models = {}
+    for model in ("sign.template", "sign.request", "sign.request.item",
+                  "sign.send.request", "sign.item.role", "ir.attachment"):
+        try:
+            fields = target.fields_get(model, attributes=("type", "relation", "required", "readonly"))
+            models[model] = {
+                "available": True,
+                "fields": {
+                    name: {k: field.get(k) for k in ("type", "relation", "required", "readonly")}
+                    for name, field in fields.items()
+                    if name in {
+                        "id", "template_id", "attachment_id", "request_item_ids",
+                        "role_id", "signer_email", "partner_id", "state", "signed",
+                        "signing_date", "signed_on", "completed_document",
+                        "completed_document_attachment_ids", "signed_document",
+                        "signed_document_attachment_id", "datas", "res_model",
+                        "res_id", "reference", "filename", "name", "subject",
+                        "signers_count", "signer_ids", "signers", "sign_item_ids",
+                        "request_id", "mail_sent_order", "expire_date",
+                    }
+                },
+            }
+        except OdooClientError:
+            models[model] = {"available": False}
+    return {
+        "environment": "staging", "read_only": True,
+        "odoo_version": health.get("server_serie"),
+        "models": models,
+        "note": "El diagnóstico no contiene contactos ni solicitudes de firma.",
+    }
+
+
 @router.post("/jobs/sync")
 def sync_jobs_to_odoo(
     db: Session = Depends(get_db),
