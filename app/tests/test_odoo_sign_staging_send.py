@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db import Base
-from app.domains.employee_documents import sign_send, sign_dispatch
+from app.domains.employee_documents import sign_send, sign_dispatch, sign_requests
 from app.domains.employee_documents.models import EmployeeDocument
 from app.integrations.odoo.client import OdooRpcError
 from app.models import UserProfile
@@ -297,7 +297,7 @@ def test_automatic_send_rejects_invalid_fixtures_without_odoo_writes(
     odoo = FakeOdoo()
     with pytest.raises(
         (sign_dispatch.DispatchUnavailable, sign_dispatch.DispatchNotReady,
-         __import__("app.domains.employee_documents.sign_requests", fromlist=[""]).SignTrackingUnavailable)
+         sign_requests.SignTrackingUnavailable)
     ):
         sign_send.send_automatic(db, profile.id, client=odoo)
     assert odoo.create_count == odoo.send_count == 0
