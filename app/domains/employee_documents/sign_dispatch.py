@@ -113,7 +113,7 @@ def preview(
         raise DispatchNotReady("La versión del PDF no coincide con la plantilla aprobada.")
     if document.odoo_sign_request_id is not None:
         raise DispatchNotReady("El contrato ya tiene una solicitud de firma vinculada.")
-    if document.odoo_sign_dispatch_status not in (None, "NOT_SENT"):
+    if getattr(document, "odoo_sign_dispatch_status", "NOT_SENT") not in (None, "NOT_SENT"):
         raise DispatchNotReady("Existe un intento de envío registrado. Reconcílialo antes de continuar.")
 
     try:
