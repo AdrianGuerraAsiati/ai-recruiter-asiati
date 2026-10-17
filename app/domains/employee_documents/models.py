@@ -42,6 +42,7 @@ class EmployeeDocument(Base):
             name="ck_employee_documents_odoo_sign_request_status",
         ),
         UniqueConstraint("odoo_sign_request_id", name="uq_employee_documents_odoo_sign_request_id"),
+        CheckConstraint("odoo_sign_dispatch_status IN ('NOT_SENT', 'DISPATCHING', 'SENT', 'UNKNOWN')", name="ck_employee_documents_odoo_sign_dispatch_status"),
         Index("idx_employee_documents_employee_uploaded", "employee_id", "uploaded_at"),
         Index("idx_employee_documents_employee_review", "employee_id", "review_status"),
     )
@@ -77,6 +78,11 @@ class EmployeeDocument(Base):
     odoo_sign_prepared_at = Column(DateTime(timezone=True), nullable=True)
     # Only validated Sign requests are tracked. These values are NOT proof
     # of delivery, legal validity, or archival of a signed PDF.
+    # Network timeout cannot safely be retried: UNKNOWN requires reconciliation.
+    odoo_sign_dispatch_status = Column(Text, nullable=False, default="NOT_SENT")
+    odoo_sign_dispatch_subject = Column(Text, nullable=True)
+    odoo_sign_dispatch_started_at = Column(DateTime(timezone=True), nullable=True)
+    odoo_sign_dispatch_wizard_id = Column(Integer, nullable=True)
     odoo_sign_request_id = Column(Integer, nullable=True)
     odoo_sign_request_status = Column(Text, nullable=False, default="UNLINKED")
     odoo_sign_employee_state = Column(Text, nullable=True)
