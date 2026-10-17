@@ -37,6 +37,11 @@ class EmployeeDocument(Base):
             "odoo_sign_status IN ('NOT_PREPARED', 'PREPARING', 'PREPARED', 'FAILED')",
             name="ck_employee_documents_odoo_sign_status",
         ),
+        CheckConstraint(
+            "odoo_sign_request_status IN ('UNLINKED', 'PENDING_SIGNATURE', 'PARTIALLY_SIGNED', 'SIGNED', 'CANCELLED', 'EXPIRED')",
+            name="ck_employee_documents_odoo_sign_request_status",
+        ),
+        UniqueConstraint("odoo_sign_request_id", name="uq_employee_documents_odoo_sign_request_id"),
         Index("idx_employee_documents_employee_uploaded", "employee_id", "uploaded_at"),
         Index("idx_employee_documents_employee_review", "employee_id", "review_status"),
     )
@@ -70,6 +75,14 @@ class EmployeeDocument(Base):
     odoo_sign_source_key = Column(Text, nullable=True)
     odoo_sign_status = Column(Text, nullable=False, default="NOT_PREPARED")
     odoo_sign_prepared_at = Column(DateTime(timezone=True), nullable=True)
+    # Only validated Sign requests are tracked. These values are NOT proof
+    # of delivery, legal validity, or archival of a signed PDF.
+    odoo_sign_request_id = Column(Integer, nullable=True)
+    odoo_sign_request_status = Column(Text, nullable=False, default="UNLINKED")
+    odoo_sign_employee_state = Column(Text, nullable=True)
+    odoo_sign_representative_state = Column(Text, nullable=True)
+    odoo_sign_checked_at = Column(DateTime(timezone=True), nullable=True)
+    odoo_sign_completed_at = Column(DateTime(timezone=True), nullable=True)
 
     employee = relationship("UserProfile")
 
