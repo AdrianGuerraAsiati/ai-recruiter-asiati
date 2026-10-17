@@ -88,6 +88,26 @@ def start_candidate_application(
         _translate(exc)
 
 
+@router.post("/{job_id}/candidates/{candidate_id}/contract/prepare-dossier")
+def prepare_contract_dossier(
+    job_id: str,
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("employees.create")),
+):
+    """Create only an APPLICANT profile, never employee login or Odoo sync."""
+    try:
+        return service.prepare_candidate_contract_profile(
+            db,
+            owner_sub=principal["sub"],
+            job_id=job_id,
+            candidate_id=candidate_id,
+            created_by_sub=principal["sub"],
+        )
+    except Exception as exc:
+        _translate(exc)
+
+
 @router.get("/{job_id}/candidates/{candidate_id}/hire-readiness")
 def hire_candidate_readiness(
     job_id: str,
