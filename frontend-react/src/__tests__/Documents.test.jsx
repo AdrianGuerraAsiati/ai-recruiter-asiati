@@ -280,4 +280,60 @@ describe("Employee document review workspace", () => {
       .toHaveAttribute("target", "_blank");
   });
 
+  it("tracks both signers in staging after a validated HR request link", async () => {
+    useSession.mockReturnValue({
+      principal: { profile: { id: "admin-1" } },
+      hasPermission: (permission) => [
+        "employee_documents.read_own",
+        "employee_documents.read_all",
+        "employee_documents.review",
+      ].includes(permission),
+    });
+    const contract = {
+      id: "contract-1", document_type: "EMPLOYMENT_CONTRACT",
+      label: "Contrato laboral", description: "Contrato de prueba",
+      admin_only: true, kind: "FILE", original_filename: "contrato.pdf",
+      size_bytes: 200, review_status: "APPROVED", odoo_sign_status: "PREPARED",
+    };
+    api.get.mockImplementation((url) => {
+      if (url === "/employees") return Promise.resolve({
+        data: { items: [{ id: "employee-1", first_name: "Ana", last_name: "Pérez" }] },
+      });
+      if (url === "/employee-documents/employees/employee-1")
+        return Promise.resolve({ data: portfolio([contract]) });
+      if (url === "/employee-documents/employees/employee-1/contract/sign")
+        return Promise.resolve({ data: {
+          template_url: "https://odoo-staging.example.invalid/web#id=812&model=sign.template",
+          status: "PREPARED", ready: false,
+          message: "Plantilla preparada en staging.",
+        } });
+      if (url === "/employee-documents/employees/employee-1/contract/sign/request")
+        return Promise.resolve({ data: { linked: false, status: "UNLINKED", request_id: null } });
+      return Promise.resolve({ data: {} });
+    });
+    api.post.mockResolvedValue({ data: {
+      linked: true, request_id: 139, status: "PARTIALLY_SIGNED",
+      employee: "signed", representative: "sent",
+    } });
+    render(<Documents />);
+    await screen.findByRole("option", { name: "Ana Pérez" });
+    fireEvent.change(screen.getByLabelText("Empleado a consultar"), {
+      target: { value: "employee-1" },
+    });
+    const idInput = await screen.findByLabelText("ID de solicitud en Odoo staging");
+    fireEvent.change(idInput, { target: { value: "139" } });
+    fireEvent.click(screen.getByRole("button", { name: "Vincular solicitud de prueba" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      "/employee-documents/employees/employee-1/contract/sign/request/link",
+      { request_id: 139, confirm: true },
+    ));
+    expect(await screen.findByText(/Firma parcial/)).toBeInTheDocument();
+    expect(screen.getByText("Empleado: signed")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Actualizar estado de firmas" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      "/employee-documents/employees/employee-1/contract/sign/request/refresh",
+      undefined,
+    ));
+  });
+
 });
