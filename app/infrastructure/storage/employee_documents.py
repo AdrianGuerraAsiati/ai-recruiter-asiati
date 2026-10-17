@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import uuid
 from pathlib import PurePosixPath
@@ -169,3 +170,31 @@ def read_employee_pdf_for_signing(*, employee_id: str, key: str, expected_bytes:
     if len(body) != expected_bytes or not body.startswith(b"%PDF-"):
         raise ValueError("Solo pueden prepararse contratos PDF válidos.")
     return body
+
+
+def archive_signed_contract_pdf(
+    *, employee_id: str, request_id: int, payload: bytes,
+) -> dict:
+    """Private, content-addressed signed PDF; never alters the unsigned document."""
+    if not isinstance(request_id, int) or request_id <= 0 or type(request_id) is bool:
+        raise ValueError("Solicitud de firma inválida.")
+    if not isinstance(payload, bytes) or not 100 <= len(payload) <= MAX_EMPLOYEE_DOCUMENT_BYTES:
+        raise ValueError("Tamaño del PDF firmado fuera de los límites permitidos.")
+    if not payload.startswith(b"%PDF-") or b"%%EOF" not in payload[-2048:]:
+        raise ValueError("El archivo recuperado no parece un PDF completo.")
+    digest = hashlib.sha256(payload).hexdigest()
+    key = (
+        f"{CURRENT_DOCUMENT_PREFIX}/{employee_id}/signed/"
+        f"{request_id}/{digest}.pdf"
+    )
+    if not key.startswith(_employee_prefixes(employee_id)):
+        raise ValueError("Destino de contrato firmado inválido.")
+    _s3_client().put_object(
+        Bucket=get_training_content_bucket(),
+        Key=key,
+        Body=payload,
+        ContentType="application/pdf",
+        ServerSideEncryption="AES256",
+        Metadata={"sha256": digest, "odoo-sign-request-id": str(request_id)},
+    )
+    return {"key": key, "sha256": digest, "size_bytes": len(payload)}
