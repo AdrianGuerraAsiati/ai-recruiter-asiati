@@ -109,6 +109,10 @@ def document_payload(document: EmployeeDocument) -> dict:
         "review_status": document.review_status or "PENDING_REVIEW",
         "review_comment": document.review_comment,
         "reviewed_at": document.reviewed_at.isoformat() if document.reviewed_at else None,
+        "odoo_sign_status": document.odoo_sign_status if document.document_type == "EMPLOYMENT_CONTRACT" else None,
+        "odoo_sign_prepared_at": (
+            document.odoo_sign_prepared_at.isoformat() if document.odoo_sign_prepared_at else None
+        ),
     }
 
 
@@ -224,6 +228,11 @@ def finalize_upload(
         )
         .one_or_none()
     )
+    if existing and existing.odoo_sign_status in ("PREPARING", "PREPARED"):
+        raise ValueError(
+            "El contrato ya está en preparación en Odoo Sign. No se permite reemplazar "
+            "el archivo para evitar versiones distintas de un contrato a firmar."
+        )
     previous_key = existing.storage_key if existing else None
     document = existing or EmployeeDocument(
         employee_id=employee_id,
@@ -237,6 +246,12 @@ def finalize_upload(
     document.uploaded_by_sub = uploaded_by_sub
     document.uploaded_at = datetime.now(timezone.utc)
     document.review_status = "PENDING_REVIEW"
+    if normalized_document_type == "EMPLOYMENT_CONTRACT":
+        document.odoo_sign_status = "NOT_PREPARED"
+        document.odoo_sign_source_key = None
+        document.odoo_sign_template_id = None
+        document.odoo_sign_attachment_id = None
+        document.odoo_sign_prepared_at = None
     document.reviewed_by_sub = None
     document.reviewed_at = None
     if existing is None:

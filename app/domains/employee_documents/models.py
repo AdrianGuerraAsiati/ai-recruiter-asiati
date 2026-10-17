@@ -33,6 +33,10 @@ class EmployeeDocument(Base):
             "review_status IN ('PENDING_REVIEW', 'APPROVED', 'CHANGES_REQUESTED')",
             name="ck_employee_documents_review_status",
         ),
+        CheckConstraint(
+            "odoo_sign_status IN ('NOT_PREPARED', 'PREPARING', 'PREPARED', 'FAILED')",
+            name="ck_employee_documents_odoo_sign_status",
+        ),
         Index("idx_employee_documents_employee_uploaded", "employee_id", "uploaded_at"),
         Index("idx_employee_documents_employee_review", "employee_id", "review_status"),
     )
@@ -59,6 +63,13 @@ class EmployeeDocument(Base):
     review_comment = Column(Text, nullable=True)
     reviewed_by_sub = Column(Text, nullable=True)
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # A prepared Sign template does not mean an email was sent or a signature exists.
+    odoo_sign_template_id = Column(Integer, nullable=True)
+    odoo_sign_attachment_id = Column(Integer, nullable=True)
+    odoo_sign_source_key = Column(Text, nullable=True)
+    odoo_sign_status = Column(Text, nullable=False, default="NOT_PREPARED")
+    odoo_sign_prepared_at = Column(DateTime(timezone=True), nullable=True)
 
     employee = relationship("UserProfile")
 
