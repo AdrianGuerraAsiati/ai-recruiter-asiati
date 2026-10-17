@@ -271,3 +271,48 @@ def test_employee_document_review_preserves_admin_only_portfolio(monkeypatch):
         db=object(), principal={"sub": "hr-admin"},
     )
     assert outcome == {"employee_id": "owner", "admin_only": True}
+
+
+def test_signature_preview_endpoint_uses_only_reviewer_and_no_send(monkeypatch):
+    from app.domains.employee_documents import sign_dispatch
+    received = []
+    def fake_preview(db, employee_id, **kwargs):
+        received.append((employee_id, kwargs))
+        return {"validated": True, "request_created": False, "emails_sent": False}
+    monkeypatch.setattr(sign_dispatch, "preview", fake_preview)
+    body = SimpleNamespace(employee_partner_id=301, representative_partner_id=302)
+    result = documents.preview_staging_sign_request(
+        "test-employee", body, db=object(), _principal={},
+    )
+    assert result["validated"] is True
+    assert result["emails_sent"] is False
+    assert received == [("test-employee", {
+        "employee_partner_id": 301, "representative_partner_id": 302,
+    })]
+
+    def not_ready(db, employee_id, **kwargs):
+        raise sign_dispatch.DispatchNotReady("Plantilla no aprobada")
+    monkeypatch.setattr(sign_dispatch, "preview", not_ready)
+    with pytest.raises(HTTPException) as exc:
+        documents.preview_staging_sign_request(
+            "test-employee", body, db=object(), _principal={},
+        )
+    assert exc.value.status_code == 409
+
+    def unavailable(db, employee_id, **kwargs):
+        raise sign_dispatch.DispatchUnavailable("Staging no configurado")
+    monkeypatch.setattr(sign_dispatch, "preview", unavailable)
+    with pytest.raises(HTTPException) as exc:
+        documents.preview_staging_sign_request(
+            "test-employee", body, db=object(), _principal={},
+        )
+    assert exc.value.status_code == 503
+
+    def unauthorized(db, employee_id, **kwargs):
+        raise sign_requests.SignTrackingUnavailable("No autorizado")
+    monkeypatch.setattr(sign_dispatch, "preview", unauthorized)
+    with pytest.raises(HTTPException) as exc:
+        documents.preview_staging_sign_request(
+            "test-employee", body, db=object(), _principal={},
+        )
+    assert exc.value.status_code == 503
