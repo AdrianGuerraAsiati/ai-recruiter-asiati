@@ -89,6 +89,24 @@ describe("Applications: document access and employee creation", () => {
     expect(api.post).not.toHaveBeenCalled();
   });
 
+  it("prepares a candidate contract dossier without creating Cognito access", async () => {
+    api.get.mockImplementation((url) => Promise.resolve({ data:
+      url === "/jobs/hiring/signature-flow"
+        ? { enabled: true }
+        : { items: [{ ...application, access: null, application_status: "SELECTED" }], total: 1, pages: 1 },
+    }));
+    api.post.mockResolvedValue({ data: {
+      profile_id: "prehire-1", employee_created: false, access_provisioned: false,
+    } });
+    mount();
+    const prepare = await screen.findByRole("button", { name: "Preparar contrato" });
+    fireEvent.click(prepare);
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      "/jobs/job-1/candidates/candidate-1/contract/prepare-dossier",
+    ));
+    expect(api.post).not.toHaveBeenCalledWith(expect.stringMatching(/start-application/), expect.anything());
+  });
+
   it("offers portal credentials before hiring applicants imported without a login", async () => {
     api.get.mockResolvedValue({ data: {
       items: [{ ...application, access: null, application_status: "APPLIED" }],
