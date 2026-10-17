@@ -457,6 +457,20 @@ def hire_candidate(
             "Ya existe un usuario deshabilitado con este correo."
         )
 
+    # A pre-contract profile deliberately has no Cognito identity.
+    # Provision access only AFTER the signed-contract gate succeeds.
+    if not employee.cognito_sub:
+        employee, temporary_password = employees_service.provision_existing_profile_access(
+            db,
+            employee.id,
+            username=resolved_username,
+            first_name=resolved_first,
+            last_name=resolved_last,
+            role_code=EMPLOYEE,
+            created_by_sub=created_by_sub,
+            cognito_client=cognito_client,
+        )
+
     if employee.login_username and employee.login_username != resolved_username:
         raise HiringConflictError(
             f"El empleado existente ya usa el usuario {employee.login_username}."
