@@ -640,3 +640,38 @@ def test_signature_gate_requires_verified_archived_file_before_hiring(db, monkey
     readiness = hiring_service.hiring_signature_readiness(db, link=link)
     assert readiness["ready"] is True
     assert readiness["status"] == "SIGNED_CONTRACT_ARCHIVED"
+
+
+def test_prepare_contract_dossier_creates_only_applicant_profile_without_login(db, monkeypatch):
+    monkeypatch.setenv("ADN360_REQUIRE_SIGNED_CONTRACT_FOR_HIRE", "true")
+    job, candidate, link = _application(db)
+    first = hiring_service.prepare_candidate_contract_profile(
+        db, owner_sub="admin-sub", job_id=job.id,
+        candidate_id=candidate.id, created_by_sub="admin-sub",
+    )
+    assert first["employee_created"] is False
+    assert first["access_provisioned"] is False
+    profile = db.query(UserProfile).filter(UserProfile.id == first["profile_id"]).one()
+    assert profile.cognito_sub is None
+    assert profile.login_username is None
+    assert profile.odoo_employee_id is None
+    assert APPLICANT in employees_service.roles_for_profile(db, profile.id)
+    assert EMPLOYEE not in employees_service.roles_for_profile(db, profile.id)
+    assert db.query(OdooEmployeeSync).count() == 0
+    second = hiring_service.prepare_candidate_contract_profile(
+        db, owner_sub="admin-sub", job_id=job.id,
+        candidate_id=candidate.id, created_by_sub="admin-sub",
+    )
+    assert second == first
+    assert db.query(UserProfile).count() == 1
+
+
+def test_prepare_dossier_disabled_until_signed_hiring_feature_is_enabled(db, monkeypatch):
+    monkeypatch.delenv("ADN360_REQUIRE_SIGNED_CONTRACT_FOR_HIRE", raising=False)
+    job, candidate, _ = _application(db)
+    with pytest.raises(hiring_service.HiringConflictError, match="debe habilitarse"):
+        hiring_service.prepare_candidate_contract_profile(
+            db, owner_sub="admin-sub", job_id=job.id,
+            candidate_id=candidate.id, created_by_sub="admin-sub",
+        )
+    assert db.query(UserProfile).count() == 0
