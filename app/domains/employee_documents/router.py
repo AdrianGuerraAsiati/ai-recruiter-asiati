@@ -305,6 +305,17 @@ def download_signed_contract_as_hr(
         _translate(exc)
 
 
+@router.get("/me/contract/signed")
+def own_signed_contract_status(
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("employee_documents.read_own")),
+):
+    try:
+        return signed_artifacts.status(db, principal["profile"]["id"])
+    except Exception as exc:
+        _translate(exc)
+
+
 @router.get("/me/contract/signed/download")
 def download_own_signed_contract(
     db: Session = Depends(get_db),
