@@ -1,7 +1,7 @@
 function Footer() {
   return (
     <footer className="site-footer">
-      <span>ASIATI · Talent Intelligence</span>
+      <span>ASIATI · ADN360</span>
       <span>Talento que impulsa el cambio.</span>
     </footer>
   );

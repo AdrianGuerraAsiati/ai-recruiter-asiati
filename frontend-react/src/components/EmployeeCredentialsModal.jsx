@@ -2,7 +2,7 @@ import { useState } from "react";
 
 function credentialText(credentials, accessUrl) {
   return [
-    "Talent Intelligence",
+    "ADN360",
     `Usuario: ${credentials.username}`,
     `Contraseña temporal: ${credentials.temporary_password}`,
     `Acceso: ${accessUrl}`,

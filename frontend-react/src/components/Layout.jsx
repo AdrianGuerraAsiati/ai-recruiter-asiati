@@ -32,7 +32,7 @@ function Layout({ children }) {
     const route = Object.keys(pageTitles).find((path) => (
       location.pathname === path || (path === "/candidates" && location.pathname.startsWith("/candidates/"))
     ));
-    document.title = `${pageTitles[route] || "Talent Intelligence"} · ASIATI`;
+    document.title = `${pageTitles[route] || "ADN360"} · ASIATI`;
     window.scrollTo({ top: 0, behavior: "auto" });
   }, [location.pathname]);
 

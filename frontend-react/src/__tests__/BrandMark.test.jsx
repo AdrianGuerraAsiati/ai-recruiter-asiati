@@ -13,6 +13,12 @@ describe("ASIATI brand mark", () => {
     expect(logo).toHaveAttribute("src", "/asiati-logo.svg");
   });
 
+  it("uses ADN360 as the visible platform name", () => {
+    render(<BrandMark />);
+    expect(screen.getByText("ADN360")).toBeInTheDocument();
+    expect(screen.queryByText(/Talent Intelligence/i)).not.toBeInTheDocument();
+  });
+
   it("renders the logo inside a circular frame", () => {
     render(<BrandMark />);
 
