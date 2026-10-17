@@ -232,6 +232,43 @@ def get_staging_sign_request(
         _translate(exc)
 
 
+@router.post("/employees/{employee_id}/contract/sign/request/automatic-preview")
+def preview_auto_staged_sign_request(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.review")),
+):
+    """Resolve both synthetic Odoo contacts server-side; never expose IDs."""
+    try:
+        return sign_dispatch.preview_automatic(db, employee_id)
+    except sign_dispatch.DispatchNotReady as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (sign_dispatch.DispatchUnavailable,
+            sign_requests.SignTrackingUnavailable) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.post("/employees/{employee_id}/contract/sign/request/automatic-send")
+def send_auto_staged_sign_request(
+    employee_id: str,
+    body: ConfirmContractSignPreparation,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.review")),
+):
+    """Explicit one-time request; IDs linked automatically by the backend."""
+    try:
+        return sign_send.send_automatic(db, employee_id)
+    except (sign_send.DispatchConflict, sign_dispatch.DispatchNotReady) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (sign_send.DispatchOutcomeUnknown, sign_dispatch.DispatchUnavailable,
+            sign_requests.SignTrackingUnavailable) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        _translate(exc)
+
+
 @router.post("/employees/{employee_id}/contract/sign/request/preview")
 def preview_staging_sign_request(
     employee_id: str,
