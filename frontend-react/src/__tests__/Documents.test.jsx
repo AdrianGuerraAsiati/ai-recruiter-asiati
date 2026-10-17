@@ -121,6 +121,54 @@ describe("Employee document review workspace", () => {
     });
   });
 
+  it("shows the selected profile UUID only to authorized HR and copies that exact ID", async () => {
+    useSession.mockReturnValue({
+      principal: { profile: { id: "admin-1" } },
+      hasPermission: (permission) => [
+        "employee_documents.read_own",
+        "employee_documents.read_all",
+        "employee_documents.review",
+      ].includes(permission),
+    });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(window.navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    api.get.mockImplementation((url) => {
+      if (url === "/employees") {
+        return Promise.resolve({
+          data: { items: [{ id: "employee-1", first_name: "Ana", last_name: "Pérez" }] },
+        });
+      }
+      if (url === "/employee-documents/me") {
+        return Promise.resolve({ data: portfolio([]) });
+      }
+      if (url === "/employee-documents/employees/employee-1") {
+        return Promise.resolve({ data: portfolio() });
+      }
+      return Promise.resolve({ data: {} });
+    });
+
+    render(<Documents />);
+    await screen.findByRole("option", { name: "Ana Pérez" });
+    fireEvent.change(screen.getByLabelText("Empleado a consultar"), {
+      target: { value: "employee-1" },
+    });
+    expect(await screen.findByText("UUID del perfil en ADN360")).toBeInTheDocument();
+    expect(screen.getByTestId("selected-profile-uuid")).toHaveTextContent("employee-1");
+    fireEvent.click(screen.getByRole("button", { name: "Copiar UUID del perfil" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("employee-1"));
+    expect(await screen.findByRole("status")).toHaveTextContent("ID copiado");
+  });
+
+  it("does not expose the admin UUID copy control in the applicant's own documents", async () => {
+    render(<Documents />);
+    await screen.findByText("Documento de identidad");
+    expect(screen.queryByText("UUID del perfil en ADN360")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copiar UUID del perfil" })).not.toBeInTheDocument();
+  });
+
   it("lets an admin approve each submitted requirement", async () => {
     useSession.mockReturnValue({
       principal: { profile: { id: "admin-1" } },
