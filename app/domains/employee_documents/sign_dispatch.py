@@ -60,6 +60,34 @@ def _validated_partner(target, partner_id: int, allowed_addresses: set[str]) -> 
     return {"id": partner_id, "address": address}
 
 
+def build_wizard_values(
+    *, template_id: int, employee_partner_id: int, representative_partner_id: int,
+    employee_role_id: int, representative_role_id: int,
+) -> dict:
+    """Validated Odoo x2 one2many command payload; pure and deterministic."""
+    if not all(
+        type(v) is int and v > 0
+        for v in (
+            template_id, employee_partner_id, representative_partner_id,
+            employee_role_id, representative_role_id,
+        )
+    ):
+        raise DispatchNotReady("Identificadores del asistente Odoo Sign inválidos.")
+    if employee_partner_id == representative_partner_id or employee_role_id == representative_role_id:
+        raise DispatchNotReady("Se requieren contactos y roles diferentes.")
+    return {
+        "template_id": template_id,
+        "subject": "ADN360 - Firma de contrato laboral (PRUEBA)",
+        "set_sign_order": True,
+        "signer_ids": [
+            [0, 0, {"partner_id": employee_partner_id,
+                    "role_id": employee_role_id, "mail_sent_order": 1}],
+            [0, 0, {"partner_id": representative_partner_id,
+                    "role_id": representative_role_id, "mail_sent_order": 2}],
+        ],
+    }
+
+
 def preview(
     db: Session,
     employee_id: str,
@@ -85,8 +113,8 @@ def preview(
     if document.odoo_sign_request_id is not None:
         raise DispatchNotReady("El contrato ya tiene una solicitud de firma vinculada.")
 
-    target = client or staging.build_staging_client()
     try:
+        target = client or staging.build_staging_client()
         _fields(target, "sign.send.request", {
             "template_id": ("many2one", "sign.template"),
             "signer_ids": ("one2many", "sign.send.request.signer"),
@@ -144,18 +172,15 @@ def preview(
         if employee["address"] == representative["address"]:
             raise DispatchNotReady("Las dos firmas no pueden utilizar el mismo correo.")
 
-        # These are ORM one2many commands, NOT yet sent to the provider.
-        payload = {
-            "template_id": document.odoo_sign_template_id,
-            "subject": "ADN360 - Firma de contrato laboral (PRUEBA)",
-            "set_sign_order": True,
-            "signer_ids": [
-                [0, 0, {"partner_id": employee_partner_id,
-                        "role_id": by_name["empleado"], "mail_sent_order": 1}],
-                [0, 0, {"partner_id": representative_partner_id,
-                        "role_id": by_name["representante legal"], "mail_sent_order": 2}],
-            ],
-        }
+        # Build deterministically but never call create() or send_request().
+        _wizard_values = build_wizard_values(
+            template_id=document.odoo_sign_template_id,
+            employee_partner_id=employee_partner_id,
+            representative_partner_id=representative_partner_id,
+            employee_role_id=by_name["empleado"],
+            representative_role_id=by_name["representante legal"],
+        )
+        assert len(_wizard_values["signer_ids"]) == 2
         return {
             "validated": True,
             "environment": "staging",
@@ -170,7 +195,11 @@ def preview(
             # Deliberately exclude emails, the unsigned PDF, tokens and the
             # internal payload from the HTTP response.
         }
-    except (DispatchNotReady, DispatchUnavailable, OdooClientError):
+    except staging.OdooNotConfigured as exc:
+        raise DispatchUnavailable("Conexión Odoo staging no configurada.") from exc
+    except OdooClientError as exc:
+        raise DispatchUnavailable("No fue posible consultar Odoo Sign staging.") from exc
+    except (DispatchNotReady, DispatchUnavailable):
         raise
     except (KeyError, TypeError, ValueError) as exc:
         raise DispatchUnavailable("No se pudo comprobar el asistente Odoo Sign 18.") from exc
