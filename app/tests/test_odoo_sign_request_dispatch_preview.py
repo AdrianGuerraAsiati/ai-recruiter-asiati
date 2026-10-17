@@ -204,3 +204,59 @@ def test_sending_flag_does_not_trigger_mutations(setup, monkeypatch):
     # A flag alone does not authorize writes in the preflight-only code path.
     assert sign_dispatch.sending_enabled() is True
     assert preflight(target)["request_created"] is False
+
+
+def test_odoo_wizard_payload_has_exact_two_roles_and_deterministic_order():
+    wizard = sign_dispatch.build_wizard_values(
+        template_id=128, employee_partner_id=301, representative_partner_id=302,
+        employee_role_id=51, representative_role_id=52,
+    )
+    assert wizard == {
+        "template_id": 128,
+        "subject": "ADN360 - Firma de contrato laboral (PRUEBA)",
+        "set_sign_order": True,
+        "signer_ids": [
+            [0, 0, {"partner_id": 301, "role_id": 51, "mail_sent_order": 1}],
+            [0, 0, {"partner_id": 302, "role_id": 52, "mail_sent_order": 2}],
+        ],
+    }
+
+
+def test_odoo_wizard_payload_rejects_same_partner_role_or_invalid_identifier():
+    for values in (
+        dict(template_id=0, employee_partner_id=301, representative_partner_id=302,
+             employee_role_id=51, representative_role_id=52),
+        dict(template_id=128, employee_partner_id=301, representative_partner_id=301,
+             employee_role_id=51, representative_role_id=52),
+        dict(template_id=128, employee_partner_id=301, representative_partner_id=302,
+             employee_role_id=51, representative_role_id=51),
+        dict(template_id=128, employee_partner_id=True, representative_partner_id=302,
+             employee_role_id=51, representative_role_id=52),
+    ):
+        with pytest.raises(sign_dispatch.DispatchNotReady):
+            sign_dispatch.build_wizard_values(**values)
+
+
+def test_staging_credentials_missing_fails_sanitized(setup, monkeypatch):
+    target, contract = setup
+    def disconnected():
+        from app.domains.odoo_sync import staging
+        raise staging.OdooNotConfigured("Secret not present")
+    monkeypatch.setattr(sign_dispatch.staging, "build_staging_client", disconnected)
+    with pytest.raises(sign_dispatch.DispatchUnavailable, match="no configurada"):
+        sign_dispatch.preview(
+            object(), "employee-test", employee_partner_id=301,
+            representative_partner_id=302,
+        )
+    assert contract.odoo_sign_request_id is None
+
+
+def test_remote_unavailable_fails_without_leaking_details(setup):
+    from app.integrations.odoo.client import OdooRpcError
+    target, contract = setup
+    def no_rpc(model):
+        raise OdooRpcError("Sensitive connection detail")
+    target.fields_get = no_rpc
+    with pytest.raises(sign_dispatch.DispatchUnavailable, match="No fue posible consultar"):
+        preflight(target)
+    assert contract.odoo_sign_request_id is None
