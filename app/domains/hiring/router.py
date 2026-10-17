@@ -59,6 +59,16 @@ def _translate(exc: Exception):
     raise exc
 
 
+@router.get("/hiring/signature-flow")
+def signature_hiring_flow_capabilities(
+    _principal: dict = Depends(require_permission("employees.create")),
+):
+    return {
+        "enabled": service.signed_contract_hiring_gate_enabled(),
+        "description": "Alta de empleado posterior a ambas firmas y archivo PDF final.",
+    }
+
+
 @router.post("/{job_id}/candidates/{candidate_id}/start-application", status_code=201)
 def start_candidate_application(
     job_id: str,
