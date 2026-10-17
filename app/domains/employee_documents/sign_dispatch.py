@@ -95,6 +95,7 @@ def preview(
     employee_partner_id: int,
     representative_partner_id: int,
     client=None,
+    _include_wizard: bool = False,
 ) -> dict:
     """Read-only preflight for exact template, roles, two partners and signing fields."""
     sign_requests._require_fixture(employee_id)
@@ -112,6 +113,8 @@ def preview(
         raise DispatchNotReady("La versión del PDF no coincide con la plantilla aprobada.")
     if document.odoo_sign_request_id is not None:
         raise DispatchNotReady("El contrato ya tiene una solicitud de firma vinculada.")
+    if document.odoo_sign_dispatch_status not in (None, "NOT_SENT"):
+        raise DispatchNotReady("Existe un intento de envío registrado. Reconcílialo antes de continuar.")
 
     try:
         target = client or staging.build_staging_client()
@@ -181,7 +184,7 @@ def preview(
             representative_role_id=by_name["representante legal"],
         )
         assert len(_wizard_values["signer_ids"]) == 2
-        return {
+        result = {
             "validated": True,
             "environment": "staging",
             "template_id": document.odoo_sign_template_id,
@@ -195,6 +198,9 @@ def preview(
             # Deliberately exclude emails, the unsigned PDF, tokens and the
             # internal payload from the HTTP response.
         }
+        if _include_wizard:
+            result["_wizard_values"] = _wizard_values
+        return result
     except staging.OdooNotConfigured as exc:
         raise DispatchUnavailable("Conexión Odoo staging no configurada.") from exc
     except OdooClientError as exc:
