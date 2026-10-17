@@ -35,3 +35,9 @@ class LinkStagingSignRequest(BaseModel):
     # Explicit HR request only. IDs are checked against staged template + signers.
     request_id: int = Field(..., gt=0)
     confirm: Literal[True]
+
+
+class PreviewOdooSignRequest(BaseModel):
+    """Preflight only: numeric Odoo res.partner IDs, no write or mail."""
+    employee_partner_id: int = Field(..., gt=0)
+    representative_partner_id: int = Field(..., gt=0)
