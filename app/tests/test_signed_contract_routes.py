@@ -187,3 +187,87 @@ def test_hiring_readiness_checks_ownership_and_link(monkeypatch):
             "job-1", "candidate-1", db=object(), principal={"sub": "admin"},
         )
     assert exc.value.status_code == 404
+
+
+def test_document_dossier_routes_remain_scoped_and_reviewable(monkeypatch):
+    uploads = []
+    monkeypatch.setattr(doc_service, "portfolio_payload",
+                        lambda db, employee_id, include_admin_only=False: {
+                            "id": employee_id, "admin": include_admin_only,
+                        })
+    monkeypatch.setattr(doc_service, "require_employee",
+                        lambda db, employee_id: SimpleNamespace(id=employee_id))
+    monkeypatch.setattr(doc_service, "create_upload",
+                        lambda db, **kw: uploads.append(("prepare", kw)) or {"key": "private"})
+    monkeypatch.setattr(doc_service, "finalize_upload",
+                        lambda db, **kw: uploads.append(("complete", kw)))
+    monkeypatch.setattr(doc_service, "save_value",
+                        lambda db, **kw: uploads.append(("value", kw)))
+    monkeypatch.setattr(doc_service, "review_queue",
+                        lambda db: {"items": []})
+    me = {"profile": {"id": "self"}, "sub": "staff"}
+    upload = SimpleNamespace(
+        document_type="IDENTITY", filename="id.pdf", content_type="application/pdf",
+        size_bytes=350, key="training/employee-documents/self/id.pdf",
+    )
+    assert documents.my_documents(db=object(), principal=me)["id"] == "self"
+    assert documents.employee_documents("candidate", db=object(), _principal={})["admin"]
+    assert documents.create_my_document_upload(upload, db=object(), principal=me)["key"]
+    assert documents.complete_my_document_upload(upload, db=object(), principal=me)["id"] == "self"
+    assert uploads[-1][1]["employee_id"] == "self"
+    value = SimpleNamespace(document_type="RESIDENCE_ADDRESS", value="Bogotá")
+    assert documents.save_my_document_value(value, db=object(), principal=me)["id"] == "self"
+    assert documents.document_review_queue(db=object(), _principal={}) == {"items": []}
+
+    contract = SimpleNamespace(
+        document_type="EMPLOYMENT_CONTRACT", filename="contract.pdf",
+        content_type="application/pdf", size_bytes=340,
+        key="training/employee-documents/other/contract.pdf",
+    )
+    assert documents.create_employee_contract_upload(
+        "other", contract, db=object(), _principal={}
+    )["key"] == "private"
+    assert uploads[-1][1]["admin_upload"] is True
+    assert documents.complete_employee_contract_upload(
+        "other", contract, db=object(), principal=me
+    )["admin"]
+    with pytest.raises(HTTPException) as exc:
+        documents.create_employee_contract_upload("other", upload, db=object(), _principal={})
+    assert exc.value.status_code == 422
+    with pytest.raises(HTTPException) as exc:
+        documents.complete_employee_contract_upload("other", upload, db=object(), principal=me)
+    assert exc.value.status_code == 422
+
+
+def test_document_download_rejects_unprivileged_contract_reader(monkeypatch):
+    record = SimpleNamespace(
+        id="contract", employee_id="owner",
+        document_type="EMPLOYMENT_CONTRACT",
+    )
+    monkeypatch.setattr(doc_service, "require_document", lambda db, document_id: record)
+    monkeypatch.setattr(doc_service, "download_payload",
+                        lambda db, document_id: {"url": "https://private.example.invalid/pdf"})
+    with pytest.raises(HTTPException) as exc:
+        documents.download_document(
+            "contract", db=object(),
+            principal={"profile": {"id": "owner"}, "permissions": ["employee_documents.read_own"]},
+        )
+    assert exc.value.status_code == 403
+    assert documents.download_document(
+        "contract", db=object(),
+        principal={"profile": {"id": "admin"}, "permissions": ["employee_documents.read_all"]},
+    )["url"].startswith("https://")
+
+
+def test_employee_document_review_preserves_admin_only_portfolio(monkeypatch):
+    monkeypatch.setattr(doc_service, "review_document",
+                        lambda db, **kw: SimpleNamespace(employee_id="owner"))
+    monkeypatch.setattr(doc_service, "portfolio_payload",
+                        lambda db, employee_id, include_admin_only=False: {
+                            "employee_id": employee_id, "admin_only": include_admin_only
+                        })
+    outcome = documents.review_document(
+        "doc-1", SimpleNamespace(status="APPROVED", comment=None),
+        db=object(), principal={"sub": "hr-admin"},
+    )
+    assert outcome == {"employee_id": "owner", "admin_only": True}
