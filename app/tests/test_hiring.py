@@ -579,3 +579,64 @@ def test_hire_succeeds_even_when_welcome_email_delivery_fails(db, monkeypatch):
     assert result["application_status"] == "HIRED"
     assert result["welcome_email"]["status"] == "FAILED"
     assert result["onboarding_assignment"]
+
+
+def test_signature_hiring_gate_denies_without_contract_before_provisioning(db, monkeypatch):
+    from app.domains.hiring.service import HiringConflictError
+    job, candidate, link = _application(db)
+    monkeypatch.setenv("ADN360_REQUIRE_SIGNED_CONTRACT_FOR_HIRE", "true")
+    cognito = FakeCognito()
+    with pytest.raises(HiringConflictError, match="Primero inicia la postulación"):
+        _hire(db, cognito=cognito, job=job, candidate=candidate)
+    assert cognito.created == []
+    db.refresh(link)
+    assert link.application_status == "OFFER"
+    assert db.query(OdooEmployeeSync).count() == 0
+
+
+def test_signature_gate_requires_verified_archived_file_before_hiring(db, monkeypatch):
+    from datetime import datetime, timezone
+    from app.domains.employee_documents.models import EmployeeDocument
+    job, candidate, link = _application(db)
+    applicant = UserProfile(cognito_sub="applicant-sign-test", email=candidate.email,
+                            first_name="Ana", last_name="Pérez", status="ACTIVE",
+                            login_username="ana.perez")
+    db.add(applicant)
+    db.flush()
+    link.employee_id = applicant.id
+    db.commit()
+    contract = EmployeeDocument(
+        employee_id=applicant.id, document_type="EMPLOYMENT_CONTRACT",
+        review_status="APPROVED", odoo_sign_status="PREPARED",
+        storage_key=f"training/employee-documents/{applicant.id}/original.pdf",
+        odoo_sign_source_key=f"training/employee-documents/{applicant.id}/original.pdf",
+        odoo_sign_request_id=139,
+        odoo_sign_request_status="PARTIALLY_SIGNED",
+        odoo_sign_employee_state="signed", odoo_sign_representative_state="sent",
+    )
+    db.add(contract)
+    db.commit()
+    monkeypatch.setenv("ADN360_REQUIRE_SIGNED_CONTRACT_FOR_HIRE", "true")
+    cognito = FakeCognito()
+    with pytest.raises(hiring_service.HiringConflictError, match="ambas firmas"):
+        _hire(db, cognito=cognito, job=job, candidate=candidate)
+    assert cognito.created == []
+    assert db.query(OdooEmployeeSync).count() == 0
+    now = datetime.now(timezone.utc)
+    contract.odoo_sign_request_status = "SIGNED"
+    contract.odoo_sign_employee_state = "signed"
+    contract.odoo_sign_representative_state = "signed"
+    contract.odoo_sign_completed_at = now
+    db.commit()
+    with pytest.raises(hiring_service.HiringConflictError, match="archivar"):
+        _hire(db, cognito=cognito, job=job, candidate=candidate)
+    assert cognito.created == []
+    contract.odoo_sign_signed_storage_key = (
+        f"training/employee-documents/{applicant.id}/signed/139/test.pdf"
+    )
+    contract.odoo_sign_signed_sha256 = "a" * 64
+    contract.odoo_sign_signed_at = now
+    db.commit()
+    readiness = hiring_service.hiring_signature_readiness(db, link=link)
+    assert readiness["ready"] is True
+    assert readiness["status"] == "SIGNED_CONTRACT_ARCHIVED"
