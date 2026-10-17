@@ -227,3 +227,51 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Internal profile identifier: visible only in HR document review. */
+.employee-documents-page .document-profile-id {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 13px 15px;
+  border: 1px solid var(--talent-edge);
+  border-radius: 12px;
+  min-width: 0;
+}
+
+.employee-documents-page .document-profile-id-label {
+  font-weight: 600;
+  font-size: .8rem;
+}
+
+.employee-documents-page .document-profile-id-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.employee-documents-page .document-profile-id-actions code {
+  display: inline-block;
+  overflow-wrap: anywhere;
+  user-select: all;
+  font-size: .86rem;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.employee-documents-page .document-profile-id-actions button {
+  flex-shrink: 0;
+}
+
+.employee-documents-page .document-profile-id-feedback {
+  font-size: .8rem;
+}
+
+@media (max-width: 500px) {
+  .employee-documents-page .document-profile-id-actions button {
+    width: 100%;
+  }
+}
