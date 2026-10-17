@@ -143,3 +143,73 @@ def test_pending_signatures_cannot_be_archived(fixture, monkeypatch):
         signed_artifacts.archive(db, employee.id, client=fake)
     assert fake.calls == []
     assert contract.odoo_sign_signed_storage_key is None
+
+
+def test_private_archive_uses_content_hash_and_never_replaces_original(monkeypatch):
+    from app.infrastructure.storage import employee_documents as storage
+    stored = []
+    monkeypatch.setattr(storage, "get_training_content_bucket", lambda: "private-bucket")
+    monkeypatch.setattr(storage, "_s3_client", lambda: type("S3", (), {
+        "put_object": lambda self, **kw: stored.append(kw)
+    })())
+    result = storage.archive_signed_contract_pdf(
+        employee_id="fixture-1", request_id=139, payload=PDF,
+    )
+    assert result["sha256"] == hashlib.sha256(PDF).hexdigest()
+    assert result["key"].startswith("training/employee-documents/fixture-1/signed/139/")
+    assert stored[0]["Body"] == PDF
+    assert stored[0]["ServerSideEncryption"] == "AES256"
+    assert stored[0]["Metadata"]["odoo-sign-request-id"] == "139"
+
+
+@pytest.mark.parametrize("request_id,payload", [
+    (0, PDF), (-1, PDF), (True, PDF),
+    (139, b""), (139, b"FAKE" * 100), (139, b"%PDF-" + b"a" * 110),
+])
+def test_reject_unsupported_signed_pdf_before_storage(request_id, payload, monkeypatch):
+    from app.infrastructure.storage import employee_documents as storage
+    monkeypatch.setattr(storage, "_s3_client",
+                        lambda: pytest.fail("Rejected bytes must not hit S3"))
+    with pytest.raises(ValueError):
+        storage.archive_signed_contract_pdf(
+            employee_id="fixture", request_id=request_id, payload=payload,
+        )
+
+
+def test_archived_pdf_status_and_download_return_only_the_signed_key(fixture, monkeypatch):
+    db, employee, contract, _ = fixture
+    assert signed_artifacts.status(db, employee.id)["archived"] is False
+    with pytest.raises(signed_artifacts.ArchiveNotReady):
+        signed_artifacts.download(db, employee.id)
+    contract.odoo_sign_signed_storage_key = "training/employee-documents/signed-id/signed/139/file.pdf"
+    contract.odoo_sign_signed_sha256 = "c" * 64
+    db.commit()
+    requested = []
+    monkeypatch.setattr(signed_artifacts.storage, "create_document_download_url",
+                        lambda key, filename: requested.append(key) or "https://example.invalid/file")
+    link = signed_artifacts.download(db, employee.id)
+    assert link["url"] == "https://example.invalid/file"
+    assert requested == [contract.odoo_sign_signed_storage_key]
+    assert signed_artifacts.status(db, employee.id)["archived"] is True
+
+
+def test_unverified_signed_attachment_relation_cannot_be_archived(fixture, monkeypatch):
+    db, employee, contract, _ = fixture
+    monkeypatch.setenv("ODOO_SIGN_STAGING_SIGNED_ATTACHMENT_FIELD", "attachment_id")
+    with pytest.raises(signed_artifacts.ArchiveUnavailable, match="campo"):
+        signed_artifacts.archive(db, employee.id, client=FakeCompletedSign())
+    assert contract.odoo_sign_signed_storage_key is None
+
+
+def test_missing_or_ambiguous_remote_signed_attachment_fails_closed(fixture, monkeypatch):
+    db, employee, contract, _ = fixture
+    fake = FakeCompletedSign()
+    original = fake.search_read
+    def remote(model, domain, *, fields, limit):
+        if model == "sign.request":
+            return [{"id": 139, "completed_document_attachment_id": False}]
+        return original(model, domain, fields=fields, limit=limit)
+    fake.search_read = remote
+    with pytest.raises(signed_artifacts.ArchiveNotReady):
+        signed_artifacts.archive(db, employee.id, client=fake)
+    assert contract.odoo_sign_signed_storage_key is None
