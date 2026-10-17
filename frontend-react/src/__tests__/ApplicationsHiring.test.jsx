@@ -66,7 +66,9 @@ describe("Applications: document access and employee creation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Crear empleado" }));
     const dialog = screen.getByRole("dialog", { name: "Crear empleado" });
     expect(within(dialog).getByLabelText("Usuario de ADN360").value).toBe("aperez");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar contratación" }));
+    const confirm = within(dialog).getByRole("button", { name: "Confirmar contratación" });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    fireEvent.click(confirm);
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       "/jobs/job-1/candidates/candidate-1/hire",
       expect.objectContaining({ username: "aperez", email: "ana@example.com" }),
