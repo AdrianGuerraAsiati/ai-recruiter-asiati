@@ -29,15 +29,31 @@ seguimiento de firmas, incluidas las completadas.
 
 Este PR **no modifica plantillas ni envía solicitudes**.
 
-## Siguiente implementación tras confirmar el diseño
+## Inspección de ambos PDF originales y distribución correcta
 
-1. Resolver el campo many2one `sign.item.template_id` y requisitos de
-   creación mediante `fields_get` en Odoo staging (solo lectura).
-2. Obtener y comparar tamaños/páginas del PDF 128 y 129 o ubicar
-   posiciones mediante los propios marcadores de firma del PDF 129.
-3. Incorporar servicio de colocación de dos bloques de firma en ADN360,
-   transaccional, idempotente y con verificación de ambos roles.
-4. Solo entonces habilitar confirmación de envío desde ADN360, sin
-   exponer contactos, IDs o enlaces Odoo en el frontend.
+Los archivos de prueba ya están disponibles y se inspeccionaron con PyMuPDF:
 
-Mientras no se complete ese flujo, `ODOO_SIGN_STAGING_SEND_ENABLED=false`.
+- Ambos son A4 de una página (aprox. 595.276 × 841.89 pt), **pero sus zonas de firma no son iguales**.
+- El documento original de la plantilla 129 contiene dos recuadros punteados separados, ubicados aproximadamente en `[47,595,290,707]` y `[306,595,548,707]` puntos.
+- Las coordenadas de 128 superponen texto o invaden ambos recuadros de la 129. **No reutilizarlas**.
+- El detector de staging calcula dos campos **dentro de cada rectángulo**, debajo del texto descriptivo y antes del pie del firmante:
+
+| Rol | Página | posX | posY | width | height | Obligatorio |
+|---|---:|---:|---:|---:|---:|---|
+| Empleado | 1 | 0.09911 | 0.75888 | 0.36729 | 0.04276 | Sí |
+| Representante legal | 1 | 0.53360 | 0.75888 | 0.36729 | 0.04276 | Sí |
+
+Estas cifras están normalizadas; la implementación las **deriva del PDF**, no las codifica como constantes, y verifica colisiones con el texto.
+
+## Operación en ADN360
+
+1. El administrador sube/aprueba el PDF ficticio, ya realizado.
+2. ADN360 crea su plantilla Odoo Sign, ya realizado para 129.
+3. Clic **Detectar dos campos de firma** consulta el PDF del expediente, valida los recuadros, tipo Firma y roles de Odoo, sin escrituras.
+4. Clic **Colocar ambas firmas en Odoo** ejecuta un único write de dos campos obligatorios a la plantilla, verificando luego la posición/rol/tipo. Es idempotente si la plantilla ya contiene exactamente esos campos.
+5. Envío de solicitudes permanece desactivado por defecto. Solo cuando terminemos el E2E habrá una confirmación de envío único a los dos contactos ficticios.
+
+Limitaciones:
+- La detección está restringida **al PDF ficticio de nombre exacto**, con marcador `SOLO PRUEBA - SIN VALIDEZ CONTRACTUAL`, una página y dos recuadros reconocibles.
+- No es un algoritmo general para todo contrato real. Para producción diseñar editor de posiciones en ADN360 o plantillas laborales estandarizadas.
+- Las escrituras XML-RPC reales de `sign.template.sign_item_ids` aún deben probarse en staging con usuario técnico; ningún PDF/productivo se ha firmado.
