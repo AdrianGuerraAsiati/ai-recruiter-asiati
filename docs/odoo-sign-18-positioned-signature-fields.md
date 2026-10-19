@@ -57,3 +57,24 @@ Limitaciones:
 - La detección está restringida **al PDF ficticio de nombre exacto**, con marcador `SOLO PRUEBA - SIN VALIDEZ CONTRACTUAL`, una página y dos recuadros reconocibles.
 - No es un algoritmo general para todo contrato real. Para producción diseñar editor de posiciones en ADN360 o plantillas laborales estandarizadas.
 - Las escrituras XML-RPC reales de `sign.template.sign_item_ids` aún deben probarse en staging con usuario técnico; ningún PDF/productivo se ha firmado.
+
+
+## Corrección del 503 por roles globales ambiguos (2026-10-19)
+
+La petición real `GET .../contract/sign/fields` devolvió HTTP 503 con
+`{"detail":"Odoo contiene roles de firma ambiguos."}`.
+El código anterior buscaba en **todos** los registros `sign.item.role`
+y rechazaba cualquier nombre repetido o su traducción
+`Employee` / `Empleado`. En una instancia compartida esto es normal
+y no implica que los firmantes de la plantilla estén mal configurados.
+
+La corrección consulta de forma **solo lectura** la plantilla de referencia
+**128** de esta base Odoo staging (validada por Odoo Shell con campos 762 y 763),
+y exige exactamente dos campos de tipo Signature, ambos obligatorios, asignados
+a roles diferentes `Employee` (ID 3) y `Representante legal` (ID 5).
+La plantilla 129 sigue siendo el destino del PDF ficticio de ADN360.
+
+No seleccionamos arbitrariamente un ID desde una lista global ni modificamos
+la plantilla 128. Si cambia la referencia, fallamos de forma segura y
+mostramos error sin ejecutar escrituras. Este mecanismo es **solo para la
+fixture de staging**, no para contratos reales ni para otros entornos Odoo.
