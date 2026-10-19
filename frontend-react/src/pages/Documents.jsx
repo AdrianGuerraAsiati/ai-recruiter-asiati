@@ -34,6 +34,30 @@ function statusMeta(value) {
   return STATUS_META[value] || STATUS_META.MISSING;
 }
 
+const SIGN_REQUEST_STATUS_META = {
+  PENDING_SIGNATURE: { label: "Pendiente de firma", className: "pending" },
+  PARTIALLY_SIGNED: { label: "Firma parcial", className: "pending" },
+  SIGNED: { label: "Firmada por ambas partes", className: "signed" },
+  CANCELLED: { label: "Cancelada", className: "stopped" },
+  EXPIRED: { label: "Vencida", className: "stopped" },
+};
+
+const SIGNER_STATE_LABELS = {
+  sent: "Solicitud enviada",
+  signed: "Firmado",
+  completed: "Firmado",
+  cancel: "Cancelado",
+  canceled: "Cancelado",
+  cancelled: "Cancelado",
+  refused: "Rechazado",
+  rejected: "Rechazado",
+  expired: "Vencido",
+};
+
+function signerStateLabel(value) {
+  return SIGNER_STATE_LABELS[String(value || "").toLowerCase()] || "Por verificar";
+}
+
 function formatBytes(value) {
   const bytes = Number(value || 0);
   if (!bytes) return "";
@@ -407,7 +431,7 @@ function Documents() {
           setSignRequest(data);
         }
       })
-      .catch(() => { if (active) setSignRequest(null); });
+      .catch(() => { if (active) setSignRequest({ loadFailed: true }); });
     return () => { active = false; };
   }, [canReadAll, selectedEmployeeId, viewingOwn]);
 
@@ -437,7 +461,7 @@ function Documents() {
 
   async function runStagingSignSend(action) {
     if (!canReview || viewingOwn || signSendBusy || !selectedEmployeeId) return;
-    if (action === "send" && (!signSendConfirmed || !signSendPreview)) return;
+    if (action === "send" && (signRequest?.linked || !signSendConfirmed || !signSendPreview)) return;
     const prefix = `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract/sign/request`;
     setSignSendBusy(true);
     setError("");
@@ -460,7 +484,14 @@ function Documents() {
         if (data.request_id) {
           const { data: current } = await api.get(prefix);
           setSignRequest(current);
-          setSuccess("Solicitud de firma creada en Odoo staging; firma y correos permanecen bajo control de Odoo.");
+          if (current?.linked) {
+            setSignSendStatus({
+              enabled: true, status: "SENT", request_id: current.request_id,
+            });
+            setSuccess("Solicitud de firma vinculada en Odoo staging; las firmas permanecen bajo control de Odoo.");
+          } else {
+            setSuccess("Odoo devolvió una solicitud, pero todavía no está vinculada. Reconcilia antes de cualquier envío.");
+          }
         } else {
           setSuccess("Sin solicitud confirmada. No reintentes el envío: concilia primero con Odoo.");
         }
@@ -495,6 +526,9 @@ function Documents() {
         `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract/signed/archive`,
       );
       setSignedArtifact(data);
+      setSignRequest((current) => current?.linked
+        ? { ...current, signed_pdf_archived: Boolean(data?.archived) }
+        : current);
       setSuccess("PDF firmado archivado en el expediente. Confirma los datos contractuales antes de contratar.");
     } catch (err) {
       setError(getApiErrorMessage(err, {
@@ -561,6 +595,17 @@ function Documents() {
     try {
       const { data } = await api.post(`${path}/refresh`);
       setSignRequest(data);
+      if (data?.linked) {
+        setSignSendStatus((current) => ({
+          ...current, enabled: true, status: "SENT", request_id: data.request_id,
+        }));
+      }
+      if (data?.status === "SIGNED" || data?.signed_pdf_archived) {
+        const signedPath = `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract/signed`;
+        api.get(signedPath)
+          .then(({ data: artifact }) => setSignedArtifact(artifact))
+          .catch(() => {});
+      }
       setSuccess("Estado de los dos firmantes actualizado desde Odoo Sign.");
     } catch (err) {
       setError(getApiErrorMessage(err, {
@@ -600,6 +645,9 @@ function Documents() {
   const items = portfolio?.items || [];
   const fileItems = items.filter((item) => item.kind === "FILE");
   const textItems = items.filter((item) => item.kind === "TEXT");
+  const signRequestMeta = SIGN_REQUEST_STATUS_META[signRequest?.status]
+    || { label: "Estado de firma no disponible", className: "unknown" };
+  const signedPdfArchived = Boolean(signedArtifact?.archived || signRequest?.signed_pdf_archived);
   const summary = portfolio?.summary || {
     total: 14,
     submitted: 0,
@@ -772,7 +820,7 @@ function Documents() {
                     {signFieldsBusy ? "Configurando…" : "Colocar ambas firmas en Odoo"}
                   </button>
                 )}
-                {signFieldsPreview?.configured && (
+                {signFieldsPreview?.configured && !signRequest?.linked && (
                   <p role="status">Ambas firmas obligatorias están configuradas. Odoo todavía no ha enviado ninguna solicitud.</p>
                 )}
               </div>
@@ -780,17 +828,23 @@ function Documents() {
             {item.id && signReadiness?.template_url && (
               <div className="contract-sign-request-panel" aria-label="Seguimiento de firmas en staging">
                 <strong>Seguimiento de solicitud de prueba</strong>
-                <p>
-                  {signRequest?.linked
-                    ? `${({
-                        PENDING_SIGNATURE: "Esperando ambas firmas",
-                        PARTIALLY_SIGNED: "Firma parcial",
-                        SIGNED: "Firmada por ambas partes",
-                        CANCELLED: "Cancelada",
-                        EXPIRED: "Vencida",
-                      })[signRequest.status] || signRequest.status}`
-                    : "Todavía no se ha enviado para firma. ADN360 creará y vinculará la solicitud automáticamente."}
-                </p>
+                {signRequest?.linked ? (
+                  <>
+                    <div className={`contract-sign-status contract-sign-status-${signRequestMeta.className}`}
+                      role="status" aria-live="polite">
+                      {signRequestMeta.label}
+                    </div>
+                    <small>Solicitud de Odoo Sign #{signRequest.request_id} · Entorno de pruebas</small>
+                  </>
+                ) : (
+                  <p role="status">
+                    {signRequest === null
+                      ? "Consultando el estado de la solicitud…"
+                      : signRequest.loadFailed
+                        ? "No se pudo consultar el estado de la solicitud. Recarga la página para reintentar."
+                        : "Todavía no hay una solicitud de firma vinculada en ADN360."}
+                  </p>
+                )}
                 {canReview && signSendStatus?.enabled &&
                   signSendStatus?.status === "NOT_SENT" && !signRequest?.linked && (
                     <div className="contract-sign-request-controls">
@@ -816,7 +870,7 @@ function Documents() {
                       )}
                     </div>
                   )}
-                {canReview && ["UNKNOWN", "DISPATCHING"].includes(signSendStatus?.status) && (
+                {canReview && !signRequest?.linked && ["UNKNOWN", "DISPATCHING"].includes(signSendStatus?.status) && (
                   <div className="contract-sign-request-controls">
                     <p>Resultado de envío incierto: no vuelvas a enviarlo.</p>
                     <button type="button" className="btn btn-secondary btn-sm"
@@ -826,9 +880,12 @@ function Documents() {
                   </div>
                 )}
                 {signRequest?.linked && (
-                  <div className="contract-sign-participants">
-                    <span>Empleado: {signRequest.employee || "Pendiente"}</span>
-                    <span>Representante legal: {signRequest.representative || "Pendiente"}</span>
+                  <div className="contract-sign-participants" aria-label="Estado de los firmantes">
+                    <div><span>Empleado</span><strong>{signerStateLabel(signRequest.employee)}</strong></div>
+                    <div><span>Representante legal</span><strong>{signerStateLabel(signRequest.representative)}</strong></div>
+                    {signRequest.checked_at && (
+                      <small>Última comprobación: {formatDate(signRequest.checked_at)}</small>
+                    )}
                   </div>
                 )}
                 {signRequest?.linked && (
@@ -840,13 +897,13 @@ function Documents() {
                 {canReview && signSendStatus && !signSendStatus.enabled && !signRequest?.linked && (
                   <p>El envío de solicitudes todavía no está habilitado en ADN360. No se necesita ningún ID de Odoo.</p>
                 )}
-                {signRequest?.status === "SIGNED" && !signedArtifact?.archived && (
+                {signRequest?.linked && signRequest.status === "SIGNED" && !signedPdfArchived && (
                   <button type="button" className="btn btn-primary btn-sm"
                     disabled={signedBusy} onClick={() => void archiveCompletedSignature()}>
                     {signedBusy ? "Archivando…" : "Archivar PDF firmado de Odoo"}
                   </button>
                 )}
-                {signedArtifact?.archived && (
+                {signedPdfArchived && (
                   <button type="button" className="btn btn-secondary btn-sm"
                     onClick={() => void downloadSignedContract()}>
                     Descargar contrato firmado

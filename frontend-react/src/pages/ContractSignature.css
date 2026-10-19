@@ -70,3 +70,45 @@
     justify-self: stretch;
   }
 }
+
+.employee-documents-page .contract-sign-status {
+  justify-self: start;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--surface);
+  font-size: .83rem;
+  font-weight: 700;
+}
+.employee-documents-page .contract-sign-status-pending {
+  border-color: color-mix(in srgb, var(--blue) 40%, var(--border));
+  background: color-mix(in srgb, var(--blue) 8%, var(--surface));
+}
+.employee-documents-page .contract-sign-status-signed {
+  border-color: color-mix(in srgb, #16a34a 40%, var(--border));
+  background: color-mix(in srgb, #16a34a 8%, var(--surface));
+}
+.employee-documents-page .contract-sign-status-stopped {
+  border-color: color-mix(in srgb, #dc2626 40%, var(--border));
+  background: color-mix(in srgb, #dc2626 8%, var(--surface));
+}
+.employee-documents-page .contract-sign-participants {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.employee-documents-page .contract-sign-participants > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.employee-documents-page .contract-sign-participants strong {
+  font-size: .82rem;
+  text-align: right;
+}
+.employee-documents-page .contract-sign-participants small {
+  margin-top: 0;
+}

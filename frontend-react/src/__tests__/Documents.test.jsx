@@ -371,12 +371,73 @@ describe("Employee document review workspace", () => {
       target: { value: "employee-1" },
     });
     expect(await screen.findByText("Firma parcial")).toBeInTheDocument();
-    expect(screen.getByText("Empleado: completed")).toBeInTheDocument();
+    expect(screen.getByText("Firmado")).toBeInTheDocument();
     expect(screen.queryByLabelText("ID de solicitud en Odoo staging")).not.toBeInTheDocument();
     expect(screen.queryByText("Vincular solicitud de prueba")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Actualizar estado de firmas" }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(base + "/refresh"));
     expect(await screen.findByText("Firmada por ambas partes")).toBeInTheDocument();
+  });
+
+  it("displays request #140 as pending even if the dispatch status is stale UNKNOWN", async () => {
+    useSession.mockReturnValue({
+      principal: { profile: { id: "admin-1" } },
+      hasPermission: (permission) => [
+        "employee_documents.read_all", "employee_documents.review",
+      ].includes(permission),
+    });
+    const contract = {
+      id: "contract-1", document_type: "EMPLOYMENT_CONTRACT",
+      label: "Contrato laboral", description: "Contrato de prueba",
+      admin_only: true, kind: "FILE", original_filename: "contrato.pdf",
+      size_bytes: 200, review_status: "APPROVED", odoo_sign_status: "PREPARED",
+    };
+    const base = "/employee-documents/employees/employee-1/contract/sign/request";
+    api.get.mockImplementation((url) => {
+      if (url === "/employees") return Promise.resolve({
+        data: { items: [{ id: "employee-1", first_name: "Ana", last_name: "Pérez" }] },
+      });
+      if (url === "/employee-documents/employees/employee-1")
+        return Promise.resolve({ data: portfolio([contract]) });
+      if (url === "/employee-documents/employees/employee-1/contract/sign")
+        return Promise.resolve({ data: {
+          template_url: "https://odoo-staging.example.invalid/web#id=812",
+          status: "PREPARED", ready: false,
+        } });
+      if (url === base + "/send-status")
+        return Promise.resolve({ data: { enabled: true, status: "UNKNOWN" } });
+      if (url === base) return Promise.resolve({ data: {
+        linked: true, request_id: 140, status: "PENDING_SIGNATURE",
+        employee: "sent", representative: "sent",
+        checked_at: "2026-10-19T19:27:18.679915+00:00",
+        signed_pdf_archived: false,
+      } });
+      return Promise.resolve({ data: { archived: false } });
+    });
+    api.post.mockResolvedValue({ data: {
+      linked: true, request_id: 140, status: "PARTIALLY_SIGNED",
+      employee: "completed", representative: "sent",
+      signed_pdf_archived: false,
+    } });
+
+    render(<Documents />);
+    await screen.findByRole("option", { name: "Ana Pérez" });
+    fireEvent.change(screen.getByLabelText("Empleado a consultar"), {
+      target: { value: "employee-1" },
+    });
+    expect(await screen.findByText("Pendiente de firma")).toBeInTheDocument();
+    expect(screen.getByText(/Solicitud de Odoo Sign #140/)).toBeInTheDocument();
+    expect(screen.getAllByText("Solicitud enviada")).toHaveLength(2);
+    expect(screen.queryByText("Resultado de envío incierto: no vuelvas a enviarlo.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reconciliar solicitud con Odoo" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Enviar a Odoo Sign (prueba)" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Actualizar estado de firmas" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(base + "/refresh"));
+    expect(await screen.findByText("Firma parcial")).toBeInTheDocument();
+    expect(screen.getByText("Firmado")).toBeInTheDocument();
+    expect(screen.getByText("Solicitud enviada")).toBeInTheDocument();
+    expect(api.post).toHaveBeenCalledTimes(1);
   });
 
   it("places two signature fields from the fictional PDF entirely in ADN360", async () => {
@@ -446,6 +507,7 @@ describe("Employee document review workspace", () => {
       size_bytes: 200, review_status: "APPROVED", odoo_sign_status: "PREPARED",
     };
     const base = "/employee-documents/employees/employee-1/contract/sign/request";
+    let requestSent = false;
     api.get.mockImplementation((url) => {
       if (url === "/employees") return Promise.resolve({
         data: { items: [{ id: "employee-1", first_name: "Ana", last_name: "Pérez" }] },
@@ -460,14 +522,18 @@ describe("Employee document review workspace", () => {
       if (url === base + "/send-status")
         return Promise.resolve({ data: { enabled: true, status: "NOT_SENT" } });
       if (url === base)
-        return Promise.resolve({ data: { linked: false, request_id: null } });
+        return Promise.resolve({ data: requestSent
+          ? { linked: true, request_id: 139, status: "PENDING_SIGNATURE", employee: "sent", representative: "sent" }
+          : { linked: false, request_id: null },
+        });
       return Promise.resolve({ data: {} });
     });
     api.post.mockImplementation((url) => {
       if (url === base + "/automatic-preview") return Promise.resolve({ data: { validated: true } });
-      if (url === base + "/automatic-send") return Promise.resolve({ data: {
-        status: "SENT", request_id: 139,
-      } });
+      if (url === base + "/automatic-send") {
+        requestSent = true;
+        return Promise.resolve({ data: { status: "SENT", request_id: 139 } });
+      }
       return Promise.resolve({ data: {} });
     });
     render(<Documents />);
@@ -491,7 +557,8 @@ describe("Employee document review workspace", () => {
       base + "/automatic-send",
       { confirm: true },
     ));
-    expect(await screen.findByText(/Solicitud de firma creada en Odoo staging/)).toBeInTheDocument();
+    expect(await screen.findByText(/Solicitud de firma vinculada en Odoo staging/)).toBeInTheDocument();
+    expect(await screen.findByText("Pendiente de firma")).toBeInTheDocument();
   });
 
 });
