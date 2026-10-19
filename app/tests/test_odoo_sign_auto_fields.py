@@ -32,6 +32,8 @@ class FakeOdoo:
         self.items = []
         self.writes = []
         self.roles = ["Employee", "Representante legal"]
+        self.reference_roles = ["Employee", "Representante legal"]
+        self.reference_missing = False
         self.good_schema = True
 
     def fields_get(self, model):
@@ -53,13 +55,27 @@ class FakeOdoo:
 
     def search_read(self, model, domain, *, fields, limit):
         if model == "sign.template":
+            queried = domain[0][2]
+            if queried == 128:
+                return [] if self.reference_missing else [
+                    {"id": 128, "sign_item_ids": [762, 763]}
+                ]
+            assert queried == 129
             return [{"id": 129, "sign_item_ids": [item["id"] for item in self.items]}]
         if model == "sign.item.role":
+            # Duplicate global role names are valid in Odoo; production code
+            # must never rely on scanning and uniquely matching all of them.
             return [{"id": 3 + i * 2, "name": label}
                     for i, label in enumerate(self.roles)]
         if model == "sign.item.type":
             return [{"id": 1, "name": "Signature"}]
         if model == "sign.item":
+            if domain == [("id", "in", [762, 763])]:
+                return [
+                    {"id": 762 + i, "type_id": [1, "Signature"],
+                     "responsible_id": [3 + i * 2, label], "required": True}
+                    for i, label in enumerate(self.reference_roles)
+                ]
             return [{**item,
                      "type_id": [item["type_id"], "Signature"],
                      "responsible_id": [item["responsible_id"], "Role"]}
@@ -174,10 +190,36 @@ def test_cannot_position_signatures_after_request_sent(setup):
     assert target.writes == []
 
 
-def test_both_roles_must_be_resolved_uniquely(setup):
+def test_duplicate_global_role_names_do_not_block_verified_reference(setup):
     db, profile, document, target, _ = setup
-    target.roles = ["Employee", "Empleado"]
-    with pytest.raises(sign_fields.SignFieldsUnavailable, match="ambiguos"):
+    target.roles = [
+        "Employee", "Empleado", "Representante legal", "Legal representative",
+    ]
+    result = sign_fields.preview(db, profile, client=target)
+    assert result["can_apply"] is True
+    assert target.writes == []
+
+
+def test_missing_reference_template_fails_closed_without_writing(setup):
+    db, profile, document, target, _ = setup
+    target.reference_missing = True
+    with pytest.raises(sign_fields.SignFieldsUnavailable, match="referencia"):
+        sign_fields.preview(db, profile, client=target)
+    assert target.writes == []
+
+
+def test_duplicate_reference_roles_do_not_write(setup):
+    db, profile, document, target, _ = setup
+    target.reference_roles = ["Employee", "Empleado"]
+    with pytest.raises(sign_fields.SignFieldsUnavailable, match="referencia"):
+        sign_fields.apply(db, profile, client=target)
+    assert target.writes == []
+
+
+def test_unrecognized_reference_role_is_rejected(setup):
+    db, profile, document, target, _ = setup
+    target.reference_roles = ["Customer", "Representante legal"]
+    with pytest.raises(sign_fields.SignFieldsUnavailable, match="referencia"):
         sign_fields.apply(db, profile, client=target)
     assert target.writes == []
 
