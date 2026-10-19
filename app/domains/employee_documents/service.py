@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import case, func
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 
 from app.domains.employee_documents.models import EmployeeDocument
@@ -14,7 +14,7 @@ from app.domains.employee_documents.requirements import (
     get_requirement,
 )
 from app.infrastructure.storage import employee_documents as storage
-from app.models import UserProfile
+from app.models import UserProfile, JobCandidate, Job, Candidate
 
 logger = logging.getLogger(__name__)
 
@@ -404,4 +404,43 @@ def review_queue(db: Session, *, limit: int = 100) -> dict:
             for profile_id, first_name, last_name, email, pending_count, corrections_count, last_submission_at in rows
         ],
         "limit": min(max(int(limit), 1), 100),
+    }
+
+
+def application_select_options(db: Session, *, query: str = "", limit: int = 250) -> dict:
+    """Active applications with a document profile, not the employee directory.
+
+    Each option identifies a vacancy application even when candidates share a
+    profile. Applicant documents are presently stored against that profile.
+    """
+    search = str(query or "").strip()[:120]
+    upper_limit = min(max(int(limit), 1), 250)
+    rows = (
+        db.query(JobCandidate, Candidate, Job, UserProfile)
+        .join(Candidate, JobCandidate.candidate_id == Candidate.id)
+        .join(Job, JobCandidate.job_id == Job.id)
+        .join(UserProfile, JobCandidate.employee_id == UserProfile.id)
+        .filter(
+            JobCandidate.employee_id.isnot(None),
+            JobCandidate.application_status.notin_(("HIRED", "REJECTED", "WITHDRAWN")),
+        )
+    )
+    if search:
+        pattern = f"%{search}%"
+        rows = rows.filter(or_(
+            Candidate.name.ilike(pattern),
+            UserProfile.email.ilike(pattern),
+            Job.title.ilike(pattern),
+        ))
+    result = rows.order_by(JobCandidate.assigned_at.desc(), JobCandidate.id.asc()).limit(upper_limit).all()
+    return {
+        "items": [{
+            "application_id": link.id,
+            "profile_id": person.id,
+            "name": candidate.name,
+            "email": person.email,
+            "job_title": job.title,
+            "status": link.application_status,
+        } for link, candidate, job, person in result],
+        "limit": upper_limit,
     }
