@@ -45,6 +45,7 @@ class HireCandidateRequest(BaseModel):
     department: str | None = Field(default=None, max_length=160)
     country_code: str | None = Field(default=None, max_length=2)
     company_name: str | None = Field(default=None, max_length=160)
+    odoo_company_id: int | None = Field(default=None, gt=0)
     hire_date: date | None = None
     contract: HireContractRequest | None = None
 
