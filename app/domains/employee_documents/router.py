@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_principal, get_db, require_permission
-from app.domains.employee_documents import notifications, service, signing, sign_requests, signed_artifacts, sign_dispatch, sign_send
+from app.domains.employee_documents import notifications, service, signing, sign_requests, signed_artifacts, sign_dispatch, sign_send, sign_fields
 from app.domains.employee_documents.schemas import (
     ConfirmContractSignPreparation,
     LinkStagingSignRequest,
@@ -218,6 +218,41 @@ def prepare_employee_contract_in_odoo_sign(
     except Exception as exc:
         _translate(exc)
 
+
+
+@router.get("/employees/{employee_id}/contract/sign/fields")
+def preview_automatic_signature_fields(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.review")),
+):
+    """Read-only positioning preview derived from the approved demo PDF."""
+    try:
+        return sign_fields.preview(db, employee_id)
+    except sign_fields.SignFieldsNotReady as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except sign_fields.SignFieldsUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.post("/employees/{employee_id}/contract/sign/fields")
+def apply_automatic_signature_fields(
+    employee_id: str,
+    body: ConfirmContractSignPreparation,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.review")),
+):
+    """Place mandatory fields; no signature requests, Odoo mail or user creation."""
+    try:
+        return sign_fields.apply(db, employee_id)
+    except sign_fields.SignFieldsNotReady as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except sign_fields.SignFieldsUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        _translate(exc)
 
 
 @router.get("/employees/{employee_id}/contract/sign/request")
