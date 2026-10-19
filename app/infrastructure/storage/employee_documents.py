@@ -172,10 +172,10 @@ def read_employee_pdf_for_signing(*, employee_id: str, key: str, expected_bytes:
     return body
 
 
-def archive_signed_contract_pdf(
-    *, employee_id: str, request_id: int, payload: bytes,
+def _archive_pdf_artifact(
+    *, employee_id: str, request_id: int, payload: bytes, certificate: bool,
 ) -> dict:
-    """Private, content-addressed signed PDF; never alters the unsigned document."""
+    """Write a private, content-addressed PDF without altering the original."""
     if not isinstance(request_id, int) or request_id <= 0 or type(request_id) is bool:
         raise ValueError("Solicitud de firma inválida.")
     if not isinstance(payload, bytes) or not 100 <= len(payload) <= MAX_EMPLOYEE_DOCUMENT_BYTES:
@@ -183,9 +183,10 @@ def archive_signed_contract_pdf(
     if not payload.startswith(b"%PDF-") or b"%%EOF" not in payload[-2048:]:
         raise ValueError("El archivo recuperado no parece un PDF completo.")
     digest = hashlib.sha256(payload).hexdigest()
+    folder = "certificate/" if certificate else ""
     key = (
         f"{CURRENT_DOCUMENT_PREFIX}/{employee_id}/signed/"
-        f"{request_id}/{digest}.pdf"
+        f"{request_id}/{folder}{digest}.pdf"
     )
     if not key.startswith(_employee_prefixes(employee_id)):
         raise ValueError("Destino de contrato firmado inválido.")
@@ -195,6 +196,28 @@ def archive_signed_contract_pdf(
         Body=payload,
         ContentType="application/pdf",
         ServerSideEncryption="AES256",
-        Metadata={"sha256": digest, "odoo-sign-request-id": str(request_id)},
+        Metadata={
+            "sha256": digest,
+            "odoo-sign-request-id": str(request_id),
+            "odoo-sign-artifact": "certificate" if certificate else "signed-contract",
+        },
     )
     return {"key": key, "sha256": digest, "size_bytes": len(payload)}
+
+
+def archive_signed_contract_pdf(
+    *, employee_id: str, request_id: int, payload: bytes,
+) -> dict:
+    return _archive_pdf_artifact(
+        employee_id=employee_id, request_id=request_id, payload=payload,
+        certificate=False,
+    )
+
+
+def archive_completion_certificate_pdf(
+    *, employee_id: str, request_id: int, payload: bytes,
+) -> dict:
+    return _archive_pdf_artifact(
+        employee_id=employee_id, request_id=request_id, payload=payload,
+        certificate=True,
+    )
