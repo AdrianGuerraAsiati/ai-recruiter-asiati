@@ -932,7 +932,7 @@ function Documents() {
                     onClick={() => void downloadCompletionCertificate()}>
                     Descargar certificado de finalización
                   </button>
-                )
+                )}
                 <small>Odoo gestiona las firmas. ADN360 asocia internamente la solicitud; no necesitas copiar identificadores.</small>
               </div>
             )}
