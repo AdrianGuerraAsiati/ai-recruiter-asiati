@@ -272,5 +272,5 @@ def test_odoo_english_employee_role_works_in_staging_wizard_preflight(setup):
 def test_english_and_spanish_employee_role_cannot_both_replace_legal_role(setup):
     target, _ = setup
     target.role_names = ["Employee", "Empleado"]
-    with pytest.raises(sign_dispatch.DispatchNotReady, match="roles"):
+    with pytest.raises(sign_dispatch.DispatchNotReady, match="Empleado y Representante legal"):
         preflight(target)
