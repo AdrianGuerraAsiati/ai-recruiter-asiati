@@ -15,32 +15,56 @@ PDF = b"%PDF-1.7\n" + b"x" * 228 + b"\n%%EOF\n"
 
 
 class FakeCompletedSign:
-    def __init__(self, *, mimetype="application/pdf", changed_field=False, signed=True):
+    def __init__(self, *, mimetype="application/pdf", changed_field=False,
+                 missing_certificate=False, duplicate_contract=False,
+                 wrong_request=False, corrupt_certificate=False,
+                 extra_attachment=False):
         self.mimetype = mimetype
         self.changed_field = changed_field
-        self.signed = signed
+        self.missing_certificate = missing_certificate
+        self.duplicate_contract = duplicate_contract
+        self.wrong_request = wrong_request
+        self.corrupt_certificate = corrupt_certificate
+        self.extra_attachment = extra_attachment
         self.calls = []
 
     def fields_get(self, model):
         self.calls.append(("fields_get", model))
         if model == "sign.request":
-            return {"completed_document_attachment_id": (
+            return {"completed_document_attachment_ids": (
                 {"type": "binary", "relation": None}
                 if self.changed_field else
-                {"type": "many2one", "relation": "ir.attachment"}
+                {"type": "many2many", "relation": "ir.attachment"}
             )}
         if model == "ir.attachment":
-            return {field: {} for field in ("id", "datas", "mimetype", "name", "file_size")}
+            return {field: {} for field in (
+                "id", "datas", "mimetype", "name", "file_size", "res_model", "res_id"
+            )}
         raise AssertionError("Unexpected model")
 
     def search_read(self, model, domain, *, fields, limit):
         self.calls.append(("search_read", model))
         if model == "sign.request":
-            return [{"id": 139, "completed_document_attachment_id": [990, "Firmado"]}]
+            ids = [990, 991]
+            if self.missing_certificate:
+                ids = [990]
+            if self.extra_attachment:
+                ids.append(992)
+            return [{"id": 139, "completed_document_attachment_ids": ids}]
         if model == "ir.attachment":
-            return [{"id": 990, "mimetype": self.mimetype,
-                     "name": "Contrato firmado.pdf", "file_size": len(PDF),
-                     "datas": base64.b64encode(PDF).decode("ascii")}]
+            return [
+                {"id": 990, "mimetype": self.mimetype, "name": "original.pdf",
+                 "res_model": "sign.request", "res_id": 139, "file_size": len(PDF),
+                 "datas": base64.b64encode(PDF).decode("ascii")},
+                {"id": 991, "mimetype": "application/pdf",
+                 "name": "original.pdf" if self.duplicate_contract else
+                         "Certificate of completion - 2026-10-19 - 20:15:42.pdf",
+                 "res_model": "sign.request",
+                 "res_id": 138 if self.wrong_request else 139,
+                 "file_size": len(PDF),
+                 "datas": "NOT_BASE64" if self.corrupt_certificate else
+                          base64.b64encode(PDF).decode("ascii")},
+            ]
         raise AssertionError("Unexpected model")
 
 
@@ -78,7 +102,7 @@ def fixture(monkeypatch):
     )
     monkeypatch.setenv(
         "ODOO_SIGN_STAGING_SIGNED_ATTACHMENT_FIELD",
-        "completed_document_attachment_id",
+        "completed_document_attachment_ids",
     )
     monkeypatch.setattr(
         sign_requests, "track",
@@ -91,26 +115,37 @@ def fixture(monkeypatch):
         engine.dispose()
 
 
-def test_signed_pdf_is_archived_separately_and_idempotently(fixture):
+def test_signed_pdf_and_certificate_are_archived_separately_and_idempotently(fixture):
     db, employee, contract, monkeypatch = fixture
     saved = []
     def fake_archive(**kwargs):
-        saved.append(kwargs)
+        saved.append(("signed", kwargs))
         return {
             "key": f"training/employee-documents/{employee.id}/signed/139/sha.pdf",
             "sha256": hashlib.sha256(kwargs["payload"]).hexdigest(),
         }
+    def fake_certificate(**kwargs):
+        saved.append(("certificate", kwargs))
+        return {
+            "key": f"training/employee-documents/{employee.id}/signed/139/certificate/sha.pdf",
+            "sha256": hashlib.sha256(kwargs["payload"]).hexdigest(),
+        }
     monkeypatch.setattr(signed_artifacts.storage, "archive_signed_contract_pdf", fake_archive)
+    monkeypatch.setattr(signed_artifacts.storage, "archive_completion_certificate_pdf", fake_certificate)
     fake = FakeCompletedSign()
     result = signed_artifacts.archive(db, employee.id, client=fake)
     assert result["archived"] is True
+    assert result["certificate_archived"] is True
     assert result["sha256"] == hashlib.sha256(PDF).hexdigest()
-    assert saved[0]["payload"] == PDF
+    assert result["certificate_sha256"] == hashlib.sha256(PDF).hexdigest()
+    assert [kind for kind, _ in saved] == ["signed", "certificate"]
+    assert all(row["payload"] == PDF for _, row in saved)
     assert contract.storage_key.endswith("/original.pdf")
     assert contract.odoo_sign_signed_attachment_id == 990
+    assert contract.odoo_sign_certificate_attachment_id == 991
     assert all(action in ("fields_get", "search_read") for action, _ in fake.calls)
     assert signed_artifacts.archive(db, employee.id, client=fake) == result
-    assert len(saved) == 1
+    assert len(saved) == 2
 
 
 @pytest.mark.parametrize("bad", [FakeCompletedSign(changed_field=True),
@@ -119,10 +154,29 @@ def test_archive_fails_closed_when_odoo_schema_or_mime_is_wrong(fixture, bad):
     db, employee, contract, monkeypatch = fixture
     monkeypatch.setattr(signed_artifacts.storage, "archive_signed_contract_pdf",
                         lambda **kw: pytest.fail("Never write invalid artifact"))
+    monkeypatch.setattr(signed_artifacts.storage, "archive_completion_certificate_pdf",
+                        lambda **kw: pytest.fail("Never write invalid artifact"))
     with pytest.raises((signed_artifacts.ArchiveNotReady,
                         signed_artifacts.ArchiveUnavailable)):
         signed_artifacts.archive(db, employee.id, client=bad)
     assert contract.odoo_sign_signed_storage_key is None
+
+
+@pytest.mark.parametrize("bad", [
+    FakeCompletedSign(missing_certificate=True),
+    FakeCompletedSign(duplicate_contract=True),
+    FakeCompletedSign(wrong_request=True),
+    FakeCompletedSign(corrupt_certificate=True),
+    FakeCompletedSign(extra_attachment=True),
+])
+def test_archive_rejects_missing_ambiguous_foreign_or_corrupt_certificates(fixture, bad):
+    db, employee, contract, monkeypatch = fixture
+    monkeypatch.setattr(signed_artifacts.storage, "archive_signed_contract_pdf",
+                        lambda **kw: pytest.fail("Never store an unverified pair"))
+    with pytest.raises(signed_artifacts.ArchiveNotReady):
+        signed_artifacts.archive(db, employee.id, client=bad)
+    assert contract.odoo_sign_signed_storage_key is None
+    assert contract.odoo_sign_certificate_storage_key is None
 
 
 def test_disabled_archive_cannot_contact_odoo(fixture, monkeypatch):
@@ -160,6 +214,14 @@ def test_private_archive_uses_content_hash_and_never_replaces_original(monkeypat
     assert stored[0]["Body"] == PDF
     assert stored[0]["ServerSideEncryption"] == "AES256"
     assert stored[0]["Metadata"]["odoo-sign-request-id"] == "139"
+    assert stored[0]["Metadata"]["odoo-sign-artifact"] == "signed-contract"
+    cert = storage.archive_completion_certificate_pdf(
+        employee_id="fixture-1", request_id=139, payload=PDF,
+    )
+    assert cert["sha256"] == hashlib.sha256(PDF).hexdigest()
+    assert "/signed/139/certificate/" in cert["key"]
+    assert stored[1]["ServerSideEncryption"] == "AES256"
+    assert stored[1]["Metadata"]["odoo-sign-artifact"] == "certificate"
 
 
 @pytest.mark.parametrize("request_id,payload", [
@@ -183,14 +245,22 @@ def test_archived_pdf_status_and_download_return_only_the_signed_key(fixture, mo
         signed_artifacts.download(db, employee.id)
     contract.odoo_sign_signed_storage_key = "training/employee-documents/signed-id/signed/139/file.pdf"
     contract.odoo_sign_signed_sha256 = "c" * 64
+    contract.odoo_sign_certificate_storage_key = "training/employee-documents/signed-id/signed/139/certificate/file.pdf"
+    contract.odoo_sign_certificate_sha256 = "d" * 64
     db.commit()
     requested = []
     monkeypatch.setattr(signed_artifacts.storage, "create_document_download_url",
                         lambda key, filename: requested.append(key) or "https://example.invalid/file")
     link = signed_artifacts.download(db, employee.id)
     assert link["url"] == "https://example.invalid/file"
-    assert requested == [contract.odoo_sign_signed_storage_key]
+    certificate_link = signed_artifacts.download_certificate(db, employee.id)
+    assert certificate_link["url"] == "https://example.invalid/file"
+    assert requested == [
+        contract.odoo_sign_signed_storage_key,
+        contract.odoo_sign_certificate_storage_key,
+    ]
     assert signed_artifacts.status(db, employee.id)["archived"] is True
+    assert signed_artifacts.status(db, employee.id)["certificate_sha256"] == "d" * 64
 
 
 def test_unverified_signed_attachment_relation_cannot_be_archived(fixture, monkeypatch):
@@ -207,7 +277,7 @@ def test_missing_or_ambiguous_remote_signed_attachment_fails_closed(fixture, mon
     original = fake.search_read
     def remote(model, domain, *, fields, limit):
         if model == "sign.request":
-            return [{"id": 139, "completed_document_attachment_id": False}]
+            return [{"id": 139, "completed_document_attachment_ids": False}]
         return original(model, domain, fields=fields, limit=limit)
     fake.search_read = remote
     with pytest.raises(signed_artifacts.ArchiveNotReady):
