@@ -100,6 +100,15 @@ def save_my_document_value(
         _translate(exc)
 
 
+@router.get("/applications")
+def applicant_document_options(
+    q: str = "",
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.read_all")),
+):
+    return service.application_select_options(db, query=q)
+
+
 @router.get("/review-queue")
 def document_review_queue(
     db: Session = Depends(get_db),
