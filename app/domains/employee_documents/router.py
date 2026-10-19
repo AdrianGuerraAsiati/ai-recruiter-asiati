@@ -460,6 +460,33 @@ def download_signed_contract_as_hr(
         _translate(exc)
 
 
+@router.get("/employees/{employee_id}/contract/signed/certificate/download")
+def download_signed_certificate_as_hr(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employee_documents.read_all")),
+):
+    try:
+        return signed_artifacts.download_certificate(db, employee_id)
+    except signed_artifacts.ArchiveNotReady as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.get("/me/contract/signed/certificate/download")
+def download_own_signed_certificate(
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("employee_documents.read_own")),
+):
+    try:
+        return signed_artifacts.download_certificate(db, principal["profile"]["id"])
+    except signed_artifacts.ArchiveNotReady as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        _translate(exc)
+
+
 @router.get("/me/contract/signed")
 def own_signed_contract_status(
     db: Session = Depends(get_db),
