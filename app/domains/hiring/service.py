@@ -15,6 +15,7 @@ from app.domains.employees import service as employees_service
 from app.domains.employee_documents import notifications as document_notifications
 from app.domains.employee_documents.models import EmployeeDocument
 from app.domains.indeed import service as indeed_service
+from app.domains.odoo_sync import company_catalog
 from app.domains.odoo_sync import contract_delivery
 from app.domains.odoo_sync import employee_delivery
 from app.domains.odoo_sync import integration as odoo_integration
@@ -365,6 +366,7 @@ def hire_candidate(
     department: str | None = None,
     country_code: str | None = None,
     company_name: str | None = None,
+    odoo_company_id: int | None = None,
     hire_date: date | None = None,
     contract: dict | None = None,
     cognito_client=None,
@@ -403,7 +405,21 @@ def hire_candidate(
     resolved_job_title = str(job_title or job.title or "").strip() or None
     resolved_department = str(department or "").strip() or None
     resolved_country_code = str(country_code or getattr(job, "country_code", None) or "").strip().upper() or None
-    resolved_company_name = str(company_name or getattr(job, "company_name", None) or "").strip() or None
+    # Resolve company from Odoo before any employee, Cognito, or outbox writes.
+    # For legacy calls, the existing company name remains supported until the
+    # signature-first flow is enabled in production.
+    if odoo_company_id is not None:
+        try:
+            selected_company = company_catalog.require_company(odoo_company_id)
+        except company_catalog.OdooCompanyNotFound as exc:
+            raise HiringValidationError(str(exc)) from exc
+        except (odoo_integration.OdooDisabled, odoo_integration.OdooNotConfigured):
+            raise HiringConflictError("No está disponible el catálogo de empresas de Odoo.") from None
+        resolved_company_name = selected_company["name"]
+    elif signed_contract_hiring_gate_enabled():
+        raise HiringValidationError("Debes seleccionar una empresa activa de Odoo antes de contratar.")
+    else:
+        resolved_company_name = str(company_name or getattr(job, "company_name", None) or "").strip() or None
     resolved_hire_date = hire_date or date.today()
 
     if link.employee_id:
