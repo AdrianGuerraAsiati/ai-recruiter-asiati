@@ -275,3 +275,34 @@
     width: 100%;
   }
 }
+
+/* Application-first intake: readable controls with deliberate vertical space. */
+.employee-documents-page .document-employee-selector {
+  gap: clamp(18px, 2.2vw, 28px);
+  align-items: start;
+}
+.employee-documents-page .document-employee-selector > .form-group {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.employee-documents-page .document-employee-selector input,
+.employee-documents-page .document-employee-selector select {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 10px 14px;
+  font-size: .94rem;
+  line-height: 1.35;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.employee-documents-page .document-employee-selector label + select {
+  margin-top: 2px;
+}
+.employee-documents-page .document-employee-selector small {
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
