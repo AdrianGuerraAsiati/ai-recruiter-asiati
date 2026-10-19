@@ -379,6 +379,59 @@ describe("Employee document review workspace", () => {
     expect(await screen.findByText("Firmada por ambas partes")).toBeInTheDocument();
   });
 
+  it("places two signature fields from the fictional PDF entirely in ADN360", async () => {
+    useSession.mockReturnValue({
+      principal: { profile: { id: "admin-1" } },
+      hasPermission: (p) => [
+        "employee_documents.read_own", "employee_documents.read_all",
+        "employee_documents.review",
+      ].includes(p),
+    });
+    const contract = {
+      id: "contract-1", document_type: "EMPLOYMENT_CONTRACT",
+      label: "Contrato laboral", description: "Documento ficticio",
+      admin_only: true, kind: "FILE",
+      original_filename: "ADN360_contrato_ficticio_prueba_Odoo_Sign.pdf",
+      size_bytes: 700, review_status: "APPROVED", odoo_sign_status: "PREPARED",
+    };
+    const fieldsPath = "/employee-documents/employees/employee-1/contract/sign/fields";
+    api.get.mockImplementation((url) => {
+      if (url === "/employees") return Promise.resolve({
+        data: { items: [{ id: "employee-1", first_name: "Ana", last_name: "Pérez" }] },
+      });
+      if (url === "/employee-documents/employees/employee-1")
+        return Promise.resolve({ data: portfolio([contract]) });
+      if (url === "/employee-documents/employees/employee-1/contract/sign")
+        return Promise.resolve({ data: {
+          template_url: "https://odoo-staging.example.invalid/web#id=129",
+          status: "PREPARED", ready: false,
+        } });
+      if (url === fieldsPath) return Promise.resolve({ data: {
+        configured: false, can_apply: true, roles: ["Empleado", "Representante legal"],
+      } });
+      return Promise.resolve({ data: {} });
+    });
+    api.post.mockImplementation((url) => {
+      if (url === fieldsPath) return Promise.resolve({
+        data: { configured: true, can_apply: false },
+      });
+      return Promise.resolve({ data: {} });
+    });
+    render(<Documents />);
+    await screen.findByRole("option", { name: "Ana Pérez" });
+    fireEvent.change(screen.getByLabelText("Empleado a consultar"), {
+      target: { value: "employee-1" },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Detectar dos campos de firma" }));
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(fieldsPath));
+    fireEvent.click(await screen.findByRole("button", { name: "Colocar ambas firmas en Odoo" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      fieldsPath, { confirm: true },
+    ));
+    expect(await screen.findByText(/Ambas firmas obligatorias están configuradas/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("ID de solicitud en Odoo staging")).not.toBeInTheDocument();
+  });
+
   it("requires staging preview and explicit confirmation before one-time Sign send", async () => {
     useSession.mockReturnValue({
       principal: { profile: { id: "admin-1" } },
