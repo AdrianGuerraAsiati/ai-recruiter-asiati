@@ -153,6 +153,9 @@ def build_wizard_values(
     return {
         "filename": filename,
         "template_id": template_id,
+        # Odoo Sign 18's wizard does not infer this from signer_ids on create.
+        # An unset count remains 0 even with two valid signer rows.
+        "signers_count": 2,
         "subject": "ADN360 - Firma de contrato laboral (PRUEBA)",
         "set_sign_order": True,
         "signer_ids": [
@@ -200,6 +203,7 @@ def preview(
             "set_sign_order": ("boolean", None),
             "subject": ("char", None),
             "filename": ("char", None),
+            "signers_count": ("integer", None),
         })
         _fields(target, "sign.send.request.signer", {
             "partner_id": ("many2one", "res.partner"),
@@ -271,7 +275,7 @@ def preview(
             representative_role_id=by_name["representative"],
             filename=filename,
         )
-        assert len(_wizard_values["signer_ids"]) == 2
+        assert len(_wizard_values["signer_ids"]) == _wizard_values["signers_count"] == 2
         result = {
             "validated": True,
             "environment": "staging",
