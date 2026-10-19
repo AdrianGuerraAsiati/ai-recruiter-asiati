@@ -131,19 +131,66 @@ def _validate_odoo(target, template_id: int) -> tuple[dict, list[int]]:
     return fields, existing
 
 
+# Odoo staging neutralized fixture manually inspected on 2026-10-19.
+# The reference template contains exactly two mandatory Signature fields with
+# Odoo's established Employee and Representante legal roles. Unlike a global
+# search for sign.item.role, this remains deterministic when additional roles
+# share the same translated label in Odoo.
+STAGING_ROLE_REFERENCE_TEMPLATE_ID = 128
+
+
 def _roles_and_type(target) -> tuple[dict[str, int], int]:
-    roles = target.search_read("sign.item.role", [], fields=["id", "name"], limit=100)
+    """Resolve roles from the audited two-signer reference template, not names."""
+    references = target.search_read(
+        "sign.template",
+        [("id", "=", STAGING_ROLE_REFERENCE_TEMPLATE_ID)],
+        fields=["id", "sign_item_ids"],
+        limit=2,
+    )
+    if (len(references) != 1
+            or references[0].get("id") != STAGING_ROLE_REFERENCE_TEMPLATE_ID):
+        raise SignFieldsUnavailable(
+            "Falta la plantilla de referencia de roles validada en Odoo staging."
+        )
+    item_ids = references[0].get("sign_item_ids")
+    if (not isinstance(item_ids, list) or len(item_ids) != 2
+            or not all(type(i) is int and i > 0 for i in item_ids)
+            or len(set(item_ids)) != 2):
+        raise SignFieldsUnavailable(
+            "La plantilla de referencia debe tener exactamente dos firmas."
+        )
+    rows = target.search_read(
+        "sign.item", [("id", "in", item_ids)],
+        fields=["id", "responsible_id", "type_id", "required"], limit=3,
+    )
+    if len(rows) != 2 or {r.get("id") for r in rows} != set(item_ids):
+        raise SignFieldsUnavailable(
+            "No se pudieron verificar los campos de firma de referencia."
+        )
     mapped = {}
-    for item in roles:
-        role = sign_requests.canonical_role([item["id"], item.get("name")])
-        if role:
-            if role in mapped:
-                raise SignFieldsUnavailable("Odoo contiene roles de firma ambiguos.")
-            mapped[role] = item["id"]
-    if set(mapped) != {"employee", "representative"}:
-        raise SignFieldsUnavailable("Los roles de firma no están configurados en Odoo.")
-    types = target.search_read("sign.item.type", [("id", "=", 1)],
-                               fields=["id", "name"], limit=1)
+    for item in rows:
+        role_field = item.get("responsible_id")
+        role = sign_requests.canonical_role(role_field)
+        role_id = sign_requests._m2o_id(role_field)
+        type_id = sign_requests._m2o_id(item.get("type_id"))
+        if (role not in ("employee", "representative")
+                or type(role_id) is not int or role_id <= 0
+                or type_id != 1 or item.get("required") is not True
+                or role in mapped):
+            raise SignFieldsUnavailable(
+                "La plantilla de referencia no contiene las dos firmas verificadas."
+            )
+        mapped[role] = role_id
+    if (set(mapped) != {"employee", "representative"}
+            or mapped["employee"] == mapped["representative"]):
+        raise SignFieldsUnavailable(
+            "La plantilla de referencia no contiene los dos roles esperados."
+        )
+    # Validate that the reference's known signature type is still available.
+    types = target.search_read(
+        "sign.item.type", [("id", "=", 1)],
+        fields=["id", "name"], limit=1,
+    )
     if (len(types) != 1 or types[0].get("id") != 1
             or str(types[0].get("name") or "").casefold() not in ("signature", "firma")):
         raise SignFieldsUnavailable("No se encontró el tipo de campo Firma esperado.")
