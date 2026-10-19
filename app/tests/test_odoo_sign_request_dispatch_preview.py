@@ -15,6 +15,7 @@ class FakeOdoo:
                 "set_sign_order": {"type": "boolean"},
                 "subject": {"type": "char"},
                 "filename": {"type": "char", "required": True},
+                "signers_count": {"type": "integer"},
             },
             "sign.send.request.signer": {
                 "partner_id": {"type": "many2one", "relation": "res.partner"},
@@ -117,6 +118,7 @@ def test_two_signers_exact_template_order_and_no_remote_writes(setup):
 @pytest.mark.parametrize("target_change, expected_exception", [
     (lambda x: x.models["sign.send.request"].pop("subject"), sign_dispatch.DispatchUnavailable),
     (lambda x: x.models["sign.send.request"].pop("filename"), sign_dispatch.DispatchUnavailable),
+    (lambda x: x.models["sign.send.request"].pop("signers_count"), sign_dispatch.DispatchUnavailable),
     (lambda x: x.models["sign.send.request.signer"]["role_id"].update(relation="res.partner"),
      sign_dispatch.DispatchUnavailable),
     (lambda x: x.models["sign.item"].clear(), sign_dispatch.DispatchUnavailable),
@@ -217,6 +219,7 @@ def test_odoo_wizard_payload_has_exact_two_roles_and_deterministic_order():
     assert wizard == {
         "filename": "contrato.pdf",
         "template_id": 128,
+        "signers_count": 2,
         "subject": "ADN360 - Firma de contrato laboral (PRUEBA)",
         "set_sign_order": True,
         "signer_ids": [

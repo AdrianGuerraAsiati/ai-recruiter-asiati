@@ -28,6 +28,7 @@ class FakeOdoo:
                 "set_sign_order": {"type": "boolean"},
                 "subject": {"type": "char"},
                 "filename": {"type": "char", "required": True},
+                "signers_count": {"type": "integer"},
             },
             "sign.send.request.signer": {
                 "partner_id": {"type": "many2one", "relation": "res.partner"},
@@ -108,6 +109,7 @@ class FakeOdoo:
         self.create_count += 1
         self.wizard = values
         assert values["filename"] == "contrato.pdf"
+        assert values["signers_count"] == len(values["signer_ids"]) == 2
         assert values["set_sign_order"] is True
         assert [part[2]["mail_sent_order"] for part in values["signer_ids"]] == [1, 2]
         return 710
