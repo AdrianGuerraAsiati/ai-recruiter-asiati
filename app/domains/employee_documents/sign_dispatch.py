@@ -234,9 +234,12 @@ def preview(
             "sign.item.role", [("id", "in", sorted(role_ids))],
             fields=["id", "name"], limit=3,
         )
-        expected = {value.casefold() for value in sign_requests.ROLE_NAMES.values()}
-        by_name = {str(item.get("name") or "").strip().casefold(): item.get("id") for item in roles}
-        if len(roles) != 2 or set(by_name) != expected or len(set(by_name.values())) != 2:
+        by_name = {
+            sign_requests.canonical_role([item.get("id"), item.get("name")]): item.get("id")
+            for item in roles
+        }
+        if (len(roles) != 2 or set(by_name) != {"employee", "representative"}
+                or len(set(by_name.values())) != 2):
             raise DispatchNotReady("Los campos deben pertenecer a Empleado y Representante legal.")
 
         allowed = sign_requests._allowed_signer_addresses()
@@ -250,8 +253,8 @@ def preview(
             template_id=document.odoo_sign_template_id,
             employee_partner_id=employee_partner_id,
             representative_partner_id=representative_partner_id,
-            employee_role_id=by_name["empleado"],
-            representative_role_id=by_name["representante legal"],
+            employee_role_id=by_name["employee"],
+            representative_role_id=by_name["representative"],
         )
         assert len(_wizard_values["signer_ids"]) == 2
         result = {

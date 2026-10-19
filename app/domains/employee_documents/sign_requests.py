@@ -24,6 +24,18 @@ class SignTrackingConflict(ValueError):
 
 
 ROLE_NAMES = {"employee": "Empleado", "representative": "Representante legal"}
+ROLE_ALIASES = {
+    "empleado": "employee",
+    "employee": "employee",
+    "representante legal": "representative",
+    "legal representative": "representative",
+}
+
+
+def canonical_role(value) -> str | None:
+    """Normalize Odoo's translated role display names; reject unknown roles."""
+    return ROLE_ALIASES.get(_m2o_name(value).casefold())
+
 SIGNED_STATES = frozenset({"signed", "completed"})
 CANCELLED_STATES = frozenset({"cancel", "canceled", "cancelled", "refused", "rejected"})
 EXPIRED_STATES = frozenset({"expired"})
@@ -90,19 +102,15 @@ def _read_remote(target, request_id: int, *, template_id: int) -> dict:
         if len(items) != 2 or {i.get("id") for i in items} != set(ids):
             raise SignTrackingConflict("No fue posible verificar los dos firmantes.")
 
-        expected_roles = {name.casefold() for name in ROLE_NAMES.values()}
-        actual_roles = {_m2o_name(item.get("role_id")).casefold() for item in items}
-        if actual_roles != expected_roles:
+        by_role = {canonical_role(item.get("role_id")): item for item in items}
+        if len(by_role) != 2 or set(by_role) != {"employee", "representative"}:
             raise SignTrackingConflict("Se requieren los roles Empleado y Representante legal.")
         addresses = {str(item.get("signer_email") or "").strip().casefold() for item in items}
         if len(addresses) != 2 or not addresses.issubset(_allowed_signer_addresses()):
             raise SignTrackingConflict("Los firmantes no coinciden con los correos ficticios autorizados.")
 
         states = {
-            "employee": next(str(i["state"]).casefold() for i in items
-                             if _m2o_name(i["role_id"]).casefold() == "empleado"),
-            "representative": next(str(i["state"]).casefold() for i in items
-                                   if _m2o_name(i["role_id"]).casefold() == "representante legal"),
+            role: str(item["state"]).casefold() for role, item in by_role.items()
         }
         overall = str(remote.get("state") or "").casefold()
         if overall in CANCELLED_STATES:

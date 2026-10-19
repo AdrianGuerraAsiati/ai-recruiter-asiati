@@ -80,6 +80,8 @@ function Documents() {
   const [welcomeBusy, setWelcomeBusy] = useState(false);
   const [signReadiness, setSignReadiness] = useState(null);
   const [signBusy, setSignBusy] = useState(false);
+  const [signFieldsPreview, setSignFieldsPreview] = useState(null);
+  const [signFieldsBusy, setSignFieldsBusy] = useState(false);
   const [signRequest, setSignRequest] = useState(null);
   const [signRequestBusy, setSignRequestBusy] = useState(false);
   const [signSendStatus, setSignSendStatus] = useState(null);
@@ -190,6 +192,7 @@ function Documents() {
 
   function selectEmployee(employeeId) {
     setSignReadiness(null);
+    setSignFieldsPreview(null);
     setSignRequest(null);
     setSignSendStatus(null);
     setSignSendPreview(false);
@@ -522,6 +525,33 @@ function Documents() {
     }
   }
 
+  async function manageDemoSignatureFields(apply = false) {
+    if (!canReview || viewingOwn || !selectedEmployeeId || signFieldsBusy) return;
+    setSignFieldsBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const path = `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract/sign/fields`;
+      const { data } = apply
+        ? await api.post(path, { confirm: true })
+        : await api.get(path);
+      setSignFieldsPreview(data);
+      setSuccess(apply
+        ? "Odoo Sign ya tiene las dos firmas obligatorias, ubicadas en el PDF ficticio."
+        : data.configured
+          ? "Los dos campos ya están configurados en Odoo Sign."
+          : "Detectamos dos zonas separadas en el PDF. Puedes configurar ambas desde ADN360.");
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: apply ? "configurar firmas" : "detectar zonas de firma",
+        resource: "Odoo Sign staging",
+        fallback: "No se pudo validar la posición de las firmas. La plantilla no se modificó.",
+      }));
+    } finally {
+      setSignFieldsBusy(false);
+    }
+  }
+
   async function refreshSignRequest() {
     if (!canReview || viewingOwn || signRequestBusy || !signRequest?.linked) return;
     const path = `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract/sign/request`;
@@ -724,6 +754,28 @@ function Documents() {
               >
                 {signBusy ? "Preparando…" : "Preparar en Odoo Sign"}
               </button>
+            )}
+            {item.original_filename === "ADN360_contrato_ficticio_prueba_Odoo_Sign.pdf"
+              && item.review_status === "APPROVED" && signReadiness?.template_url && (
+              <div className="contract-sign-request-controls" aria-label="Campos de firma de demostración">
+                <strong>Firmas en el documento de prueba</strong>
+                <p>ADN360 puede encontrar dos recuadros para Empleado y Representante legal y configurarlos en la plantilla de Odoo.</p>
+                <button type="button" className="btn btn-secondary btn-sm"
+                  disabled={signFieldsBusy}
+                  onClick={() => void manageDemoSignatureFields(false)}>
+                  {signFieldsBusy ? "Comprobando…" : "Detectar dos campos de firma"}
+                </button>
+                {signFieldsPreview?.can_apply && (
+                  <button type="button" className="btn btn-primary btn-sm"
+                    disabled={signFieldsBusy}
+                    onClick={() => void manageDemoSignatureFields(true)}>
+                    {signFieldsBusy ? "Configurando…" : "Colocar ambas firmas en Odoo"}
+                  </button>
+                )}
+                {signFieldsPreview?.configured && (
+                  <p role="status">Ambas firmas obligatorias están configuradas. Odoo todavía no ha enviado ninguna solicitud.</p>
+                )}
+              </div>
             )}
             {item.id && signReadiness?.template_url && (
               <div className="contract-sign-request-panel" aria-label="Seguimiento de firmas en staging">
