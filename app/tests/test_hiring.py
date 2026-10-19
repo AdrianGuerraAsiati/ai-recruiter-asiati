@@ -581,6 +581,26 @@ def test_hire_succeeds_even_when_welcome_email_delivery_fails(db, monkeypatch):
     assert result["onboarding_assignment"]
 
 
+def test_hiring_rejects_unverified_odoo_company_without_employee_side_effects(db, monkeypatch):
+    job, candidate, link = _application(db)
+    from app.domains.odoo_sync import company_catalog
+    def invalid_company(*args, **kwargs):
+        raise company_catalog.OdooCompanyNotFound("Empresa inactiva en Odoo.")
+    monkeypatch.setattr(company_catalog, "require_company", invalid_company)
+    cognito = FakeCognito()
+    with pytest.raises(hiring_service.HiringValidationError, match="Empresa inactiva"):
+        hiring_service.hire_candidate(
+            db, owner_sub="admin-sub", job_id=job.id,
+            candidate_id=candidate.id, created_by_sub="admin-sub",
+            username="ana", odoo_company_id=123, cognito_client=cognito,
+        )
+    assert cognito.created == []
+    assert db.query(OdooEmployeeSync).count() == 0
+    assert db.query(UserProfile).count() == 0
+    db.refresh(link)
+    assert link.application_status == "OFFER"
+
+
 def test_signature_hiring_gate_denies_without_contract_before_provisioning(db, monkeypatch):
     from app.domains.hiring.service import HiringConflictError
     job, candidate, link = _application(db)
