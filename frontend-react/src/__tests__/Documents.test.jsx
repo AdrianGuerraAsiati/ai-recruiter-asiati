@@ -507,6 +507,7 @@ describe("Employee document review workspace", () => {
       size_bytes: 200, review_status: "APPROVED", odoo_sign_status: "PREPARED",
     };
     const base = "/employee-documents/employees/employee-1/contract/sign/request";
+    let requestSent = false;
     api.get.mockImplementation((url) => {
       if (url === "/employees") return Promise.resolve({
         data: { items: [{ id: "employee-1", first_name: "Ana", last_name: "Pérez" }] },
@@ -521,14 +522,18 @@ describe("Employee document review workspace", () => {
       if (url === base + "/send-status")
         return Promise.resolve({ data: { enabled: true, status: "NOT_SENT" } });
       if (url === base)
-        return Promise.resolve({ data: { linked: false, request_id: null } });
+        return Promise.resolve({ data: requestSent
+          ? { linked: true, request_id: 139, status: "PENDING_SIGNATURE", employee: "sent", representative: "sent" }
+          : { linked: false, request_id: null },
+        });
       return Promise.resolve({ data: {} });
     });
     api.post.mockImplementation((url) => {
       if (url === base + "/automatic-preview") return Promise.resolve({ data: { validated: true } });
-      if (url === base + "/automatic-send") return Promise.resolve({ data: {
-        status: "SENT", request_id: 139,
-      } });
+      if (url === base + "/automatic-send") {
+        requestSent = true;
+        return Promise.resolve({ data: { status: "SENT", request_id: 139 } });
+      }
       return Promise.resolve({ data: {} });
     });
     render(<Documents />);
@@ -552,7 +557,8 @@ describe("Employee document review workspace", () => {
       base + "/automatic-send",
       { confirm: true },
     ));
-    expect(await screen.findByText(/Solicitud de firma creada en Odoo staging/)).toBeInTheDocument();
+    expect(await screen.findByText(/Solicitud de firma vinculada en Odoo staging/)).toBeInTheDocument();
+    expect(await screen.findByText("Pendiente de firma")).toBeInTheDocument();
   });
 
 });
