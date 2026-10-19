@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.deps import get_db, require_permission
 from app.domains.odoo_sync import (
     applicant_import,
+    company_catalog,
     contract_delivery,
     employee_delivery,
     employee_import,
@@ -17,6 +18,22 @@ from app.integrations.odoo.client import OdooClientError
 
 
 router = APIRouter(prefix="/api/odoo", tags=["odoo"])
+
+
+@router.get("/companies")
+def list_odoo_companies(
+    _principal: dict = Depends(require_permission("employees.create")),
+):
+    """Active companies visible in the configured Odoo environment; no logos or credentials."""
+    try:
+        return {"items": company_catalog.list_companies()}
+    except (integration.OdooDisabled, integration.OdooNotConfigured, OdooClientError) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="No se pudo consultar el catálogo de empresas de Odoo.",
+        ) from exc
+
+
 
 
 @router.get("/diagnostics")
