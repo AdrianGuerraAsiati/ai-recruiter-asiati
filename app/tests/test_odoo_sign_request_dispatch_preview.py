@@ -14,6 +14,7 @@ class FakeOdoo:
                 "signer_ids": {"type": "one2many", "relation": "sign.send.request.signer"},
                 "set_sign_order": {"type": "boolean"},
                 "subject": {"type": "char"},
+                "filename": {"type": "char", "required": True},
             },
             "sign.send.request.signer": {
                 "partner_id": {"type": "many2one", "relation": "res.partner"},
@@ -81,6 +82,7 @@ def setup(monkeypatch):
     contract = SimpleNamespace(
         odoo_sign_status="PREPARED",
         odoo_sign_template_id=128,
+        original_filename="contrato.pdf",
         review_status="APPROVED",
         storage_key="training/employee-documents/employee-test/original.pdf",
         odoo_sign_source_key="training/employee-documents/employee-test/original.pdf",
@@ -114,6 +116,7 @@ def test_two_signers_exact_template_order_and_no_remote_writes(setup):
 
 @pytest.mark.parametrize("target_change, expected_exception", [
     (lambda x: x.models["sign.send.request"].pop("subject"), sign_dispatch.DispatchUnavailable),
+    (lambda x: x.models["sign.send.request"].pop("filename"), sign_dispatch.DispatchUnavailable),
     (lambda x: x.models["sign.send.request.signer"]["role_id"].update(relation="res.partner"),
      sign_dispatch.DispatchUnavailable),
     (lambda x: x.models["sign.item"].clear(), sign_dispatch.DispatchUnavailable),
@@ -209,9 +212,10 @@ def test_sending_flag_does_not_trigger_mutations(setup, monkeypatch):
 def test_odoo_wizard_payload_has_exact_two_roles_and_deterministic_order():
     wizard = sign_dispatch.build_wizard_values(
         template_id=128, employee_partner_id=301, representative_partner_id=302,
-        employee_role_id=51, representative_role_id=52,
+        employee_role_id=51, representative_role_id=52, filename="contrato.pdf",
     )
     assert wizard == {
+        "filename": "contrato.pdf",
         "template_id": 128,
         "subject": "ADN360 - Firma de contrato laboral (PRUEBA)",
         "set_sign_order": True,
@@ -225,16 +229,26 @@ def test_odoo_wizard_payload_has_exact_two_roles_and_deterministic_order():
 def test_odoo_wizard_payload_rejects_same_partner_role_or_invalid_identifier():
     for values in (
         dict(template_id=0, employee_partner_id=301, representative_partner_id=302,
-             employee_role_id=51, representative_role_id=52),
+             employee_role_id=51, representative_role_id=52, filename="contrato.pdf"),
         dict(template_id=128, employee_partner_id=301, representative_partner_id=301,
-             employee_role_id=51, representative_role_id=52),
+             employee_role_id=51, representative_role_id=52, filename="contrato.pdf"),
         dict(template_id=128, employee_partner_id=301, representative_partner_id=302,
-             employee_role_id=51, representative_role_id=51),
+             employee_role_id=51, representative_role_id=51, filename="contrato.pdf"),
         dict(template_id=128, employee_partner_id=True, representative_partner_id=302,
-             employee_role_id=51, representative_role_id=52),
+             employee_role_id=51, representative_role_id=52, filename="contrato.pdf"),
     ):
         with pytest.raises(sign_dispatch.DispatchNotReady):
             sign_dispatch.build_wizard_values(**values)
+
+
+def test_wizard_rejects_invalid_pdf_filename():
+    for filename in ("", "contrato.docx", "../contrato.pdf", "folder\\\\contrato.pdf"):
+        with pytest.raises(sign_dispatch.DispatchNotReady, match="nombre"):
+            sign_dispatch.build_wizard_values(
+                template_id=128, employee_partner_id=301,
+                representative_partner_id=302, employee_role_id=51,
+                representative_role_id=52, filename=filename,
+            )
 
 
 def test_staging_credentials_missing_fails_sanitized(setup, monkeypatch):
