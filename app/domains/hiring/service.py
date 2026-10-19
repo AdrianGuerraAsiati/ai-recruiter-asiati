@@ -509,7 +509,7 @@ def hire_candidate(
         "company_name": resolved_company_name,
         "hire_date": resolved_hire_date,
     }.items():
-        if value is not None and not getattr(employee, field):
+        if value is not None and (not getattr(employee, field) or (field == "company_name" and odoo_company_id is not None)) and getattr(employee, field) != value:
             setattr(employee, field, value)
             changed = True
     if changed:
@@ -568,6 +568,7 @@ def hire_candidate(
         candidate=candidate,
         job=job,
         application=link,
+        odoo_company_id=odoo_company_id,
     )
     contract_sync = None
     if contract is not None:
