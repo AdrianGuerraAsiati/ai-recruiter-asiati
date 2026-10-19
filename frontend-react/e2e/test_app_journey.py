@@ -104,6 +104,16 @@ def _api_contract(route: Route) -> None:
             },
         )
         return
+    if path == "/api/employee-documents/applications" and method == "GET":
+        _json(route, {"items": [{
+            "application_id": "app-1", "profile_id": "employee-1",
+            "name": "Ana Pérez", "email": "ana@asiati.com.co",
+            "job_title": "Analista", "status": "SELECTED",
+        }]})
+        return
+    if path == "/api/employee-documents/review-queue" and method == "GET":
+        _json(route, {"items": []})
+        return
     if path == "/api/employee-documents/me" and method == "GET":
         _json(
             route,
@@ -392,9 +402,9 @@ def test_admin_can_review_employee_documents_in_chromium(app_page: Page) -> None
 
     page.get_by_role("link", name="Documentos").click()
     expect(page.get_by_role("heading", name="Documentos", exact=True)).to_be_visible()
-    expect(page.get_by_text("cedula-admin.pdf")).to_be_visible()
+    expect(page.get_by_role("heading", name="Selecciona una postulación")).to_be_visible()
 
-    page.get_by_label("Empleado a consultar").select_option("employee-1")
+    page.get_by_label("Postulación a consultar").select_option("app-1")
     expect(page.get_by_text("certificado-bancario-ana.pdf")).to_be_visible()
     document_card = page.get_by_role("article").filter(
         has_text="certificado-bancario-ana.pdf"

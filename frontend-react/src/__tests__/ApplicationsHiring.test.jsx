@@ -76,6 +76,42 @@ describe("Applications: document access and employee creation", () => {
     expect(await screen.findByText(/Contratación confirmada y onboarding asignado/)).toBeInTheDocument();
   });
 
+  it("submits an Odoo-verified company ID instead of arbitrary company text", async () => {
+    api.get.mockImplementation((url) => Promise.resolve({ data:
+      url === "/jobs/hiring/signature-flow"
+        ? { enabled: true }
+        : url === "/odoo/companies"
+          ? { items: [{ id: 23, name: "Marca Contratante", country: "Colombia" }] }
+          : url.includes("/hire-readiness")
+            ? { enabled: true, ready: true, status: "SIGNED_CONTRACT_ARCHIVED" }
+            : { items: [application], total: 1, pages: 1 },
+    }));
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Crear empleado" }));
+    const dialog = screen.getByRole("dialog", { name: "Crear empleado" });
+    expect(await within(dialog).findByRole("option", { name: "Marca Contratante · Colombia" })).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Empresa contratante en Odoo"), {
+      target: { value: "23" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Tipo de contrato"), {
+      target: { value: "indefinido" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Fecha de inicio contractual"), {
+      target: { value: "2026-10-20" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Salario mensual"), {
+      target: { value: "2000000" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar contratación" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      "/jobs/job-1/candidates/candidate-1/hire",
+      expect.objectContaining({
+        odoo_company_id: 23,
+        company_name: "Marca Contratante",
+      }),
+    ));
+  });
+
   it("prevents hiring before the required two signatures and archive", async () => {
     api.get.mockImplementation((url) => Promise.resolve({ data:
       url.includes("/hire-readiness")

@@ -136,7 +136,7 @@ describe("Employee document review workspace", () => {
       value: { writeText },
     });
     api.get.mockImplementation((url) => {
-      if (url === "/employees") {
+      if (url === "/employee-documents/applications") {
         return Promise.resolve({
           data: { items: [{ id: "employee-1", first_name: "Ana", last_name: "Pérez" }] },
         });
@@ -152,7 +152,7 @@ describe("Employee document review workspace", () => {
 
     render(<Documents />);
     await screen.findByRole("option", { name: "Ana Pérez" });
-    fireEvent.change(screen.getByLabelText("Empleado a consultar"), {
+    fireEvent.change(screen.getByLabelText("Postulación a consultar"), {
       target: { value: "employee-1" },
     });
     expect(await screen.findByText("UUID del perfil en ADN360")).toBeInTheDocument();
@@ -180,7 +180,7 @@ describe("Employee document review workspace", () => {
       ].includes(permission),
     });
     api.get.mockImplementation((url) => {
-      if (url === "/employees") {
+      if (url === "/employee-documents/applications") {
         return Promise.resolve({
           data: {
             items: [
@@ -207,7 +207,7 @@ describe("Employee document review workspace", () => {
     render(<Documents />);
 
     await screen.findByRole("option", { name: "Ana Pérez" });
-    fireEvent.change(screen.getByLabelText("Empleado a consultar"), {
+    fireEvent.change(screen.getByLabelText("Postulación a consultar"), {
       target: { value: "employee-1" },
     });
 
@@ -234,7 +234,7 @@ describe("Employee document review workspace", () => {
       ].includes(permission),
     });
     api.get.mockImplementation((url) => {
-      if (url === "/employees") {
+      if (url === "/employee-documents/applications") {
         return Promise.resolve({
           data: {
             items: [{ id: "employee-1", first_name: "Ana", last_name: "Pérez" }],
@@ -254,7 +254,7 @@ describe("Employee document review workspace", () => {
 
     render(<Documents />);
     await screen.findByRole("option", { name: "Ana Pérez" });
-    fireEvent.change(screen.getByLabelText("Empleado a consultar"), {
+    fireEvent.change(screen.getByLabelText("Postulación a consultar"), {
       target: { value: "employee-1" },
     });
 
@@ -295,7 +295,7 @@ describe("Employee document review workspace", () => {
       message: "Odoo Sign staging disponible.",
     };
     api.get.mockImplementation((url) => {
-      if (url === "/employees") return Promise.resolve({
+      if (url === "/employee-documents/applications") return Promise.resolve({
         data: { items: [{ id: "employee-1", first_name: "Ana", last_name: "Pérez" }] },
       });
       if (url === "/employee-documents/employees/employee-1")
@@ -314,7 +314,7 @@ describe("Employee document review workspace", () => {
     });
     render(<Documents />);
     await screen.findByRole("option", { name: "Ana Pérez" });
-    fireEvent.change(screen.getByLabelText("Empleado a consultar"), {
+    fireEvent.change(screen.getByLabelText("Postulación a consultar"), {
       target: { value: "employee-1" },
     });
     const prepare = await screen.findByRole("button", { name: "Preparar en Odoo Sign" });
@@ -345,7 +345,7 @@ describe("Employee document review workspace", () => {
     };
     const base = "/employee-documents/employees/employee-1/contract/sign/request";
     api.get.mockImplementation((url) => {
-      if (url === "/employees") return Promise.resolve({
+      if (url === "/employee-documents/applications") return Promise.resolve({
         data: { items: [{ id: "employee-1", first_name: "Ana", last_name: "Pérez" }] },
       });
       if (url === "/employee-documents/employees/employee-1")
@@ -367,7 +367,7 @@ describe("Employee document review workspace", () => {
     } });
     render(<Documents />);
     await screen.findByRole("option", { name: "Ana Pérez" });
-    fireEvent.change(screen.getByLabelText("Empleado a consultar"), {
+    fireEvent.change(screen.getByLabelText("Postulación a consultar"), {
       target: { value: "employee-1" },
     });
     expect(await screen.findByText("Firma parcial")).toBeInTheDocument();
@@ -394,7 +394,7 @@ describe("Employee document review workspace", () => {
     };
     const base = "/employee-documents/employees/employee-1/contract/sign/request";
     api.get.mockImplementation((url) => {
-      if (url === "/employees") return Promise.resolve({
+      if (url === "/employee-documents/applications") return Promise.resolve({
         data: { items: [{ id: "employee-1", first_name: "Ana", last_name: "Pérez" }] },
       });
       if (url === "/employee-documents/employees/employee-1")
@@ -422,7 +422,7 @@ describe("Employee document review workspace", () => {
 
     render(<Documents />);
     await screen.findByRole("option", { name: "Ana Pérez" });
-    fireEvent.change(screen.getByLabelText("Empleado a consultar"), {
+    fireEvent.change(screen.getByLabelText("Postulación a consultar"), {
       target: { value: "employee-1" },
     });
     expect(await screen.findByText("Pendiente de firma")).toBeInTheDocument();
@@ -457,7 +457,7 @@ describe("Employee document review workspace", () => {
     };
     const fieldsPath = "/employee-documents/employees/employee-1/contract/sign/fields";
     api.get.mockImplementation((url) => {
-      if (url === "/employees") return Promise.resolve({
+      if (url === "/employee-documents/applications") return Promise.resolve({
         data: { items: [{ id: "employee-1", first_name: "Ana", last_name: "Pérez" }] },
       });
       if (url === "/employee-documents/employees/employee-1")
@@ -480,7 +480,7 @@ describe("Employee document review workspace", () => {
     });
     render(<Documents />);
     await screen.findByRole("option", { name: "Ana Pérez" });
-    fireEvent.change(screen.getByLabelText("Empleado a consultar"), {
+    fireEvent.change(screen.getByLabelText("Postulación a consultar"), {
       target: { value: "employee-1" },
     });
     fireEvent.click(await screen.findByRole("button", { name: "Detectar dos campos de firma" }));
@@ -509,7 +509,7 @@ describe("Employee document review workspace", () => {
     const base = "/employee-documents/employees/employee-1/contract/sign/request";
     let requestSent = false;
     api.get.mockImplementation((url) => {
-      if (url === "/employees") return Promise.resolve({
+      if (url === "/employee-documents/applications") return Promise.resolve({
         data: { items: [{ id: "employee-1", first_name: "Ana", last_name: "Pérez" }] },
       });
       if (url === "/employee-documents/employees/employee-1")
@@ -538,7 +538,7 @@ describe("Employee document review workspace", () => {
     });
     render(<Documents />);
     await screen.findByRole("option", { name: "Ana Pérez" });
-    fireEvent.change(screen.getByLabelText("Empleado a consultar"), {
+    fireEvent.change(screen.getByLabelText("Postulación a consultar"), {
       target: { value: "employee-1" },
     });
     await screen.findByText("Firmantes de prueba configurados");

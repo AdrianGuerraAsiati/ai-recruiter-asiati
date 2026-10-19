@@ -276,10 +276,11 @@ def build_employee_upsert_payload(
     candidate: Candidate,
     job: Job,
     application: JobCandidate,
+    odoo_company_id: int | None = None,
 ) -> dict:
     """Build the stable versioned contract that will later be sent to Odoo."""
 
-    return {
+    payload = {
         "schema_version": 1,
         "operation": "UPSERT_EMPLOYEE",
         "source": {
@@ -317,6 +318,9 @@ def build_employee_upsert_payload(
             "employment_type": job.employment_type,
         },
     }
+    if odoo_company_id is not None:
+        payload["employee"]["odoo_company_id"] = odoo_company_id
+    return payload
 
 
 def ensure_employee_sync(
@@ -326,6 +330,7 @@ def ensure_employee_sync(
     candidate: Candidate,
     job: Job,
     application: JobCandidate,
+    odoo_company_id: int | None = None,
 ) -> OdooEmployeeSync:
     """Create or refresh the single idempotent Odoo upsert state for an employee."""
 
@@ -334,6 +339,7 @@ def ensure_employee_sync(
         candidate=candidate,
         job=job,
         application=application,
+        odoo_company_id=odoo_company_id,
     )
     sync = (
         db.query(OdooEmployeeSync)

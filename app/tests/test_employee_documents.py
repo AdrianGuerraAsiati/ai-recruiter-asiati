@@ -410,3 +410,35 @@ def test_contract_is_admin_only_and_missing_in_hr_portfolio(monkeypatch):
     assert service.portfolio_payload(db, employee.id, include_admin_only=True)["summary"]["pending_review"] == 1
     db.close()
     engine.dispose()
+
+def test_document_selector_lists_active_applications_not_employee_directory():
+    from app.models import Candidate, Job, JobCandidate
+    engine, db = _db()
+    applicant = _employee(db, "applicant@example.com")
+    imported_employee = _employee(db, "odoo-employee@example.com")
+    vacancy = Job(title="Analista de datos", description="SQL", owner_sub="admin-sub")
+    candidate = Candidate(name="Ana Pérez", email=applicant.email, owner_sub="admin-sub")
+    hired_candidate = Candidate(name="Empleado histórico", email=imported_employee.email, owner_sub="admin-sub")
+    db.add_all([vacancy, candidate, hired_candidate])
+    db.flush()
+    db.add_all([
+        JobCandidate(
+            job_id=vacancy.id, candidate_id=candidate.id,
+            employee_id=applicant.id, application_status="SELECTED",
+        ),
+        JobCandidate(
+            job_id=vacancy.id, candidate_id=hired_candidate.id,
+            employee_id=imported_employee.id, application_status="HIRED",
+        ),
+    ])
+    db.commit()
+
+    result = service.application_select_options(db)
+    assert len(result["items"]) == 1
+    assert result["items"][0]["profile_id"] == applicant.id
+    assert result["items"][0]["job_title"] == "Analista de datos"
+    assert result["items"][0]["status"] == "SELECTED"
+    assert service.application_select_options(db, query="Analista")["items"] == result["items"]
+    assert service.application_select_options(db, query="Empleado histórico")["items"] == []
+    db.close()
+    engine.dispose()

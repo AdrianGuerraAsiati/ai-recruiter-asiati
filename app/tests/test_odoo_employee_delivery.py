@@ -263,3 +263,37 @@ def test_missing_employee_outbox_is_not_found(db):
             employee_id="missing",
             client=FakeOdooClient(),
         )
+
+def test_selected_company_id_is_used_exactly_and_cannot_fall_back_to_default():
+    class CompanyClient(FakeOdooClient):
+        def fields_get(self, model, **kwargs):
+            fields = super().fields_get(model, **kwargs)
+            fields["company_id"] = {
+                "readonly": False, "type": "many2one", "relation": "res.company",
+            }
+            return fields
+
+        def search_read(self, model, domain, *, fields=None, limit=None):
+            if model == "res.company":
+                return [{"id": 21, "name": "Empresa Colombia"}]
+            return super().search_read(model, domain, fields=fields, limit=limit)
+
+    client = CompanyClient()
+    payload = {
+        "employee": {
+            "name": "Ana Pérez", "email": "ana@example.com",
+            "company_name": "Empresa Colombia", "odoo_company_id": 21,
+        },
+    }
+    values, resolved = employee_delivery.build_hr_employee_values(client, payload)
+    assert values["company_id"] == 21
+    assert resolved["company_matched"] is True
+
+    payload["employee"]["company_name"] = "Otra sociedad"
+    with pytest.raises(employee_delivery.OdooEmployeeDeliveryError, match="Selected company"):
+        employee_delivery.build_hr_employee_values(client, payload)
+
+    payload["employee"]["company_name"] = "Empresa Colombia"
+    payload["employee"]["odoo_company_id"] = 999
+    with pytest.raises(employee_delivery.OdooEmployeeDeliveryError, match="Selected company"):
+        employee_delivery.build_hr_employee_values(client, payload)

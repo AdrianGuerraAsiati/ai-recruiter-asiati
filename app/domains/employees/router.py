@@ -188,6 +188,14 @@ def create_employee(
     principal: dict = Depends(require_permission("employees.create")),
 ):
     _enforce_assignable_role(principal, body.role)
+    # Formal hires must come from an application with verified signed dossier.
+    # A direct employee create endpoint cannot bypass the contract gate.
+    if body.role == EMPLOYEE:
+        from app.domains.hiring import service as hiring_service
+        if hiring_service.signed_contract_hiring_gate_enabled():
+            raise HTTPException(status_code=409, detail=(
+                "Contrata desde Postulaciones después de verificar y archivar el contrato firmado."
+            ))
     try:
         employee, temporary_password = service.provision_employee(
             db,
@@ -321,6 +329,18 @@ def update_employee_role(
 ):
     _enforce_not_self(principal, employee_id)
     _enforce_assignable_role(principal, body.role)
+    if body.role == EMPLOYEE:
+        from app.domains.hiring import service as hiring_service
+        from app.models import JobCandidate
+        if hiring_service.signed_contract_hiring_gate_enabled():
+            links = db.query(JobCandidate).filter(
+                JobCandidate.employee_id == employee_id,
+            ).all()
+            if not any(hiring_service.hiring_signature_readiness(db, link=link)["ready"] for link in links):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Se requiere un contrato firmado y archivado para asignar el rol de empleado.",
+                )
     try:
         employee = service.set_employee_role(
             db,

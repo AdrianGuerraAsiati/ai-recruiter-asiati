@@ -24,7 +24,8 @@ function initialForm(application) {
     job_title: application?.job?.title || "",
     department: "",
     country_code: candidate.country_code || "",
-    company_name: "",
+    company_name: application?.job?.company_name || "",
+    odoo_company_id: "",
     hire_date: (() => {
       const now = new Date();
       const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
@@ -39,6 +40,9 @@ export default function ApplicationHireModal({ application, onClose, onHired }) 
   const [error, setError] = useState("");
   const [credentials, setCredentials] = useState(null);
   const [signatureGate, setSignatureGate] = useState(null);
+  const [companies, setCompanies] = useState([]);
+  const [companiesLoading, setCompaniesLoading] = useState(true);
+  const [companiesError, setCompaniesError] = useState(false);
   const [contract, setContract] = useState({
     contract_type: "", start_date: "", end_date: "", monthly_wage: "",
   });
@@ -57,12 +61,36 @@ export default function ApplicationHireModal({ application, onClose, onHired }) 
     return () => { active = false; };
   }, [application]);
 
+  useEffect(() => {
+    let active = true;
+    api.get("/odoo/companies").then(({ data }) => {
+      if (!active) return;
+      const list = (Array.isArray(data?.items) ? data.items : [])
+        .filter((item) => Number.isInteger(item?.id) && Boolean(item?.name));
+      setCompanies(list);
+      setForm((current) => {
+        const match = list.find((item) => item.name === current.company_name);
+        return match ? { ...current, odoo_company_id: String(match.id) } : current;
+      });
+      setCompaniesError(false);
+    }).catch(() => {
+      if (active) setCompaniesError(true);
+    }).finally(() => {
+      if (active) setCompaniesLoading(false);
+    });
+    return () => { active = false; };
+  }, []);
+
   if (!application) return null;
 
   async function submit(event) {
     event.preventDefault();
     if (!signatureGate?.ready) {
       setError(signatureGate?.message || "Verificando el contrato firmado…");
+      return;
+    }
+    if (signatureGate.enabled && !form.odoo_company_id) {
+      setError("Selecciona una empresa activa de Odoo para esta contratación.");
       return;
     }
     if (signatureGate.enabled && (!contract.contract_type.trim() || !contract.start_date || Number(contract.monthly_wage) <= 0)) {
@@ -78,6 +106,7 @@ export default function ApplicationHireModal({ application, onClose, onHired }) 
           ...form,
           country_code: form.country_code || null,
           company_name: form.company_name || null,
+          odoo_company_id: form.odoo_company_id ? Number(form.odoo_company_id) : null,
           ...(signatureGate.enabled ? {
             contract: {
               contract_type: contract.contract_type.trim(),
@@ -168,8 +197,21 @@ export default function ApplicationHireModal({ application, onClose, onHired }) 
               <input id="application-hire-country" value={form.country_code} onChange={(e) => setForm({ ...form, country_code: e.target.value.toUpperCase() })} maxLength={2} placeholder="CO" />
             </div>
             <div className="form-group">
-              <label htmlFor="application-hire-company">Empresa</label>
-              <input id="application-hire-company" value={form.company_name} onChange={(e) => setForm({ ...form, company_name: e.target.value })} placeholder="ASIATI" />
+              <label htmlFor="application-hire-company">Empresa contratante en Odoo</label>
+              <select id="application-hire-company" aria-label="Empresa contratante en Odoo"
+                value={form.odoo_company_id}
+                onChange={(e) => {
+                  const company = companies.find((item) => String(item.id) === e.target.value);
+                  setForm({ ...form, odoo_company_id: e.target.value, company_name: company?.name || "" });
+                }} disabled={companiesLoading || companiesError || busy} required={Boolean(signatureGate?.enabled)}>
+                <option value="">{companiesLoading ? "Consultando Odoo…" : "Selecciona una empresa"}</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={String(company.id)}>
+                    {company.name}{company.country ? ` · ${company.country}` : ""}
+                  </option>
+                ))}
+              </select>
+              {companiesError && <small role="alert">No se pudieron consultar las empresas de Odoo. Intenta de nuevo más tarde.</small>}
             </div>
           </div>
           <div className="form-group">
@@ -204,7 +246,7 @@ export default function ApplicationHireModal({ application, onClose, onHired }) 
           )}
           <div className="form-actions">
             <button className="btn btn-secondary" type="button" disabled={busy} onClick={onClose}>Cancelar</button>
-            <button className="btn btn-primary" type="submit" disabled={busy || !signatureGate?.ready}>{busy ? "Contratando…" : "Confirmar contratación"}</button>
+            <button className="btn btn-primary" type="submit" disabled={busy || !signatureGate?.ready || Boolean(signatureGate?.enabled && !form.odoo_company_id)}>{busy ? "Contratando…" : "Confirmar contratación"}</button>
           </div>
         </form>
       </section>

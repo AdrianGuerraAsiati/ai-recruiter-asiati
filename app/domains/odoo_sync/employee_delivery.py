@@ -125,7 +125,23 @@ def build_hr_employee_values(client, payload: dict) -> tuple[dict, dict]:
         "company_matched": False,
     }
 
-    if company_name and "company_id" in writable:
+    selected_company_id = employee.get("odoo_company_id")
+    if selected_company_id is not None:
+        if type(selected_company_id) is not int or selected_company_id <= 0:
+            raise OdooEmployeeDeliveryError("Invalid Odoo company ID in the hiring outbox.")
+        if "company_id" not in writable:
+            raise OdooEmployeeDeliveryError("Odoo employee company field is not writable.")
+        companies = client.search_read(
+            "res.company", [("id", "=", selected_company_id)], fields=["id", "name"], limit=2,
+        )
+        if len(companies) != 1 or companies[0].get("id") != selected_company_id or (
+            str(companies[0].get("name") or "").strip() != company_name
+        ):
+            raise OdooEmployeeDeliveryError("Selected company no longer matches the validated Odoo company.")
+        values["company_id"] = selected_company_id
+        resolved["company_id"] = selected_company_id
+        resolved["company_matched"] = True
+    elif company_name and "company_id" in writable:
         company_id = _exact_named_id(client, "res.company", company_name)
         if company_id is not None:
             values["company_id"] = company_id

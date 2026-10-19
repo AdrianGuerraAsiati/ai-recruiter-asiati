@@ -90,11 +90,13 @@ function Documents() {
   const canReview = hasPermission("employee_documents.review");
   const canUploadOwn = hasPermission("employee_documents.upload_own");
 
-  const [employees, setEmployees] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [applicationQuery, setApplicationQuery] = useState("");
+  const [selectedApplicationId, setSelectedApplicationId] = useState("");
   const requestedProfileId = canReadAll
     ? new URLSearchParams(window.location.search).get("employee_id")
     : null;
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState(requestedProfileId || ownEmployeeId);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(requestedProfileId || (canReadAll ? "" : ownEmployeeId));
   const [portfolio, setPortfolio] = useState(null);
   const [filesByType, setFilesByType] = useState({});
   const [valuesByType, setValuesByType] = useState({});
@@ -121,28 +123,43 @@ function Documents() {
   const [idCopyStatus, setIdCopyStatus] = useState("");
 
   const viewingOwn = selectedEmployeeId === ownEmployeeId;
-  const selectedEmployee = useMemo(
-    () => employees.find((item) => item.id === selectedEmployeeId) || null,
-    [employees, selectedEmployeeId],
+  const selectedApplication = useMemo(
+    () => applications.find((item) => item.application_id === selectedApplicationId)
+      || applications.find((item) => item.profile_id === selectedEmployeeId)
+      || null,
+    [applications, selectedApplicationId, selectedEmployeeId],
   );
+  const selectedEmployee = selectedApplication
+    ? { first_name: selectedApplication.name, last_name: "", email: selectedApplication.email }
+    : null;
 
   useEffect(() => {
     if (!canReadAll) return undefined;
     let active = true;
-    api.get("/employees")
-      .then(({ data }) => {
-        if (active) setEmployees(Array.isArray(data?.items) ? data.items : []);
-      })
-      .catch(() => {
-        if (active) setEmployees([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [canReadAll]);
+    const timer = window.setTimeout(() => {
+      api.get("/employee-documents/applications", {
+        params: { q: applicationQuery.trim() || undefined },
+      }).then(({ data }) => {
+        if (!active) return;
+        const rows = (Array.isArray(data?.items) ? data.items : [])
+          .map((item) => ({
+            ...item,
+            application_id: item.application_id || item.id,
+            profile_id: item.profile_id || item.id,
+            name: item.name || employeeLabel(item),
+          })).filter((item) => item.application_id && item.profile_id);
+        setApplications(rows);
+      }).catch(() => { if (active) setApplications([]); });
+    }, 200);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [canReadAll, applicationQuery]);
 
   const loadPortfolio = useCallback(async () => {
-    if (!selectedEmployeeId) return;
+    if (!selectedEmployeeId) {
+      setPortfolio(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -215,6 +232,8 @@ function Documents() {
   }
 
   function selectEmployee(employeeId) {
+    const matchingApplication = applications.find((item) => item.profile_id === employeeId);
+    setSelectedApplicationId(matchingApplication?.application_id || "");
     setSignReadiness(null);
     setSignFieldsPreview(null);
     setSignRequest(null);
@@ -1022,29 +1041,38 @@ function Documents() {
         <section className="panel document-employee-selector">
           <div>
             <span className="eyebrow">Revisión administrativa</span>
-            <h2>Selecciona un empleado</h2>
-            <p>Abre su expediente, revisa cada soporte y deja observaciones cuando requiera correcciones.</p>
+            <h2>Selecciona una postulación</h2>
+            <p>Consulta los documentos del postulante asociados a una vacante antes de formalizar su contratación.</p>
           </div>
           <div className="form-group">
-            <label htmlFor="employee-documents-employee">Empleado a consultar</label>
-            <select
-              id="employee-documents-employee"
-              aria-label="Empleado a consultar"
-              value={selectedEmployeeId}
-              onChange={(event) => selectEmployee(event.target.value)}
-            >
-              <option value={ownEmployeeId}>Mis documentos</option>
-              {selectedEmployeeId !== ownEmployeeId && !employees.some((item) => item.id === selectedEmployeeId) && (
-                <option value={selectedEmployeeId}>Postulante seleccionado</option>
+            <label htmlFor="employee-documents-search">Buscar postulación</label>
+            <input id="employee-documents-search" type="search"
+              placeholder="Nombre, correo o vacante"
+              value={applicationQuery}
+              onChange={(event) => setApplicationQuery(event.target.value)} />
+            <label htmlFor="employee-documents-employee">Postulación a consultar</label>
+            <select id="employee-documents-employee"
+              aria-label="Postulación a consultar"
+              value={selectedApplication?.application_id || (selectedEmployeeId ? "__linked__" : "")}
+              onChange={(event) => {
+                const application = applications.find((item) => item.application_id === event.target.value);
+                if (!application) { selectEmployee(""); return; }
+                selectEmployee(application.profile_id);
+                setSelectedApplicationId(application.application_id);
+              }}>
+              <option value="">Selecciona una postulación</option>
+              {selectedEmployeeId && !selectedApplication && (
+                <option value="__linked__">Expediente abierto desde enlace o bandeja</option>
               )}
-              {employees
-                .filter((employee) => employee.id !== ownEmployeeId)
-                .map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employeeLabel(employee)}
-                  </option>
-                ))}
+              {applications.map((application) => (
+                <option key={application.application_id} value={application.application_id}>
+                  {application.name}{application.job_title ? ` · ${application.job_title}` : ""}
+                </option>
+              ))}
             </select>
+            {applications.length === 0 && (
+              <small>Sin postulaciones activas con expediente para este filtro.</small>
+            )}
           </div>
         </section>
       )}
