@@ -1066,7 +1066,7 @@ function Documents() {
               )}
               {applications.map((application) => (
                 <option key={application.application_id} value={application.application_id}>
-                  {application.name} · {application.job_title || "Vacante sin título"}
+                  {application.name}{application.job_title ? ` · ${application.job_title}` : ""}
                 </option>
               ))}
             </select>
