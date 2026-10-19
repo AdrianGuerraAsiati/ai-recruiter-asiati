@@ -161,6 +161,7 @@ def hire_candidate(
             department=body.department,
             country_code=body.country_code,
             company_name=body.company_name,
+            odoo_company_id=body.odoo_company_id,
             hire_date=body.hire_date,
             contract=(
                 body.contract.model_dump(mode="json")
