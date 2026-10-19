@@ -16,6 +16,7 @@ from app.domains.employee_documents import notifications as document_notificatio
 from app.domains.employee_documents.models import EmployeeDocument
 from app.domains.indeed import service as indeed_service
 from app.domains.odoo_sync import company_catalog
+from app.integrations.odoo.client import OdooClientError
 from app.domains.odoo_sync import contract_delivery
 from app.domains.odoo_sync import employee_delivery
 from app.domains.odoo_sync import integration as odoo_integration
@@ -413,7 +414,7 @@ def hire_candidate(
             selected_company = company_catalog.require_company(odoo_company_id)
         except company_catalog.OdooCompanyNotFound as exc:
             raise HiringValidationError(str(exc)) from exc
-        except (odoo_integration.OdooDisabled, odoo_integration.OdooNotConfigured):
+        except (odoo_integration.OdooDisabled, odoo_integration.OdooNotConfigured, OdooClientError):
             raise HiringConflictError("No está disponible el catálogo de empresas de Odoo.") from None
         resolved_company_name = selected_company["name"]
     elif signed_contract_hiring_gate_enabled():
