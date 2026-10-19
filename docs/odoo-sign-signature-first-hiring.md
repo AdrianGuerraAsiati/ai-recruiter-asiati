@@ -69,3 +69,36 @@ cuando la relación real sea `ir.attachment`. Si Odoo devuelve otro formato, fal
 8. Diseñar activación automática idempotente al completar la firma (en vez de botón manual), con datos contractuales previamente validados y reintentos del worker.
 
 **Importante:** este PR no contiene el envío automático de correos ni el proceso automático de alta; primero debe verificarse el contrato API y la evidencia jurídica en staging.
+
+## Evidencia de finalización en staging (19 oct 2026)
+
+La solicitud ficticia **140** alcanzó estado `signed`, con ambos firmantes en `completed`.
+En la relación validada `sign.request.completed_document_attachment_ids`
+(`many2many` → `ir.attachment`) hay **dos PDFs**, no uno:
+
+- PDF firmado: `ADN360_contrato_ficticio_prueba_Odoo_Sign.pdf`, `ir.attachment` 36525, 87.269 bytes.
+- Certificado de finalización: `Certificate of completion - 2026-10-19 - 20:15:42.pdf`, `ir.attachment` 36526, 74.907 bytes.
+
+Ambos declaran `res_model=sign.request` y `res_id=140`.
+La extracción rechaza cantidades distintas de dos, nombres ambiguos, tipos no PDF,
+referencias de otras solicitudes y contenidos inválidos. No infiere el documento
+a partir del tamaño o posición en la relación.
+
+La copia de ambos PDFs se almacena en rutas privadas distintas de S3, con SHA-256
+individual, un ID de adjunto Odoo por artefacto y campos independientes en el
+expediente. Se preserva el contrato original. El certificado se descarga mediante
+endpoints con control de acceso equivalentes al contrato firmado.
+
+### Activación separada (no realizada por el PR)
+
+La configuración de runtime en AWS tiene `ODOO_SIGN_STAGING_ARCHIVE_ENABLED=false`
+y `ODOO_SIGN_STAGING_SIGNED_ATTACHMENT_FIELD` vacío. Para usar el nuevo flujo,
+una vez desplegado y validado en CI, se requiere aprobación explícita y establecer:
+
+```dotenv
+ODOO_SIGN_STAGING_ARCHIVE_ENABLED=true
+ODOO_SIGN_STAGING_SIGNED_ATTACHMENT_FIELD=completed_document_attachment_ids
+```
+
+Activar solo con la allowlist ficticia de staging; nunca mezclar credenciales
+de Odoo producción ni firmar contratos reales en esta fase.

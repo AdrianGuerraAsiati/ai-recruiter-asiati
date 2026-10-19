@@ -66,6 +66,30 @@ def test_download_endpoints_do_not_mix_users(monkeypatch):
     assert exc.value.status_code == 404
 
 
+def test_completion_certificate_routes_are_scoped_and_fail_closed(monkeypatch):
+    observed = []
+    monkeypatch.setattr(signed_artifacts, "download_certificate", lambda db, employee_id: (
+        observed.append(employee_id) or {"url": "https://private.example.invalid/certificate"}
+    ))
+    documents.download_signed_certificate_as_hr("employee-1", db=object(), _principal={})
+    documents.download_own_signed_certificate(
+        db=object(), principal={"profile": {"id": "employee-2"}}
+    )
+    assert observed == ["employee-1", "employee-2"]
+
+    def missing(db, employee_id):
+        raise signed_artifacts.ArchiveNotReady("Sin certificado")
+    monkeypatch.setattr(signed_artifacts, "download_certificate", missing)
+    with pytest.raises(HTTPException) as exc:
+        documents.download_signed_certificate_as_hr("one", db=object(), _principal={})
+    assert exc.value.status_code == 404
+    with pytest.raises(HTTPException) as exc:
+        documents.download_own_signed_certificate(
+            db=object(), principal={"profile": {"id": "two"}}
+        )
+    assert exc.value.status_code == 404
+
+
 def test_missing_person_or_document_is_translated(monkeypatch):
     def not_found(db, employee_id):
         raise doc_service.EmployeeNotFound()

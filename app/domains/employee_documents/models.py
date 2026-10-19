@@ -94,6 +94,10 @@ class EmployeeDocument(Base):
     odoo_sign_signed_sha256 = Column(Text, nullable=True)
     odoo_sign_signed_attachment_id = Column(Integer, nullable=True)
     odoo_sign_signed_at = Column(DateTime(timezone=True), nullable=True)
+    # Separate, immutable completion certificate linked to the same Sign request.
+    odoo_sign_certificate_storage_key = Column(Text, nullable=True)
+    odoo_sign_certificate_sha256 = Column(Text, nullable=True)
+    odoo_sign_certificate_attachment_id = Column(Integer, nullable=True)
 
     employee = relationship("UserProfile")
 

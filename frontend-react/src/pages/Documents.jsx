@@ -529,7 +529,7 @@ function Documents() {
       setSignRequest((current) => current?.linked
         ? { ...current, signed_pdf_archived: Boolean(data?.archived) }
         : current);
-      setSuccess("PDF firmado archivado en el expediente. Confirma los datos contractuales antes de contratar.");
+      setSuccess("Contrato firmado y certificado de finalización archivados en el expediente.");
     } catch (err) {
       setError(getApiErrorMessage(err, {
         action: "archivar el PDF firmado",
@@ -555,6 +555,24 @@ function Documents() {
         action: "descargar el contrato firmado",
         resource: "expediente laboral",
         fallback: "No fue posible generar el enlace privado del contrato firmado.",
+      }));
+    }
+  }
+
+  async function downloadCompletionCertificate() {
+    setError("");
+    const path = viewingOwn
+      ? "/employee-documents/me/contract/signed/certificate/download"
+      : `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract/signed/certificate/download`;
+    try {
+      const { data } = await api.get(path);
+      if (!data?.url) throw new Error("missing-certificate");
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setError(getApiErrorMessage(err, {
+        action: "descargar el certificado de finalización",
+        resource: "expediente laboral",
+        fallback: "No fue posible generar el enlace privado del certificado.",
       }));
     }
   }
@@ -907,6 +925,12 @@ function Documents() {
                   <button type="button" className="btn btn-secondary btn-sm"
                     onClick={() => void downloadSignedContract()}>
                     Descargar contrato firmado
+                  </button>
+                )}
+                {signedArtifact?.certificate_archived && (
+                  <button type="button" className="btn btn-secondary btn-sm"
+                    onClick={() => void downloadCompletionCertificate()}>
+                    Descargar certificado de finalización
                   </button>
                 )}
                 <small>Odoo gestiona las firmas. ADN360 asocia internamente la solicitud; no necesitas copiar identificadores.</small>
