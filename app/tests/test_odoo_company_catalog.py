@@ -1,7 +1,6 @@
 """Company catalog: only real active Odoo IDs can be selected for hiring."""
 import pytest
 from app.domains.odoo_sync import company_catalog, router as odoo_router
-from app.domains.hiring import service as hiring_service
 
 
 class FakeCompanyClient:
@@ -39,7 +38,8 @@ def test_selected_company_is_checked_against_odoo_id():
         company_catalog.require_company(999, client=client)
     with pytest.raises(company_catalog.OdooCompanyNotFound):
         company_catalog.require_company(0, client=client)
-    assert client.calls[1] == [("id", "=", 21), ("active", "=", True)]
+    assert client.calls[0] == [("id", "=", 21), ("active", "=", True)]
+    assert client.calls[1] == [("id", "=", 999), ("active", "=", True)]
 
 
 def test_companies_endpoint_uses_server_verified_catalog(monkeypatch):
