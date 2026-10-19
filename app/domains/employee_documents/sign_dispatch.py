@@ -132,7 +132,7 @@ def preview_automatic(db: Session, employee_id: str, *, client=None) -> dict:
 
 def build_wizard_values(
     *, template_id: int, employee_partner_id: int, representative_partner_id: int,
-    employee_role_id: int, representative_role_id: int,
+    employee_role_id: int, representative_role_id: int, filename: str,
 ) -> dict:
     """Validated Odoo x2 one2many command payload; pure and deterministic."""
     if not all(
@@ -145,7 +145,13 @@ def build_wizard_values(
         raise DispatchNotReady("Identificadores del asistente Odoo Sign inválidos.")
     if employee_partner_id == representative_partner_id or employee_role_id == representative_role_id:
         raise DispatchNotReady("Se requieren contactos y roles diferentes.")
+    if (not isinstance(filename, str) or not filename.strip()
+            or filename != filename.strip() or len(filename) > 200
+            or any(char in filename for char in ("/", "\\", "\n", "\r", "\0"))
+            or not filename.lower().endswith(".pdf")):
+        raise DispatchNotReady("El nombre del contrato PDF aprobado es inválido.")
     return {
+        "filename": filename,
         "template_id": template_id,
         "subject": "ADN360 - Firma de contrato laboral (PRUEBA)",
         "set_sign_order": True,
@@ -193,6 +199,7 @@ def preview(
             "signer_ids": ("one2many", "sign.send.request.signer"),
             "set_sign_order": ("boolean", None),
             "subject": ("char", None),
+            "filename": ("char", None),
         })
         _fields(target, "sign.send.request.signer", {
             "partner_id": ("many2one", "res.partner"),
@@ -248,6 +255,13 @@ def preview(
         if employee["address"] == representative["address"]:
             raise DispatchNotReady("Las dos firmas no pueden utilizar el mismo correo.")
 
+        # Odoo 18 requires filename on sign.send.request. Use the approved PDF
+        # basename; fall back to a synthetic name for legacy uploads.
+        filename = str(getattr(document, "original_filename", "") or "").replace("\\", "/").split("/")[-1].strip()
+        if (len(filename) > 200 or not filename.lower().endswith(".pdf")
+                or any(char in filename for char in ("\n", "\r", "\0"))):
+            filename = "ADN360_contrato_prueba.pdf"
+
         # Build deterministically but never call create() or send_request().
         _wizard_values = build_wizard_values(
             template_id=document.odoo_sign_template_id,
@@ -255,6 +269,7 @@ def preview(
             representative_partner_id=representative_partner_id,
             employee_role_id=by_name["employee"],
             representative_role_id=by_name["representative"],
+            filename=filename,
         )
         assert len(_wizard_values["signer_ids"]) == 2
         result = {
