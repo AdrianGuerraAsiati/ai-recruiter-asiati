@@ -163,3 +163,23 @@ def test_canceled_and_expired_are_not_signed(fixture):
     assert sign_requests.track(
         db, employee.id, client=FakeSign(overall="expired", states=["signed", "signed"]),
     )["status"] == "EXPIRED"
+
+
+def test_odoo_english_employee_role_tracks_both_signers(fixture):
+    db, employee, contract = fixture
+    remote = FakeSign(roles=["Employee", "Representante legal"],
+                      states=["completed", "completed"], overall="signed")
+    result = sign_requests.track(db, employee.id, request_id=139, client=remote)
+    assert result["status"] == "SIGNED"
+    assert result["employee"] == "completed"
+    assert result["representative"] == "completed"
+
+
+def test_unknown_role_still_rejected_with_role_normalization(fixture):
+    db, employee, contract = fixture
+    with pytest.raises(sign_requests.SignTrackingConflict, match="roles"):
+        sign_requests.track(
+            db, employee.id, request_id=139,
+            client=FakeSign(roles=["Customer", "Representante legal"]),
+        )
+    assert contract.odoo_sign_request_id is None
