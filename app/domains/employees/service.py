@@ -210,6 +210,7 @@ def ensure_existing_cognito_profile(
     email: str,
     created_by_sub: str | None = None,
     cognito_client=None,
+    commit: bool = True,
 ) -> UserProfile:
     """Materialize an existing Cognito user as an internal profile."""
 
@@ -261,7 +262,10 @@ def ensure_existing_cognito_profile(
         if profile.onboarding_status == "NOT_REQUIRED":
             profile.onboarding_status = "PENDING"
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(profile)
     return profile
 
@@ -281,6 +285,7 @@ def provision_employee(
     role_code: str = EMPLOYEE,
     created_by_sub: str | None = None,
     cognito_client=None,
+    commit: bool = True,
 ) -> tuple[UserProfile, str]:
     email = normalize_email(email)
     login_username = normalize_login_username(username)
@@ -344,7 +349,10 @@ def provision_employee(
             role_code,
             assigned_by_sub=created_by_sub,
         )
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         db.refresh(profile)
         return profile, temporary_password
     except ClientError as exc:
@@ -378,6 +386,7 @@ def provision_existing_profile_access(
     role_code: str = APPLICANT,
     created_by_sub: str | None = None,
     cognito_client=None,
+    commit: bool = True,
 ) -> tuple[UserProfile, str | None]:
     """Provision a previously imported profile with document-upload access.
 
@@ -435,7 +444,10 @@ def provision_existing_profile_access(
         if not roles_for_profile(db, profile.id):
             assign_role(db, profile, role_code, assigned_by_sub=created_by_sub)
             profile.onboarding_status = "NOT_REQUIRED" if role_code == APPLICANT else "PENDING"
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         db.refresh(profile)
         return profile, temporary_password
     except ClientError as exc:
@@ -496,6 +508,7 @@ def set_employee_username(
     employee_id: str,
     *,
     username: str,
+    commit: bool = True,
 ) -> UserProfile:
     profile = require_employee(db, employee_id)
     normalized = normalize_login_username(username)
@@ -510,7 +523,10 @@ def set_employee_username(
     if conflict is not None:
         raise EmployeeUsernameExists()
     profile.login_username = normalized
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(profile)
     return profile
 
