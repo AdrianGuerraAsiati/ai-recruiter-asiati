@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import secrets
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
@@ -27,6 +28,11 @@ class PsychotechnicalExpired(RuntimeError):
     pass
 
 
+# Only the attention assessment has a strict timebox. Other tests are untimed.
+# A small network allowance lets the browser auto-submit at the deadline.
+ATTENTION_SUBMISSION_GRACE_SECONDS = 15
+
+
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -49,10 +55,20 @@ def _public_token() -> str:
     return secrets.token_urlsafe(32)
 
 
+def _attention_deadline(assignment: PsychotechnicalAssignment) -> datetime | None:
+    if assignment.test_key != catalog.ATTENTION or not assignment.started_at:
+        return None
+    seconds = int(_test_definition(assignment.test_key)["duration_seconds"])
+    return _as_utc(assignment.started_at) + timedelta(
+        seconds=seconds + ATTENTION_SUBMISSION_GRACE_SECONDS,
+    )
+
+
 def _status_for(assignment: PsychotechnicalAssignment) -> str:
     if assignment.status in {"COMPLETED", "CANCELED"}:
         return assignment.status
-    if _is_expired(assignment):
+    deadline = _attention_deadline(assignment)
+    if _is_expired(assignment) or (deadline is not None and _utcnow() > deadline):
         return "EXPIRED"
     return assignment.status
 
@@ -178,18 +194,21 @@ def list_assignments(
     return [_assignment_payload(row) for row in rows]
 
 
-def _assignment_by_token(db: Session, token: str) -> PsychotechnicalAssignment:
-    assignment = (
-        db.query(PsychotechnicalAssignment)
-        .filter(PsychotechnicalAssignment.token_hash == _token_hash(token))
-        .one_or_none()
+def _assignment_by_token(
+    db: Session, token: str, *, for_update: bool = False,
+) -> PsychotechnicalAssignment:
+    query = db.query(PsychotechnicalAssignment).filter(
+        PsychotechnicalAssignment.token_hash == _token_hash(token),
     )
+    if for_update:
+        query = query.with_for_update().populate_existing()
+    assignment = query.one_or_none()
     if assignment is None:
         raise PsychotechnicalNotFound("assignment")
     if assignment.status == "CANCELED":
         raise PsychotechnicalConflict("La prueba fue cancelada.")
-    if assignment.status != "COMPLETED" and _is_expired(assignment):
-        raise PsychotechnicalExpired("La prueba expiró.")
+    if _status_for(assignment) == "EXPIRED":
+        raise PsychotechnicalExpired("Se agotó el tiempo o la vigencia de la prueba.")
     return assignment
 
 
@@ -210,13 +229,21 @@ def public_assignment(db: Session, token: str) -> dict:
         "question_count": test["question_count"],
         "expires_at": assignment.expires_at.isoformat(),
     }
-    if "duration_seconds" in test:
-        payload["duration_seconds"] = test["duration_seconds"]
+    if assignment.test_key == catalog.ATTENTION:
+        seconds = int(test["duration_seconds"])
+        payload["duration_seconds"] = seconds
+        payload["time_limit_seconds"] = seconds
+        payload["started_at"] = assignment.started_at.isoformat() if assignment.started_at else None
+        if assignment.started_at:
+            deadline = _as_utc(assignment.started_at) + timedelta(seconds=seconds)
+            payload["time_remaining_seconds"] = max(
+                0, math.ceil((deadline - _utcnow()).total_seconds()),
+            )
     return payload
 
 
 def start_assignment(db: Session, token: str) -> dict:
-    assignment = _assignment_by_token(db, token)
+    assignment = _assignment_by_token(db, token, for_update=True)
     if assignment.status == "COMPLETED":
         raise PsychotechnicalConflict("La prueba ya fue completada.")
     if assignment.status == "PENDING":
@@ -599,9 +626,11 @@ def _score_assignment(
 
 
 def submit_assignment(db: Session, token: str, answers: list[dict]) -> dict:
-    assignment = _assignment_by_token(db, token)
+    assignment = _assignment_by_token(db, token, for_update=True)
     if assignment.status == "COMPLETED":
         raise PsychotechnicalConflict("La prueba ya fue completada.")
+    if assignment.test_key == catalog.ATTENTION and not assignment.started_at:
+        raise PsychotechnicalConflict("Debes iniciar la prueba para activar el cronómetro.")
     if assignment.status == "PENDING":
         assignment.status = "IN_PROGRESS"
         assignment.started_at = _utcnow()
@@ -641,6 +670,8 @@ def regenerate_link(
     assignment = (
         db.query(PsychotechnicalAssignment)
         .filter(PsychotechnicalAssignment.id == assignment_id)
+        .with_for_update()
+        .populate_existing()
         .one_or_none()
     )
     if assignment is None:
@@ -669,6 +700,8 @@ def cancel_assignment(db: Session, assignment_id: str) -> dict:
     assignment = (
         db.query(PsychotechnicalAssignment)
         .filter(PsychotechnicalAssignment.id == assignment_id)
+        .with_for_update()
+        .populate_existing()
         .one_or_none()
     )
     if assignment is None:

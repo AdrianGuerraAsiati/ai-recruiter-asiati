@@ -1527,11 +1527,9 @@ def submit_quiz_attempt(
     course_id: str,
     answers: dict[str, int],
 ) -> dict:
-    assignment = require_my_assignment(
-        db,
-        employee_id=employee_id,
-        course_id=course_id,
-    )
+    assignment = require_my_assignment(db, employee_id=employee_id, course_id=course_id)
+    # Serialize attempts on the assignment row before calculating MAX(number)+1.
+    db.refresh(assignment, with_for_update=True)
     course = assignment.course
     quiz = course.quiz
     if course.status != "PUBLISHED" or quiz is None:
