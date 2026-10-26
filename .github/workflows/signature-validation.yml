@@ -1,0 +1,92 @@
+name: Signature module — synthetic E2E
+
+# This workflow never signs, sends Odoo mail, calls Odoo staging or touches AWS.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/signature-validation.yml"
+      - "app/domains/employee_documents/**"
+      - "app/domains/hiring/**"
+      - "app/domains/odoo_sync/staging.py"
+      - "app/tests/test_odoo_sign_synthetic_e2e.py"
+      - "app/tests/test_employee_contract_signing.py"
+      - "app/tests/test_employee_contract_sign_requests.py"
+      - "app/tests/test_employee_signed_contract_archive.py"
+      - "app/tests/test_odoo_sign_staging_send.py"
+      - "app/tests/test_odoo_sign_request_dispatch_preview.py"
+      - "app/tests/test_application_contract_binding_ui.py"
+      - "app/tests/test_signed_contract_routes.py"
+      - "frontend-react/src/components/ApplicationContractBindingModal.jsx"
+      - "frontend-react/src/__tests__/ApplicationContractBindingModal.test.jsx"
+      - "frontend-react/src/__tests__/ApplicationsHiring.test.jsx"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signature-synthetic-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  signature-backend:
+    name: Odoo Sign — synthetic lifecycle and negative cases
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: sqlite:///:memory:
+      ODOO_ENABLED: "false"
+      ODOO_SIGN_STAGING_PREPARE_ENABLED: "false"
+      ODOO_SIGN_STAGING_TRACK_ENABLED: "false"
+      ODOO_SIGN_STAGING_SEND_ENABLED: "false"
+      ODOO_SIGN_STAGING_ARCHIVE_ENABLED: "false"
+      ADN360_REQUIRE_SIGNED_CONTRACT_FOR_HIRE: "false"
+      ADN360_APPLICATION_CONTRACT_BINDING_ENABLED: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install test dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install pytest
+      - name: Execute Odoo Sign synthetic regression matrix
+        run: |
+          python -m pytest -v --tb=short \
+            app/tests/test_odoo_sign_synthetic_e2e.py \
+            app/tests/test_employee_contract_signing.py \
+            app/tests/test_employee_contract_sign_requests.py \
+            app/tests/test_employee_signed_contract_archive.py \
+            app/tests/test_odoo_sign_staging_send.py \
+            app/tests/test_odoo_sign_request_dispatch_preview.py \
+            app/tests/test_odoo_sign_auto_fields.py \
+            app/tests/test_application_contract_binding_ui.py \
+            app/tests/test_signed_contract_routes.py \
+            app/tests/test_odoo_sign_runtime_flag_deploy.py
+
+  signature-frontend:
+    name: Contract binding — UI regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend-react
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend-react/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Contract binding and hiring UI tests
+        run: |
+          npm test -- --run src/__tests__/ApplicationContractBindingModal.test.jsx src/__tests__/ApplicationsHiring.test.jsx
