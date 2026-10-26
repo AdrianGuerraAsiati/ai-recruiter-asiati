@@ -118,7 +118,7 @@ function Applications() {
   }, [items]);
 
   async function prepareContractDossier(application) {
-    if ((!signatureFlowEnabled && !contractBindingEnabled) || !canCreateEmployees || !canReviewDocuments) return;
+    if ((!signatureFlowEnabled && !contractBindingEnabled) || !canCreateEmployees || !canReviewDocuments || !["SELECTED", "OFFER"].includes(application.application_status)) return;
     setSavingId(application.id);
     setError("");
     try {
@@ -270,8 +270,7 @@ function Applications() {
                           Ver candidato
                         </Link>
                         {(signatureFlowEnabled || contractBindingEnabled) && canCreateEmployees && canReviewDocuments
-                          && application.application_status !== "HIRED"
-                          && !["REJECTED", "WITHDRAWN"].includes(application.application_status)
+                          && ["SELECTED", "OFFER"].includes(application.application_status)
                           && !application.access?.profile_id && (
                             <button className="btn btn-secondary" type="button"
                               disabled={savingId === application.id}
