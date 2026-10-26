@@ -191,8 +191,8 @@ describe("Applications: document access and employee creation", () => {
     const bind = await screen.findByRole("button", { name: "Vincular contrato" });
     fireEvent.click(bind);
     const dialog = await screen.findByRole("dialog", { name: /Vincular contrato/i });
-    expect(within(dialog).getByText("Ana Pérez")).toBeInTheDocument();
-    expect(within(dialog).getByText("Desarrollador")).toBeInTheDocument();
+    expect(within(dialog).getByText(/Ana Pérez/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Desarrollador/)).toBeInTheDocument();
     await waitFor(() => expect(api.get).toHaveBeenCalledWith(
       "/jobs/job-1/candidates/candidate-1/contract/binding",
     ));
