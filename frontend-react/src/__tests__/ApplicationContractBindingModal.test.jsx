@@ -105,6 +105,7 @@ describe("ApplicationContractBindingModal", () => {
 
     const dialog = await screen.findByRole("dialog", { name: /Vincular contrato/i });
     expect(await within(dialog).findByText(/vinculado a la empresa Odoo/i)).toBeInTheDocument();
+    expect(await within(dialog).findByText("Empresa vinculada: ASIATI Colombia")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Empresa Odoo")).toBeDisabled();
     fireEvent.click(within(dialog).getByRole("button", { name: /Continuar a Documentos/i }));
     expect(onContinue).toHaveBeenCalledWith("profile-1");
