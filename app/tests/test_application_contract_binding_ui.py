@@ -236,9 +236,14 @@ def test_sign_readiness_accepts_matching_binding_and_keeps_legacy_flag_off(bindi
     assert client.calls == [("fields_get", "sign.template"), ("fields_get", "ir.attachment")]
 
     monkeypatch.delenv("ADN360_APPLICATION_CONTRACT_BINDING_ENABLED")
+    db.query(ApplicationContract).filter(
+        ApplicationContract.application_id == link.id,
+    ).delete()
+    db.commit()
     client = FakeOdooSchema()
     result = signing.readiness(db, profile.id, client=client)
     assert result["ready"] is True
+    assert client.calls == [("fields_get", "sign.template"), ("fields_get", "ir.attachment")]
 
 
 def test_binding_rejects_non_pdf_contract(binding_context, monkeypatch):
