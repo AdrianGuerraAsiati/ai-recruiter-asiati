@@ -51,8 +51,8 @@ python -m pytest app/tests/test_local_compose_contract.py -v
 docker compose config --quiet
 ```
 
-Además ejecutar una prueba manual de `docker compose up --build -d` con Docker disponible. CI comprueba los contratos estáticos; **un resultado verde de CI no implica que se haya hecho una prueba de contenedores en ejecución**.
+GitHub Actions ejecuta `.github/workflows/docker-compose-smoke.yml` en runners Ubuntu cuando cambia Compose o su infraestructura relacionada (y manualmente con `workflow_dispatch`). Hace `docker compose up --build --detach`, valida migración Alembic, contenedores, endpoints `/api/live` y `/api/ready` a través de Nginx, HTML del frontend y limpia los volúmenes locales al terminar. No usa secretos de GitHub ni recursos AWS. Revisa el job **Docker Compose — Local integration** del PR para ver el resultado de ejecución real.
 
 ## Alcance
 
-Archivos afectados: `docker-compose.yml`, `app/tests/test_local_compose_contract.py` y esta guía. Sin cambios en rutas de aplicación, esquema, RBAC, scripts productivos, IAM ni recursos AWS; costo AWS adicional: **ninguno**.
+Archivos afectados: `docker-compose.yml`, `app/tests/test_local_compose_contract.py`, `.github/workflows/docker-compose-smoke.yml` y esta guía. Sin cambios en rutas de aplicación, esquema, RBAC, scripts productivos, IAM ni recursos AWS; costo AWS adicional: **ninguno**.
