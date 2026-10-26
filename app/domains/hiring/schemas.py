@@ -6,6 +6,10 @@ from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
+class BindApplicationContractRequest(BaseModel):
+    odoo_company_id: int = Field(gt=0)
+
+
 class HireContractRequest(BaseModel):
     name: str | None = Field(default=None, max_length=200)
     contract_type: str = Field(min_length=1, max_length=160)
