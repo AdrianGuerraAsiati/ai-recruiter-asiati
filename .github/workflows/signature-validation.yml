@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      DATABASE_URL: sqlite:///:memory:
+      DATABASE_URL: "sqlite:///:memory:"
       ODOO_ENABLED: "false"
       ODOO_SIGN_STAGING_PREPARE_ENABLED: "false"
       ODOO_SIGN_STAGING_TRACK_ENABLED: "false"
