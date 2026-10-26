@@ -667,6 +667,11 @@ def test_signature_gate_requires_verified_archived_file_before_hiring(db, monkey
     readiness = hiring_service.hiring_signature_readiness(db, link=link)
     assert readiness["ready"] is True
     assert readiness["status"] == "SIGNED_CONTRACT_ARCHIVED"
+    # A fully signed dossier is insufficient when the selected Odoo company
+    # differs from the immutable company in the application binding.
+    with pytest.raises(hiring_service.HiringValidationError, match="empresa Odoo"):
+        _hire(db, cognito=cognito, job=job, candidate=candidate)
+    assert cognito.created == []
 
 
 def test_prepare_contract_dossier_creates_only_applicant_profile_without_login(db, monkeypatch):
