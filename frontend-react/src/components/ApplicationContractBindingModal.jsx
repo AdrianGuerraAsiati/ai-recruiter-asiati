@@ -64,6 +64,7 @@ export default function ApplicationContractBindingModal({ application, onClose, 
   const profileId = application.access?.profile_id || bindingStatus?.profile_id || "";
   const isBound = Boolean(bindingStatus?.bound && bindingStatus?.valid);
   const bindingInvalid = Boolean(bindingStatus?.bound && !bindingStatus?.valid);
+  const boundCompany = companies.find((company) => company.id === bindingStatus?.odoo_company_id);
   const canSubmit = Boolean(
     bindingStatus?.enabled
     && bindingStatus?.can_bind
@@ -99,7 +100,7 @@ export default function ApplicationContractBindingModal({ application, onClose, 
       }));
       setSuccess(data?.already_bound
         ? "La vinculación existente fue verificada."
-        : "La vinculación quedó registrada para esta postulación y empresa Odoo.");
+        : "Vinculación confirmada.");
     } catch (err) {
       setError(getApiErrorMessage(err, {
         action: "vincular el contrato",
@@ -142,6 +143,9 @@ export default function ApplicationContractBindingModal({ application, onClose, 
             <strong>{isBound ? "Contrato vinculado" : bindingInvalid ? "Vínculo inconsistente" : "Estado del contrato"}</strong>
             <span>{bindingStatus.message}</span>
           </div>
+        )}
+        {isBound && (
+          <p>Empresa vinculada: {boundCompany?.name || "ID " + bindingStatus.odoo_company_id}</p>
         )}
         {!loading && !bindingStatus?.enabled && (
           <div className="alert" role="alert">La vinculación contractual no está habilitada en este entorno.</div>
