@@ -22,4 +22,6 @@ class PsychotechnicalAnswer(BaseModel):
 
 
 class SubmitPsychotechnicalRequest(BaseModel):
-    answers: list[PsychotechnicalAnswer] = Field(min_length=1, max_length=80)
+    # Attention tests legitimately permit zero answers at the official timeout.
+    # All other tests enforce their completeness in the domain scorer.
+    answers: list[PsychotechnicalAnswer] = Field(min_length=0, max_length=80)
