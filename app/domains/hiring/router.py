@@ -67,6 +67,7 @@ def signature_hiring_flow_capabilities(
 ):
     return {
         "enabled": service.signed_contract_hiring_gate_enabled(),
+        "binding_enabled": application_contracts.binding_enabled(),
         "description": "Alta de empleado posterior a ambas firmas y archivo PDF final.",
     }
 
@@ -136,6 +137,25 @@ def bind_application_contract(
             job_id=job_id,
             candidate_id=candidate_id,
             odoo_company_id=body.odoo_company_id,
+        )
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.get("/{job_id}/candidates/{candidate_id}/contract/binding")
+def get_application_contract_binding(
+    job_id: str,
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("employees.create")),
+):
+    """Read the immutable contract binding for one application."""
+    try:
+        return application_contracts.binding_status(
+            db,
+            owner_sub=principal["sub"],
+            job_id=job_id,
+            candidate_id=candidate_id,
         )
     except Exception as exc:
         _translate(exc)
