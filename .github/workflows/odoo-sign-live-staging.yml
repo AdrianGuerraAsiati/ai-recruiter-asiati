@@ -1,0 +1,40 @@
+name: Odoo Sign — live staging connectivity (no credentials)
+
+on:
+  push:
+    branches: [test/odoo-sign-live-staging-readonly]
+    paths:
+      - ".github/workflows/odoo-sign-live-staging.yml"
+      - "app/scripts/verify_odoo_sign_live_staging.py"
+      - "app/tests/test_odoo_sign_live_staging_probe.py"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/odoo-sign-live-staging.yml"
+      - "app/scripts/verify_odoo_sign_live_staging.py"
+      - "app/tests/test_odoo_sign_live_staging_probe.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  staging-connectivity:
+    name: Strict allowlisted Odoo.sh staging endpoint
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      ODOO_STAGING_BASE_URL: https://asiati-test160526-39554181.dev.odoo.com
+      ODOO_STAGING_DATABASE: asiati-test160526-39554181
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify safety guards (no network)
+        run: python -m pytest app/tests/test_odoo_sign_live_staging_probe.py -q
+      - name: Contact real Odoo.sh staging XML-RPC common.version (no login)
+        run: |
+          python -m app.scripts.verify_odoo_sign_live_staging \
+            --base-url "$ODOO_STAGING_BASE_URL" \
+            --database "$ODOO_STAGING_DATABASE"
