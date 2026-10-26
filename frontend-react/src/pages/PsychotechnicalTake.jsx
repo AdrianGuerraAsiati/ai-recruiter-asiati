@@ -1,5 +1,5 @@
 // eslint-disable-next-line no-unused-vars
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import api from "../api/client";
@@ -9,6 +9,11 @@ import "./Psychotechnical.css";
 const TEMPERAMENT = "TEMPERAMENT_GTH_F017";
 const VALANTI = "VALANTI_ASIATI";
 const ATTENTION = "ATTENTION_DETAIL_V00";
+
+function formatTime(totalSeconds) {
+  const safe = Math.max(0, Math.ceil(totalSeconds || 0));
+  return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
+}
 
 function instructionsFor(assignment) {
   if (assignment?.test_key === VALANTI) {
@@ -74,6 +79,9 @@ export default function PsychotechnicalTake() {
   const [phase, setPhase] = useState("loading");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [deadlineMs, setDeadlineMs] = useState(null);
+  const [secondsLeft, setSecondsLeft] = useState(null);
+  const timeoutSubmitted = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,6 +112,16 @@ export default function PsychotechnicalTake() {
       setAssignment(data.assignment);
       setQuestions(data.questions || []);
       setAnswers({});
+      timeoutSubmitted.current = false;
+      if (data.assignment?.test_key === ATTENTION &&
+          Number.isFinite(Number(data.assignment?.time_remaining_seconds))) {
+        const remaining = Math.max(0, Number(data.assignment.time_remaining_seconds));
+        setDeadlineMs(Date.now() + remaining * 1000);
+        setSecondsLeft(remaining);
+      } else {
+        setDeadlineMs(null);
+        setSecondsLeft(null);
+      }
       setPhase("test");
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, {
@@ -119,11 +137,11 @@ export default function PsychotechnicalTake() {
     () => groupQuestions(assignment, questions),
     [assignment, questions],
   );
-  const canSubmit = questions.length > 0 && answered === questions.length;
+  const timed = assignment?.test_key === ATTENTION;
+  const canSubmit = questions.length > 0 && (timed ? answered > 0 : answered === questions.length);
 
-  async function submit(event) {
-    event.preventDefault();
-    if (!canSubmit || submitting) return;
+  const submitAnswers = useCallback(async (automatic = false) => {
+    if ((!automatic && !canSubmit) || submitting) return;
     setSubmitting(true);
     setError("");
     try {
@@ -137,6 +155,9 @@ export default function PsychotechnicalTake() {
       });
       setPhase("completed");
     } catch (requestError) {
+      if (requestError?.response?.status === 410) {
+        setPhase("error");
+      }
       setError(getApiErrorMessage(requestError, {
         action: "enviar las respuestas",
         resource: "prueba psicotécnica",
@@ -145,6 +166,27 @@ export default function PsychotechnicalTake() {
     } finally {
       setSubmitting(false);
     }
+  }, [answers, canSubmit, questions, submitting, token]);
+
+  useEffect(() => {
+    if (phase !== "test" || deadlineMs === null) return undefined;
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+      setSecondsLeft(remaining);
+      if (remaining === 0 && !timeoutSubmitted.current) {
+        timeoutSubmitted.current = true;
+        // The scoring engine permits partial (including empty) attention answers.
+        void submitAnswers(true);
+      }
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [deadlineMs, phase, submitAnswers]);
+
+  function submit(event) {
+    event.preventDefault();
+    void submitAnswers();
   }
 
   if (phase === "loading") {
@@ -190,7 +232,7 @@ export default function PsychotechnicalTake() {
 
           <div className="psychotechnical-public-summary">
             <div><span>Ítems</span><strong>{assignment?.question_count}</strong></div>
-            <div><span>Modalidad</span><strong>Sin límite de tiempo</strong></div>
+            <div><span>Modalidad</span><strong>{assignment?.test_key === ATTENTION ? `Con tiempo: ${formatTime(assignment?.time_limit_seconds ?? assignment?.duration_seconds)}` : "Sin límite de tiempo"}</strong></div>
             <div><span>Candidato</span><strong>{assignment?.candidate_name || "Asignado"}</strong></div>
           </div>
 
@@ -225,6 +267,7 @@ export default function PsychotechnicalTake() {
           <div className="psychotechnical-progress-copy">
             <strong>{answered}/{questions.length}</strong>
             <span>respondidas</span>
+            {timed && <span role="timer">Tiempo restante: {formatTime(secondsLeft)}</span>}
           </div>
           <div className="psychotechnical-progress-track" aria-label={`Progreso ${progress}%`}>
             <i style={{ width: `${progress}%` }} />
@@ -299,7 +342,7 @@ export default function PsychotechnicalTake() {
         <footer className="psychotechnical-submit-bar">
           <div>
             <strong>{answered === questions.length ? "Todas las preguntas respondidas" : `Faltan ${questions.length - answered} respuestas`}</strong>
-            <span>Responde todas las preguntas y revisa tus respuestas antes de enviar. No hay límite de tiempo.</span>
+            <span>{timed ? "Puedes enviar respuestas parciales. Al finalizar el cronómetro se enviará lo respondido automáticamente." : "Responde todas las preguntas y revisa tus respuestas antes de enviar. No hay límite de tiempo."}</span>
           </div>
           <button
             className="btn btn-primary"
