@@ -951,15 +951,11 @@ def ensure_employee_asiati_onboarding(
     if employee.onboarding_status == "NOT_REQUIRED":
         employee.onboarding_status = "PENDING"
 
-    # A pre-resolved course avoids implicit bootstrap commits inside a hire
-    # transaction. Standalone callers retain the historical behavior.
-    if course is None:
-        if not commit:
-            raise TrainingStateError("Transactional onboarding requires a pre-resolved course.")
-        course = ensure_published_asiati_onboarding(
-            db,
-            created_by_sub=created_by_sub or SYSTEM_ONBOARDING_ACTOR,
-        )
+    if course is None and not commit:
+        raise TrainingStateError("Transactional onboarding requires a pre-resolved course.")
+    course = course or ensure_published_asiati_onboarding(
+        db, created_by_sub=created_by_sub or SYSTEM_ONBOARDING_ACTOR,
+    )
     if course.status != "PUBLISHED" or not _is_system_managed_course(course):
         raise TrainingStateError("The automatic onboarding course is not available.")
     assignment = _create_automatic_onboarding_assignment(
@@ -968,10 +964,7 @@ def ensure_employee_asiati_onboarding(
         employee=employee,
     )
     _sync_employee_onboarding(db, employee.id)
-    if commit:
-        db.commit()
-    else:
-        db.flush()
+    (db.commit if commit else db.flush)()
     db.refresh(assignment)
     return assignment
 
