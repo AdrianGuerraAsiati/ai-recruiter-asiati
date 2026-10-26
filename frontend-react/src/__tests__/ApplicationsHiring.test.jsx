@@ -171,4 +171,42 @@ describe("Applications: document access and employee creation", () => {
     expect(await screen.findByText("TemporaryPass123")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Crear empleado" })).not.toBeInTheDocument();
   });
+
+  it("exposes application-specific contract binding only when the feature is enabled", async () => {
+    api.get.mockImplementation((url) => Promise.resolve({ data:
+      url === "/jobs/hiring/signature-flow"
+        ? { enabled: true, binding_enabled: true }
+        : url === "/odoo/companies"
+          ? { items: [{ id: 23, name: "ASIATI Colombia", country: "Colombia" }] }
+          : url.includes("/contract/binding")
+            ? { enabled: true, bound: false, valid: false, can_bind: true,
+                document_approved: true, status: "CONTRACT_READY_TO_BIND",
+                message: "Contrato aprobado y listo para vincular." }
+            : url.includes("/hire-readiness")
+              ? { enabled: true, ready: false, status: "APPLICATION_CONTRACT_BINDING_REQUIRED" }
+              : { items: [application], total: 1, pages: 1 },
+    }));
+    mount();
+
+    const bind = await screen.findByRole("button", { name: "Vincular contrato" });
+    fireEvent.click(bind);
+    const dialog = await screen.findByRole("dialog", { name: /Vincular contrato/i });
+    expect(within(dialog).getByText("Ana Pérez")).toBeInTheDocument();
+    expect(within(dialog).getByText("Desarrollador")).toBeInTheDocument();
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(
+      "/jobs/job-1/candidates/candidate-1/contract/binding",
+    ));
+  });
+
+  it("does not expose contract binding for an application outside SELECTED or OFFER", async () => {
+    api.get.mockImplementation((url) => Promise.resolve({ data:
+      url === "/jobs/hiring/signature-flow"
+        ? { enabled: true, binding_enabled: true }
+        : { items: [{ ...application, application_status: "APPLIED" }], total: 1, pages: 1 },
+    }));
+    mount();
+    await screen.findByText("Ana Pérez");
+    expect(screen.queryByRole("button", { name: "Vincular contrato" })).not.toBeInTheDocument();
+  });
+
 });
