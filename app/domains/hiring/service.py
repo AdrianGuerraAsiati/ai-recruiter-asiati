@@ -13,7 +13,7 @@ from app.domains.candidates import repository as candidates_repository
 from app.domains.candidates import service as candidates_service
 from app.domains.employees import service as employees_service
 from app.domains.employee_documents import notifications as document_notifications
-from app.domains.employee_documents.models import EmployeeDocument
+from app.domains.employee_documents.models import ApplicationContract, EmployeeDocument
 from app.domains.indeed import service as indeed_service
 from app.domains.odoo_sync import company_catalog
 from app.integrations.odoo.client import OdooClientError
@@ -328,12 +328,23 @@ def hiring_signature_readiness(db: Session, *, link) -> dict:
     if not link.employee_id:
         return {"enabled": True, "ready": False, "status": "APPLICANT_PROFILE_REQUIRED",
                 "message": "Primero inicia la postulación y crea el perfil del postulante."}
+    binding = db.query(ApplicationContract).filter(
+        ApplicationContract.application_id == link.id,
+    ).one_or_none()
+    if binding is None or binding.employee_id != link.employee_id:
+        return {"enabled": True, "ready": False, "status": "APPLICATION_CONTRACT_BINDING_REQUIRED",
+                "message": "Vincula un contrato y una empresa Odoo a esta postulación antes de contratar."}
+
     document = db.query(EmployeeDocument).filter(
+        EmployeeDocument.id == binding.document_id,
         EmployeeDocument.employee_id == link.employee_id,
         EmployeeDocument.document_type == "EMPLOYMENT_CONTRACT",
     ).one_or_none()
     if (
         document is None
+        or not binding.source_storage_key
+        or document.storage_key != binding.source_storage_key
+        or binding.odoo_company_id <= 0
         or document.review_status != "APPROVED"
         or document.odoo_sign_status != "PREPARED"
         or document.odoo_sign_source_key != document.storage_key
@@ -390,6 +401,14 @@ def hire_candidate(
     signature_gate = hiring_signature_readiness(db, link=link)
     if not signature_gate["ready"]:
         raise HiringConflictError(signature_gate["message"])
+    if signed_contract_hiring_gate_enabled() and link.application_status != "HIRED":
+        binding = db.query(ApplicationContract).filter(
+            ApplicationContract.application_id == link.id,
+        ).one_or_none()
+        if binding is None or binding.odoo_company_id != odoo_company_id:
+            raise HiringValidationError(
+                "La empresa Odoo elegida no coincide con la del contrato firmado de esta postulación."
+            )
 
     resolved_username = employees_service.normalize_login_username(username)
     resolved_email = normalize_email(email or candidate.email or "")

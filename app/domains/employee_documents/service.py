@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 
-from app.domains.employee_documents.models import EmployeeDocument
+from app.domains.employee_documents.models import ApplicationContract, EmployeeDocument
 from app.domains.employee_documents.requirements import (
     EMPLOYEE_DOCUMENT_REQUIREMENTS,
     get_requirement,
@@ -188,6 +188,15 @@ def create_upload(
 ) -> dict:
     require_employee(db, employee_id)
     requirement = _require_kind(document_type, "FILE", admin_upload=admin_upload)
+    if requirement["value"] == "EMPLOYMENT_CONTRACT":
+        existing = db.query(EmployeeDocument).filter(
+            EmployeeDocument.employee_id == employee_id,
+            EmployeeDocument.document_type == "EMPLOYMENT_CONTRACT",
+        ).one_or_none()
+        if existing is not None and db.query(ApplicationContract).filter(
+            ApplicationContract.document_id == existing.id,
+        ).first():
+            raise ValueError("El contrato está vinculado a una postulación y no puede reemplazarse.")
     upload = storage.create_document_upload(
         employee_id=employee_id,
         filename=filename,
@@ -228,6 +237,9 @@ def finalize_upload(
         )
         .one_or_none()
     )
+    if existing and normalized_document_type == "EMPLOYMENT_CONTRACT":
+        if db.query(ApplicationContract).filter(ApplicationContract.document_id == existing.id).first():
+            raise ValueError("El contrato está vinculado a una postulación y no puede reemplazarse.")
     if existing and existing.odoo_sign_request_id is not None:
         raise ValueError("Existe una solicitud de firma vinculada. No se permite reemplazar el contrato.")
     if existing and existing.odoo_sign_status in ("PREPARING", "PREPARED"):

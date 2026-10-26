@@ -25,6 +25,7 @@ CORE_TABLES = {
     "user_roles",
     "role_permissions",
     "employee_score_events",
+    "application_contracts",
     "employee_documents",
     "employee_document_emails",
     "training_courses",
@@ -94,6 +95,7 @@ def test_alembic_head_builds_current_postgres_schema():
             "user_roles",
             "role_permissions",
             "employee_score_events",
+            "application_contracts",
             "employee_documents",
             "employee_document_emails",
             "training_courses",
@@ -569,6 +571,6 @@ def test_alembic_head_builds_current_postgres_schema():
             "odoo_sign_certificate_sha256",
             "odoo_sign_certificate_attachment_id",
         }.issubset(certificate_columns)
-        assert revision == "058"
+        assert revision == "059"
     finally:
         engine.dispose()

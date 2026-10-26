@@ -635,6 +635,13 @@ def test_signature_gate_requires_verified_archived_file_before_hiring(db, monkey
         odoo_sign_employee_state="signed", odoo_sign_representative_state="sent",
     )
     db.add(contract)
+    db.flush()
+    from app.domains.employee_documents.models import ApplicationContract
+    db.add(ApplicationContract(
+        application_id=link.id, employee_id=applicant.id,
+        document_id=contract.id, odoo_company_id=97,
+        source_storage_key=contract.storage_key,
+    ))
     db.commit()
     monkeypatch.setenv("ADN360_REQUIRE_SIGNED_CONTRACT_FOR_HIRE", "true")
     cognito = FakeCognito()
@@ -660,6 +667,11 @@ def test_signature_gate_requires_verified_archived_file_before_hiring(db, monkey
     readiness = hiring_service.hiring_signature_readiness(db, link=link)
     assert readiness["ready"] is True
     assert readiness["status"] == "SIGNED_CONTRACT_ARCHIVED"
+    # A fully signed dossier is insufficient when the selected Odoo company
+    # differs from the immutable company in the application binding.
+    with pytest.raises(hiring_service.HiringValidationError, match="empresa Odoo"):
+        _hire(db, cognito=cognito, job=job, candidate=candidate)
+    assert cognito.created == []
 
 
 def test_prepare_contract_dossier_creates_only_applicant_profile_without_login(db, monkeypatch):
@@ -695,3 +707,143 @@ def test_prepare_dossier_disabled_until_signed_hiring_feature_is_enabled(db, mon
             candidate_id=candidate.id, created_by_sub="admin-sub",
         )
     assert db.query(UserProfile).count() == 0
+
+
+def test_application_contract_binding_is_required_and_cannot_be_reused(db, monkeypatch):
+    """A signed document for vacancy A never authorizes vacancy B."""
+    from datetime import datetime, timezone
+    from app.domains.employee_documents.models import ApplicationContract, EmployeeDocument
+
+    monkeypatch.setenv("ADN360_REQUIRE_SIGNED_CONTRACT_FOR_HIRE", "true")
+    job_a, candidate, link_a = _application(db)
+    job_b = Job(
+        title="Frontend Developer", description="React", owner_sub="admin-sub",
+        country_code="CO", company_name="ASIATI Colombia", city="Bogotá",
+    )
+    db.add(job_b)
+    db.flush()
+    link_b = JobCandidate(
+        job_id=job_b.id, candidate_id=candidate.id, application_status="OFFER",
+    )
+    db.add(link_b)
+    profile = UserProfile(
+        email=candidate.email, first_name="Ana", last_name="Pérez", status="ACTIVE",
+    )
+    db.add(profile)
+    db.flush()
+    link_a.employee_id = profile.id
+    link_b.employee_id = profile.id
+    now = datetime.now(timezone.utc)
+    doc = EmployeeDocument(
+        employee_id=profile.id, document_type="EMPLOYMENT_CONTRACT",
+        review_status="APPROVED", storage_key="test/original.pdf",
+        odoo_sign_source_key="test/original.pdf", odoo_sign_status="PREPARED",
+        odoo_sign_request_id=140, odoo_sign_request_status="SIGNED",
+        odoo_sign_employee_state="completed", odoo_sign_representative_state="completed",
+        odoo_sign_completed_at=now, odoo_sign_signed_storage_key="test/signed.pdf",
+        odoo_sign_signed_at=now, odoo_sign_signed_sha256="a" * 64,
+    )
+    db.add(doc)
+    db.commit()
+
+    # Legacy signed PDFs are preserved but cannot authorize an unbound application.
+    assert hiring_service.hiring_signature_readiness(db, link=link_a)["status"] == (
+        "APPLICATION_CONTRACT_BINDING_REQUIRED"
+    )
+
+    db.add(ApplicationContract(
+        application_id=link_a.id, employee_id=profile.id,
+        document_id=doc.id, odoo_company_id=97, source_storage_key=doc.storage_key,
+    ))
+    db.commit()
+    assert hiring_service.hiring_signature_readiness(db, link=link_a)["status"] == (
+        "SIGNED_CONTRACT_ARCHIVED"
+    )
+    assert hiring_service.hiring_signature_readiness(db, link=link_b)["status"] == (
+        "APPLICATION_CONTRACT_BINDING_REQUIRED"
+    )
+    # Tampering with the source version must fail closed.
+    doc.storage_key = "test/replaced.pdf"
+    db.commit()
+    assert hiring_service.hiring_signature_readiness(db, link=link_a)["ready"] is False
+
+
+def test_application_contract_binding_happens_only_before_signing(db, monkeypatch):
+    from app.domains.employee_documents.models import ApplicationContract, EmployeeDocument
+    from app.domains.hiring import application_contracts as bindings
+
+    monkeypatch.setenv("ADN360_APPLICATION_CONTRACT_BINDING_ENABLED", "true")
+    monkeypatch.setattr(bindings.company_catalog, "require_company", lambda company_id: {"id": company_id, "name": "ASIATI"})
+    job, candidate, link = _application(db)
+    profile = UserProfile(
+        email=candidate.email, first_name="Ana", last_name="Pérez", status="ACTIVE",
+    )
+    db.add(profile)
+    db.flush()
+    link.employee_id = profile.id
+    doc = EmployeeDocument(
+        employee_id=profile.id, document_type="EMPLOYMENT_CONTRACT",
+        review_status="APPROVED", storage_key="test/approved.pdf",
+        odoo_sign_status="NOT_PREPARED", odoo_sign_request_status="UNLINKED",
+    )
+    db.add(doc)
+    db.commit()
+
+    first = bindings.bind(
+        db, owner_sub="admin-sub", job_id=job.id, candidate_id=candidate.id,
+        odoo_company_id=97,
+    )
+    assert first["bound"] and not first["already_bound"]
+    repeat = bindings.bind(
+        db, owner_sub="admin-sub", job_id=job.id, candidate_id=candidate.id,
+        odoo_company_id=97,
+    )
+    assert repeat["already_bound"]
+    assert db.query(ApplicationContract).count() == 1
+    with pytest.raises(bindings.ContractBindingConflict, match="diferente"):
+        bindings.bind(
+            db, owner_sub="admin-sub", job_id=job.id, candidate_id=candidate.id,
+            odoo_company_id=98,
+        )
+
+    # A different application for the same employee may not inherit the bound PDF.
+    second_job = Job(title="QA", description="QA", owner_sub="admin-sub")
+    db.add(second_job)
+    db.flush()
+    second_link = JobCandidate(
+        job_id=second_job.id, candidate_id=candidate.id,
+        employee_id=profile.id, application_status="SELECTED",
+    )
+    db.add(second_link)
+    db.commit()
+    with pytest.raises(bindings.ContractBindingConflict, match="otra postulación"):
+        bindings.bind(
+            db, owner_sub="admin-sub", job_id=second_job.id,
+            candidate_id=candidate.id, odoo_company_id=97,
+        )
+
+
+def test_retroactive_binding_of_a_signed_legacy_contract_is_denied(db, monkeypatch):
+    from app.domains.employee_documents.models import ApplicationContract, EmployeeDocument
+    from app.domains.hiring import application_contracts as bindings
+
+    monkeypatch.setenv("ADN360_APPLICATION_CONTRACT_BINDING_ENABLED", "true")
+    job, candidate, link = _application(db)
+    profile = UserProfile(email=candidate.email, status="ACTIVE")
+    db.add(profile)
+    db.flush()
+    link.employee_id = profile.id
+    db.add(EmployeeDocument(
+        employee_id=profile.id, document_type="EMPLOYMENT_CONTRACT",
+        review_status="APPROVED", storage_key="test/historical.pdf",
+        odoo_sign_status="PREPARED", odoo_sign_request_id=140,
+        odoo_sign_request_status="SIGNED",
+    ))
+    db.commit()
+    with pytest.raises(bindings.ContractBindingConflict, match="retrospectivamente"):
+        bindings.bind(
+            db, owner_sub="admin-sub", job_id=job.id, candidate_id=candidate.id,
+            odoo_company_id=97,
+        )
+    assert db.query(ApplicationContract).count() == 0
+    assert db.query(EmployeeDocument).count() == 1

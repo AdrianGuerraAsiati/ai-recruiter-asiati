@@ -12,6 +12,7 @@ from sqlalchemy import (
     Integer,
     Text,
     UniqueConstraint,
+    Uuid,
 )
 from sqlalchemy.orm import relationship
 
@@ -134,3 +135,36 @@ class EmployeeDocumentEmail(Base):
     sent_at = Column(DateTime(timezone=True), nullable=True)
 
     employee = relationship("UserProfile")
+
+
+class ApplicationContract(Base):
+    """Associate one signed contract document with exactly one job application.
+
+    Legacy employee documents stay untouched and do not automatically acquire
+    an application binding merely because employee_id matches.
+    """
+
+    __tablename__ = "application_contracts"
+    __table_args__ = (
+        UniqueConstraint("document_id", name="uq_application_contracts_document"),
+        CheckConstraint("odoo_company_id > 0", name="ck_application_contracts_company_positive"),
+        Index("idx_application_contracts_employee", "employee_id"),
+    )
+
+    application_id = Column(
+        Uuid(as_uuid=False),
+        ForeignKey("job_candidates.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    employee_id = Column(Text, ForeignKey("user_profiles.id", ondelete="RESTRICT"), nullable=False)
+    document_id = Column(Text, ForeignKey("employee_documents.id", ondelete="RESTRICT"), nullable=False)
+    odoo_company_id = Column(Integer, nullable=False)
+    source_storage_key = Column(Text, nullable=False)
+    bound_at = Column(
+        DateTime(timezone=True), nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    application = relationship("JobCandidate")
+    employee = relationship("UserProfile")
+    document = relationship("EmployeeDocument")
