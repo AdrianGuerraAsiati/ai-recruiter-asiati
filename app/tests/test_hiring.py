@@ -783,6 +783,7 @@ def test_application_contract_binding_happens_only_before_signing(db, monkeypatc
     link.employee_id = profile.id
     doc = EmployeeDocument(
         employee_id=profile.id, document_type="EMPLOYMENT_CONTRACT",
+        original_filename="contrato.pdf", content_type="application/pdf",
         review_status="APPROVED", storage_key="test/approved.pdf",
         odoo_sign_status="NOT_PREPARED", odoo_sign_request_status="UNLINKED",
     )
@@ -835,6 +836,7 @@ def test_retroactive_binding_of_a_signed_legacy_contract_is_denied(db, monkeypat
     link.employee_id = profile.id
     db.add(EmployeeDocument(
         employee_id=profile.id, document_type="EMPLOYMENT_CONTRACT",
+        original_filename="contrato-historico.pdf", content_type="application/pdf",
         review_status="APPROVED", storage_key="test/historical.pdf",
         odoo_sign_status="PREPARED", odoo_sign_request_id=140,
         odoo_sign_request_status="SIGNED",
