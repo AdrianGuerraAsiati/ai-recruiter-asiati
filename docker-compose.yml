@@ -1,18 +1,60 @@
+# Entorno local aislado. Produccion usa scripts/deploy-*.sh, no Docker Compose.
+x-api-environment: &api-environment
+  DATABASE_URL: postgresql://ai_recruiter:local_dev_only@db:5432/ai_recruiter
+  AWS_REGION: us-east-2
+  API_DOCS_ENABLED: "true"
+  ALLOW_PUBLIC_REGISTRATION: "false"
+  GMAIL_ENABLED: "false"
+  INDEED_ENABLED: "false"
+  ODOO_ENABLED: "false"
+
 services:
-  api:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ai_recruiter
+      POSTGRES_PASSWORD: local_dev_only
+      POSTGRES_DB: ai_recruiter
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    image: ai-recruiter-api:compose
     build:
       context: .
       dockerfile: Dockerfile
-    env_file:
-      - .env
-    expose:
-      - "8000"
+    working_dir: /app/app
+    environment:
+      <<: *api-environment
+      PYTHONPATH: /app
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["python", "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"]
+    restart: "no"
+
+  ai-recruiter-api:
+    image: ai-recruiter-api:compose
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment: *api-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:80/api/ready', timeout=3)"]
       interval: 30s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 30s
 
   web:
     build:
@@ -20,12 +62,11 @@ services:
       args:
         VITE_API_URL: /api
     depends_on:
-      api:
+      ai-recruiter-api:
         condition: service_healthy
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./certbot/www:/var/www/certbot:ro
-      - ./certbot/conf:/etc/letsencrypt:ro
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
     restart: unless-stopped
+
+volumes:
+  postgres_local_data:
