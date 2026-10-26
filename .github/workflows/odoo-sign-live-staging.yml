@@ -31,6 +31,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install pytest for safety guards
+        run: python -m pip install pytest
       - name: Verify safety guards (no network)
         run: python -m pytest app/tests/test_odoo_sign_live_staging_probe.py -q
       - name: Contact real Odoo.sh staging XML-RPC common.version (no login)
