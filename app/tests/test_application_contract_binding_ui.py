@@ -239,3 +239,30 @@ def test_sign_readiness_accepts_matching_binding_and_keeps_legacy_flag_off(bindi
     client = FakeOdooSchema()
     result = signing.readiness(db, profile.id, client=client)
     assert result["ready"] is True
+
+
+def test_binding_rejects_non_pdf_contract(binding_context, monkeypatch):
+    db, job, candidate, profile, _ = binding_context
+    monkeypatch.setenv("ADN360_APPLICATION_CONTRACT_BINDING_ENABLED", "true")
+    monkeypatch.setattr(
+        application_contracts.company_catalog,
+        "require_company",
+        lambda company_id: {"id": company_id, "name": "ASIATI Colombia"},
+    )
+    document = approved_unsigned_contract(db, profile)
+    document.content_type = "application/msword"
+    document.original_filename = "contrato.doc"
+    db.commit()
+
+    result = application_contracts.binding_status(
+        db, owner_sub="admin-sub", job_id=job.id, candidate_id=candidate.id,
+    )
+    assert result["status"] == "CONTRACT_NOT_PDF"
+    assert result["can_bind"] is False
+
+    with pytest.raises(application_contracts.ContractBindingConflict, match="PDF"):
+        application_contracts.bind(
+            db, owner_sub="admin-sub", job_id=job.id, candidate_id=candidate.id,
+            odoo_company_id=23,
+        )
+    assert db.query(ApplicationContract).count() == 0
