@@ -670,4 +670,26 @@ describe("Jobs page", () => {
     });
   });
 
+
+  it("routes candidates through Applications when signature-first hiring is enabled", async () => {
+    api.get.mockImplementation((url) => {
+      if (url === "/jobs/hiring/signature-flow") {
+        return Promise.resolve({ data: { enabled: true, binding_enabled: true } });
+      }
+      if (url === "/jobs/page") return Promise.resolve({ data: jobsPage() });
+      if (url === "/jobs/job-1/candidates") {
+        return Promise.resolve({ data: [{ ...CANDIDATES[0], application_status: "SELECTED" }] });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    renderJobs();
+    await screen.findByText("Backend Developer");
+    fireEvent.click(screen.getAllByText("Ver")[0]);
+
+    expect(await screen.findByRole("link", { name: "Gestionar en Postulaciones" }))
+      .toHaveAttribute("href", "/applications");
+    expect(screen.queryByRole("button", { name: "Contratar candidato" })).not.toBeInTheDocument();
+  });
+
 });

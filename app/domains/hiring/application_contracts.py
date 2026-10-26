@@ -64,6 +64,8 @@ def bind(
     ).with_for_update().one_or_none()
     if not document or not document.storage_key or document.review_status != "APPROVED":
         raise ContractBindingConflict("Primero carga y aprueba el contrato de esta postulación.")
+    if document.content_type != "application/pdf" or not str(document.original_filename or "").lower().endswith(".pdf"):
+        raise ContractBindingConflict("Solo puedes vincular un contrato aprobado en formato PDF.")
 
     existing = db.query(ApplicationContract).filter(
         ApplicationContract.application_id == link.id
@@ -126,4 +128,125 @@ def bind(
         "odoo_company_id": odoo_company_id,
         "bound": True,
         "already_bound": False,
+    }
+
+
+def binding_status(
+    db: Session,
+    *,
+    owner_sub: str,
+    job_id: str,
+    candidate_id: str,
+) -> dict:
+    """Read binding state for one exact application without mutating the dossier."""
+    enabled = binding_enabled()
+    candidates_service.require_job(db, job_id, owner_sub)
+    candidates_service.require_candidate(db, candidate_id, owner_sub)
+    link = candidates_repository.get_job_candidate(
+        db, job_id=job_id, candidate_id=candidate_id, owner_sub=None,
+    )
+    if link is None:
+        raise candidates_service.JobCandidateNotFound(candidate_id)
+
+    base = {
+        "enabled": enabled,
+        "bound": False,
+        "valid": False,
+        "can_bind": False,
+        "document_approved": False,
+        "profile_id": link.employee_id,
+        "odoo_company_id": None,
+    }
+    binding = db.query(ApplicationContract).filter(
+        ApplicationContract.application_id == link.id,
+    ).one_or_none()
+    if binding is not None:
+        document = db.query(EmployeeDocument).filter(
+            EmployeeDocument.id == binding.document_id,
+        ).one_or_none()
+        valid = bool(
+            document is not None
+            and link.employee_id
+            and binding.employee_id == link.employee_id
+            and document.employee_id == link.employee_id
+            and document.document_type == "EMPLOYMENT_CONTRACT"
+            and document.review_status == "APPROVED"
+            and document.content_type == "application/pdf"
+            and str(document.original_filename or "").lower().endswith(".pdf")
+            and document.storage_key
+            and binding.source_storage_key == document.storage_key
+            and binding.odoo_company_id > 0
+        )
+        return {
+            **base,
+            "bound": True,
+            "valid": valid,
+            "document_approved": bool(document and document.review_status == "APPROVED"),
+            "odoo_company_id": binding.odoo_company_id,
+            "status": "APPLICATION_CONTRACT_BOUND" if valid else "APPLICATION_CONTRACT_BINDING_INVALID",
+            "message": (
+                "Contrato vinculado a la empresa Odoo seleccionada."
+                if valid else
+                "El vínculo no coincide con el PDF actual. No se permite sustituirlo ni reasignarlo; revisa el expediente."
+            ),
+        }
+
+    if not enabled:
+        return {
+            **base,
+            "status": "BINDING_DISABLED",
+            "message": "La vinculación contractual por postulación no está habilitada en este entorno.",
+        }
+    if not link.employee_id:
+        return {
+            **base,
+            "status": "APPLICANT_PROFILE_REQUIRED",
+            "message": "Primero prepara el expediente del postulante desde Postulaciones.",
+        }
+    if link.application_status not in {"SELECTED", "OFFER"}:
+        return {
+            **base,
+            "status": "APPLICATION_NOT_ELIGIBLE",
+            "message": "Solo puedes vincular el contrato cuando la postulación esté seleccionada o en oferta.",
+        }
+
+    document = db.query(EmployeeDocument).filter(
+        EmployeeDocument.employee_id == link.employee_id,
+        EmployeeDocument.document_type == "EMPLOYMENT_CONTRACT",
+    ).one_or_none()
+    if document is None or not document.storage_key or document.review_status != "APPROVED":
+        return {
+            **base,
+            "document_approved": bool(document and document.review_status == "APPROVED" and document.storage_key),
+            "status": "CONTRACT_NOT_APPROVED",
+            "message": "Primero carga y aprueba el contrato PDF desde Documentos.",
+        }
+    if document.content_type != "application/pdf" or not str(document.original_filename or "").lower().endswith(".pdf"):
+        return {
+            **base,
+            "document_approved": True,
+            "status": "CONTRACT_NOT_PDF",
+            "message": "El contrato aprobado debe ser un archivo PDF para vincularlo a Odoo Sign.",
+        }
+
+    if (
+        document.odoo_sign_status != "NOT_PREPARED"
+        or document.odoo_sign_request_id is not None
+        or document.odoo_sign_request_status != "UNLINKED"
+        or document.odoo_sign_signed_storage_key
+        or document.odoo_sign_certificate_storage_key
+    ):
+        return {
+            **base,
+            "document_approved": True,
+            "status": "CONTRACT_ALREADY_PREPARED",
+            "message": "Este contrato ya fue preparado o firmado; no se permite vincularlo retrospectivamente.",
+        }
+
+    return {
+        **base,
+        "document_approved": True,
+        "can_bind": True,
+        "status": "CONTRACT_READY_TO_BIND",
+        "message": "Contrato aprobado y listo para vincular.",
     }

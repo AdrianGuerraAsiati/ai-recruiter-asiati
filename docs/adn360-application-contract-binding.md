@@ -9,14 +9,16 @@ Este cambio incorpora `application_contracts` como relación 1:1 entre la postul
 - La tabla protege la relación: un documento no se puede vincular a dos postulaciones y una postulación no puede referenciar dos documentos simultáneamente. Borrar registros referenciados está restringido a nivel de FK.
 - **Limitación actual:** `EmployeeDocument` aún conserva la restricción única por empleado/tipo. Un candidato con dos postulaciones simultáneas necesitará una evolución posterior del almacenamiento de contratos por postulación. El control actual falla cerrado para impedir reutilización.
 
-## Flujo backend (sin interfaz aún)
-1. Preparar el perfil APPLICANT, subir un PDF y aprobarlo.
-2. Con `ADN360_APPLICATION_CONTRACT_BINDING_ENABLED=true` habilitado solo en el entorno de ensayo, ejecutar `POST /api/jobs/{job_id}/candidates/{candidate_id}/contract/bind` con `{"odoo_company_id": <id>}`.
-3. El endpoint verifica empresa con Odoo, que el documento está aprobado, que aún no se ha preparado/enviado a firma y que nadie lo ha vinculado a otra postulación. Repetir idéntica vinculación es idempotente.
-4. Preparar el contrato en Odoo Sign, firmar ambas partes y archivarlo.
-5. Con `ADN360_REQUIRE_SIGNED_CONTRACT_FOR_HIRE=true` en un entorno de ensayo, readiness y contratación requieren la relación exacta, versión del contrato y empresa coincidente.
+## Flujo integrado en la interfaz
+1. En **Postulaciones**, preparar el perfil APPLICANT sin crear un empleado Odoo.
+2. En **Documentos**, cargar el contrato PDF y aprobarlo como Talento Humano.
+3. Volver a la postulación exacta y abrir **Vincular contrato**. Seleccionar una empresa activa del catálogo Odoo y confirmar.
+4. El modal consulta `GET /api/jobs/{job_id}/candidates/{candidate_id}/contract/binding` para mostrar el estado y la empresa vinculada. El vínculo es inmutable; una versión de PDF distinta se rechaza.
+5. Continuar a Documentos y preparar Odoo Sign. Si la vinculación está habilitada y falta el vínculo correcto, readiness y `POST .../contract/sign/prepare` bloquean la preparación antes de cualquier escritura en Odoo.
+6. La firma de ambas partes, reconciliación y archivo separado del PDF firmado y el certificado siguen el flujo existente.
+7. Con `ADN360_REQUIRE_SIGNED_CONTRACT_FOR_HIRE=true` en un entorno de ensayo, readiness y contratación requieren la postulación, versión del contrato y empresa coincidentes.
 
-No activar estas variables en producción antes de CI, migración sobre copia de PostgreSQL, recorrido E2E con Odoo staging y actualización de UI.
+La interfaz y el guard de preparación están implementados en la rama de trabajo, pero la prueba real contra Odoo Sign staging sigue pendiente. Usa [el checklist E2E de staging](adn360-contract-binding-staging-checklist.md). No activar estas variables en producción.
 
 ## Riesgos abiertos
 - El registro histórico de la solicitud 140 se preserva sin modificación, pero no habilita ninguna nueva postulación.

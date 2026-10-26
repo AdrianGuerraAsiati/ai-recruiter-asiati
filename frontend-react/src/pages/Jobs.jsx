@@ -117,6 +117,31 @@ function Jobs() {
   const [hiring, setHiring] = useState(false);
   const [hireError, setHireError] = useState("");
   const [hireCredentials, setHireCredentials] = useState(null);
+  const [signatureFlowCapabilities, setSignatureFlowCapabilities] = useState({
+    enabled: false,
+    binding_enabled: false,
+  });
+  const signatureFirstFlow = Boolean(
+    signatureFlowCapabilities.enabled || signatureFlowCapabilities.binding_enabled
+  );
+
+  useEffect(() => {
+    if (!canHireCandidate) return undefined;
+    let active = true;
+    api.get("/jobs/hiring/signature-flow")
+      .then(({ data }) => {
+        if (active) {
+          setSignatureFlowCapabilities({
+            enabled: Boolean(data?.enabled),
+            binding_enabled: Boolean(data?.binding_enabled),
+          });
+        }
+      })
+      .catch(() => {
+        if (active) setSignatureFlowCapabilities({ enabled: false, binding_enabled: false });
+      });
+    return () => { active = false; };
+  }, [canHireCandidate]);
 
   const [indeedIntegration, setIndeedIntegration] = useState(null);
   const [indeedJobStatus, setIndeedJobStatus] = useState(null);
@@ -1265,13 +1290,19 @@ function Jobs() {
                       </div>
                       <div className="job-detail-candidate-actions">
                         {canHireCandidate && c.application_status !== "HIRED" && (
-                          <button
-                            type="button"
-                            className="btn btn-primary btn-sm"
-                            onClick={() => openHireModal(c)}
-                          >
-                            Contratar candidato
-                          </button>
+                          signatureFirstFlow ? (
+                            <Link className="btn btn-secondary btn-sm" to="/applications">
+                              Gestionar en Postulaciones
+                            </Link>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              onClick={() => openHireModal(c)}
+                            >
+                              Contratar candidato
+                            </button>
+                          )
                         )}
                         <Link className="btn btn-secondary btn-sm" to={`/candidates/${c.candidate_id}?job_id=${viewJob.job_id}`}>Ver candidato</Link>
                       </div>
