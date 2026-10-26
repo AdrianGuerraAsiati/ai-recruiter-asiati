@@ -49,10 +49,12 @@ describe("ApplicationContractBindingModal", () => {
     />);
 
     const dialog = await screen.findByRole("dialog", { name: /Vincular contrato/i });
-    fireEvent.change(within(dialog).getByLabelText("Empresa Odoo"), {
-      target: { value: "23" },
-    });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Vincular contrato" }));
+    const company = within(dialog).getByLabelText("Empresa Odoo");
+    await waitFor(() => expect(company).toBeEnabled());
+    fireEvent.change(company, { target: { value: "23" } });
+    const bind = within(dialog).getByRole("button", { name: "Vincular contrato" });
+    await waitFor(() => expect(bind).toBeEnabled());
+    fireEvent.click(bind);
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       "/jobs/job-1/candidates/candidate-1/contract/bind",
