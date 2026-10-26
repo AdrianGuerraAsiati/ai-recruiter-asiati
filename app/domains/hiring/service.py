@@ -460,6 +460,7 @@ def hire_candidate(
         db.query(JobCandidate)
         .filter(JobCandidate.id == link.id)
         .with_for_update()
+        .populate_existing()
         .one()
     )
 
@@ -478,6 +479,7 @@ def hire_candidate(
     employee_created = False
     temporary_password = None
     created_cognito_email = None
+    commit_started = False
 
     try:
 
@@ -633,10 +635,18 @@ def hire_candidate(
             )
 
         # Atomic boundary for roles, onboarding, application and Odoo outbox.
+        commit_started = True
         db.commit()
     except Exception:
         db.rollback()
-        if created_cognito_email:
+        if created_cognito_email and commit_started:
+            # A lost DB connection can raise AFTER the server committed. Never
+            # delete the identity when persistence outcome is ambiguous.
+            logger.error(
+                "Hiring DB commit outcome unknown; reconcile Cognito user for application_id=%s",
+                link.id,
+            )
+        elif created_cognito_email:
             # Cognito has no DB transaction. Compensate only a user that THIS
             # attempt created; never delete a pre-existing Cognito identity.
             try:
