@@ -9,6 +9,7 @@ import { useSession } from "../context/SessionContext";
 import CandidateCreateUserModal from "../components/CandidateCreateUserModal.jsx";
 import ApplicationHireModal from "../components/ApplicationHireModal.jsx";
 import ApplicationAccessModal from "../components/ApplicationAccessModal.jsx";
+import ApplicationContractBindingModal from "../components/ApplicationContractBindingModal.jsx";
 import { getApiErrorMessage } from "../utils/errors";
 import PageHeader from "../components/ui/PageHeader";
 import "../talent-workspaces.css";
@@ -44,6 +45,7 @@ function Applications() {
   const [provisionTarget, setProvisionTarget] = useState(null);
   const [accessTarget, setAccessTarget] = useState(null);
   const [hireTarget, setHireTarget] = useState(null);
+  const [bindingTarget, setBindingTarget] = useState(null);
   const [success, setSuccess] = useState("");
   const [status, setStatus] = useState("");
   const [query, setQuery] = useState("");
@@ -54,13 +56,22 @@ function Applications() {
   const [savingId, setSavingId] = useState("");
   const [error, setError] = useState("");
   const [signatureFlowEnabled, setSignatureFlowEnabled] = useState(false);
+  const [contractBindingEnabled, setContractBindingEnabled] = useState(false);
 
   useEffect(() => {
     if (!canCreateEmployees) return undefined;
     let active = true;
     api.get("/jobs/hiring/signature-flow")
-      .then(({ data }) => { if (active) setSignatureFlowEnabled(Boolean(data?.enabled)); })
-      .catch(() => { if (active) setSignatureFlowEnabled(false); });
+      .then(({ data }) => {
+        if (!active) return;
+        setSignatureFlowEnabled(Boolean(data?.enabled));
+        setContractBindingEnabled(Boolean(data?.binding_enabled));
+      })
+      .catch(() => {
+        if (!active) return;
+        setSignatureFlowEnabled(false);
+        setContractBindingEnabled(false);
+      });
     return () => { active = false; };
   }, [canCreateEmployees]);
 
@@ -107,7 +118,7 @@ function Applications() {
   }, [items]);
 
   async function prepareContractDossier(application) {
-    if (!signatureFlowEnabled || !canCreateEmployees || !canReviewDocuments) return;
+    if ((!signatureFlowEnabled && !contractBindingEnabled) || !canCreateEmployees || !canReviewDocuments) return;
     setSavingId(application.id);
     setError("");
     try {
@@ -162,6 +173,11 @@ function Applications() {
 
       {error && <FeedbackMessage title="No se completó la operación">{error}</FeedbackMessage>}
       {success && <FeedbackMessage tone="success" title="Operación completada">{success}</FeedbackMessage>}
+      {contractBindingEnabled && !signatureFlowEnabled && (
+        <FeedbackMessage title="Configuración de firma incompleta">
+          La vinculación contractual está habilitada, pero el bloqueo de contratación no. En staging deben activarse ambos controles antes de probar altas.
+        </FeedbackMessage>
+      )}
 
       <section className="metrics-grid" aria-label="Resumen de postulaciones">
         <MetricCard icon="applications" label="Total" value={total} detail="Postulaciones registradas" tone="blue" />
@@ -253,7 +269,7 @@ function Applications() {
                         <Link className="btn btn-ghost" to={`/candidates/${application.candidate.candidate_id}?job_id=${application.job.job_id}`}>
                           Ver candidato
                         </Link>
-                        {signatureFlowEnabled && canCreateEmployees && canReviewDocuments
+                        {(signatureFlowEnabled || contractBindingEnabled) && canCreateEmployees && canReviewDocuments
                           && application.application_status !== "HIRED"
                           && !["REJECTED", "WITHDRAWN"].includes(application.application_status)
                           && !application.access?.profile_id && (
@@ -261,6 +277,18 @@ function Applications() {
                               disabled={savingId === application.id}
                               onClick={() => void prepareContractDossier(application)}>
                               Preparar contrato
+                            </button>
+                          )}
+                        {contractBindingEnabled && canCreateEmployees && canReviewDocuments
+                          && application.access?.profile_id
+                          && ["SELECTED", "OFFER"].includes(application.application_status) && (
+                            <button
+                              className="btn btn-secondary"
+                              type="button"
+                              disabled={savingId === application.id}
+                              onClick={() => setBindingTarget(application)}
+                            >
+                              Vincular contrato
                             </button>
                           )}
                         {canReviewDocuments && application.access?.profile_id && (
@@ -281,7 +309,11 @@ function Applications() {
                             {application.access.username || "Usuario"} · Credenciales
                           </button>
                         )}
-                        {canCreateEmployees && application.application_status !== "HIRED" && (application.access?.provisioned || (signatureFlowEnabled && application.access?.profile_id)) && (
+                        {canCreateEmployees && application.application_status !== "HIRED" && (
+                          contractBindingEnabled
+                            ? signatureFlowEnabled && application.access?.profile_id
+                            : application.access?.provisioned || (signatureFlowEnabled && application.access?.profile_id)
+                        ) && (
                           <button className="btn btn-primary" type="button" onClick={() => setHireTarget(application)}>
                             Crear empleado
                           </button>
@@ -325,6 +357,17 @@ function Applications() {
           application={accessTarget}
           onClose={() => setAccessTarget(null)}
           onUpdated={loadApplications}
+        />
+      )}
+      {bindingTarget && (
+        <ApplicationContractBindingModal
+          key={bindingTarget.id}
+          application={bindingTarget}
+          onClose={() => setBindingTarget(null)}
+          onContinue={(profileId) => {
+            setBindingTarget(null);
+            navigate(`/documents?employee_id=${encodeURIComponent(profileId)}`);
+          }}
         />
       )}
       {hireTarget && (
