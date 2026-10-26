@@ -31,7 +31,9 @@ export default function ApplicationContractBindingModal({ application, onClose, 
     let active = true;
     api.get(bindingEndpoint(application))
       .then(({ data }) => {
-        if (active) setBindingStatus(data);
+        if (!active) return;
+        setBindingStatus(data);
+        if (data?.odoo_company_id) setCompanyId(String(data.odoo_company_id));
       })
       .catch((err) => {
         if (active) {
@@ -56,18 +58,6 @@ export default function ApplicationContractBindingModal({ application, onClose, 
 
     return () => { active = false; };
   }, [application]);
-
-  useEffect(() => {
-    if (!bindingStatus || companiesLoading) return;
-    if (bindingStatus.odoo_company_id) {
-      setCompanyId(String(bindingStatus.odoo_company_id));
-      return;
-    }
-    if (!companyId) {
-      const match = companies.find((item) => item.name === application?.job?.company_name);
-      if (match) setCompanyId(String(match.id));
-    }
-  }, [application, bindingStatus, companies, companiesLoading, companyId]);
 
   if (!application) return null;
 
