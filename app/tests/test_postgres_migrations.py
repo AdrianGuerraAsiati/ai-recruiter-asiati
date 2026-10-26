@@ -571,6 +571,6 @@ def test_alembic_head_builds_current_postgres_schema():
             "odoo_sign_certificate_sha256",
             "odoo_sign_certificate_attachment_id",
         }.issubset(certificate_columns)
-        assert revision == "058"
+        assert revision == "059"
     finally:
         engine.dispose()
