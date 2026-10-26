@@ -12,7 +12,9 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.domains.employee_documents import service
-from app.domains.employee_documents.models import EmployeeDocument
+from app.domains.employee_documents.models import ApplicationContract, EmployeeDocument
+from app.domains.hiring import application_contracts
+from app.models import JobCandidate
 from app.domains.odoo_sync import staging
 from app.infrastructure.storage import employee_documents as storage
 from app.integrations.odoo.client import OdooClientError
@@ -58,6 +60,24 @@ def _url(template_id: int) -> str:
     return f"{base_url}/web#id={int(template_id)}&model=sign.template&view_type=form"
 
 
+
+def _application_binding_matches(db: Session, document: EmployeeDocument) -> bool:
+    binding = db.query(ApplicationContract).filter(
+        ApplicationContract.document_id == document.id,
+    ).one_or_none()
+    if (
+        binding is None
+        or binding.employee_id != document.employee_id
+        or not binding.source_storage_key
+        or binding.source_storage_key != document.storage_key
+        or binding.odoo_company_id <= 0
+    ):
+        return False
+    application = db.query(JobCandidate).filter(
+        JobCandidate.id == binding.application_id,
+    ).one_or_none()
+    return bool(application and application.employee_id == document.employee_id)
+
 def readiness(db: Session, employee_id: str, *, client=None) -> dict:
     document = _contract(db, employee_id)
     state = document.odoo_sign_status if document is not None else "NOT_PREPARED"
@@ -69,6 +89,20 @@ def readiness(db: Session, employee_id: str, *, client=None) -> dict:
         "message": "",
         "staging_only": True,
     }
+    if document and application_contracts.binding_enabled():
+        if not document.storage_key:
+            result["message"] = "Talento Humano debe cargar primero el contrato."
+            return result
+        if document.review_status != "APPROVED":
+            result["message"] = "El contrato debe estar aprobado antes de preparar la firma."
+            return result
+        if not _application_binding_matches(db, document):
+            result["status"] = "APPLICATION_CONTRACT_BINDING_REQUIRED"
+            result["message"] = (
+                "Antes de preparar Odoo Sign, vincula el contrato aprobado con la postulación "
+                "y la empresa Odoo desde Postulaciones."
+            )
+            return result
     if document and state == "PREPARED" and document.odoo_sign_template_id:
         try:
             result["template_url"] = _url(document.odoo_sign_template_id)
@@ -119,14 +153,18 @@ def prepare(db: Session, employee_id: str, *, client=None) -> dict:
     document = _contract(db, employee_id, lock=True)
     if document is None or not document.storage_key:
         raise SignNotReady("Primero debes cargar el contrato laboral.")
-    if document.odoo_sign_status == "PREPARED" and document.odoo_sign_template_id:
-        return readiness(db, employee_id, client=client)
-    if document.odoo_sign_status == "PREPARING":
-        raise SignNotReady("La preparación ya está en curso.")
     if document.review_status != "APPROVED":
         raise SignNotReady("El contrato debe estar aprobado por Talento Humano.")
     if document.content_type != "application/pdf" or not str(document.original_filename or "").lower().endswith(".pdf"):
         raise SignNotReady("Solo se pueden preparar contratos en PDF.")
+    if application_contracts.binding_enabled() and not _application_binding_matches(db, document):
+        raise SignNotReady(
+            "Antes de preparar Odoo Sign, vincula el contrato aprobado con la postulación y la empresa Odoo desde Postulaciones."
+        )
+    if document.odoo_sign_status == "PREPARED" and document.odoo_sign_template_id:
+        return readiness(db, employee_id, client=client)
+    if document.odoo_sign_status == "PREPARING":
+        raise SignNotReady("La preparación ya está en curso.")
 
     # Readiness checks against the actual staging schema; fail closed.
     capabilities = readiness(db, employee_id, client=client)
