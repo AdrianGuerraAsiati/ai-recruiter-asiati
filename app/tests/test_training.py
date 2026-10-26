@@ -453,6 +453,30 @@ def test_passing_quiz_attempt_completes_assignment_and_keeps_attempt_history(db)
     }
 
 
+def test_quiz_attempt_locks_assignment_before_numbering(db, monkeypatch):
+    employee = _employee(db)
+    course, lesson, _, question = _published_course_with_quiz(db)
+    service.assign_course(
+        db, course_id=course.id, employee_id=employee.id, assigned_by_sub="admin-sub",
+    )
+    service.complete_lesson(db, employee_id=employee.id, lesson_id=lesson.id)
+
+    original_refresh = db.refresh
+    locked = []
+
+    def record_refresh(instance, *args, **kwargs):
+        if isinstance(instance, TrainingAssignment):
+            locked.append(kwargs.get("with_for_update") is True)
+        return original_refresh(instance, *args, **kwargs)
+
+    monkeypatch.setattr(db, "refresh", record_refresh)
+    result = service.submit_quiz_attempt(
+        db, employee_id=employee.id, course_id=course.id, answers={question.id: 1},
+    )
+    assert result["attempt"]["attempt_number"] == 1
+    assert True in locked, "Quiz attempts need an assignment row lock."
+
+
 def test_quiz_submission_requires_every_question(db):
     employee = _employee(db)
     course, lesson, _, _ = _published_course_with_quiz(db)
