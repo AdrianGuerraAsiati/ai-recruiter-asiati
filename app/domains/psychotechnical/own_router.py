@@ -97,6 +97,7 @@ def launch_own_assignment(
     assignment = _own_assignment(db, _profile_id(principal), assignment_id)
     if assignment is None:
         raise HTTPException(status_code=404, detail="Prueba no encontrada.")
+    db.refresh(assignment, with_for_update=True)
     if service._status_for(assignment) not in ("PENDING", "IN_PROGRESS"):
         raise HTTPException(status_code=409, detail="Esta prueba ya no está disponible.")
     # Rotate the opaque bearer token without resetting IN_PROGRESS state or answers.
