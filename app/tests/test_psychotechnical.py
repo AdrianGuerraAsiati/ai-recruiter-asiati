@@ -201,6 +201,7 @@ def test_attention_accepts_partial_answers_and_scores_efficiency_plus_efficacy(d
         {"question_id": second["id"], "option_id": second["correct"]},
     ]
 
+    service.start_assignment(db, token)
     service.submit_assignment(db, token, answers)
 
     db.refresh(assignment)
@@ -263,3 +264,86 @@ def test_banned_candidate_cannot_receive_psychotechnical_assignment(db):
 
     with pytest.raises(service.PsychotechnicalConflict):
         _create(db, candidate, test_key=catalog.COMMON_SENSE)
+
+
+def test_attention_requires_server_side_start(db):
+    candidate = _candidate(db)
+    assignment, token = _create(db, candidate, test_key=catalog.ATTENTION)
+    with pytest.raises(service.PsychotechnicalConflict, match="iniciar"):
+        service.submit_assignment(db, token, [])
+    db.refresh(assignment)
+    assert assignment.status == "PENDING"
+    assert assignment.started_at is None
+
+
+def test_attention_deadline_is_set_once_and_survives_resume(db, monkeypatch):
+    candidate = _candidate(db)
+    assignment, token = _create(db, candidate, test_key=catalog.ATTENTION)
+    baseline = datetime(2026, 10, 26, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(service, "_utcnow", lambda: baseline)
+    first = service.start_assignment(db, token)
+    assert first["assignment"]["time_limit_seconds"] == 440
+    assert first["assignment"]["time_remaining_seconds"] == 440
+    first_started = assignment.started_at
+    assert first_started is not None
+
+    monkeypatch.setattr(service, "_utcnow", lambda: baseline + timedelta(seconds=100))
+    resumed = service.start_assignment(db, token)
+    db.refresh(assignment)
+    assert assignment.started_at == first_started
+    assert resumed["assignment"]["time_remaining_seconds"] == 340
+
+
+def test_attention_rejects_late_submission_and_preserves_results(db, monkeypatch):
+    candidate = _candidate(db)
+    assignment, token = _create(db, candidate, test_key=catalog.ATTENTION)
+    baseline = datetime(2026, 10, 26, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(service, "_utcnow", lambda: baseline)
+    service.start_assignment(db, token)
+    first = catalog.TESTS[catalog.ATTENTION]["questions"][0]
+    answer = [{"question_id": first["id"], "option_id": first["correct"]}]
+
+    # Reject answers after the official time plus network allowance.
+    monkeypatch.setattr(service, "_utcnow", lambda: baseline + timedelta(seconds=456))
+    with pytest.raises(service.PsychotechnicalExpired):
+        service.submit_assignment(db, token, answer)
+    db.rollback()
+    db.refresh(assignment)
+    assert assignment.status == "IN_PROGRESS"
+    assert assignment.completed_at is None
+    assert assignment.answers is None
+    assert assignment.score_total is None
+    with pytest.raises(service.PsychotechnicalExpired):
+        service.start_assignment(db, token)
+
+
+def test_attention_accepts_automatic_empty_submission_at_deadline(db, monkeypatch):
+    candidate = _candidate(db)
+    assignment, token = _create(db, candidate, test_key=catalog.ATTENTION)
+    baseline = datetime(2026, 10, 26, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(service, "_utcnow", lambda: baseline)
+    service.start_assignment(db, token)
+    monkeypatch.setattr(service, "_utcnow", lambda: baseline + timedelta(seconds=444))
+    result = service.submit_assignment(db, token, [])
+    assert result["status"] == "COMPLETED"
+    db.refresh(assignment)
+    assert assignment.score_total == 0
+    assert assignment.duration_seconds == 444
+
+
+def test_attention_submission_requests_database_row_lock(db, monkeypatch):
+    from sqlalchemy.orm import Query
+
+    candidate = _candidate(db)
+    assignment, token = _create(db, candidate, test_key=catalog.ATTENTION)
+    service.start_assignment(db, token)
+    calls = []
+    original = Query.with_for_update
+
+    def track_lock(query, *args, **kwargs):
+        calls.append(True)
+        return original(query, *args, **kwargs)
+
+    monkeypatch.setattr(Query, "with_for_update", track_lock)
+    service.submit_assignment(db, token, [])
+    assert calls, "Submissions must lock the assignment row before updating it."
