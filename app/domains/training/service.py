@@ -932,10 +932,9 @@ def _create_automatic_onboarding_assignment(
 
 
 def ensure_employee_asiati_onboarding(
-    db: Session,
-    *,
-    employee_id: str,
+    db: Session, *, employee_id: str,
     created_by_sub: str | None = None,
+    course: TrainingCourse | None = None, commit: bool = True,
 ) -> TrainingAssignment | None:
     """Ensure one active employee receives the system-managed ASIATI onboarding."""
 
@@ -948,21 +947,22 @@ def ensure_employee_asiati_onboarding(
         return None
     if employee.onboarding_status == "NOT_REQUIRED":
         employee.onboarding_status = "PENDING"
-
-    course = ensure_published_asiati_onboarding(
-        db,
-        created_by_sub=created_by_sub or SYSTEM_ONBOARDING_ACTOR,
+    if course is None and not commit:
+        raise TrainingStateError("Transactional onboarding requires a pre-resolved course.")
+    course = course or ensure_published_asiati_onboarding(
+        db, created_by_sub=created_by_sub or SYSTEM_ONBOARDING_ACTOR,
     )
+    if course.status != "PUBLISHED" or not _is_system_managed_course(course):
+        raise TrainingStateError("The automatic onboarding course is not available.")
     assignment = _create_automatic_onboarding_assignment(
         db,
         course=course,
         employee=employee,
     )
     _sync_employee_onboarding(db, employee.id)
-    db.commit()
+    (db.commit if commit else db.flush)()
     db.refresh(assignment)
     return assignment
-
 
 def ensure_asiati_onboarding_for_active_employees(
     db: Session,

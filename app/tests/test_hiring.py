@@ -5,7 +5,7 @@ from botocore.exceptions import ClientError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.access_control import APPLICANT, EMPLOYEE, ensure_rbac_catalog
+from app.access_control import APPLICANT, EMPLOYEE, assign_role, ensure_rbac_catalog
 from app.db import Base
 from app.domains.hiring import service as hiring_service
 from app.domains.employees import service as employees_service
@@ -849,3 +849,111 @@ def test_retroactive_binding_of_a_signed_legacy_contract_is_denied(db, monkeypat
         )
     assert db.query(ApplicationContract).count() == 0
     assert db.query(EmployeeDocument).count() == 1
+
+
+def test_hire_onboarding_failure_rolls_back_role_and_deletes_new_cognito_user(db, monkeypatch):
+    """A failed onboarding cannot leave EMPLOYEE access or a Cognito orphan."""
+    job, candidate, link = _application(db)
+
+    class TrackedCognito(FakeCognito):
+        def __init__(self):
+            super().__init__()
+            self.deleted = []
+
+        def admin_delete_user(self, *, UserPoolId, Username):
+            self.deleted.append(Username)
+
+    cognito = TrackedCognito()
+
+    def fail_after_role(*args, **kwargs):
+        raise training_service.TrainingStateError("simulated onboarding failure")
+
+    monkeypatch.setattr(
+        training_service, "ensure_employee_asiati_onboarding", fail_after_role,
+    )
+
+    with pytest.raises(training_service.TrainingStateError, match="simulated onboarding"):
+        _hire(db, cognito=cognito, job=job, candidate=candidate)
+
+    db.expire_all()
+    link = db.query(JobCandidate).filter(JobCandidate.id == link.id).one()
+    assert link.application_status == "OFFER"
+    assert link.employee_id is None
+    assert link.hired_at is None
+    assert db.query(UserProfile).count() == 0
+    assert db.query(TrainingAssignment).count() == 0
+    assert db.query(OdooApplicantSync).count() == 0
+    assert db.query(OdooEmployeeSync).count() == 0
+    assert cognito.created == ["ana@example.com"]
+    assert cognito.deleted == ["ana@example.com"]
+
+
+def test_hire_late_outbox_failure_does_not_promote_existing_applicant(db, monkeypatch):
+    """A DB failure after onboarding leaves an existing portal applicant untouched."""
+    job, candidate, link = _application(db)
+    applicant = UserProfile(
+        cognito_sub="sub-existing-applicant",
+        email="ana@example.com",
+        login_username="ana.perez",
+        first_name="Ana",
+        last_name="Pérez",
+        onboarding_status="NOT_REQUIRED",
+        status="ACTIVE",
+    )
+    db.add(applicant)
+    db.flush()
+    assign_role(db, applicant, APPLICANT, assigned_by_sub="test")
+    link.employee_id = applicant.id
+    db.commit()
+
+    def fail_outbox(*args, **kwargs):
+        raise RuntimeError("simulated outbox failure")
+
+    monkeypatch.setattr(
+        hiring_service.odoo_sync_service, "ensure_employee_sync", fail_outbox,
+    )
+
+    with pytest.raises(RuntimeError, match="simulated outbox failure"):
+        _hire(db, cognito=FakeCognito(), job=job, candidate=candidate)
+
+    db.expire_all()
+    link = db.query(JobCandidate).filter(JobCandidate.id == link.id).one()
+    profile = db.query(UserProfile).filter(UserProfile.id == applicant.id).one()
+    assert link.application_status == "OFFER"
+    assert link.hired_at is None
+    assert profile.onboarding_status == "NOT_REQUIRED"
+    assert employees_service.roles_for_profile(db, profile.id) == [APPLICANT]
+    assert db.query(TrainingAssignment).count() == 0
+    assert db.query(OdooApplicantSync).count() == 0
+    assert db.query(OdooEmployeeSync).count() == 0
+
+
+def test_hire_outbox_failure_compensates_new_cognito_user(db, monkeypatch):
+    """A failure at the final transaction stage also compensates Cognito."""
+    job, candidate, link = _application(db)
+
+    class TrackedCognito(FakeCognito):
+        def __init__(self):
+            super().__init__()
+            self.deleted = []
+
+        def admin_delete_user(self, *, UserPoolId, Username):
+            self.deleted.append(Username)
+
+    cognito = TrackedCognito()
+
+    def fail_outbox(*args, **kwargs):
+        raise RuntimeError("outbox unavailable")
+
+    monkeypatch.setattr(
+        hiring_service.odoo_sync_service, "ensure_employee_sync", fail_outbox,
+    )
+
+    with pytest.raises(RuntimeError, match="outbox unavailable"):
+        _hire(db, cognito=cognito, job=job, candidate=candidate)
+
+    db.expire_all()
+    assert db.query(UserProfile).count() == 0
+    assert db.query(TrainingAssignment).count() == 0
+    assert db.query(JobCandidate).filter(JobCandidate.id == link.id).one().application_status == "OFFER"
+    assert cognito.deleted == ["ana@example.com"]
