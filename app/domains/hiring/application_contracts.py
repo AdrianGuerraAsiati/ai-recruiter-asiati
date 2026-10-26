@@ -64,6 +64,8 @@ def bind(
     ).with_for_update().one_or_none()
     if not document or not document.storage_key or document.review_status != "APPROVED":
         raise ContractBindingConflict("Primero carga y aprueba el contrato de esta postulación.")
+    if document.content_type != "application/pdf" or not str(document.original_filename or "").lower().endswith(".pdf"):
+        raise ContractBindingConflict("Solo puedes vincular un contrato aprobado en formato PDF.")
 
     existing = db.query(ApplicationContract).filter(
         ApplicationContract.application_id == link.id
@@ -169,6 +171,8 @@ def binding_status(
             and document.employee_id == link.employee_id
             and document.document_type == "EMPLOYMENT_CONTRACT"
             and document.review_status == "APPROVED"
+            and document.content_type == "application/pdf"
+            and str(document.original_filename or "").lower().endswith(".pdf")
             and document.storage_key
             and binding.source_storage_key == document.storage_key
             and binding.odoo_company_id > 0
@@ -216,6 +220,13 @@ def binding_status(
             "document_approved": bool(document and document.review_status == "APPROVED" and document.storage_key),
             "status": "CONTRACT_NOT_APPROVED",
             "message": "Primero carga y aprueba el contrato PDF desde Documentos.",
+        }
+    if document.content_type != "application/pdf" or not str(document.original_filename or "").lower().endswith(".pdf"):
+        return {
+            **base,
+            "document_approved": True,
+            "status": "CONTRACT_NOT_PDF",
+            "message": "El contrato aprobado debe ser un archivo PDF para vincularlo a Odoo Sign.",
         }
 
     if (
