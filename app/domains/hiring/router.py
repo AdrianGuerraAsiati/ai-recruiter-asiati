@@ -12,8 +12,8 @@ from app.domains.candidates.exceptions import (
 from app.domains.employees import service as employees_service
 from app.domains.candidates import service as candidate_service
 from app.domains.candidates import repository as candidate_repository
-from app.domains.hiring import service
-from app.domains.hiring.schemas import HireCandidateRequest
+from app.domains.hiring import application_contracts, service
+from app.domains.hiring.schemas import BindApplicationContractRequest, HireCandidateRequest
 from app.domains.training import service as training_service
 
 
@@ -28,6 +28,8 @@ def _translate(exc: Exception):
             status_code=404,
             detail="Candidato no encontrado en esta vacante.",
         )
+    if isinstance(exc, application_contracts.ContractBindingConflict):
+        raise HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, service.HiringValidationError):
         raise HTTPException(status_code=422, detail=str(exc))
     if isinstance(exc, service.HiringConflictError):
@@ -113,6 +115,27 @@ def prepare_contract_dossier(
             job_id=job_id,
             candidate_id=candidate_id,
             created_by_sub=principal["sub"],
+        )
+    except Exception as exc:
+        _translate(exc)
+
+
+@router.post("/{job_id}/candidates/{candidate_id}/contract/bind", status_code=201)
+def bind_application_contract(
+    job_id: str,
+    candidate_id: str,
+    body: BindApplicationContractRequest,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_permission("employees.create")),
+):
+    """Permanently bind one approved, unsigned PDF to a specific application."""
+    try:
+        return application_contracts.bind(
+            db,
+            owner_sub=principal["sub"],
+            job_id=job_id,
+            candidate_id=candidate_id,
+            odoo_company_id=body.odoo_company_id,
         )
     except Exception as exc:
         _translate(exc)
