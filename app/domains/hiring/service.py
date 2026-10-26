@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from datetime import date, datetime, timezone
@@ -23,7 +24,10 @@ from app.domains.odoo_sync import integration as odoo_integration
 from app.domains.odoo_sync import service as odoo_sync_service
 from app.domains.training import service as training_service
 from app.domains.psychotechnical import service as psychotechnical_service
-from app.models import UserProfile, UserRole
+from app.models import JobCandidate, UserProfile, UserRole
+
+
+logger = logging.getLogger(__name__)
 
 
 class HiringValidationError(ValueError):
@@ -61,6 +65,7 @@ def _ensure_employee_role(
     employee: UserProfile,
     *,
     assigned_by_sub: str,
+    commit: bool = True,
 ) -> None:
     roles = employees_service.roles_for_profile(db, employee.id)
     if EMPLOYEE in roles or ADMIN in roles:
@@ -77,7 +82,10 @@ def _ensure_employee_role(
         EMPLOYEE,
         assigned_by_sub=assigned_by_sub,
     )
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
 
 
 def start_candidate_application(
@@ -442,6 +450,19 @@ def hire_candidate(
         resolved_company_name = str(company_name or getattr(job, "company_name", None) or "").strip() or None
     resolved_hire_date = hire_date or date.today()
 
+    # The system preset can upgrade content and commit internally. Prepare it
+    # BEFORE modifying the employee or locking the application; the remaining
+    # hiring records must be committed together or not at all.
+    onboarding_course = training_service.ensure_published_asiati_onboarding(
+        db, created_by_sub=created_by_sub,
+    )
+    link = (
+        db.query(JobCandidate)
+        .filter(JobCandidate.id == link.id)
+        .with_for_update()
+        .one()
+    )
+
     if link.employee_id:
         employee = employees_service.require_employee(db, link.employee_id)
         if normalize_email(employee.email) != resolved_email:
@@ -456,150 +477,181 @@ def hire_candidate(
         )
     employee_created = False
     temporary_password = None
+    created_cognito_email = None
 
-    if employee is None:
-        try:
-            employee, temporary_password = employees_service.provision_employee(
+    try:
+
+        if employee is None:
+            try:
+                employee, temporary_password = employees_service.provision_employee(
+                    db,
+                    username=resolved_username,
+                    email=resolved_email,
+                    first_name=resolved_first,
+                    last_name=resolved_last,
+                    job_title=resolved_job_title,
+                    department=resolved_department,
+                    country_code=resolved_country_code,
+                    company_name=resolved_company_name,
+                    hire_date=resolved_hire_date,
+                    role_code=EMPLOYEE,
+                    created_by_sub=created_by_sub,
+                    cognito_client=cognito_client,
+                    commit=False,
+                )
+                created_cognito_email = resolved_email if temporary_password else None
+                employee_created = True
+            except employees_service.EmployeeAlreadyExists:
+                employee = (
+                    db.query(UserProfile)
+                    .filter(UserProfile.email == resolved_email)
+                    .one_or_none()
+                )
+                if employee is None:
+                    employee = employees_service.ensure_existing_cognito_profile(
+                        db,
+                        email=resolved_email,
+                        created_by_sub=created_by_sub,
+                        cognito_client=cognito_client,
+                        commit=False,
+                    )
+        if employee.status != "ACTIVE":
+            raise HiringConflictError(
+                "Ya existe un usuario deshabilitado con este correo."
+            )
+
+        # A pre-contract profile deliberately has no Cognito identity.
+        # Provision access only AFTER the signed-contract gate succeeds.
+        if not employee.cognito_sub:
+            employee, temporary_password = employees_service.provision_existing_profile_access(
                 db,
+                employee.id,
                 username=resolved_username,
-                email=resolved_email,
                 first_name=resolved_first,
                 last_name=resolved_last,
-                job_title=resolved_job_title,
-                department=resolved_department,
-                country_code=resolved_country_code,
-                company_name=resolved_company_name,
-                hire_date=resolved_hire_date,
                 role_code=EMPLOYEE,
                 created_by_sub=created_by_sub,
                 cognito_client=cognito_client,
+                commit=False,
             )
-            employee_created = True
-        except employees_service.EmployeeAlreadyExists:
-            employee = (
-                db.query(UserProfile)
-                .filter(UserProfile.email == resolved_email)
-                .one_or_none()
+            created_cognito_email = resolved_email if temporary_password else None
+
+        if employee.login_username and employee.login_username != resolved_username:
+            raise HiringConflictError(
+                f"El empleado existente ya usa el usuario {employee.login_username}."
             )
-            if employee is None:
-                employee = employees_service.ensure_existing_cognito_profile(
-                    db,
-                    email=resolved_email,
-                    created_by_sub=created_by_sub,
-                    cognito_client=cognito_client,
-                )
-    if employee.status != "ACTIVE":
-        raise HiringConflictError(
-            "Ya existe un usuario deshabilitado con este correo."
+        if not employee.login_username:
+            employee = employees_service.set_employee_username(
+                db,
+                employee.id,
+                username=resolved_username,
+                commit=False,
+            )
+
+        changed = False
+        for field, value in {
+            "first_name": resolved_first,
+            "last_name": resolved_last,
+            "job_title": resolved_job_title,
+            "department": resolved_department,
+            "country_code": resolved_country_code,
+            "company_name": resolved_company_name,
+            "hire_date": resolved_hire_date,
+        }.items():
+            if value is not None and (not getattr(employee, field) or (field == "company_name" and odoo_company_id is not None)) and getattr(employee, field) != value:
+                setattr(employee, field, value)
+                changed = True
+        if changed:
+            db.flush()
+            db.refresh(employee)
+        _ensure_employee_role(
+            db,
+            employee,
+            assigned_by_sub=created_by_sub,
+            commit=False,
         )
 
-    # A pre-contract profile deliberately has no Cognito identity.
-    # Provision access only AFTER the signed-contract gate succeeds.
-    if not employee.cognito_sub:
-        employee, temporary_password = employees_service.provision_existing_profile_access(
+        if employee.onboarding_status == "NOT_REQUIRED":
+            employee.onboarding_status = "PENDING"
+            db.flush()
+            db.refresh(employee)
+
+        assignment = training_service.ensure_employee_asiati_onboarding(
             db,
-            employee.id,
-            username=resolved_username,
-            first_name=resolved_first,
-            last_name=resolved_last,
-            role_code=EMPLOYEE,
+            employee_id=employee.id,
             created_by_sub=created_by_sub,
-            cognito_client=cognito_client,
+            course=onboarding_course,
+            commit=False,
         )
+        if assignment is None:
+            raise HiringConflictError(
+                "El empleado contratado no es elegible para el onboarding automático."
+            )
 
-    if employee.login_username and employee.login_username != resolved_username:
-        raise HiringConflictError(
-            f"El empleado existente ya usa el usuario {employee.login_username}."
-        )
-    if not employee.login_username:
-        employee = employees_service.set_employee_username(
+        link.employee_id = employee.id
+        if link.hired_at is None:
+            link.hired_at = datetime.now(timezone.utc)
+
+        status_changed = link.application_status != "HIRED"
+        if status_changed:
+            candidates_repository.set_job_candidate_status(
+                db,
+                link,
+                status="HIRED",
+            )
+            indeed_service.queue_candidate_status(
+                db,
+                owner_sub=owner_sub,
+                job_id=job_id,
+                candidate_id=candidate_id,
+                local_status="HIRED",
+                status_changed_at=link.status_changed_at,
+            )
+
+        applicant_sync = odoo_sync_service.ensure_applicant_sync(
             db,
-            employee.id,
-            username=resolved_username,
-        )
-
-    changed = False
-    for field, value in {
-        "first_name": resolved_first,
-        "last_name": resolved_last,
-        "job_title": resolved_job_title,
-        "department": resolved_department,
-        "country_code": resolved_country_code,
-        "company_name": resolved_company_name,
-        "hire_date": resolved_hire_date,
-    }.items():
-        if value is not None and (not getattr(employee, field) or (field == "company_name" and odoo_company_id is not None)) and getattr(employee, field) != value:
-            setattr(employee, field, value)
-            changed = True
-    if changed:
-        db.commit()
-        db.refresh(employee)
-    _ensure_employee_role(
-        db,
-        employee,
-        assigned_by_sub=created_by_sub,
-    )
-
-    if employee.onboarding_status == "NOT_REQUIRED":
-        employee.onboarding_status = "PENDING"
-        db.commit()
-        db.refresh(employee)
-
-    assignment = training_service.ensure_employee_asiati_onboarding(
-        db,
-        employee_id=employee.id,
-        created_by_sub=created_by_sub,
-    )
-    if assignment is None:
-        raise HiringConflictError(
-            "El empleado contratado no es elegible para el onboarding automático."
-        )
-
-    link.employee_id = employee.id
-    if link.hired_at is None:
-        link.hired_at = datetime.now(timezone.utc)
-
-    status_changed = link.application_status != "HIRED"
-    if status_changed:
-        candidates_repository.set_job_candidate_status(
-            db,
-            link,
-            status="HIRED",
-        )
-        indeed_service.queue_candidate_status(
-            db,
-            owner_sub=owner_sub,
-            job_id=job_id,
-            candidate_id=candidate_id,
-            local_status="HIRED",
-            status_changed_at=link.status_changed_at,
-        )
-
-    applicant_sync = odoo_sync_service.ensure_applicant_sync(
-        db,
-        candidate=candidate,
-        job=job,
-        application=link,
-    )
-    odoo_sync = odoo_sync_service.ensure_employee_sync(
-        db,
-        employee=employee,
-        candidate=candidate,
-        job=job,
-        application=link,
-        odoo_company_id=odoo_company_id,
-    )
-    contract_sync = None
-    if contract is not None:
-        contract_sync = odoo_sync_service.ensure_contract_sync(
-            db,
-            employee=employee,
+            candidate=candidate,
             job=job,
             application=link,
-            contract=contract,
         )
+        odoo_sync = odoo_sync_service.ensure_employee_sync(
+            db,
+            employee=employee,
+            candidate=candidate,
+            job=job,
+            application=link,
+            odoo_company_id=odoo_company_id,
+        )
+        contract_sync = None
+        if contract is not None:
+            contract_sync = odoo_sync_service.ensure_contract_sync(
+                db,
+                employee=employee,
+                job=job,
+                application=link,
+                contract=contract,
+            )
 
-    db.commit()
+        # Atomic boundary for roles, onboarding, application and Odoo outbox.
+        db.commit()
+    except Exception:
+        db.rollback()
+        if created_cognito_email:
+            # Cognito has no DB transaction. Compensate only a user that THIS
+            # attempt created; never delete a pre-existing Cognito identity.
+            try:
+                client = cognito_client or employees_service.get_admin_cognito_client()
+                client.admin_delete_user(
+                    UserPoolId=employees_service._user_pool_id(),
+                    Username=created_cognito_email,
+                )
+            except Exception:
+                logger.exception(
+                    "Hiring compensation failed: orphaned Cognito user for application_id=%s",
+                    link.id,
+                )
+        raise
+
     db.refresh(link)
     db.refresh(employee)
     db.refresh(assignment)
