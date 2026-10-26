@@ -70,6 +70,8 @@ def _application_binding_matches(db: Session, document: EmployeeDocument) -> boo
         or binding.employee_id != document.employee_id
         or not binding.source_storage_key
         or binding.source_storage_key != document.storage_key
+        or document.content_type != "application/pdf"
+        or not str(document.original_filename or "").lower().endswith(".pdf")
         or binding.odoo_company_id <= 0
     ):
         return False
@@ -95,6 +97,9 @@ def readiness(db: Session, employee_id: str, *, client=None) -> dict:
             return result
         if document.review_status != "APPROVED":
             result["message"] = "El contrato debe estar aprobado antes de preparar la firma."
+            return result
+        if document.content_type != "application/pdf" or not str(document.original_filename or "").lower().endswith(".pdf"):
+            result["message"] = "Odoo Sign requiere un contrato en PDF."
             return result
         if not _application_binding_matches(db, document):
             result["status"] = "APPLICATION_CONTRACT_BINDING_REQUIRED"
