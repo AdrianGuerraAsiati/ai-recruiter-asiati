@@ -80,7 +80,7 @@ describe("Public psychotechnical flow", () => {
     });
   });
 
-  it("allows the attention test without a countdown and requires all answers", async () => {
+  it("shows the official attention timer and accepts partial answers", async () => {
     api.get.mockResolvedValueOnce({
       data: {
         status: "PENDING",
@@ -100,6 +100,8 @@ describe("Public psychotechnical flow", () => {
               test_key: "ATTENTION_DETAIL_V00",
               test_name: "Atención al detalle",
               duration_seconds: 440,
+              time_limit_seconds: 440,
+              time_remaining_seconds: 440,
             },
             questions: [
               { id: "AD01", section: "ALPHANUMERIC", prompt: "Selecciona A09RT3", options: [{ id: "A", label: "A09RT3" }, { id: "B", label: "A90RT3" }] },
@@ -111,16 +113,19 @@ describe("Public psychotechnical flow", () => {
       return Promise.resolve({ data: { status: "COMPLETED" } });
     });
     renderPage();
-    expect(await screen.findByText("Sin límite de tiempo")).toBeInTheDocument();
+    expect(await screen.findByText("Con tiempo: 7:20")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Comenzar prueba" }));
     expect(await screen.findByText(/Selecciona A09RT3/)).toBeInTheDocument();
-    expect(screen.queryByText(/tiempo restante|tiempo finalizado/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("timer")).toHaveTextContent("Tiempo restante: 7:20");
     const submit = screen.getByRole("button", { name: "Enviar prueba" });
     expect(submit).toBeDisabled();
     fireEvent.click(screen.getByLabelText("A09RT3"));
-    expect(submit).toBeDisabled();
-    fireEvent.click(screen.getByLabelText("Iguales"));
     expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      "/public/psychotechnical/token-123/submit",
+      { answers: [{ question_id: "AD01", option_id: "A" }] },
+    ));
   });
 
   it("explains the complementary and non-clinical scope before starting", async () => {
