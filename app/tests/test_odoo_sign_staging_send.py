@@ -297,11 +297,16 @@ def test_automatic_send_rejects_invalid_fixtures_without_odoo_writes(
     fixture, addresses,
 ):
     db, profile, contract, monkeypatch = fixture
-    monkeypatch.setenv("ODOO_SIGN_TEST_SIGNER_EMAILS", addresses)
+    def synthetic_signers(db, document):
+        parts = [item.strip() for item in addresses.split(",") if item.strip()]
+        if len(parts) != 2 or len(set(parts)) != 2:
+            raise sign_dispatch.sign_runtime.ProductionSignUnavailable("Firmantes no válidos.")
+        return parts[0], parts[1]
+    monkeypatch.setattr(sign_dispatch.sign_runtime, "signers", synthetic_signers)
     odoo = FakeOdoo()
     with pytest.raises(
         (sign_dispatch.DispatchUnavailable, sign_dispatch.DispatchNotReady,
-         sign_requests.SignTrackingUnavailable)
+         sign_requests.SignTrackingUnavailable, sign_dispatch.sign_runtime.ProductionSignUnavailable)
     ):
         sign_send.send_automatic(db, profile.id, client=odoo)
     assert odoo.create_count == odoo.send_count == 0
