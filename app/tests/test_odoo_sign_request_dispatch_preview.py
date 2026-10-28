@@ -110,7 +110,7 @@ def test_two_signers_exact_template_order_and_no_remote_writes(setup):
         "employee_partner_id": 301, "representative_partner_id": 302,
         "signing_order": ["Empleado", "Representante legal"],
         "send_enabled": False, "emails_sent": False, "request_created": False,
-        "note": "Configuración validada; pendiente confirmar el comportamiento de send_request() antes de habilitar el envío.",
+        "note": "Configuración validada; el envío se ejecutará al confirmar y puede notificar a los destinatarios reales.",
     }
     assert all(call[0] in ("fields_get", "search_read") for call in target.calls)
     assert contract.odoo_sign_request_id is None
@@ -176,9 +176,10 @@ def test_preflight_rejects_invalid_partner_ids_before_connecting(
     assert target.calls == []
 
 
-def test_preflight_rejects_unallowlisted_employee_before_odoo(setup):
-    target, _ = setup
-    with pytest.raises(sign_requests.SignTrackingUnavailable):
+def test_preflight_rejects_contract_from_other_odoo_database_before_rpc(setup):
+    target, contract = setup
+    contract.odoo_sign_environment = "staging"
+    with pytest.raises(sign_dispatch.DispatchUnavailable):
         sign_dispatch.preview(
             object(), "real-employee",
             employee_partner_id=301, representative_partner_id=302,
