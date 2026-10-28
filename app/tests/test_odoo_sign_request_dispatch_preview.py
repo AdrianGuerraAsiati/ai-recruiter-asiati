@@ -75,13 +75,14 @@ class FakeOdoo:
 @pytest.fixture
 def setup(monkeypatch):
     monkeypatch.setenv("ODOO_SIGN_TEST_EMPLOYEE_IDS", "employee-test")
-    monkeypatch.setenv("ODOO_SIGN_STAGING_TRACK_ENABLED", "true")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
+    monkeypatch.setattr(sign_dispatch.sign_runtime, "signers", lambda db, doc: ("empleado@example.invalid", "representante@example.invalid"))
     monkeypatch.setenv(
         "ODOO_SIGN_TEST_SIGNER_EMAILS",
         "empleado@example.invalid,representante@example.invalid",
     )
     contract = SimpleNamespace(
-        odoo_sign_status="PREPARED",
+        odoo_sign_status="PREPARED", odoo_sign_environment="production",
         odoo_sign_template_id=128,
         original_filename="contrato.pdf",
         review_status="APPROVED",
@@ -105,7 +106,7 @@ def test_two_signers_exact_template_order_and_no_remote_writes(setup):
     target, contract = setup
     result = preflight(target)
     assert result == {
-        "validated": True, "environment": "staging", "template_id": 128,
+        "validated": True, "environment": "production", "template_id": 128,
         "employee_partner_id": 301, "representative_partner_id": 302,
         "signing_order": ["Empleado", "Representante legal"],
         "send_enabled": False, "emails_sent": False, "request_created": False,
@@ -205,7 +206,7 @@ def test_schema_with_role_id_instead_of_responsible_id(setup):
 
 def test_sending_flag_does_not_trigger_mutations(setup, monkeypatch):
     target, _ = setup
-    monkeypatch.setenv("ODOO_SIGN_STAGING_SEND_ENABLED", "true")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
     # A flag alone does not authorize writes in the preflight-only code path.
     assert sign_dispatch.sending_enabled() is True
     assert preflight(target)["request_created"] is False
@@ -220,7 +221,7 @@ def test_odoo_wizard_payload_has_exact_two_roles_and_deterministic_order():
         "filename": "contrato.pdf",
         "template_id": 128,
         "signers_count": 2,
-        "subject": "ADN360 - Firma de contrato laboral (PRUEBA)",
+        "subject": "ADN360 - Firma de contrato laboral",
         "set_sign_order": True,
         "signer_ids": [
             [0, 0, {"partner_id": 301, "role_id": 51, "mail_sent_order": 1}],
@@ -259,7 +260,7 @@ def test_staging_credentials_missing_fails_sanitized(setup, monkeypatch):
     def disconnected():
         from app.domains.odoo_sync import staging
         raise staging.OdooNotConfigured("Secret not present")
-    monkeypatch.setattr(sign_dispatch.staging, "build_staging_client", disconnected)
+    monkeypatch.setattr(sign_dispatch.sign_runtime, "client", disconnected)
     with pytest.raises(sign_dispatch.DispatchUnavailable, match="no configurada"):
         sign_dispatch.preview(
             object(), "employee-test", employee_partner_id=301,
