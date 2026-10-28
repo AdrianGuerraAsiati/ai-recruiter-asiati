@@ -39,11 +39,6 @@ def _document(db: Session, employee_id: str, *, lock: bool = False):
         raise SignFieldsNotReady(
             "Se necesita una plantilla aprobada y sin solicitud de firma existente."
         )
-    # This prototype is restricted to the synthetic, explicitly named demo PDF.
-    if doc.original_filename != "ADN360_contrato_ficticio_prueba_Odoo_Sign.pdf":
-        raise SignFieldsNotReady(
-            "La detección automática solo está validada para el PDF con zonas de firma reconocibles."
-        )
     return doc
 
 
