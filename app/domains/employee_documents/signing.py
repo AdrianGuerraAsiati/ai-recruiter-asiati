@@ -15,7 +15,7 @@ from app.domains.employee_documents import service
 from app.domains.employee_documents.models import ApplicationContract, EmployeeDocument
 from app.domains.hiring import application_contracts
 from app.models import JobCandidate
-from app.domains.odoo_sync import staging
+from app.domains.employee_documents import sign_runtime
 from app.infrastructure.storage import employee_documents as storage
 from app.integrations.odoo.client import OdooClientError
 
@@ -29,9 +29,7 @@ class SignNotReady(ValueError):
 
 
 def staging_enabled() -> bool:
-    return os.getenv("ODOO_SIGN_STAGING_PREPARE_ENABLED", "").strip().lower() in (
-        "1", "true", "yes"
-    )
+    return sign_runtime.enabled()
 
 
 def _test_employee_allowed(employee_id: str) -> bool:
@@ -56,7 +54,7 @@ def _contract(db: Session, employee_id: str, *, lock: bool = False) -> EmployeeD
 
 
 def _url(template_id: int) -> str:
-    base_url = staging.staging_settings().base_url
+    base_url = sign_runtime.base_url()
     return f"{base_url}/web#id={int(template_id)}&model=sign.template&view_type=form"
 
 
@@ -89,7 +87,7 @@ def readiness(db: Session, employee_id: str, *, client=None) -> dict:
         "status": state,
         "template_url": None,
         "message": "",
-        "staging_only": True,
+        "staging_only": False,
     }
     if document and application_contracts.binding_enabled():
         if not document.storage_key:
@@ -108,18 +106,22 @@ def readiness(db: Session, employee_id: str, *, client=None) -> dict:
                 "y la empresa Odoo desde Postulaciones."
             )
             return result
+    if document and document.odoo_sign_template_id:
+        try:
+            sign_runtime.assert_origin(document)
+        except sign_runtime.ProductionSignUnavailable:
+            result["message"] = "El contrato fue preparado en Odoo Test; no puede reutilizarse en producción."
+            result["status"] = "CONTRACT_FROM_TEST"
+            return result
     if document and state == "PREPARED" and document.odoo_sign_template_id:
         try:
             result["template_url"] = _url(document.odoo_sign_template_id)
-        except (ValueError, staging.OdooNotConfigured):
+        except (ValueError, sign_runtime.ProductionSignUnavailable):
             pass
-        result["message"] = "Plantilla preparada. Abre Odoo staging, ubica las firmas y envía desde Odoo."
+        result["message"] = "Plantilla preparada. Abre Odoo Producción, ubica las firmas y envía desde Odoo."
         return result
     if not staging_enabled():
         result["message"] = "La preparación de Odoo Sign en staging aún no está habilitada."
-        return result
-    if not _test_employee_allowed(employee_id):
-        result["message"] = "Solo empleados de prueba autorizados pueden preparar contratos en staging."
         return result
     if not document or not document.storage_key:
         result["message"] = "Talento Humano debe cargar primero el contrato."
@@ -134,13 +136,13 @@ def readiness(db: Session, employee_id: str, *, client=None) -> dict:
         result["message"] = "El contrato ya está siendo preparado. Vuelve a consultar su estado."
         return result
     try:
-        target = client or staging.build_staging_client()
+        target = client or sign_runtime.client()
         template_fields = target.fields_get("sign.template")
         attachment_fields = target.fields_get("ir.attachment")
         # Discover actual capabilities before ever trying a write.
         if not {"attachment_id"}.issubset(template_fields) or not {"datas", "mimetype"}.issubset(attachment_fields):
             raise SignUnavailable("El esquema de Odoo Sign no permite preparar plantillas desde PDF.")
-    except (OdooClientError, staging.OdooNotConfigured, SignUnavailable):
+    except (OdooClientError, sign_runtime.ProductionSignUnavailable, SignUnavailable):
         result["message"] = "Odoo Sign no está disponible o el usuario técnico no tiene los permisos requeridos."
         return result
     result["ready"] = True
@@ -152,12 +154,11 @@ def prepare(db: Session, employee_id: str, *, client=None) -> dict:
     """Idempotently create an Odoo Sign template, not a signature request."""
     if not staging_enabled():
         raise SignUnavailable("La preparación de Odoo Sign en staging está deshabilitada.")
-    if not _test_employee_allowed(employee_id):
-        raise SignUnavailable("Este empleado no está autorizado para la prueba de Odoo Sign staging.")
 
     document = _contract(db, employee_id, lock=True)
     if document is None or not document.storage_key:
         raise SignNotReady("Primero debes cargar el contrato laboral.")
+    sign_runtime.assert_origin(document, new=True)
     if document.review_status != "APPROVED":
         raise SignNotReady("El contrato debe estar aprobado por Talento Humano.")
     if document.content_type != "application/pdf" or not str(document.original_filename or "").lower().endswith(".pdf"):
@@ -176,6 +177,7 @@ def prepare(db: Session, employee_id: str, *, client=None) -> dict:
     if not capabilities["ready"]:
         raise SignUnavailable(capabilities["message"])
 
+    document.odoo_sign_environment = "production"
     document.odoo_sign_status = "PREPARING"
     db.commit()
     attachment_id = None
@@ -186,7 +188,7 @@ def prepare(db: Session, employee_id: str, *, client=None) -> dict:
             key=document.storage_key,
             expected_bytes=document.size_bytes,
         )
-        target = client or staging.build_staging_client()
+        target = client or sign_runtime.client()
         attachment_id = target.create("ir.attachment", {
             "name": document.original_filename,
             "type": "binary",
@@ -216,5 +218,5 @@ def prepare(db: Session, employee_id: str, *, client=None) -> dict:
             document.odoo_sign_status = "FAILED"
             db.commit()
         # Never expose remote credentials, SQL errors or document contents.
-        raise SignUnavailable("No se pudo preparar el contrato en Odoo staging. Revisa los registros del servidor.") from exc
+        raise SignUnavailable("No se pudo preparar el contrato en Odoo Producción. Revisa los registros del servidor.") from exc
     return readiness(db, employee_id, client=client)
