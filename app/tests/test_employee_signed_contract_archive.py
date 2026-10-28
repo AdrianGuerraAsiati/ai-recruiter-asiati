@@ -181,7 +181,7 @@ def test_archive_rejects_missing_ambiguous_foreign_or_corrupt_certificates(fixtu
 
 def test_disabled_archive_cannot_contact_odoo(fixture, monkeypatch):
     db, employee, _, _ = fixture
-    monkeypatch.delenv("ODOO_SIGN_STAGING_ARCHIVE_ENABLED")
+    monkeypatch.delenv("ODOO_SIGN_PRODUCTION_ENABLED")
     fake = FakeCompletedSign()
     with pytest.raises(signed_artifacts.ArchiveUnavailable, match="deshabilitada"):
         signed_artifacts.archive(db, employee.id, client=fake)
