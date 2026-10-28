@@ -5,6 +5,7 @@ explicitly blocked, since numeric IDs are not portable between databases.
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -104,8 +105,10 @@ def signers(db, document):
     ).one_or_none()
     email = _address(employee.email if employee else "")
     try:
-        mapping = json.loads(os.getenv("ODOO_SIGN_LEGAL_REPRESENTATIVES_JSON", "{}"))
-    except (TypeError, ValueError) as exc:
+        encoded = os.getenv("ODOO_SIGN_LEGAL_REPRESENTATIVES_B64", "")
+        decoded = base64.b64decode(encoded, validate=True).decode("utf-8") if encoded else "{}"
+        mapping = json.loads(decoded)
+    except (TypeError, ValueError, UnicodeError) as exc:
         raise ProductionSignUnavailable("Configuración de representantes legales inválida.") from exc
     if not isinstance(mapping, dict):
         raise ProductionSignUnavailable("Configuración de representantes legales inválida.")
