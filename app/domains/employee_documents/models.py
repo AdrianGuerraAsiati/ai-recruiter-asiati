@@ -42,6 +42,7 @@ class EmployeeDocument(Base):
             "odoo_sign_request_status IN ('UNLINKED', 'PENDING_SIGNATURE', 'PARTIALLY_SIGNED', 'SIGNED', 'CANCELLED', 'EXPIRED')",
             name="ck_employee_documents_odoo_sign_request_status",
         ),
+        CheckConstraint("odoo_sign_environment IS NULL OR odoo_sign_environment IN ('staging', 'production')", name="ck_employee_documents_odoo_sign_environment"),
         UniqueConstraint("odoo_sign_request_id", name="uq_employee_documents_odoo_sign_request_id"),
         CheckConstraint("odoo_sign_dispatch_status IN ('NOT_SENT', 'DISPATCHING', 'SENT', 'UNKNOWN')", name="ck_employee_documents_odoo_sign_dispatch_status"),
         Index("idx_employee_documents_employee_uploaded", "employee_id", "uploaded_at"),
@@ -72,6 +73,7 @@ class EmployeeDocument(Base):
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
 
     # A prepared Sign template does not mean an email was sent or a signature exists.
+    odoo_sign_environment = Column(Text, nullable=True)
     odoo_sign_template_id = Column(Integer, nullable=True)
     odoo_sign_attachment_id = Column(Integer, nullable=True)
     odoo_sign_source_key = Column(Text, nullable=True)
