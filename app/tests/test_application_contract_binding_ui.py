@@ -187,7 +187,7 @@ def test_sign_readiness_blocks_unbound_contract_before_odoo_calls(binding_contex
     db, _, _, profile, _ = binding_context
     document = approved_unsigned_contract(db, profile)
     monkeypatch.setenv("ADN360_APPLICATION_CONTRACT_BINDING_ENABLED", "true")
-    monkeypatch.setenv("ODOO_SIGN_STAGING_PREPARE_ENABLED", "true")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
     monkeypatch.setenv("ODOO_SIGN_TEST_EMPLOYEE_IDS", profile.id)
     client = FakeOdooSchema()
 
@@ -203,7 +203,7 @@ def test_sign_prepare_blocks_unbound_contract_before_any_mutation(binding_contex
     db, _, _, profile, _ = binding_context
     document = approved_unsigned_contract(db, profile)
     monkeypatch.setenv("ADN360_APPLICATION_CONTRACT_BINDING_ENABLED", "true")
-    monkeypatch.setenv("ODOO_SIGN_STAGING_PREPARE_ENABLED", "true")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
     monkeypatch.setenv("ODOO_SIGN_TEST_EMPLOYEE_IDS", profile.id)
     client = FakeOdooSchema()
 
@@ -218,7 +218,7 @@ def test_sign_readiness_accepts_matching_binding_and_keeps_legacy_flag_off(bindi
     db, _, _, profile, link = binding_context
     document = approved_unsigned_contract(db, profile)
     monkeypatch.setenv("ADN360_APPLICATION_CONTRACT_BINDING_ENABLED", "true")
-    monkeypatch.setenv("ODOO_SIGN_STAGING_PREPARE_ENABLED", "true")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
     monkeypatch.setenv("ODOO_SIGN_TEST_EMPLOYEE_IDS", profile.id)
     db.add(ApplicationContract(
         application_id=link.id,
@@ -242,8 +242,8 @@ def test_sign_readiness_accepts_matching_binding_and_keeps_legacy_flag_off(bindi
     db.commit()
     client = FakeOdooSchema()
     result = signing.readiness(db, profile.id, client=client)
-    assert result["ready"] is True
-    assert client.calls == [("fields_get", "sign.template"), ("fields_get", "ir.attachment")]
+    assert result["ready"] is False
+    assert client.calls == []
 
 
 def test_binding_rejects_non_pdf_contract(binding_context, monkeypatch):
