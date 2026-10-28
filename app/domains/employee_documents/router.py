@@ -265,7 +265,7 @@ def apply_automatic_signature_fields(
 
 
 @router.get("/employees/{employee_id}/contract/sign/request")
-def get_staging_sign_request(
+def get_production_sign_request(
     employee_id: str,
     db: Session = Depends(get_db),
     _principal: dict = Depends(require_permission("employee_documents.read_all")),
@@ -277,7 +277,7 @@ def get_staging_sign_request(
 
 
 @router.post("/employees/{employee_id}/contract/sign/request/automatic-preview")
-def preview_auto_staged_sign_request(
+def preview_auto_production_sign_request(
     employee_id: str,
     db: Session = Depends(get_db),
     _principal: dict = Depends(require_permission("employee_documents.review")),
@@ -295,7 +295,7 @@ def preview_auto_staged_sign_request(
 
 
 @router.post("/employees/{employee_id}/contract/sign/request/automatic-send")
-def send_auto_staged_sign_request(
+def send_auto_production_sign_request(
     employee_id: str,
     body: ConfirmContractSignPreparation,
     db: Session = Depends(get_db),
@@ -337,7 +337,7 @@ def preview_staging_sign_request(
 
 
 @router.get("/employees/{employee_id}/contract/sign/request/send-status")
-def staged_sign_dispatch_status(
+def production_sign_dispatch_status(
     employee_id: str,
     db: Session = Depends(get_db),
     _principal: dict = Depends(require_permission("employee_documents.read_all")),
@@ -346,7 +346,7 @@ def staged_sign_dispatch_status(
     try:
         document = signing._contract(db, employee_id)
         return {
-            "staging_only": True,
+            "staging_only": False,
             "enabled": sign_dispatch.sending_enabled(),
             "status": document.odoo_sign_dispatch_status if document else "NOT_SENT",
             "request_id": document.odoo_sign_request_id if document else None,
@@ -356,7 +356,7 @@ def staged_sign_dispatch_status(
 
 
 @router.post("/employees/{employee_id}/contract/sign/request/send")
-def send_staged_sign_request(
+def send_production_sign_request(
     employee_id: str,
     body: SendOdooSignRequest,
     db: Session = Depends(get_db),
@@ -378,7 +378,7 @@ def send_staged_sign_request(
 
 
 @router.post("/employees/{employee_id}/contract/sign/request/reconcile")
-def reconcile_staged_sign_request(
+def reconcile_production_sign_request(
     employee_id: str,
     db: Session = Depends(get_db),
     _principal: dict = Depends(require_permission("employee_documents.review")),
@@ -395,7 +395,7 @@ def reconcile_staged_sign_request(
 
 
 @router.post("/employees/{employee_id}/contract/sign/request/link")
-def link_staging_sign_request(
+def link_production_sign_request(
     employee_id: str,
     body: LinkStagingSignRequest,
     db: Session = Depends(get_db),
@@ -412,7 +412,7 @@ def link_staging_sign_request(
 
 
 @router.post("/employees/{employee_id}/contract/sign/request/refresh")
-def refresh_staging_sign_request(
+def refresh_production_sign_request(
     employee_id: str,
     db: Session = Depends(get_db),
     _principal: dict = Depends(require_permission("employee_documents.review")),
