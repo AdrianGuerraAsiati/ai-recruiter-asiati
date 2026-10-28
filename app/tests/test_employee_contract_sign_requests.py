@@ -139,7 +139,7 @@ def test_link_denies_unknown_schema_and_wrong_id(fixture):
 
 def test_staging_disabled_does_not_call_odoo(fixture, monkeypatch):
     db, employee, contract = fixture
-    monkeypatch.delenv("ODOO_SIGN_STAGING_TRACK_ENABLED")
+    monkeypatch.delenv("ODOO_SIGN_PRODUCTION_ENABLED")
     fake = FakeSign()
     with pytest.raises(sign_requests.SignTrackingUnavailable, match="deshabilitado"):
         sign_requests.track(db, employee.id, request_id=139, client=fake)
