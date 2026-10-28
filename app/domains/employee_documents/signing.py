@@ -1,12 +1,11 @@
 """Prepare reviewed employment-contract PDFs as editable Odoo Sign templates.
 
-SAFE FIRST PHASE: staging only; this module DOES NOT issue signature requests,
+Creates only approved templates; the request dispatch is a separate action.
 create signers, send email, or mark a contract as signed.
 """
 from __future__ import annotations
 
 import base64
-import os
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -30,16 +29,6 @@ class SignNotReady(ValueError):
 
 def staging_enabled() -> bool:
     return sign_runtime.enabled()
-
-
-def _test_employee_allowed(employee_id: str) -> bool:
-    """Explicit fixture allowlist prevents copying real contracts into staging."""
-    allowed = {
-        value.strip()
-        for value in os.getenv("ODOO_SIGN_TEST_EMPLOYEE_IDS", "").split(",")
-        if value.strip()
-    }
-    return employee_id in allowed
 
 
 def _contract(db: Session, employee_id: str, *, lock: bool = False) -> EmployeeDocument | None:
@@ -121,7 +110,7 @@ def readiness(db: Session, employee_id: str, *, client=None) -> dict:
         result["message"] = "Plantilla preparada. Abre Odoo Producción, ubica las firmas y envía desde Odoo."
         return result
     if not staging_enabled():
-        result["message"] = "La preparación de Odoo Sign en staging aún no está habilitada."
+        result["message"] = "La preparación de Odoo Sign en producción aún no está habilitada."
         return result
     if not document or not document.storage_key:
         result["message"] = "Talento Humano debe cargar primero el contrato."
@@ -146,19 +135,22 @@ def readiness(db: Session, employee_id: str, *, client=None) -> dict:
         result["message"] = "Odoo Sign no está disponible o el usuario técnico no tiene los permisos requeridos."
         return result
     result["ready"] = True
-    result["message"] = "Odoo Sign staging disponible. Preparar no envía solicitudes ni correos."
+    result["message"] = "Odoo Sign producción disponible. Preparar no envía solicitudes ni correos."
     return result
 
 
 def prepare(db: Session, employee_id: str, *, client=None) -> dict:
     """Idempotently create an Odoo Sign template, not a signature request."""
     if not staging_enabled():
-        raise SignUnavailable("La preparación de Odoo Sign en staging está deshabilitada.")
+        raise SignUnavailable("La preparación de Odoo Sign en producción está deshabilitada.")
 
     document = _contract(db, employee_id, lock=True)
     if document is None or not document.storage_key:
         raise SignNotReady("Primero debes cargar el contrato laboral.")
-    sign_runtime.assert_origin(document, new=True)
+    try:
+        sign_runtime.assert_origin(document, new=True)
+    except sign_runtime.ProductionSignUnavailable as exc:
+        raise SignNotReady(str(exc)) from exc
     if document.review_status != "APPROVED":
         raise SignNotReady("El contrato debe estar aprobado por Talento Humano.")
     if document.content_type != "application/pdf" or not str(document.original_filename or "").lower().endswith(".pdf"):
@@ -172,7 +164,7 @@ def prepare(db: Session, employee_id: str, *, client=None) -> dict:
     if document.odoo_sign_status == "PREPARING":
         raise SignNotReady("La preparación ya está en curso.")
 
-    # Readiness checks against the actual staging schema; fail closed.
+    # Readiness checks against the actual production schema; fail closed.
     capabilities = readiness(db, employee_id, client=client)
     if not capabilities["ready"]:
         raise SignUnavailable(capabilities["message"])
@@ -212,7 +204,7 @@ def prepare(db: Session, employee_id: str, *, client=None) -> dict:
             try:
                 target.unlink("ir.attachment", [attachment_id])
             except Exception:
-                pass  # Inspect orphan attachments in staging during E2E testing.
+                pass  # Inspect orphan attachments in production after a failed remote call.
         document = _contract(db, employee_id)
         if document and document.odoo_sign_status == "PREPARING":
             document.odoo_sign_status = "FAILED"
