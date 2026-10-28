@@ -95,10 +95,10 @@ class FakeOdoo:
 @pytest.fixture
 def setup(monkeypatch):
     profile = "test-profile-129"
-    monkeypatch.setenv("ODOO_SIGN_STAGING_PREPARE_ENABLED", "true")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
     monkeypatch.setenv("ODOO_SIGN_TEST_EMPLOYEE_IDS", profile)
     document = SimpleNamespace(
-        odoo_sign_status="PREPARED",
+        odoo_sign_status="PREPARED", odoo_sign_environment="production",
         odoo_sign_request_id=None,
         odoo_sign_dispatch_status="NOT_SENT",
         review_status="APPROVED", odoo_sign_template_id=129,
