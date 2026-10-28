@@ -11,7 +11,8 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.domains.employee_documents import signing
-from app.domains.odoo_sync import staging
+from app.domains.odoo_sync import integration
+from app.domains.employee_documents import sign_runtime
 from app.integrations.odoo.client import OdooClientError
 
 
@@ -41,25 +42,14 @@ CANCELLED_STATES = frozenset({"cancel", "canceled", "cancelled", "refused", "rej
 EXPIRED_STATES = frozenset({"expired"})
 
 
-def tracking_enabled() -> bool:
-    return os.getenv("ODOO_SIGN_STAGING_TRACK_ENABLED", "").strip().lower() in (
-        "1", "true", "yes"
-    )
+def tracking_enabled():
+    return sign_runtime.enabled()
 
 
-def _allowed_signer_addresses() -> set[str]:
-    return {
-        address.strip().casefold()
-        for address in os.getenv("ODOO_SIGN_TEST_SIGNER_EMAILS", "").split(",")
-        if address.strip().casefold().endswith(".invalid")
-    }
-
-
-def _require_fixture(employee_id: str) -> None:
-    if not tracking_enabled() or not signing._test_employee_allowed(employee_id):
-        raise SignTrackingUnavailable("El seguimiento de firmas está deshabilitado para este empleado de prueba.")
-    if len(_allowed_signer_addresses()) < 2:
-        raise SignTrackingUnavailable("Configura dos correos ficticios .invalid para firmantes autorizados.")
+def _require_fixture(employee_id: str):
+    """Compatibility name: validates that production Sign is enabled."""
+    if not tracking_enabled():
+        raise SignTrackingUnavailable("Odoo Sign producción deshabilitado.")
 
 
 def _m2o_id(value) -> int | None:
@@ -72,7 +62,7 @@ def _m2o_name(value) -> str:
     return str(value[1]).strip() if isinstance(value, (tuple, list)) and len(value) > 1 else ""
 
 
-def _read_remote(target, request_id: int, *, template_id: int) -> dict:
+def _read_remote(target, request_id: int, *, template_id: int, expected: tuple[str, str]) -> dict:
     """Fail closed unless the request is from the exact staged template and two signers."""
     try:
         request_fields = target.fields_get("sign.request")
@@ -87,7 +77,7 @@ def _read_remote(target, request_id: int, *, template_id: int) -> dict:
             fields=sorted(required_request), limit=1,
         )
         if len(request) != 1 or request[0].get("id") != request_id:
-            raise SignTrackingConflict("No existe esa solicitud en Odoo staging.")
+            raise SignTrackingConflict("No existe esa solicitud en Odoo Producción.")
         remote = request[0]
         if _m2o_id(remote.get("template_id")) != template_id:
             raise SignTrackingConflict("La solicitud no corresponde a la plantilla preparada para este empleado.")
@@ -105,9 +95,12 @@ def _read_remote(target, request_id: int, *, template_id: int) -> dict:
         by_role = {canonical_role(item.get("role_id")): item for item in items}
         if len(by_role) != 2 or set(by_role) != {"employee", "representative"}:
             raise SignTrackingConflict("Se requieren los roles Empleado y Representante legal.")
-        addresses = {str(item.get("signer_email") or "").strip().casefold() for item in items}
-        if len(addresses) != 2 or not addresses.issubset(_allowed_signer_addresses()):
-            raise SignTrackingConflict("Los firmantes no coinciden con los correos ficticios autorizados.")
+        addresses = {
+            role: str(item.get("signer_email") or "").strip().casefold()
+            for role, item in by_role.items()
+        }
+        if addresses != {"employee": expected[0], "representative": expected[1]}:
+            raise SignTrackingConflict("Los correos de los firmantes no coinciden con el expediente.")
 
         states = {
             role: str(item["state"]).casefold() for role, item in by_role.items()
@@ -136,7 +129,7 @@ def local_status(db: Session, employee_id: str) -> dict:
     if document is None:
         return {"linked": False, "request_id": None, "status": "UNLINKED",
                 "employee": None, "representative": None, "checked_at": None,
-                "staging_only": True, "sending_available": False, "signed_pdf_archived": False}
+                "staging_only": False, "sending_available": False, "signed_pdf_archived": False}
     return {
         "linked": document.odoo_sign_request_id is not None,
         "request_id": document.odoo_sign_request_id,
@@ -144,7 +137,7 @@ def local_status(db: Session, employee_id: str) -> dict:
         "employee": document.odoo_sign_employee_state,
         "representative": document.odoo_sign_representative_state,
         "checked_at": document.odoo_sign_checked_at.isoformat() if document.odoo_sign_checked_at else None,
-        "staging_only": True,
+        "staging_only": False,
         "sending_available": False,
         "signed_pdf_archived": bool(document.odoo_sign_signed_storage_key),
     }
@@ -156,6 +149,10 @@ def track(db: Session, employee_id: str, *, request_id: int | None = None, clien
     document = signing._contract(db, employee_id, lock=True)
     if not document or document.odoo_sign_status != "PREPARED" or not document.odoo_sign_template_id:
         raise SignTrackingConflict("Prepara primero el contrato PDF aprobado en Odoo Sign.")
+    try:
+        sign_runtime.assert_origin(document)
+    except sign_runtime.ProductionSignUnavailable as exc:
+        raise SignTrackingConflict(str(exc)) from exc
     if document.odoo_sign_source_key != document.storage_key:
         raise SignTrackingConflict("El PDF del expediente difiere del preparado para firma.")
     if document.review_status != "APPROVED":
@@ -168,10 +165,15 @@ def track(db: Session, employee_id: str, *, request_id: int | None = None, clien
         raise SignTrackingConflict("El contrato ya está asociado a otra solicitud de firma.")
 
     try:
-        target = client or staging.build_staging_client()
-        checked = _read_remote(target, remote_id, template_id=document.odoo_sign_template_id)
-    except (staging.OdooNotConfigured, OdooClientError) as exc:
-        raise SignTrackingUnavailable("No se pudo consultar Odoo Sign staging.") from exc
+        target = client or sign_runtime.client()
+        expected = (
+            (document.odoo_sign_employee_email, document.odoo_sign_representative_email)
+            if document.odoo_sign_employee_email and document.odoo_sign_representative_email
+            else sign_runtime.signers(db, document)
+        )
+        checked = _read_remote(target, remote_id, template_id=document.odoo_sign_template_id, expected=expected)
+    except (sign_runtime.ProductionSignUnavailable, integration.OdooNotConfigured, integration.OdooDisabled, OdooClientError) as exc:
+        raise SignTrackingUnavailable("No se pudo consultar Odoo Sign Producción.") from exc
     document.odoo_sign_request_id = remote_id
     document.odoo_sign_request_status = checked["status"]
     document.odoo_sign_employee_state = checked["signers"]["employee"]
