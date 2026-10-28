@@ -66,14 +66,15 @@ def fixture(monkeypatch):
         size_bytes=100,
         storage_key=f"training/employee-documents/{employee.id}/contrato.pdf",
         review_status="APPROVED",
-        odoo_sign_status="PREPARED",
+        odoo_sign_status="PREPARED", odoo_sign_environment="production",
         odoo_sign_template_id=812,
         odoo_sign_source_key=f"training/employee-documents/{employee.id}/contrato.pdf",
     )
     db.add(contract)
     db.commit()
     db.refresh(contract)
-    monkeypatch.setenv("ODOO_SIGN_STAGING_TRACK_ENABLED", "true")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
+    monkeypatch.setattr(sign_requests.sign_runtime, "signers", lambda db, document: ("empleado@example.invalid", "representante@example.invalid"))
     monkeypatch.setenv("ODOO_SIGN_TEST_EMPLOYEE_IDS", employee.id)
     monkeypatch.setenv("ODOO_SIGN_TEST_SIGNER_EMAILS",
                        "empleado@example.invalid,representante@example.invalid")
@@ -138,7 +139,7 @@ def test_link_denies_unknown_schema_and_wrong_id(fixture):
 
 def test_staging_disabled_does_not_call_odoo(fixture, monkeypatch):
     db, employee, contract = fixture
-    monkeypatch.delenv("ODOO_SIGN_STAGING_TRACK_ENABLED")
+    monkeypatch.delenv("ODOO_SIGN_PRODUCTION_ENABLED")
     fake = FakeSign()
     with pytest.raises(sign_requests.SignTrackingUnavailable, match="deshabilitado"):
         sign_requests.track(db, employee.id, request_id=139, client=fake)

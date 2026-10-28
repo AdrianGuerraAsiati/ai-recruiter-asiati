@@ -137,22 +137,22 @@ def synthetic_signing(monkeypatch):
 
     monkeypatch.setenv("ADN360_REQUIRE_SIGNED_CONTRACT_FOR_HIRE", "true")
     monkeypatch.setenv("ADN360_APPLICATION_CONTRACT_BINDING_ENABLED", "true")
-    monkeypatch.setenv("ODOO_SIGN_STAGING_PREPARE_ENABLED", "true")
-    monkeypatch.setenv("ODOO_SIGN_STAGING_TRACK_ENABLED", "true")
-    monkeypatch.setenv("ODOO_SIGN_STAGING_ARCHIVE_ENABLED", "true")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
     monkeypatch.setenv(
         "ODOO_SIGN_STAGING_SIGNED_ATTACHMENT_FIELD",
         "completed_document_attachment_ids",
     )
-    monkeypatch.setenv("ODOO_SIGN_TEST_EMPLOYEE_IDS", profile.id)
+    monkeypatch.setattr(signing.sign_runtime, "signers", lambda db, document: (EMPLOYEE_EMAIL, LEGAL_EMAIL))
     monkeypatch.setenv("ODOO_SIGN_TEST_SIGNER_EMAILS", f"{EMPLOYEE_EMAIL},{LEGAL_EMAIL}")
     monkeypatch.setattr(
         application_contracts.company_catalog, "require_company",
         lambda company_id: {"id": company_id, "name": "Empresa ficticia"},
     )
     monkeypatch.setattr(
-        signing.staging, "staging_settings",
-        lambda: SimpleNamespace(base_url="https://staging.example.invalid"),
+        signing.sign_runtime, "base_url",
+        lambda: "https://odoo.example.test",
     )
     monkeypatch.setattr(
         signing.storage, "read_employee_pdf_for_signing",
@@ -203,6 +203,7 @@ def test_full_synthetic_signing_lifecycle_and_hiring_gate(synthetic_signing):
     prepared = signing.prepare(db, profile.id, client=fake)
     assert prepared["status"] == "PREPARED"
     assert document.odoo_sign_template_id == 812
+    assert document.odoo_sign_environment == "production"
     original = document.storage_key
     assert readiness()["ready"] is False
     assert signing.prepare(db, profile.id, client=fake) == prepared
@@ -245,8 +246,8 @@ def test_full_synthetic_signing_lifecycle_and_hiring_gate(synthetic_signing):
 
 def test_no_staging_access_with_disabled_fixture(synthetic_signing, monkeypatch):
     db, job, candidate, profile, link, document, fake, writes = synthetic_signing
-    monkeypatch.setenv("ODOO_SIGN_TEST_EMPLOYEE_IDS", "")
-    with pytest.raises(signing.SignUnavailable, match="autorizado"):
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "false")
+    with pytest.raises(signing.SignUnavailable, match="deshabilitada"):
         signing.prepare(db, profile.id, client=fake)
     assert fake.calls == []
     assert document.odoo_sign_template_id is None

@@ -435,7 +435,7 @@ function Documents() {
       .catch(() => {
         if (active) setSignReadiness({
           ready: false,
-          message: "No se pudo consultar Odoo Sign staging.",
+          message: "No se pudo consultar Odoo Sign Producción.",
         });
       });
     return () => { active = false; };
@@ -489,7 +489,7 @@ function Documents() {
       if (action === "preview") {
         const { data } = await api.post(`${prefix}/automatic-preview`);
         setSignSendPreview(Boolean(data?.validated));
-        setSuccess("Plantilla, firmantes y contactos ficticios verificados. Aún no se ha enviado.");
+        setSuccess("Plantilla, firmantes y firmantes reales verificados. Aún no se ha enviado.");
       } else {
         const { data } = await api.post(
           action === "send" ? `${prefix}/automatic-send` : `${prefix}/reconcile`,
@@ -507,7 +507,7 @@ function Documents() {
             setSignSendStatus({
               enabled: true, status: "SENT", request_id: current.request_id,
             });
-            setSuccess("Solicitud de firma vinculada en Odoo staging; las firmas permanecen bajo control de Odoo.");
+            setSuccess("Solicitud de firma creada en Odoo Producción. Verifica las notificaciones y el estado de las firmas.");
           } else {
             setSuccess("Odoo devolvió una solicitud, pero todavía no está vinculada. Reconcilia antes de cualquier envío.");
           }
@@ -519,7 +519,7 @@ function Documents() {
       setError(getApiErrorMessage(err, {
         action: action === "preview" ? "validar la solicitud" :
           action === "send" ? "enviar la solicitud" : "reconciliar la solicitud",
-        resource: "Odoo Sign staging",
+        resource: "Odoo Sign Producción",
         fallback: "No se confirmó el resultado. No repitas el envío; consulta su estado y reconcilia.",
       }));
       if (action === "send") {
@@ -553,7 +553,7 @@ function Documents() {
       setError(getApiErrorMessage(err, {
         action: "archivar el PDF firmado",
         resource: "Odoo Sign",
-        fallback: "El PDF final aún no está disponible para archivar; verifica la configuración de staging.",
+        fallback: "El PDF final aún no está disponible para archivar; verifica la configuración de producción.",
       }));
     } finally {
       setSignedBusy(false);
@@ -608,14 +608,14 @@ function Documents() {
         : await api.get(path);
       setSignFieldsPreview(data);
       setSuccess(apply
-        ? "Odoo Sign ya tiene las dos firmas obligatorias, ubicadas en el PDF ficticio."
+        ? "Odoo Sign ya tiene las dos firmas obligatorias, ubicadas en el contrato."
         : data.configured
           ? "Los dos campos ya están configurados en Odoo Sign."
           : "Detectamos dos zonas separadas en el PDF. Puedes configurar ambas desde ADN360.");
     } catch (err) {
       setError(getApiErrorMessage(err, {
         action: apply ? "configurar firmas" : "detectar zonas de firma",
-        resource: "Odoo Sign staging",
+        resource: "Odoo Sign Producción",
         fallback: "No se pudo validar la posición de las firmas. La plantilla no se modificó.",
       }));
     } finally {
@@ -666,7 +666,7 @@ function Documents() {
         { confirm: true },
       );
       setSignReadiness(data);
-      setSuccess("Contrato preparado en Odoo Sign staging. Debes configurar firmantes y enviar desde Odoo.");
+      setSuccess("Contrato preparado en Odoo Sign Producción. Debes configurar firmantes y enviar desde Odoo.");
       await loadPortfolio();
     } catch (err) {
       setError(getApiErrorMessage(err, {
@@ -822,13 +822,13 @@ function Documents() {
         {item.document_type === "EMPLOYMENT_CONTRACT" && canReview && !viewingOwn && (
           <div className="contract-sign-workspace" aria-label="Odoo Sign para contrato laboral">
             <div>
-              <strong>Firma del contrato · Odoo Sign</strong>
-              <p>{signReadiness?.message || "Consultando disponibilidad en Odoo staging…"}</p>
+              <strong>Firma del contrato · Odoo Sign Producción</strong>
+              <p>{signReadiness?.message || "Consultando disponibilidad en Odoo Producción…"}</p>
               <small>Preparar una plantilla no envía correos ni acredita una firma. Los destinatarios y el envío se administran desde ADN360 cuando estén configurados.</small>
             </div>
             {signReadiness?.template_url ? (
               <a className="btn btn-secondary btn-sm" href={signReadiness.template_url} target="_blank" rel="noopener noreferrer">
-                Abrir plantilla en Odoo staging ↗
+                Abrir plantilla en Odoo Producción ↗
               </a>
             ) : (
               <button
@@ -840,11 +840,10 @@ function Documents() {
                 {signBusy ? "Preparando…" : "Preparar en Odoo Sign"}
               </button>
             )}
-            {item.original_filename === "ADN360_contrato_ficticio_prueba_Odoo_Sign.pdf"
-              && item.review_status === "APPROVED" && signReadiness?.template_url && (
-              <div className="contract-sign-request-controls" aria-label="Campos de firma de demostración">
-                <strong>Firmas en el documento de prueba</strong>
-                <p>ADN360 puede encontrar dos recuadros para Empleado y Representante legal y configurarlos en la plantilla de Odoo.</p>
+            {item.review_status === "APPROVED" && signReadiness?.template_url && (
+              <div className="contract-sign-request-controls" aria-label="Campos de firma del contrato">
+                <strong>Firmas en el contrato</strong>
+                <p>ADN360 detecta los recuadros de firma del empleado y del representante legal en el PDF aprobado; si no puede validarlos, los campos deberán ubicarse en Odoo.</p>
                 <button type="button" className="btn btn-secondary btn-sm"
                   disabled={signFieldsBusy}
                   onClick={() => void manageDemoSignatureFields(false)}>
@@ -863,15 +862,15 @@ function Documents() {
               </div>
             )}
             {item.id && signReadiness?.template_url && (
-              <div className="contract-sign-request-panel" aria-label="Seguimiento de firmas en staging">
-                <strong>Seguimiento de solicitud de prueba</strong>
+              <div className="contract-sign-request-panel" aria-label="Seguimiento de firmas en producción">
+                <strong>Seguimiento de solicitud de firma</strong>
                 {signRequest?.linked ? (
                   <>
                     <div className={`contract-sign-status contract-sign-status-${signRequestMeta.className}`}
                       role="status" aria-live="polite">
                       {signRequestMeta.label}
                     </div>
-                    <small>Solicitud de Odoo Sign #{signRequest.request_id} · Entorno de pruebas</small>
+                    <small>Solicitud de Odoo Sign #{signRequest.request_id} · Producción</small>
                   </>
                 ) : (
                   <p role="status">
@@ -885,8 +884,8 @@ function Documents() {
                 {canReview && signSendStatus?.enabled &&
                   signSendStatus?.status === "NOT_SENT" && !signRequest?.linked && (
                     <div className="contract-sign-request-controls">
-                      <strong>Firmantes de prueba configurados</strong>
-                      <p>Empleado y representante legal: ADN360 verificará sus contactos directamente en Odoo staging.</p>
+                      <strong>Firmantes reales del contrato</strong>
+                      <p>Empleado y representante legal: ADN360 verificará sus contactos directamente en Odoo Producción.</p>
                       <button type="button" className="btn btn-secondary btn-sm" disabled={signSendBusy}
                         onClick={() => void runStagingSignSend("preview")}>
                         {signSendBusy ? "Validando…" : "Validar solicitud antes de enviar"}
@@ -896,12 +895,12 @@ function Documents() {
                           <label>
                             <input type="checkbox" checked={signSendConfirmed}
                               onChange={(event) => setSignSendConfirmed(event.target.checked)} />
-                            Confirmo el envío único a contactos ficticios de Odoo staging
+                            Confirmo el envío único de invitaciones reales a los firmantes de este contrato
                           </label>
                           <button type="button" className="btn btn-primary btn-sm"
                             disabled={!signSendConfirmed || signSendBusy}
                             onClick={() => void runStagingSignSend("send")}>
-                            {signSendBusy ? "Enviando…" : "Enviar a Odoo Sign (prueba)"}
+                            {signSendBusy ? "Enviando…" : "Enviar a Odoo Sign Producción"}
                           </button>
                         </>
                       )}

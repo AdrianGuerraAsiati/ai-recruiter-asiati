@@ -346,7 +346,7 @@ def staged_sign_dispatch_status(
     try:
         document = signing._contract(db, employee_id)
         return {
-            "staging_only": True,
+            "staging_only": False,
             "enabled": sign_dispatch.sending_enabled(),
             "status": document.odoo_sign_dispatch_status if document else "NOT_SENT",
             "request_id": document.odoo_sign_request_id if document else None,

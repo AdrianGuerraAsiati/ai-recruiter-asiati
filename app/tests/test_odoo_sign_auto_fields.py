@@ -95,10 +95,10 @@ class FakeOdoo:
 @pytest.fixture
 def setup(monkeypatch):
     profile = "test-profile-129"
-    monkeypatch.setenv("ODOO_SIGN_STAGING_PREPARE_ENABLED", "true")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
     monkeypatch.setenv("ODOO_SIGN_TEST_EMPLOYEE_IDS", profile)
     document = SimpleNamespace(
-        odoo_sign_status="PREPARED",
+        odoo_sign_status="PREPARED", odoo_sign_environment="production",
         odoo_sign_request_id=None,
         odoo_sign_dispatch_status="NOT_SENT",
         review_status="APPROVED", odoo_sign_template_id=129,
@@ -144,7 +144,7 @@ def test_one_time_auto_placement_is_idempotent_and_never_sends_mail(setup):
 
 
 @pytest.mark.parametrize("kwargs", [
-    {"box_count": 1}, {"duplicate_role": True}, {"marker": False},
+    {"box_count": 1}, {"duplicate_role": True},
 ])
 def test_missing_or_ambiguous_demo_regions_never_write(setup, kwargs):
     db, profile, document, target, monkeypatch = setup
@@ -172,13 +172,15 @@ def test_changed_odoo_sign_item_schema_fails_closed(setup):
     assert target.writes == []
 
 
-def test_real_documents_and_other_employees_are_rejected(setup):
+def test_reject_staging_document_but_accept_valid_real_pdf_name(setup):
     db, profile, document, target, _ = setup
-    with pytest.raises(sign_fields.SignFieldsUnavailable):
-        sign_fields.apply(db, "not-the-fixture", client=target)
-    document.original_filename = "contrato_real.pdf"
-    with pytest.raises(sign_fields.SignFieldsNotReady, match="ficticio"):
+    document.odoo_sign_environment = "staging"
+    with pytest.raises(sign_fields.SignFieldsNotReady, match="Odoo Test"):
         sign_fields.apply(db, profile, client=target)
+    document.odoo_sign_environment = "production"
+    document.original_filename = "contrato_real.pdf"
+    result = sign_fields.preview(db, profile, client=target)
+    assert result["can_apply"] is True
     assert target.writes == []
 
 
@@ -195,31 +197,31 @@ def test_duplicate_global_role_names_do_not_block_verified_reference(setup):
     target.roles = [
         "Employee", "Empleado", "Representante legal", "Legal representative",
     ]
-    result = sign_fields.preview(db, profile, client=target)
-    assert result["can_apply"] is True
+    with pytest.raises(sign_fields.SignFieldsUnavailable, match="duplicados"):
+        sign_fields.preview(db, profile, client=target)
     assert target.writes == []
 
 
 def test_missing_reference_template_fails_closed_without_writing(setup):
     db, profile, document, target, _ = setup
-    target.reference_missing = True
-    with pytest.raises(sign_fields.SignFieldsUnavailable, match="referencia"):
+    target.roles = ["Representante legal"]
+    with pytest.raises(sign_fields.SignFieldsUnavailable, match="roles"):
         sign_fields.preview(db, profile, client=target)
     assert target.writes == []
 
 
 def test_duplicate_reference_roles_do_not_write(setup):
     db, profile, document, target, _ = setup
-    target.reference_roles = ["Employee", "Empleado"]
-    with pytest.raises(sign_fields.SignFieldsUnavailable, match="referencia"):
+    target.roles = ["Employee", "Empleado", "Representante legal"]
+    with pytest.raises(sign_fields.SignFieldsUnavailable, match="duplicados"):
         sign_fields.apply(db, profile, client=target)
     assert target.writes == []
 
 
 def test_unrecognized_reference_role_is_rejected(setup):
     db, profile, document, target, _ = setup
-    target.reference_roles = ["Customer", "Representante legal"]
-    with pytest.raises(sign_fields.SignFieldsUnavailable, match="referencia"):
+    target.roles = ["Customer", "Representante legal"]
+    with pytest.raises(sign_fields.SignFieldsUnavailable, match="roles"):
         sign_fields.apply(db, profile, client=target)
     assert target.writes == []
 

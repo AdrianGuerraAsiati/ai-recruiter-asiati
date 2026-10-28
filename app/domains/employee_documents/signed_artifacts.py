@@ -1,6 +1,6 @@
-"""Safely archive signed PDFs from a verified Odoo Sign staging request.
+"""Safely archive signed PDFs from a verified Odoo Sign Producción request.
 
-No Odoo writes or emails. Requires explicit staging fixture allowlists and a
+No Odoo writes or emails. Requires exact production ownership and a
 schema-verified signed attachment relation; original contract is immutable.
 """
 from __future__ import annotations
@@ -13,7 +13,8 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.domains.employee_documents import sign_requests, signing
-from app.domains.odoo_sync import staging
+from app.domains.odoo_sync import integration
+from app.domains.employee_documents import sign_runtime
 from app.infrastructure.storage import employee_documents as storage
 from app.integrations.odoo.client import OdooClientError
 
@@ -26,7 +27,7 @@ class ArchiveUnavailable(RuntimeError):
     pass
 
 
-# The actual Enterprise v18 field MUST be established in Odoo staging before
+# The actual Enterprise v18 field MUST be established in Odoo Producción before
 # enabling. Only explicit final-document relation fields are acceptable.
 SIGNED_ATTACHMENT_FIELDS = frozenset({
     "completed_document_attachment_ids",
@@ -37,16 +38,14 @@ SIGNED_ATTACHMENT_FIELDS = frozenset({
 
 
 def archive_enabled() -> bool:
-    return os.getenv("ODOO_SIGN_STAGING_ARCHIVE_ENABLED", "").strip().lower() in (
-        "1", "true", "yes"
-    )
+    return sign_runtime.enabled()
 
 
 def signed_artifact_field() -> str:
-    field = os.getenv("ODOO_SIGN_STAGING_SIGNED_ATTACHMENT_FIELD", "").strip()
+    field = "completed_document_attachment_ids"
     if field not in SIGNED_ATTACHMENT_FIELDS:
         raise ArchiveUnavailable(
-            "El campo de adjunto firmado debe validarse en Odoo staging antes de habilitar la copia."
+            "El campo de adjunto firmado debe validarse en Odoo Producción antes de habilitar la copia."
         )
     return field
 
@@ -64,7 +63,7 @@ def status(db: Session, employee_id: str) -> dict:
         ),
         "sha256": document.odoo_sign_signed_sha256 if signed else None,
         "certificate_sha256": document.odoo_sign_certificate_sha256 if certificate else None,
-        "staging_only": True,
+        "staging_only": False,
     }
 
 
@@ -150,18 +149,20 @@ def _signed_attachments(
 
 def archive(db: Session, employee_id: str, *, client=None) -> dict:
     if not archive_enabled():
-        raise ArchiveUnavailable("La copia de contratos firmados desde staging está deshabilitada.")
+        raise ArchiveUnavailable("La copia de contratos firmados desde producción está deshabilitada.")
     sign_requests._require_fixture(employee_id)
     field_name = signed_artifact_field()
 
     document = signing._contract(db, employee_id)
+    if document:
+        sign_runtime.assert_origin(document)
     if document is None or document.odoo_sign_request_id is None:
         raise ArchiveNotReady("Debes vincular primero la solicitud de firma del contrato de prueba.")
     if document.odoo_sign_signed_storage_key and document.odoo_sign_certificate_storage_key:
         return status(db, employee_id)
 
     try:
-        target = client or staging.build_staging_client()
+        target = client or sign_runtime.client()
         refreshed = sign_requests.track(db, employee_id, client=target)
         if refreshed["status"] != "SIGNED":
             raise ArchiveNotReady("Ambos firmantes deben completar la firma antes de archivar.")
@@ -192,9 +193,9 @@ def archive(db: Session, employee_id: str, *, client=None) -> dict:
             sign_requests.SignTrackingUnavailable):
         db.rollback()
         raise
-    except (staging.OdooNotConfigured, OdooClientError) as exc:
+    except (sign_runtime.ProductionSignUnavailable, OdooClientError) as exc:
         db.rollback()
-        raise ArchiveUnavailable("No fue posible consultar el PDF firmado en Odoo staging.") from exc
+        raise ArchiveUnavailable("No fue posible consultar el PDF firmado en Odoo Producción.") from exc
     except Exception as exc:
         db.rollback()
         raise ArchiveUnavailable("No se pudo almacenar la copia firmada en el expediente.") from exc

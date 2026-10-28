@@ -61,11 +61,9 @@ def contract_db(monkeypatch):
     db.add(contract)
     db.commit()
     db.refresh(contract)
-    monkeypatch.setenv("ODOO_SIGN_STAGING_PREPARE_ENABLED", "true")
-    monkeypatch.setenv("ODOO_SIGN_TEST_EMPLOYEE_IDS", employee.id)
-    monkeypatch.setattr(signing.staging, "staging_settings", lambda: SimpleNamespace(
-        base_url="https://odoo-staging.example.invalid"
-    ))
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
+    monkeypatch.setattr(signing, "_application_binding_matches", lambda db, document: True)
+    monkeypatch.setattr(signing.sign_runtime, "base_url", lambda: "https://odoo-prod.example.com")
     monkeypatch.setattr(signing.storage, "read_employee_pdf_for_signing", lambda **kwargs: b"%PDF-1.7 fixture")
     yield db, employee, contract
     db.close()
@@ -74,18 +72,18 @@ def contract_db(monkeypatch):
 
 def test_only_allowlisted_employees_are_ready(contract_db, monkeypatch):
     db, employee, _contract = contract_db
-    monkeypatch.setenv("ODOO_SIGN_TEST_EMPLOYEE_IDS", "someone-else")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "false")
     fake = FakeOdooSign()
     result = signing.readiness(db, employee.id, client=fake)
     assert result["ready"] is False
-    with pytest.raises(signing.SignUnavailable, match="autorizado"):
+    with pytest.raises(signing.SignUnavailable, match="deshabilitada"):
         signing.prepare(db, employee.id, client=fake)
     assert fake.created == []
 
 
 def test_not_enabled_never_calls_odoo(contract_db, monkeypatch):
     db, employee, _contract = contract_db
-    monkeypatch.delenv("ODOO_SIGN_STAGING_PREPARE_ENABLED")
+    monkeypatch.delenv("ODOO_SIGN_PRODUCTION_ENABLED")
     fake = FakeOdooSign()
     assert signing.readiness(db, employee.id, client=fake)["ready"] is False
     with pytest.raises(signing.SignUnavailable, match="deshabilitada"):
@@ -99,7 +97,7 @@ def test_staging_preparation_is_idempotent_and_does_not_send(contract_db, monkey
     result = signing.prepare(db, employee.id, client=fake)
     assert result["status"] == "PREPARED"
     assert result["ready"] is False
-    assert result["template_url"].startswith("https://odoo-staging.example.invalid/web#")
+    assert result["template_url"].startswith("https://odoo-prod.example.com/web#")
     assert [model for model, _ in fake.created] == ["ir.attachment", "sign.template"]
     assert contract.odoo_sign_template_id == 812
     assert contract.odoo_sign_source_key == contract.storage_key

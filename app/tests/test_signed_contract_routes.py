@@ -412,7 +412,7 @@ def test_signature_send_status_is_local_no_odoo_call(monkeypatch):
         "employee-test", db=object(), _principal={},
     )
     assert result == {
-        "staging_only": True, "enabled": False,
+        "staging_only": False, "enabled": False,
         "status": "UNKNOWN", "request_id": None,
     }
 
@@ -434,7 +434,7 @@ def test_automatic_sign_routes_hide_odoo_internal_ids(monkeypatch):
     monkeypatch.setattr(
         sign_send, "send_automatic",
         lambda db, employee_id: {
-            "status": "SENT", "request_id": 139, "staging_only": True,
+            "status": "SENT", "request_id": 139, "staging_only": False,
         },
     )
     sent = documents.send_auto_staged_sign_request(

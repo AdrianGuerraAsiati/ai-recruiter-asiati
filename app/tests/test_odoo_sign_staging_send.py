@@ -145,19 +145,19 @@ def fixture(monkeypatch):
         review_status="APPROVED",
         storage_key=f"training/employee-documents/{profile.id}/unsigned.pdf",
         odoo_sign_source_key=f"training/employee-documents/{profile.id}/unsigned.pdf",
-        odoo_sign_status="PREPARED", odoo_sign_template_id=812,
+        odoo_sign_status="PREPARED", odoo_sign_environment="production", odoo_sign_template_id=812,
         original_filename="contrato.pdf", content_type="application/pdf", size_bytes=250,
     )
     db.add(contract)
     db.commit()
     db.refresh(contract)
     monkeypatch.setenv("ODOO_SIGN_TEST_EMPLOYEE_IDS", profile.id)
-    monkeypatch.setenv("ODOO_SIGN_STAGING_TRACK_ENABLED", "true")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
     monkeypatch.setenv(
         "ODOO_SIGN_TEST_SIGNER_EMAILS",
         "empleado.adn360@example.invalid,representante.adn360@example.invalid",
     )
-    monkeypatch.setenv("ODOO_SIGN_STAGING_SEND_ENABLED", "true")
+    monkeypatch.setattr(sign_dispatch.sign_runtime, "signers", lambda db, document: ("empleado.adn360@example.invalid", "representante.adn360@example.invalid"))
     yield db, profile, contract, monkeypatch
     db.close()
     engine.dispose()
@@ -181,7 +181,7 @@ def test_send_once_links_verified_request_and_never_returns_token(fixture):
     assert contract.odoo_sign_request_id == 139
     assert contract.odoo_sign_request_status == "PENDING_SIGNATURE"
     assert contract.odoo_sign_dispatch_status == "SENT"
-    assert contract.odoo_sign_dispatch_subject == f"ADN360-STAGING-{contract.id}"
+    assert contract.odoo_sign_dispatch_subject == f"ADN360-PROD-{contract.id}"
     assert odoo.create_count == odoo.send_count == 1
     with pytest.raises(sign_dispatch.DispatchNotReady, match="solicitud de firma vinculada"):
         send(db, profile, odoo)
@@ -199,7 +199,7 @@ def test_timeout_blocks_retries_and_reconciles_unique_remote_request(fixture):
         send(db, profile, odoo)
     assert (odoo.create_count, odoo.send_count) == (1, 1)
     result = sign_send.reconcile(db, profile.id, client=odoo)
-    assert result == {"status": "SENT", "request_id": 139, "staging_only": True}
+    assert result == {"status": "SENT", "request_id": 139, "staging_only": False}
     assert contract.odoo_sign_dispatch_status == "SENT"
     assert contract.odoo_sign_request_id == 139
     assert odoo.create_count == 1
@@ -239,7 +239,7 @@ def test_no_remote_match_never_retries_staging_wizard(fixture):
 
 def test_disabled_feature_never_writes_anything(fixture):
     db, profile, contract, monkeypatch = fixture
-    monkeypatch.setenv("ODOO_SIGN_STAGING_SEND_ENABLED", "false")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "false")
     odoo = FakeOdoo()
     with pytest.raises(sign_dispatch.DispatchUnavailable, match="deshabilitado"):
         send(db, profile, odoo)
@@ -251,7 +251,7 @@ def test_existing_remote_subject_prevents_send(fixture):
     db, profile, contract, monkeypatch = fixture
     odoo = FakeOdoo()
     odoo.sent = True
-    odoo.wizard = {"subject": f"ADN360-STAGING-{contract.id}"}
+    odoo.wizard = {"subject": f"ADN360-PROD-{contract.id}"}
     with pytest.raises(sign_send.DispatchConflict, match="Ya existe"):
         send(db, profile, odoo)
     assert contract.odoo_sign_dispatch_status == "NOT_SENT"
@@ -297,11 +297,18 @@ def test_automatic_send_rejects_invalid_fixtures_without_odoo_writes(
     fixture, addresses,
 ):
     db, profile, contract, monkeypatch = fixture
-    monkeypatch.setenv("ODOO_SIGN_TEST_SIGNER_EMAILS", addresses)
+    def synthetic_signers(db, document):
+        parts = [item.strip() for item in addresses.split(",") if item.strip()]
+        if (len(parts) != 2 or len(set(parts)) != 2
+                or not parts[0].startswith("empleado.")
+                or not parts[1].startswith("representante.")):
+            raise sign_dispatch.sign_runtime.ProductionSignUnavailable("Firmantes no válidos.")
+        return parts[0], parts[1]
+    monkeypatch.setattr(sign_dispatch.sign_runtime, "signers", synthetic_signers)
     odoo = FakeOdoo()
     with pytest.raises(
         (sign_dispatch.DispatchUnavailable, sign_dispatch.DispatchNotReady,
-         sign_requests.SignTrackingUnavailable)
+         sign_requests.SignTrackingUnavailable, sign_dispatch.sign_runtime.ProductionSignUnavailable)
     ):
         sign_send.send_automatic(db, profile.id, client=odoo)
     assert odoo.create_count == odoo.send_count == 0
@@ -310,7 +317,7 @@ def test_automatic_send_rejects_invalid_fixtures_without_odoo_writes(
 
 def test_automatic_send_disabled_before_any_remote_reads(fixture, monkeypatch):
     db, profile, contract, _ = fixture
-    monkeypatch.setenv("ODOO_SIGN_STAGING_SEND_ENABLED", "false")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "false")
     odoo = FakeOdoo()
     with pytest.raises(sign_dispatch.DispatchUnavailable, match="deshabilitado"):
         sign_send.send_automatic(db, profile.id, client=odoo)

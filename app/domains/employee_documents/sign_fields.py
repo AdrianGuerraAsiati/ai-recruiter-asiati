@@ -1,4 +1,4 @@
-"""Place two mandatory signature fields in a visually marked demo PDF in Odoo staging.
+"""Place two mandatory signature fields in a visually marked demo PDF in Odoo Producción.
 
 No use of legacy positions: detect separate signature boxes in the approved
 PDF itself, validate text/geometry, then write only to its own prepared template.
@@ -10,7 +10,8 @@ import fitz
 from sqlalchemy.orm import Session
 
 from app.domains.employee_documents import signing, sign_requests
-from app.domains.odoo_sync import staging
+from app.domains.odoo_sync import integration
+from app.domains.employee_documents import sign_runtime
 from app.infrastructure.storage import employee_documents as storage
 from app.integrations.odoo.client import OdooClientError
 
@@ -24,9 +25,14 @@ class SignFieldsUnavailable(RuntimeError):
 
 
 def _document(db: Session, employee_id: str, *, lock: bool = False):
-    if not signing.staging_enabled() or not signing._test_employee_allowed(employee_id):
+    if not sign_runtime.enabled():
         raise SignFieldsUnavailable("Los campos de firma están deshabilitados para este expediente.")
     doc = signing._contract(db, employee_id, lock=lock)
+    if doc:
+        try:
+            sign_runtime.assert_origin(doc)
+        except sign_runtime.ProductionSignUnavailable as exc:
+            raise SignFieldsNotReady("Este contrato pertenece a Odoo Test, no a producción.") from exc
     if (doc is None or doc.odoo_sign_status != "PREPARED"
             or doc.review_status != "APPROVED"
             or not doc.odoo_sign_template_id or not doc.storage_key
@@ -36,11 +42,6 @@ def _document(db: Session, employee_id: str, *, lock: bool = False):
         raise SignFieldsNotReady(
             "Se necesita una plantilla aprobada y sin solicitud de firma existente."
         )
-    # This prototype is restricted to the synthetic, explicitly named demo PDF.
-    if doc.original_filename != "ADN360_contrato_ficticio_prueba_Odoo_Sign.pdf":
-        raise SignFieldsNotReady(
-            "La detección automática solo está validada para el PDF ficticio ADN360."
-        )
     return doc
 
 
@@ -49,11 +50,8 @@ def _positions(pdf: bytes) -> dict[str, dict]:
     try:
         with fitz.open(stream=pdf, filetype="pdf") as source:
             if len(source) != 1:
-                raise SignFieldsNotReady("El PDF de demostración debe tener una sola página.")
+                raise SignFieldsNotReady("La detección automática requiere un PDF de una página.")
             page = source[0]
-            if ("SOLO PRUEBA" not in page.get_text().upper()
-                    or "SIN VALIDEZ CONTRACTUAL" not in page.get_text().upper()):
-                raise SignFieldsNotReady("El documento no está identificado como ficticio.")
             rectangles = []
             for drawing in page.get_drawings():
                 rect = drawing["rect"]
@@ -101,7 +99,7 @@ def _positions(pdf: bytes) -> dict[str, dict]:
     except (ValueError, RuntimeError) as exc:
         if isinstance(exc, SignFieldsNotReady):
             raise
-        raise SignFieldsNotReady("No se pudo interpretar el PDF de demostración.") from exc
+        raise SignFieldsNotReady("No se pudo interpretar el PDF del contrato.") from exc
 
 
 def _validate_odoo(target, template_id: int) -> tuple[dict, list[int]]:
@@ -131,70 +129,31 @@ def _validate_odoo(target, template_id: int) -> tuple[dict, list[int]]:
     return fields, existing
 
 
-# Odoo staging neutralized fixture manually inspected on 2026-10-19.
-# The reference template contains exactly two mandatory Signature fields with
-# Odoo's established Employee and Representante legal roles. Unlike a global
-# search for sign.item.role, this remains deterministic when additional roles
-# share the same translated label in Odoo.
-STAGING_ROLE_REFERENCE_TEMPLATE_ID = 128
-
-
 def _roles_and_type(target) -> tuple[dict[str, int], int]:
-    """Resolve roles from the audited two-signer reference template, not names."""
-    references = target.search_read(
-        "sign.template",
-        [("id", "=", STAGING_ROLE_REFERENCE_TEMPLATE_ID)],
-        fields=["id", "sign_item_ids"],
-        limit=2,
-    )
-    if (len(references) != 1
-            or references[0].get("id") != STAGING_ROLE_REFERENCE_TEMPLATE_ID):
-        raise SignFieldsUnavailable(
-            "Falta la plantilla de referencia de roles validada en Odoo staging."
-        )
-    item_ids = references[0].get("sign_item_ids")
-    if (not isinstance(item_ids, list) or len(item_ids) != 2
-            or not all(type(i) is int and i > 0 for i in item_ids)
-            or len(set(item_ids)) != 2):
-        raise SignFieldsUnavailable(
-            "La plantilla de referencia debe tener exactamente dos firmas."
-        )
-    rows = target.search_read(
-        "sign.item", [("id", "in", item_ids)],
-        fields=["id", "responsible_id", "type_id", "required"], limit=3,
-    )
-    if len(rows) != 2 or {r.get("id") for r in rows} != set(item_ids):
-        raise SignFieldsUnavailable(
-            "No se pudieron verificar los campos de firma de referencia."
-        )
+    """Resolve unique roles and signature type from this production Odoo database."""
+    role_rows = target.search_read("sign.item.role", [], fields=["id", "name"], limit=100)
     mapped = {}
-    for item in rows:
-        role_field = item.get("responsible_id")
-        role = sign_requests.canonical_role(role_field)
-        role_id = sign_requests._m2o_id(role_field)
-        type_id = sign_requests._m2o_id(item.get("type_id"))
-        if (role not in ("employee", "representative")
-                or type(role_id) is not int or role_id <= 0
-                or type_id != 1 or item.get("required") is not True
-                or role in mapped):
-            raise SignFieldsUnavailable(
-                "La plantilla de referencia no contiene las dos firmas verificadas."
-            )
-        mapped[role] = role_id
-    if (set(mapped) != {"employee", "representative"}
-            or mapped["employee"] == mapped["representative"]):
-        raise SignFieldsUnavailable(
-            "La plantilla de referencia no contiene los dos roles esperados."
-        )
-    # Validate that the reference's known signature type is still available.
-    types = target.search_read(
-        "sign.item.type", [("id", "=", 1)],
-        fields=["id", "name"], limit=1,
+    for item in role_rows:
+        role = sign_requests.canonical_role([item.get("id"), item.get("name")])
+        if role in ("employee", "representative"):
+            if role in mapped:
+                raise SignFieldsUnavailable("Existen roles duplicados; selecciona roles únicos en Odoo.")
+            mapped[role] = item.get("id")
+    if set(mapped) != {"employee", "representative"} or any(
+        type(value) is not int or value <= 0 for value in mapped.values()
+    ):
+        raise SignFieldsUnavailable("Faltan roles únicos de Empleado y Representante legal.")
+    signature_types = target.search_read(
+        "sign.item.type", [], fields=["id", "name"], limit=100,
     )
-    if (len(types) != 1 or types[0].get("id") != 1
-            or str(types[0].get("name") or "").casefold() not in ("signature", "firma")):
-        raise SignFieldsUnavailable("No se encontró el tipo de campo Firma esperado.")
-    return mapped, 1
+    matches = [
+        item["id"] for item in signature_types
+        if str(item.get("name") or "").strip().casefold() in ("firma", "signature")
+        and type(item.get("id")) is int
+    ]
+    if len(matches) != 1:
+        raise SignFieldsUnavailable("Debe existir un solo tipo de campo Firma en Odoo.")
+    return mapped, matches[0]
 
 
 def _existing_matches(target, ids: list[int], expected: list[dict]) -> bool:
@@ -232,7 +191,7 @@ def _preflight(db: Session, employee_id: str, *, client=None, lock: bool = False
         expected_bytes=document.size_bytes,
     )
     positions = _positions(pdf)
-    target = client or staging.build_staging_client()
+    target = client or sign_runtime.client()
     _, current = _validate_odoo(target, document.odoo_sign_template_id)
     roles, type_id = _roles_and_type(target)
     expected = [
@@ -250,7 +209,7 @@ def preview(db: Session, employee_id: str, *, client=None) -> dict:
         return {
             "configured": done,
             "can_apply": not done,
-            "staging_only": True,
+            "staging_only": False,
             "roles": ["Empleado", "Representante legal"],
             "positions": [
                 {k: value for k, value in item.items()
@@ -260,8 +219,8 @@ def preview(db: Session, employee_id: str, *, client=None) -> dict:
             "message": ("Ambas firmas ya están configuradas."
                         if done else "Dos zonas de firma detectadas sin superposición."),
         }
-    except (staging.OdooNotConfigured, OdooClientError) as exc:
-        raise SignFieldsUnavailable("No fue posible consultar los campos de Odoo staging.") from exc
+    except (sign_runtime.ProductionSignUnavailable, OdooClientError) as exc:
+        raise SignFieldsUnavailable("No fue posible consultar los campos de Odoo Producción.") from exc
 
 
 def apply(db: Session, employee_id: str, *, client=None) -> dict:
@@ -284,7 +243,7 @@ def apply(db: Session, employee_id: str, *, client=None) -> dict:
             )
         db.commit()
         return preview(db, employee_id, client=target)
-    except (staging.OdooNotConfigured, OdooClientError) as exc:
+    except (sign_runtime.ProductionSignUnavailable, OdooClientError) as exc:
         db.rollback()
         raise SignFieldsUnavailable(
             "Resultado de configuración incierto. Revisa el estado antes de reintentar."

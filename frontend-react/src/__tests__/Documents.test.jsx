@@ -291,7 +291,7 @@ describe("Employee document review workspace", () => {
       ready: true,
       enabled: true,
       status: "NOT_PREPARED",
-      staging_only: true,
+      staging_only: false,
       message: "Odoo Sign staging disponible.",
     };
     api.get.mockImplementation((url) => {
@@ -324,7 +324,7 @@ describe("Employee document review workspace", () => {
       "/employee-documents/employees/employee-1/contract/sign/prepare",
       { confirm: true },
     ));
-    expect(await screen.findByRole("link", { name: /Abrir plantilla en Odoo staging/i }))
+    expect(await screen.findByRole("link", { name: /Abrir plantilla en Odoo Producción/i }))
       .toHaveAttribute("target", "_blank");
   });
 
@@ -430,7 +430,7 @@ describe("Employee document review workspace", () => {
     expect(screen.getAllByText("Solicitud enviada")).toHaveLength(2);
     expect(screen.queryByText("Resultado de envío incierto: no vuelvas a enviarlo.")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Reconciliar solicitud con Odoo" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Enviar a Odoo Sign (prueba)" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Enviar a Odoo Sign Producción" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Actualizar estado de firmas" }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(base + "/refresh"));
@@ -541,23 +541,23 @@ describe("Employee document review workspace", () => {
     fireEvent.change(screen.getByLabelText("Postulación a consultar"), {
       target: { value: "employee-1" },
     });
-    await screen.findByText("Firmantes de prueba configurados");
+    await screen.findByText("Firmantes reales del contrato");
     expect(screen.queryByLabelText("ID de contacto de empleado ficticio")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("ID de solicitud en Odoo staging")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Enviar a Odoo Sign (prueba)" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Enviar a Odoo Sign Producción" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Validar solicitud antes de enviar" }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       base + "/automatic-preview",
     ));
-    const confirm = await screen.findByLabelText("Confirmo el envío único a contactos ficticios de Odoo staging");
-    expect(screen.getByRole("button", { name: "Enviar a Odoo Sign (prueba)" })).toBeDisabled();
+    const confirm = await screen.findByLabelText("Confirmo el envío único de invitaciones reales a los firmantes de este contrato");
+    expect(screen.getByRole("button", { name: "Enviar a Odoo Sign Producción" })).toBeDisabled();
     fireEvent.click(confirm);
-    fireEvent.click(screen.getByRole("button", { name: "Enviar a Odoo Sign (prueba)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Enviar a Odoo Sign Producción" }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       base + "/automatic-send",
       { confirm: true },
     ));
-    expect(await screen.findByText(/Solicitud de firma vinculada en Odoo staging/)).toBeInTheDocument();
+    expect(await screen.findByText(/Solicitud de firma creada en Odoo Producción/)).toBeInTheDocument();
     expect(await screen.findByText("Pendiente de firma")).toBeInTheDocument();
   });
 

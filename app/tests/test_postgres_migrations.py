@@ -367,6 +367,9 @@ def test_alembic_head_builds_current_postgres_schema():
             "review_comment",
             "reviewed_by_sub",
             "reviewed_at",
+            "odoo_sign_environment",
+            "odoo_sign_employee_email",
+            "odoo_sign_representative_email",
             "odoo_sign_template_id",
             "odoo_sign_attachment_id",
             "odoo_sign_source_key",
@@ -571,6 +574,6 @@ def test_alembic_head_builds_current_postgres_schema():
             "odoo_sign_certificate_sha256",
             "odoo_sign_certificate_attachment_id",
         }.issubset(certificate_columns)
-        assert revision == "059"
+        assert revision == "060"
     finally:
         engine.dispose()

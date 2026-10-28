@@ -84,7 +84,7 @@ def fixture(monkeypatch):
         original_filename="original.pdf",
         storage_key=f"training/employee-documents/{employee.id}/original.pdf",
         review_status="APPROVED",
-        odoo_sign_status="PREPARED",
+        odoo_sign_status="PREPARED", odoo_sign_environment="production",
         odoo_sign_request_id=139,
         odoo_sign_request_status="SIGNED",
         odoo_sign_template_id=128,
@@ -93,8 +93,8 @@ def fixture(monkeypatch):
     db.add(contract)
     db.commit()
     db.refresh(contract)
-    monkeypatch.setenv("ODOO_SIGN_STAGING_ARCHIVE_ENABLED", "true")
-    monkeypatch.setenv("ODOO_SIGN_STAGING_TRACK_ENABLED", "true")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
     monkeypatch.setenv("ODOO_SIGN_TEST_EMPLOYEE_IDS", employee.id)
     monkeypatch.setenv(
         "ODOO_SIGN_TEST_SIGNER_EMAILS",
@@ -181,7 +181,7 @@ def test_archive_rejects_missing_ambiguous_foreign_or_corrupt_certificates(fixtu
 
 def test_disabled_archive_cannot_contact_odoo(fixture, monkeypatch):
     db, employee, _, _ = fixture
-    monkeypatch.delenv("ODOO_SIGN_STAGING_ARCHIVE_ENABLED")
+    monkeypatch.delenv("ODOO_SIGN_PRODUCTION_ENABLED")
     fake = FakeCompletedSign()
     with pytest.raises(signed_artifacts.ArchiveUnavailable, match="deshabilitada"):
         signed_artifacts.archive(db, employee.id, client=fake)
@@ -265,9 +265,8 @@ def test_archived_pdf_status_and_download_return_only_the_signed_key(fixture, mo
 
 def test_unverified_signed_attachment_relation_cannot_be_archived(fixture, monkeypatch):
     db, employee, contract, _ = fixture
-    monkeypatch.setenv("ODOO_SIGN_STAGING_SIGNED_ATTACHMENT_FIELD", "attachment_id")
-    with pytest.raises(signed_artifacts.ArchiveUnavailable, match="campo"):
-        signed_artifacts.archive(db, employee.id, client=FakeCompletedSign())
+    with pytest.raises(signed_artifacts.ArchiveUnavailable, match="relación"):
+        signed_artifacts.archive(db, employee.id, client=FakeCompletedSign(changed_field=True))
     assert contract.odoo_sign_signed_storage_key is None
 
 
