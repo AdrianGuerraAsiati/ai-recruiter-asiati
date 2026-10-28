@@ -10,7 +10,8 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.domains.employee_documents import sign_dispatch, sign_requests, signing
-from app.domains.odoo_sync import staging
+from app.domains.odoo_sync import integration
+from app.domains.employee_documents import sign_runtime
 from app.integrations.odoo.client import OdooClientError
 
 
@@ -24,7 +25,7 @@ class DispatchOutcomeUnknown(RuntimeError):
 
 def _correlation(document) -> str:
     # A stable UUID-based identifier, free of applicant personal data.
-    return f"ADN360-STAGING-{document.id}"
+    return f"ADN360-PROD-{document.id}"
 
 
 def _check_correlation_schema(target) -> None:
@@ -63,7 +64,7 @@ def send(
             "El envío automático Odoo Sign staging está deshabilitado."
         )
     sign_requests._require_fixture(employee_id)
-    target = client or staging.build_staging_client()
+    target = client or sign_runtime.client()
     # Read-only validation of template and both signer partners FIRST.
     preflight = sign_dispatch.preview(
         db, employee_id,
@@ -72,6 +73,9 @@ def send(
         client=target, _include_wizard=True,
     )
     wizard_values = dict(preflight["_wizard_values"])
+    preflight_document = signing._contract(db, employee_id)
+    sign_runtime.assert_origin(preflight_document)
+    employee_email, representative_email = sign_runtime.signers(db, preflight_document)
 
     # Commit the persistent one-shot guard before ANY remote writes.
     document = signing._contract(db, employee_id, lock=True)
@@ -93,9 +97,11 @@ def send(
             raise DispatchConflict("Ya existe una solicitud remota con esta referencia. No reenviar.")
     except OdooClientError as exc:
         raise sign_dispatch.DispatchUnavailable(
-            "No se pudo verificar que no exista una solicitud previa en Odoo staging."
+            "No se pudo verificar que no exista una solicitud previa en Odoo Producción."
         ) from exc
 
+    document.odoo_sign_employee_email = employee_email
+    document.odoo_sign_representative_email = representative_email
     document.odoo_sign_dispatch_status = "DISPATCHING"
     document.odoo_sign_dispatch_subject = subject
     document.odoo_sign_dispatch_started_at = datetime.now(timezone.utc)
@@ -126,15 +132,15 @@ def send(
             if len(matches) != 1:
                 raise DispatchOutcomeUnknown("Odoo no devolvió una referencia de solicitud única.")
             request_id = matches[0]["id"]
-        # Verify the actual request, template, BOTH roles and allowlisted emails.
+        # Verify the actual request, template, BOTH roles and approved signer emails.
         sign_requests.track(db, employee_id, request_id=request_id, client=target)
         document = signing._contract(db, employee_id, lock=True)
         document.odoo_sign_dispatch_status = "SENT"
         db.commit()
         return {
             "status": "SENT", "request_id": request_id,
-            "emails_delivered": False, "staging_only": True,
-            "message": "Solicitud Odoo Sign creada y verificada en staging; entrega de correos no garantizada.",
+            "emails_delivered": False, "staging_only": False,
+            "message": "Solicitud enviada a Odoo Producción; verificar la entrega de correo en Odoo.",
         }
     except Exception as exc:
         db.rollback()
@@ -155,12 +161,14 @@ def send_automatic(db: Session, employee_id: str, *, client=None) -> dict:
         )
     sign_requests._require_fixture(employee_id)
     try:
-        target = client or staging.build_staging_client()
-        employee_id_odoo, representative_id_odoo = sign_dispatch._resolve_staging_partner_ids(target)
-    except staging.OdooNotConfigured as exc:
-        raise sign_dispatch.DispatchUnavailable("Conexión Odoo staging no configurada.") from exc
+        target = client or sign_runtime.client()
+        document = signing._contract(db, employee_id)
+        sign_runtime.assert_origin(document)
+        employee_id_odoo, representative_id_odoo = sign_dispatch._resolve_production_partner_ids(db, document, target)
+    except sign_runtime.ProductionSignUnavailable as exc:
+        raise sign_dispatch.DispatchUnavailable("Conexión Odoo Producción no configurada.") from exc
     except OdooClientError as exc:
-        raise sign_dispatch.DispatchUnavailable("No se pudieron verificar los contactos en Odoo staging.") from exc
+        raise sign_dispatch.DispatchUnavailable("No se pudieron verificar los contactos en Odoo Producción.") from exc
     return send(
         db, employee_id,
         employee_partner_id=employee_id_odoo,
@@ -173,6 +181,8 @@ def reconcile(db: Session, employee_id: str, *, client=None) -> dict:
     """Read remote state by unique subject. Never send another invitation."""
     sign_requests._require_fixture(employee_id)
     document = signing._contract(db, employee_id, lock=True)
+    if document:
+        sign_runtime.assert_origin(document)
     if not document or document.odoo_sign_dispatch_status not in (
         "DISPATCHING", "UNKNOWN", "SENT",
     ) or not document.odoo_sign_dispatch_subject:
@@ -186,10 +196,10 @@ def reconcile(db: Session, employee_id: str, *, client=None) -> dict:
         document = signing._contract(db, employee_id, lock=True)
         document.odoo_sign_dispatch_status = "SENT"
         db.commit()
-        return {"status": "SENT", "request_id": result["request_id"], "staging_only": True}
+        return {"status": "SENT", "request_id": result["request_id"], "staging_only": False}
 
     try:
-        target = client or staging.build_staging_client()
+        target = client or sign_runtime.client()
         matches = _candidates(
             target, template_id=document.odoo_sign_template_id, subject=expected,
         )
@@ -197,7 +207,7 @@ def reconcile(db: Session, employee_id: str, *, client=None) -> dict:
             document.odoo_sign_dispatch_status = "UNKNOWN"
             db.commit()
             return {
-                "status": "UNKNOWN", "request_id": None, "staging_only": True,
+                "status": "UNKNOWN", "request_id": None, "staging_only": False,
                 "message": "No aparece una solicitud remota. No reintentar automáticamente.",
             }
         request_id = matches[0]["id"]
@@ -205,9 +215,9 @@ def reconcile(db: Session, employee_id: str, *, client=None) -> dict:
         document = signing._contract(db, employee_id, lock=True)
         document.odoo_sign_dispatch_status = "SENT"
         db.commit()
-        return {"status": "SENT", "request_id": request_id, "staging_only": True}
+        return {"status": "SENT", "request_id": request_id, "staging_only": False}
     except (sign_requests.SignTrackingUnavailable, sign_requests.SignTrackingConflict,
-            DispatchConflict, OdooClientError, staging.OdooNotConfigured) as exc:
+            DispatchConflict, OdooClientError, sign_runtime.ProductionSignUnavailable) as exc:
         db.rollback()
         raise DispatchOutcomeUnknown(
             "No fue posible reconciliar de forma única la solicitud. Revisión manual requerida."
