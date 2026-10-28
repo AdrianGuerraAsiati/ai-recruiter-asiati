@@ -27,7 +27,7 @@ class SignNotReady(ValueError):
     pass
 
 
-def staging_enabled() -> bool:
+def production_enabled() -> bool:
     return sign_runtime.enabled()
 
 
@@ -71,14 +71,14 @@ def readiness(db: Session, employee_id: str, *, client=None) -> dict:
     document = _contract(db, employee_id)
     state = document.odoo_sign_status if document is not None else "NOT_PREPARED"
     result = {
-        "enabled": staging_enabled(),
+        "enabled": production_enabled(),
         "ready": False,
         "status": state,
         "template_url": None,
         "message": "",
         "staging_only": False,
     }
-    if document and application_contracts.binding_enabled():
+    if document:
         if not document.storage_key:
             result["message"] = "Talento Humano debe cargar primero el contrato."
             return result
@@ -109,7 +109,7 @@ def readiness(db: Session, employee_id: str, *, client=None) -> dict:
             pass
         result["message"] = "Plantilla preparada. Abre Odoo Producción, ubica las firmas y envía desde Odoo."
         return result
-    if not staging_enabled():
+    if not production_enabled():
         result["message"] = "La preparación de Odoo Sign en producción aún no está habilitada."
         return result
     if not document or not document.storage_key:
@@ -141,7 +141,7 @@ def readiness(db: Session, employee_id: str, *, client=None) -> dict:
 
 def prepare(db: Session, employee_id: str, *, client=None) -> dict:
     """Idempotently create an Odoo Sign template, not a signature request."""
-    if not staging_enabled():
+    if not production_enabled():
         raise SignUnavailable("La preparación de Odoo Sign en producción está deshabilitada.")
 
     document = _contract(db, employee_id, lock=True)
@@ -155,7 +155,7 @@ def prepare(db: Session, employee_id: str, *, client=None) -> dict:
         raise SignNotReady("El contrato debe estar aprobado por Talento Humano.")
     if document.content_type != "application/pdf" or not str(document.original_filename or "").lower().endswith(".pdf"):
         raise SignNotReady("Solo se pueden preparar contratos en PDF.")
-    if application_contracts.binding_enabled() and not _application_binding_matches(db, document):
+    if not _application_binding_matches(db, document):
         raise SignNotReady(
             "Antes de preparar Odoo Sign, vincula el contrato aprobado con la postulación y la empresa Odoo desde Postulaciones."
         )
