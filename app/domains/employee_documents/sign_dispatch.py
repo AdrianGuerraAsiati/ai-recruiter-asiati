@@ -82,8 +82,8 @@ def preview_automatic(db: Session, employee_id: str, *, client=None) -> dict:
     document = signing._contract(db, employee_id)
     if document is None:
         raise DispatchNotReady("No existe un contrato preparado.")
-    sign_runtime.assert_origin(document)
     try:
+        sign_runtime.assert_origin(document)
         target = client or sign_runtime.client()
         employee_id_odoo, representative_id_odoo = _resolve_production_partner_ids(
             db, document, target
@@ -158,7 +158,10 @@ def preview(
 
     document = signing._contract(db, employee_id)
     if document:
-        sign_runtime.assert_origin(document)
+        try:
+            sign_runtime.assert_origin(document)
+        except sign_runtime.ProductionSignUnavailable as exc:
+            raise DispatchUnavailable(str(exc)) from exc
     if not document or document.odoo_sign_status != "PREPARED" or not document.odoo_sign_template_id:
         raise DispatchNotReady("Prepara primero la plantilla del contrato aprobado.")
     if document.review_status != "APPROVED" or not document.storage_key:
@@ -268,7 +271,7 @@ def preview(
         if _include_wizard:
             result["_wizard_values"] = _wizard_values
         return result
-    except sign_runtime.ProductionSignUnavailable as exc:
+    except (sign_runtime.ProductionSignUnavailable, integration.OdooNotConfigured, integration.OdooDisabled) as exc:
         raise DispatchUnavailable("Conexión Odoo Producción no configurada.") from exc
     except OdooClientError as exc:
         raise DispatchUnavailable("No fue posible consultar Odoo Sign staging.") from exc
