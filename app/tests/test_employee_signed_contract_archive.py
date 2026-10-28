@@ -84,7 +84,7 @@ def fixture(monkeypatch):
         original_filename="original.pdf",
         storage_key=f"training/employee-documents/{employee.id}/original.pdf",
         review_status="APPROVED",
-        odoo_sign_status="PREPARED",
+        odoo_sign_status="PREPARED", odoo_sign_environment="production",
         odoo_sign_request_id=139,
         odoo_sign_request_status="SIGNED",
         odoo_sign_template_id=128,
@@ -93,8 +93,8 @@ def fixture(monkeypatch):
     db.add(contract)
     db.commit()
     db.refresh(contract)
-    monkeypatch.setenv("ODOO_SIGN_STAGING_ARCHIVE_ENABLED", "true")
-    monkeypatch.setenv("ODOO_SIGN_STAGING_TRACK_ENABLED", "true")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
+    monkeypatch.setenv("ODOO_SIGN_PRODUCTION_ENABLED", "true")
     monkeypatch.setenv("ODOO_SIGN_TEST_EMPLOYEE_IDS", employee.id)
     monkeypatch.setenv(
         "ODOO_SIGN_TEST_SIGNER_EMAILS",
