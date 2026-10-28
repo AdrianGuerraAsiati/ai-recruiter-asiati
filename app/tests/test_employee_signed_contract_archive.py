@@ -265,9 +265,8 @@ def test_archived_pdf_status_and_download_return_only_the_signed_key(fixture, mo
 
 def test_unverified_signed_attachment_relation_cannot_be_archived(fixture, monkeypatch):
     db, employee, contract, _ = fixture
-    monkeypatch.setenv("ODOO_SIGN_STAGING_SIGNED_ATTACHMENT_FIELD", "attachment_id")
-    with pytest.raises(signed_artifacts.ArchiveUnavailable, match="campo"):
-        signed_artifacts.archive(db, employee.id, client=FakeCompletedSign())
+    with pytest.raises(signed_artifacts.ArchiveUnavailable, match="relación"):
+        signed_artifacts.archive(db, employee.id, client=FakeCompletedSign(changed_field=True))
     assert contract.odoo_sign_signed_storage_key is None
 
 
