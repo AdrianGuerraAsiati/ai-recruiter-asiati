@@ -154,7 +154,7 @@ def preview(
     if type(employee_partner_id) is not int or type(representative_partner_id) is not int:
         raise DispatchNotReady("Selecciona dos contactos numéricos de Odoo.")
     if employee_partner_id <= 0 or representative_partner_id <= 0 or employee_partner_id == representative_partner_id:
-        raise DispatchNotReady("Se requieren dos contactos ficticios distintos.")
+        raise DispatchNotReady("Se requieren dos contactos distintos.")
 
     document = signing._contract(db, employee_id)
     if document:
@@ -274,7 +274,7 @@ def preview(
     except (sign_runtime.ProductionSignUnavailable, integration.OdooNotConfigured, integration.OdooDisabled) as exc:
         raise DispatchUnavailable("Conexión Odoo Producción no configurada.") from exc
     except OdooClientError as exc:
-        raise DispatchUnavailable("No fue posible consultar Odoo Sign staging.") from exc
+        raise DispatchUnavailable("No fue posible consultar Odoo Sign Producción.") from exc
     except (DispatchNotReady, DispatchUnavailable):
         raise
     except (KeyError, TypeError, ValueError) as exc:

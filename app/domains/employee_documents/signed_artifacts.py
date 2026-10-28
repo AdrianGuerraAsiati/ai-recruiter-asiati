@@ -1,4 +1,4 @@
-"""Safely archive signed PDFs from a verified Odoo Sign staging request.
+"""Safely archive signed PDFs from a verified Odoo Sign Producción request.
 
 No Odoo writes or emails. Requires exact production ownership and a
 schema-verified signed attachment relation; original contract is immutable.

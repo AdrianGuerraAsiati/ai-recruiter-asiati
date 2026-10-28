@@ -553,7 +553,7 @@ function Documents() {
       setError(getApiErrorMessage(err, {
         action: "archivar el PDF firmado",
         resource: "Odoo Sign",
-        fallback: "El PDF final aún no está disponible para archivar; verifica la configuración de staging.",
+        fallback: "El PDF final aún no está disponible para archivar; verifica la configuración de producción.",
       }));
     } finally {
       setSignedBusy(false);

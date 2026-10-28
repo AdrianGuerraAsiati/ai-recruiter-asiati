@@ -1,4 +1,4 @@
-"""Explicit, one-shot Odoo Sign 18 request dispatch in a neutralized staging DB.
+"""Explicit, one-shot Odoo Sign 18 request dispatch in a production Odoo database.
 
 No automated retries: when the RPC result is unknown, reconciliation must
 verify the remote correlation subject before linking any request.
@@ -61,7 +61,7 @@ def send(
 ) -> dict:
     if not sign_dispatch.sending_enabled():
         raise sign_dispatch.DispatchUnavailable(
-            "El envío automático Odoo Sign staging está deshabilitado."
+            "El envío automático Odoo Sign Producción está deshabilitado."
         )
     sign_requests._require_fixture(employee_id)
     target = client or sign_runtime.client()
@@ -157,7 +157,7 @@ def send_automatic(db: Session, employee_id: str, *, client=None) -> dict:
     """Send without exposing Odoo contacts/IDs to Talent Human admin."""
     if not sign_dispatch.sending_enabled():
         raise sign_dispatch.DispatchUnavailable(
-            "El envío automático Odoo Sign staging está deshabilitado."
+            "El envío automático Odoo Sign Producción está deshabilitado."
         )
     sign_requests._require_fixture(employee_id)
     try:
