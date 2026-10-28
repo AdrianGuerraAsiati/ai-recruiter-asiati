@@ -264,7 +264,7 @@ def preview(
             "send_enabled": sending_enabled(),
             "emails_sent": False,
             "request_created": False,
-            "note": "Configuración validada; pendiente confirmar el comportamiento de send_request() antes de habilitar el envío.",
+            "note": "Configuración validada; el envío se ejecutará al confirmar y puede notificar a los destinatarios reales.",
             # Deliberately exclude emails, the unsigned PDF, tokens and the
             # internal payload from the HTTP response.
         }

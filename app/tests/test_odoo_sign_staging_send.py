@@ -299,7 +299,9 @@ def test_automatic_send_rejects_invalid_fixtures_without_odoo_writes(
     db, profile, contract, monkeypatch = fixture
     def synthetic_signers(db, document):
         parts = [item.strip() for item in addresses.split(",") if item.strip()]
-        if len(parts) != 2 or len(set(parts)) != 2:
+        if (len(parts) != 2 or len(set(parts)) != 2
+                or not parts[0].startswith("empleado.")
+                or not parts[1].startswith("representante.")):
             raise sign_dispatch.sign_runtime.ProductionSignUnavailable("Firmantes no válidos.")
         return parts[0], parts[1]
     monkeypatch.setattr(sign_dispatch.sign_runtime, "signers", synthetic_signers)

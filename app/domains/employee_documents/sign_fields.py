@@ -29,7 +29,10 @@ def _document(db: Session, employee_id: str, *, lock: bool = False):
         raise SignFieldsUnavailable("Los campos de firma están deshabilitados para este expediente.")
     doc = signing._contract(db, employee_id, lock=lock)
     if doc:
-        sign_runtime.assert_origin(doc)
+        try:
+            sign_runtime.assert_origin(doc)
+        except sign_runtime.ProductionSignUnavailable as exc:
+            raise SignFieldsNotReady("Este contrato pertenece a Odoo Test, no a producción.") from exc
     if (doc is None or doc.odoo_sign_status != "PREPARED"
             or doc.review_status != "APPROVED"
             or not doc.odoo_sign_template_id or not doc.storage_key

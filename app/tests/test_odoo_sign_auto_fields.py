@@ -175,7 +175,7 @@ def test_changed_odoo_sign_item_schema_fails_closed(setup):
 def test_reject_staging_document_but_accept_valid_real_pdf_name(setup):
     db, profile, document, target, _ = setup
     document.odoo_sign_environment = "staging"
-    with pytest.raises(sign_fields.sign_runtime.ProductionSignUnavailable):
+    with pytest.raises(sign_fields.SignFieldsNotReady, match="Odoo Test"):
         sign_fields.apply(db, profile, client=target)
     document.odoo_sign_environment = "production"
     document.original_filename = "contrato_real.pdf"

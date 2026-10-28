@@ -109,7 +109,7 @@ def test_two_signers_exact_template_order_and_no_remote_writes(setup):
         "validated": True, "environment": "production", "template_id": 128,
         "employee_partner_id": 301, "representative_partner_id": 302,
         "signing_order": ["Empleado", "Representante legal"],
-        "send_enabled": False, "emails_sent": False, "request_created": False,
+        "send_enabled": True, "emails_sent": False, "request_created": False,
         "note": "Configuración validada; el envío se ejecutará al confirmar y puede notificar a los destinatarios reales.",
     }
     assert all(call[0] in ("fields_get", "search_read") for call in target.calls)
