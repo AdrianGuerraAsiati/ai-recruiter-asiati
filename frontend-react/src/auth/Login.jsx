@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import api, { setAccessToken } from "../api/client";
 import BrandMark from "../components/BrandMark";
 import { getApiErrorMessage } from "../utils/errors";
 import { useSession } from "../context/SessionContext";
+import { resolvePostLoginPath } from "./redirect";
 
 function AuthBrand() {
   return (
@@ -15,6 +16,8 @@ function AuthBrand() {
 
 function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const afterLoginPath = resolvePostLoginPath(location.state?.from);
   const { refreshSession } = useSession();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -39,7 +42,7 @@ function Login() {
       }
       setAccessToken(data.access_token);
       await refreshSession();
-      navigate("/dashboard");
+      navigate(afterLoginPath);
     } catch (err) {
       setError(getApiErrorMessage(err, {
         action: "iniciar sesión",
@@ -70,7 +73,7 @@ function Login() {
       });
       setAccessToken(data.access_token);
       await refreshSession();
-      navigate("/dashboard");
+      navigate(afterLoginPath);
     } catch (err) {
       setError(getApiErrorMessage(err, {
         action: "actualizar tu contraseña",

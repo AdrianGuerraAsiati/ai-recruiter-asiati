@@ -1,6 +1,6 @@
 // eslint-disable-next-line no-unused-vars
 import React from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import Login from "./auth/Login";
 import Layout from "./components/Layout";
@@ -36,13 +36,14 @@ import "./ui-system.css";
 
 function ProtectedRoute({ children, permission, permissionsAny = [], rolesAny = [] }) {
   const { status, hasPermission, principal } = useSession();
+  const location = useLocation();
 
   if (status === "loading") {
     return <div className="session-loading"><span aria-hidden="true" />Validando acceso seguro…</div>;
   }
 
   if (status !== "authenticated") {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
   const hasRequiredPermission = (
