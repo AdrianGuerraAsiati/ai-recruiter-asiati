@@ -1,6 +1,6 @@
 import { sentenceCaseLabel } from "../utils/text";
 // eslint-disable-next-line no-unused-vars
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
@@ -35,6 +35,8 @@ function CandidateDetail() {
   const { candidate_id } = useParams();
   const [searchParams] = useSearchParams();
   const jobId = searchParams.get("job_id");
+  const encodedCandidateId = encodeURIComponent(candidate_id || "");
+  const encodedJobId = jobId ? encodeURIComponent(jobId) : null;
   const [candidate, setCandidate] = useState(null);
   const [evaluations, setEvaluations] = useState([]);
   const [indeedDetails, setIndeedDetails] = useState(null);
@@ -68,7 +70,7 @@ function CandidateDetail() {
       setIndeedDetails(null);
 
       try {
-        const candidateResponse = await api.get(`/candidates/${candidate_id}`);
+        const candidateResponse = await api.get(`/candidates/${encodedCandidateId}`);
         if (cancelled) return;
         setCandidate(candidateResponse.data);
       } catch (error) {
@@ -85,8 +87,8 @@ function CandidateDetail() {
 
       try {
         const evaluationResponse = await api.get(jobId
-          ? `/jobs/${jobId}/candidates/${candidate_id}`
-          : `/candidates/${candidate_id}/evaluations`);
+          ? `/jobs/${encodedJobId}/candidates/${encodedCandidateId}`
+          : `/candidates/${encodedCandidateId}/evaluations`);
         if (!cancelled) {
           setEvaluations(jobId
             ? [evaluationResponse.data]
@@ -106,7 +108,7 @@ function CandidateDetail() {
       if (jobId && !cancelled) {
         try {
           const indeedResponse = await api.get(
-            `/jobs/${jobId}/candidates/${candidate_id}/integrations/indeed`
+            `/jobs/${encodedJobId}/candidates/${encodedCandidateId}/integrations/indeed`
           );
           if (!cancelled) setIndeedDetails(indeedResponse.data);
         } catch {
@@ -122,14 +124,14 @@ function CandidateDetail() {
     return () => {
       cancelled = true;
     };
-  }, [candidate_id, jobId]);
+  }, [candidate_id, jobId, encodedCandidateId, encodedJobId]);
 
   async function startHiring() {
     if (!jobId || startingHiring || candidate?.is_banned) return;
     setStartingHiring(true);
     setHiringError("");
     try {
-      await api.post(`/jobs/${jobId}/candidates`, { candidate_ids: [candidate_id] });
+      await api.post(`/jobs/${encodedJobId}/candidates`, { candidate_ids: [candidate_id] });
       setHasSelectionProcess(true);
       setProcessRefresh((count) => count + 1);
     } catch (err) {
@@ -146,7 +148,7 @@ function CandidateDetail() {
     setOpeningResume(true);
     setResumeError("");
     try {
-      const response = await api.get(`/candidates/${candidate_id}/download`);
+      const response = await api.get(`/candidates/${encodedCandidateId}/download`);
       const downloadUrl = response.data?.download_url;
       if (!downloadUrl) throw new Error("CV_DOWNLOAD_URL_MISSING");
       window.open(downloadUrl, "_blank", "noopener,noreferrer");
@@ -173,11 +175,11 @@ function CandidateDetail() {
     setAppointmentOpen(true);
   }
 
-  function closeAppointment() {
+  const closeAppointment = useCallback(() => {
     if (appointmentSaving) return;
     setAppointmentOpen(false);
     setAppointmentError("");
-  }
+  }, [appointmentSaving]);
 
   useEffect(() => {
     if (!appointmentOpen) return undefined;
@@ -186,7 +188,7 @@ function CandidateDetail() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [appointmentOpen, appointmentSaving]);
+  }, [appointmentOpen, closeAppointment]);
 
   async function scheduleAppointment(event) {
     event.preventDefault();
@@ -265,7 +267,7 @@ function CandidateDetail() {
           )}
         </div>
         <div className="candidate-profile-actions">
-          <Link to={`/psychotechnical?candidate_id=${candidate_id}`} className="btn btn-secondary">Prueba psicotécnica</Link>
+          <Link to={`/psychotechnical?candidate_id=${encodedCandidateId}`} className="btn btn-secondary">Prueba psicotécnica</Link>
           {jobId && (
             <button
               type="button"

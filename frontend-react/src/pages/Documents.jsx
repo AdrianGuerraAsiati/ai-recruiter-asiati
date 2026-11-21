@@ -168,7 +168,7 @@ function Documents() {
     try {
       const endpoint = viewingOwn
         ? "/employee-documents/me"
-        : `/employee-documents/employees/${selectedEmployeeId}`;
+        : `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}`;
       const { data } = await api.get(endpoint);
       // Descarta respuestas de un empleado seleccionado antes (cambio rápido).
       if (!isCurrent()) return;
@@ -209,7 +209,7 @@ function Documents() {
       return undefined;
     }
     let active = true;
-    api.get(`/employee-documents/employees/${selectedEmployeeId}/welcome`)
+    api.get(`/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/welcome`)
       .then(({ data }) => { if (active) setWelcomeStatus(data); })
       .catch(() => { if (active) setWelcomeStatus(null); });
     return () => { active = false; };
@@ -221,7 +221,7 @@ function Documents() {
     setError("");
     try {
       const { data } = await api.post(
-        `/employee-documents/employees/${selectedEmployeeId}/welcome/retry`,
+        `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/welcome/retry`,
       );
       setWelcomeStatus(data);
       setSuccess(data.status === "SENT"
@@ -310,7 +310,7 @@ function Documents() {
         size_bytes: file.size,
       };
       const uploadBase = adminContract
-        ? `/employee-documents/employees/${selectedEmployeeId}/contract`
+        ? `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract`
         : "/employee-documents/me";
       const { data } = await api.post(`${uploadBase}/upload`, manifest);
       const formData = new FormData();
@@ -378,7 +378,7 @@ function Documents() {
     if (!item.id) return;
     setError("");
     try {
-      const { data } = await api.get(`/employee-documents/${item.id}/download`);
+      const { data } = await api.get(`/employee-documents/${encodeURIComponent(item.id)}/download`);
       window.open(data.url, "_blank", "noopener,noreferrer");
     } catch (err) {
       setError(getApiErrorMessage(err, {
@@ -401,7 +401,7 @@ function Documents() {
     setError("");
     setSuccess("");
     try {
-      const { data } = await api.post(`/employee-documents/${item.id}/review`, {
+      const { data } = await api.post(`/employee-documents/${encodeURIComponent(item.id)}/review`, {
         status,
         comment: comment || null,
       });

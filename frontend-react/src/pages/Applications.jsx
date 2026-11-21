@@ -147,7 +147,7 @@ function Applications() {
     setError("");
     try {
       await api.put(
-        `/jobs/${application.job.job_id}/candidates/${application.candidate.candidate_id}/status`,
+        `/jobs/${encodeURIComponent(application.job.job_id)}/candidates/${encodeURIComponent(application.candidate.candidate_id)}/status`,
         { status: nextStatus },
       );
       await loadApplications();
