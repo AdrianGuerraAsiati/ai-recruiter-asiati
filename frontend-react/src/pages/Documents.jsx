@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../api/client";
 import DocumentReviewQueue from "../components/DocumentReviewQueue";
 import { useSession } from "../context/SessionContext";
+import useLatestRequest from "../hooks/useLatestRequest";
 import { getApiErrorMessage } from "../utils/errors";
 import PageHeader from "../components/ui/PageHeader";
 import "../talent-workspaces.css";
@@ -121,6 +122,7 @@ function Documents() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [idCopyStatus, setIdCopyStatus] = useState("");
+  const portfolioRequest = useLatestRequest();
 
   const viewingOwn = selectedEmployeeId === ownEmployeeId;
   const selectedApplication = useMemo(
@@ -155,6 +157,7 @@ function Documents() {
   }, [canReadAll, applicationQuery]);
 
   const loadPortfolio = useCallback(async () => {
+    const isCurrent = portfolioRequest.begin();
     if (!selectedEmployeeId) {
       setPortfolio(null);
       setLoading(false);
@@ -165,8 +168,10 @@ function Documents() {
     try {
       const endpoint = viewingOwn
         ? "/employee-documents/me"
-        : `/employee-documents/employees/${selectedEmployeeId}`;
+        : `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}`;
       const { data } = await api.get(endpoint);
+      // Descarta respuestas de un empleado seleccionado antes (cambio rápido).
+      if (!isCurrent()) return;
       const items = Array.isArray(data?.items) ? data.items : [];
       setPortfolio({ ...data, items });
       setValuesByType(Object.fromEntries(
@@ -180,6 +185,7 @@ function Documents() {
           .map((item) => [item.id, item.review_comment || ""]),
       ));
     } catch (err) {
+      if (!isCurrent()) return;
       setPortfolio(null);
       setError(getApiErrorMessage(err, {
         action: "cargar el expediente de ingreso",
@@ -187,9 +193,9 @@ function Documents() {
         fallback: "No se pudo actualizar el expediente del empleado.",
       }));
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [selectedEmployeeId, viewingOwn]);
+  }, [portfolioRequest, selectedEmployeeId, viewingOwn]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -203,7 +209,7 @@ function Documents() {
       return undefined;
     }
     let active = true;
-    api.get(`/employee-documents/employees/${selectedEmployeeId}/welcome`)
+    api.get(`/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/welcome`)
       .then(({ data }) => { if (active) setWelcomeStatus(data); })
       .catch(() => { if (active) setWelcomeStatus(null); });
     return () => { active = false; };
@@ -215,7 +221,7 @@ function Documents() {
     setError("");
     try {
       const { data } = await api.post(
-        `/employee-documents/employees/${selectedEmployeeId}/welcome/retry`,
+        `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/welcome/retry`,
       );
       setWelcomeStatus(data);
       setSuccess(data.status === "SENT"
@@ -304,7 +310,7 @@ function Documents() {
         size_bytes: file.size,
       };
       const uploadBase = adminContract
-        ? `/employee-documents/employees/${selectedEmployeeId}/contract`
+        ? `/employee-documents/employees/${encodeURIComponent(selectedEmployeeId)}/contract`
         : "/employee-documents/me";
       const { data } = await api.post(`${uploadBase}/upload`, manifest);
       const formData = new FormData();
@@ -328,8 +334,7 @@ function Documents() {
       await loadPortfolio();
     } catch (err) {
       setError(
-        err.response?.data?.detail
-        || getApiErrorMessage(err, {
+        getApiErrorMessage(err, {
           action: "subir el documento",
           resource: "documentos",
           fallback: "El documento no quedó guardado. Vuelve a seleccionarlo e inténtalo nuevamente.",
@@ -373,7 +378,7 @@ function Documents() {
     if (!item.id) return;
     setError("");
     try {
-      const { data } = await api.get(`/employee-documents/${item.id}/download`);
+      const { data } = await api.get(`/employee-documents/${encodeURIComponent(item.id)}/download`);
       window.open(data.url, "_blank", "noopener,noreferrer");
     } catch (err) {
       setError(getApiErrorMessage(err, {
@@ -396,7 +401,7 @@ function Documents() {
     setError("");
     setSuccess("");
     try {
-      const { data } = await api.post(`/employee-documents/${item.id}/review`, {
+      const { data } = await api.post(`/employee-documents/${encodeURIComponent(item.id)}/review`, {
         status,
         comment: comment || null,
       });

@@ -1,5 +1,7 @@
 import axios from "axios";
 
+import { emitAuthExpired } from "./authEvents";
+
 const BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
 const api = axios.create({
@@ -80,6 +82,8 @@ api.interceptors.response.use(
       return api(request);
     } catch {
       clearAccessToken();
+      // La sesión no se pudo renovar: avisa a la app para enviar al usuario a Login.
+      emitAuthExpired({ url: request?.url });
       return Promise.reject(error);
     }
   },

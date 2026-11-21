@@ -16,6 +16,15 @@ export async function createImportBatch(jobId, files) {
   return data;
 }
 
+export async function createManualCandidate({ name, jobId, file }) {
+  const form = new FormData();
+  form.append("name", name);
+  form.append("job_id", jobId);
+  form.append("cv", file);
+  const { data } = await api.post("/candidates/manual", form);
+  return data;
+}
+
 export function uploadToPresignedPost(file, descriptor, onProgress = () => {}) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();

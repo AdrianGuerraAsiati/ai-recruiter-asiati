@@ -101,6 +101,7 @@ export default function Psychotechnical() {
   const [error, setError] = useState("");
 
   const [copyNotice, setCopyNotice] = useState("");
+  const [renewedLink, setRenewedLink] = useState("");
 
   const loadAssignments = useCallback(async () => {
     setLoading(true);
@@ -182,8 +183,15 @@ export default function Psychotechnical() {
         { expires_days: 7 },
       );
       const link = `${window.location.origin}/psychotechnical/take/${data.token}`;
-      await navigator.clipboard.writeText(link);
-      setCopyNotice("Acceso renovado por 7 días. Enlace copiado para compartir de forma segura.");
+      // El enlace anterior ya quedó invalidado: aunque falle el portapapeles
+      // hay que mostrar el nuevo para no perder el acceso.
+      setRenewedLink(link);
+      try {
+        await navigator.clipboard.writeText(link);
+        setCopyNotice("Acceso renovado por 7 días. Enlace copiado para compartir de forma segura.");
+      } catch {
+        setCopyNotice("Acceso renovado por 7 días. Copia el enlace nuevo desde el campo de abajo.");
+      }
       await loadAssignments();
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, {
@@ -244,6 +252,18 @@ export default function Psychotechnical() {
 
       {error && <FeedbackMessage title="No pudimos completar la operación">{error}</FeedbackMessage>}
       {copyNotice && <FeedbackMessage title="Enlace actualizado" tone="success">{copyNotice}</FeedbackMessage>}
+      {renewedLink && (
+        <div className="psychotechnical-renewed-link">
+          <label htmlFor="psychotechnical-renewed-link">Enlace renovado</label>
+          <input
+            id="psychotechnical-renewed-link"
+            type="text"
+            readOnly
+            value={renewedLink}
+            onFocus={(event) => event.currentTarget.select()}
+          />
+        </div>
+      )}
 
       <section className="psychotechnical-metrics" aria-label="Resumen de pruebas">
         <article className="panel psychotechnical-metric">

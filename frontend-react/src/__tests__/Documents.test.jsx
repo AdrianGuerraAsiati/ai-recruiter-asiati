@@ -1,6 +1,6 @@
 // eslint-disable-next-line no-unused-vars
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import Documents from "../pages/Documents";
@@ -561,4 +561,56 @@ describe("Employee document review workspace", () => {
     expect(await screen.findByText("Pendiente de firma")).toBeInTheDocument();
   });
 
+
+  it("discards a late portfolio response from a previously selected applicant", async () => {
+    useSession.mockReturnValue({
+      principal: { profile: { id: "admin-1" } },
+      hasPermission: (permission) => [
+        "employee_documents.read_own",
+        "employee_documents.read_all",
+        "employee_documents.review",
+      ].includes(permission),
+    });
+    let resolveFirst;
+    api.get.mockImplementation((url) => {
+      if (url === "/employee-documents/applications") {
+        return Promise.resolve({
+          data: {
+            items: [
+              { id: "employee-1", first_name: "Ana", last_name: "Pérez" },
+              { id: "employee-2", first_name: "Bruno", last_name: "Gómez" },
+            ],
+          },
+        });
+      }
+      if (url === "/employee-documents/employees/employee-1") {
+        return new Promise((resolve) => { resolveFirst = resolve; });
+      }
+      if (url === "/employee-documents/employees/employee-2") {
+        return Promise.resolve({
+          data: {
+            ...portfolio([{ ...requirements[0], id: "doc-2", document_type: "RUT", label: "RUT de Bruno" }]),
+            employee: { id: "employee-2", first_name: "Bruno", last_name: "Gómez" },
+          },
+        });
+      }
+      return Promise.resolve({ data: {} });
+    });
+
+    render(<Documents />);
+    await screen.findByRole("option", { name: "Bruno Gómez" });
+    const select = screen.getByLabelText("Postulación a consultar");
+
+    fireEvent.change(select, { target: { value: "employee-1" } });
+    await waitFor(() => expect(resolveFirst).toBeTypeOf("function"));
+    fireEvent.change(select, { target: { value: "employee-2" } });
+    expect(await screen.findByText("RUT de Bruno")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveFirst({ data: portfolio() });
+    });
+
+    expect(screen.getByText("RUT de Bruno")).toBeInTheDocument();
+    expect(screen.queryByText("Documento de identidad")).not.toBeInTheDocument();
+  });
 });

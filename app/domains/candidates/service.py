@@ -322,6 +322,13 @@ def _legacy_pdf_filename(original_filename: str | None) -> str:
     return safe_name
 
 
+def _manual_cv_filename(original_filename: str | None) -> str:
+    safe_name = str(original_filename or "").replace("\\", "/").rsplit("/", 1)[-1].strip()
+    if not safe_name or not safe_name.casefold().endswith((".pdf", ".docx")):
+        raise LegacyCandidateUploadError("MANUAL_CANDIDATE_UNSUPPORTED_DOCUMENT")
+    return safe_name
+
+
 def validate_legacy_candidate_pdf(
     *,
     original_filename: str | None,
@@ -379,6 +386,50 @@ def create_and_index_candidate(
     return candidate, indexing
 
 
+def create_manual_candidate(
+    db: Session,
+    *,
+    name: str,
+    owner_sub: str,
+    original_filename: str | None,
+    file_content: bytes,
+    job_id: str,
+):
+    """Create a named candidate from one CV and assign it to a vacancy."""
+    normalized_name = str(name or "").strip()
+    if not normalized_name:
+        raise LegacyCandidateUploadError("MANUAL_CANDIDATE_NAME_REQUIRED")
+    if not file_content:
+        raise LegacyCandidateUploadError("LEGACY_UPLOAD_EMPTY")
+    if len(file_content) > MAX_DOCUMENT_BYTES:
+        raise LegacyCandidateUploadError("LEGACY_UPLOAD_TOO_LARGE")
+
+    safe_filename = _manual_cv_filename(original_filename)
+    try:
+        parsed = extract_document(file_content, safe_filename)
+    except DocumentImportError as exc:
+        raise LegacyCandidateUploadError("MANUAL_CANDIDATE_INVALID_DOCUMENT") from exc
+
+    candidate = candidates_repository.create_candidate_pending(
+        db,
+        name=normalized_name,
+        metadata={"filename": safe_filename, "source": "MANUAL"},
+        owner_sub=owner_sub,
+    )
+    candidate_country.apply_country_inference(
+        db,
+        candidate=candidate,
+        parsed_document=parsed,
+        use_ai=candidate_country.country_ai_enabled(),
+    )
+    assign_candidates(db, job_id, [candidate.id], owner_sub)
+    db.commit()
+    db.refresh(candidate)
+
+    indexing = index_candidate_document(candidate, file_content, safe_filename)
+    return candidate, indexing
+
+
 __all__ = [
     "APPLICATION_STATUSES",
     "LegacyCandidateUploadError",
@@ -403,6 +454,7 @@ __all__ = [
     "set_candidate_country",
     "get_candidate_restriction_history",
     "create_and_index_candidate",
+    "create_manual_candidate",
 ]
 
 

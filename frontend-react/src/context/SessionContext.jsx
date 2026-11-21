@@ -7,6 +7,7 @@ import api, {
   getAccessToken,
   refreshAccessToken,
 } from "../api/client";
+import { onAuthExpired } from "../api/authEvents";
 
 const SessionContext = createContext(null);
 
@@ -38,6 +39,10 @@ export function SessionProvider({ children }) {
     setPrincipal(null);
     setStatus("anonymous");
   }, []);
+
+  useEffect(() => onAuthExpired(() => {
+    clearSession();
+  }), [clearSession]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {

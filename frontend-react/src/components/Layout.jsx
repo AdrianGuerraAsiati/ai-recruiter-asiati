@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 
 import Navbar from "./Navbar";
 import Footer from "./Footer";
+import ErrorBoundary from "./ErrorBoundary";
 
 const pageTitles = {
   "/dashboard": "Inicio",
@@ -41,7 +42,11 @@ function Layout({ children }) {
       <a className="skip-link" href="#main-content">Saltar al contenido</a>
       <Navbar />
       <div className="app-content">
-        <main id="main-content" className="app-main">{children}</main>
+        <main id="main-content" className="app-main">
+          <ErrorBoundary resetKey={location.pathname}>
+            {children}
+          </ErrorBoundary>
+        </main>
         <Footer />
       </div>
     </div>
