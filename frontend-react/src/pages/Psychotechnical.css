@@ -1169,3 +1169,18 @@
 .psychotechnical-public--test .psychotechnical-options input[type="radio"] {
   accent-color: #076977;
 }
+
+.psychotechnical-renewed-link {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.psychotechnical-renewed-link input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border, #d7dee4);
+  border-radius: 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
