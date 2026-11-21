@@ -7,6 +7,7 @@ import api from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import { ALL_COUNTRY_OPTIONS, COUNTRY_OPTIONS, countryFlag, countryName } from "../data/countries";
 import { useSession } from "../context/SessionContext";
+import useLatestRequest from "../hooks/useLatestRequest";
 import { useNotice } from "../context/noticeStore";
 import PageHeader from "../components/ui/PageHeader";
 import Icon from "../components/ui/Icon";
@@ -15,6 +16,7 @@ import CandidateImportModal from "../features/candidate-import/CandidateImportMo
 import NameNormalizationModal from "../features/name-normalization/NameNormalizationModal.jsx";
 
 const PAGE_SIZE = 20;
+const SEARCH_DEBOUNCE_MS = 250;
 
 function Candidates() {
   const { hasPermission } = useSession();
@@ -34,6 +36,9 @@ function Candidates() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [restrictionTarget, setRestrictionTarget] = useState(null);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [jobsError, setJobsError] = useState("");
+  const candidatesRequest = useLatestRequest();
   const [restrictionMode, setRestrictionMode] = useState("ban");
   const [restrictionReason, setRestrictionReason] = useState("");
   const [restrictionSaving, setRestrictionSaving] = useState(false);
@@ -51,18 +56,31 @@ function Candidates() {
     ? requestedCountry
     : "";
 
+  const loadJobs = useCallback(async () => {
+    setJobsError("");
+    try {
+      const { data: jobsData } = await api.get("/jobs");
+      setJobs(Array.isArray(jobsData) ? jobsData : jobsData?.jobs || []);
+    } catch (error) {
+      setJobsError(getApiErrorMessage(error, {
+        action: "cargar las vacantes",
+        resource: "vacantes",
+        fallback: "Las vacantes no respondieron, así que no podrás asignar perfiles hasta recargarlas.",
+      }));
+    }
+  }, []);
+
   const loadData = useCallback(async (targetPage = page) => {
+    const isCurrent = candidatesRequest.begin();
     setLoadError("");
     try {
-      const [candidatesResponse, jobsResponse] = await Promise.all([
-        api.get(
-          `/candidates?page=${targetPage}&page_size=${PAGE_SIZE}${candidateSort === "created_desc" ? "" : `&sort=${candidateSort}`}${countryFilter ? `&country_code=${encodeURIComponent(countryFilter)}` : ""}${query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ""}`,
-        ),
-        api.get("/jobs"),
-      ]);
+      const candidatesResponse = await api.get(
+        `/candidates?page=${targetPage}&page_size=${PAGE_SIZE}${candidateSort === "created_desc" ? "" : `&sort=${candidateSort}`}${countryFilter ? `&country_code=${encodeURIComponent(countryFilter)}` : ""}${debouncedQuery.trim() ? `&q=${encodeURIComponent(debouncedQuery.trim())}` : ""}`,
+      );
+      // Una búsqueda o página más reciente ya está en curso: descarta esta.
+      if (!isCurrent()) return;
 
       const candidatesData = candidatesResponse.data || {};
-      const jobsData = jobsResponse.data;
       const items = Array.isArray(candidatesData.items)
         ? candidatesData.items
         : [];
@@ -72,21 +90,41 @@ function Candidates() {
       setCandidates(items);
       setTotal(responseTotal);
       setPages(responsePages);
-      setJobs(Array.isArray(jobsData) ? jobsData : jobsData.jobs || []);
     } catch (error) {
+      if (!isCurrent()) return;
       setLoadError(getApiErrorMessage(error, {
-        action: "cargar candidatos y vacantes",
+        action: "cargar candidatos",
         resource: "reclutamiento",
-        fallback: "No se pudo completar el directorio porque candidatos o vacantes no respondieron. Recarga la página antes de asignar perfiles.",
+        fallback: "No se pudo completar el directorio porque los candidatos no respondieron. Recarga la página antes de asignar perfiles.",
       }));
     }
-  }, [candidateSort, countryFilter, page, query]);
+  }, [candidateSort, candidatesRequest, countryFilter, debouncedQuery, page]);
 
   useEffect(() => {
     // The initial request synchronizes this view with the API.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData(page);
   }, [loadData, page]);
+
+  useEffect(() => {
+    // Las vacantes solo alimentan el selector de asignación: se cargan una vez.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadJobs();
+  }, [loadJobs]);
+
+  useEffect(() => {
+    if (query === debouncedQuery) return undefined;
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedQuery(query);
+      setPage(1);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [debouncedQuery, query]);
+
+  function retryLoad() {
+    void loadData(page);
+    if (jobsError) void loadJobs();
+  }
 
   useEffect(() => {
     if (!requestedJobId) return;
@@ -415,10 +453,11 @@ function Candidates() {
         )}
       />
 
-      {loadError && (
+      {(loadError || jobsError) && (
         <FeedbackMessage title="La base de candidatos no está actualizada">
-          <p>{loadError}</p>
-          <button type="button" className="btn btn-secondary" onClick={() => void loadData(page)}>
+          {loadError && <p>{loadError}</p>}
+          {jobsError && <p>{jobsError}</p>}
+          <button type="button" className="btn btn-secondary" onClick={retryLoad}>
             Reintentar carga
           </button>
         </FeedbackMessage>
@@ -437,7 +476,7 @@ function Candidates() {
         <div className="ui-actions">
           <label className="candidate-sort-control">
             <span>Buscar candidatos</span>
-            <input type="search" className="select" aria-label="Buscar candidatos" placeholder="Nombre o correo" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} />
+            <input type="search" className="select" aria-label="Buscar candidatos" placeholder="Nombre o correo" value={query} onChange={(event) => setQuery(event.target.value)} />
           </label>
           <label className="candidate-sort-control">
             <span>País</span>
