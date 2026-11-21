@@ -1307,3 +1307,14 @@ body.nav-mobile-open {
     gap: var(--space-4);
   }
 }
+
+/* Error boundary: fallback de errores de renderizado */
+.ui-error-boundary {
+  padding: var(--space-6, 24px) var(--space-4, 16px);
+}
+
+.ui-error-boundary--global {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+}

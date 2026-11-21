@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import Login from "./auth/Login";
 import Layout from "./components/Layout";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./context/ThemeContext";
 import { SessionProvider, useSession } from "./context/SessionContext";
 import { NoticeProvider } from "./context/NoticeContext";
@@ -143,7 +144,12 @@ function App() {
       <BrowserRouter>
         <SessionProvider>
           <NoticeProvider>
-            <AppRoutes />
+            <ErrorBoundary
+              title="La aplicación encontró un error inesperado"
+              className="ui-error-boundary--global"
+            >
+              <AppRoutes />
+            </ErrorBoundary>
           </NoticeProvider>
         </SessionProvider>
       </BrowserRouter>
