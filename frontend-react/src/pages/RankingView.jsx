@@ -58,6 +58,18 @@ function Ranking() {
   const asyncRankingAbortRef = useRef(null);
   const poolAbortRef = useRef(null);
   const analysisAbortRef = useRef(null);
+  // Vacante seleccionada "en vivo": permite descartar respuestas de una vacante
+  // anterior (polling largo, cambios rápidos de selección) sin pisar la actual.
+  const selectedJobRef = useRef(selectedJob);
+
+  function selectJob(jobId) {
+    selectedJobRef.current = jobId;
+    setSelectedJob(jobId);
+  }
+
+  function isCurrentJob(jobId) {
+    return selectedJobRef.current === jobId;
+  }
 
   const [rankingInfo, setRankingInfo] = useState({
     total: 0,
@@ -136,7 +148,7 @@ function Ranking() {
 
       if (!selectedJob && rankingJobs.length > 0) {
         const firstJobId = rankingJobs[0].job_id;
-        setSelectedJob(firstJobId);
+        selectJob(firstJobId);
         await Promise.all([
           loadRanking(1, pageSize, firstJobId, rankingScope),
           loadEligiblePool(firstJobId),
@@ -195,6 +207,7 @@ async function loadEligiblePool(targetJob = selectedJob) {
           signal: controller.signal,
         },
       );
+      if (!isCurrentJob(targetJob)) return null;
       const count = Number(data?.available_candidate_count);
       const normalizedCount = Number.isFinite(count) ? count : null;
       setEligiblePoolCount(normalizedCount);
@@ -225,6 +238,10 @@ async function loadRanking(
 ) {
     if (!targetJob) {
       return { ok: false, data: null, candidates: [], scopeMismatch: false };
+    }
+
+    if (!isCurrentJob(targetJob)) {
+      return { ok: false, data: null, candidates: [], scopeMismatch: false, stale: true };
     }
 
     if (minScore < 0 || minScore > 100) {
@@ -268,6 +285,9 @@ async function loadRanking(
         params,
         signal: controller.signal,
       });
+      if (!isCurrentJob(targetJob)) {
+        return { ok: false, data: null, candidates: [], scopeMismatch: false, stale: true };
+      }
       const data = response.data;
       const candidates = data.candidates || data.ranking || data.items || [];
 
@@ -329,6 +349,9 @@ async function loadRanking(
     } catch (error) {
       if (error?.code === "ERR_CANCELED") {
         return { ok: false, data: null, candidates: [], scopeMismatch: false, cancelled: true };
+      }
+      if (!isCurrentJob(targetJob)) {
+        return { ok: false, data: null, candidates: [], scopeMismatch: false, stale: true };
       }
       setActionFeedback({
         type: "error",
@@ -396,13 +419,15 @@ async function evaluateCandidates() {
       return;
     }
 
+    const jobId = selectedJob;
+
     try {
       setIsEvaluatingCandidates(true);
       setActionFeedback(null);
       setRankingMessage("");
 
       const { data: task } = await api.post(
-        `/jobs/${selectedJob}/ranking/recalculate-async`,
+        `/jobs/${encodeURIComponent(jobId)}/ranking/recalculate-async`,
         null,
         {
           params: {
@@ -418,8 +443,8 @@ async function evaluateCandidates() {
           "Evaluación iniciada en segundo plano. Talent seguirá procesando los candidatos aunque cierres esta pantalla.",
       });
 
-      const completedTask = await waitForAsyncRankingTask(task.task_id, selectedJob);
-      if (!completedTask) return;
+      const completedTask = await waitForAsyncRankingTask(task.task_id, jobId);
+      if (!completedTask || !isCurrentJob(jobId)) return;
 
       if (completedTask.status === "FAILED") {
         setActionFeedback({
@@ -432,7 +457,8 @@ async function evaluateCandidates() {
       }
 
       setPage(1);
-      const refreshed = await loadRanking(1, pageSize, selectedJob, rankingScope);
+      const refreshed = await loadRanking(1, pageSize, jobId, rankingScope);
+      if (refreshed.stale || refreshed.cancelled) return;
 
       if (!refreshed.ok) {
         setActionFeedback({
@@ -607,13 +633,15 @@ async function recalculateRanking() {
       return;
     }
 
+    const jobId = selectedJob;
+
     try {
       setIsRecalculating(true);
       setActionFeedback(null);
       setRankingMessage("");
 
       const { data: task } = await api.post(
-        `/jobs/${selectedJob}/ranking/recalculate-async`,
+        `/jobs/${encodeURIComponent(jobId)}/ranking/recalculate-async`,
         null,
         {
           params: {
@@ -632,8 +660,8 @@ async function recalculateRanking() {
           "Recálculo iniciado en segundo plano. Talent continuará aunque cierres esta pantalla.",
       });
 
-      const completedTask = await waitForAsyncRankingTask(task.task_id, selectedJob);
-      if (!completedTask) return;
+      const completedTask = await waitForAsyncRankingTask(task.task_id, jobId);
+      if (!completedTask || !isCurrentJob(jobId)) return;
 
       if (completedTask.status === "FAILED") {
         setActionFeedback({
@@ -646,7 +674,8 @@ async function recalculateRanking() {
       }
 
       setPage(1);
-      const refreshed = await loadRanking(1, pageSize, selectedJob, rankingScope);
+      const refreshed = await loadRanking(1, pageSize, jobId, rankingScope);
+      if (refreshed.stale || refreshed.cancelled) return;
 
       if (!refreshed.ok) {
         setActionFeedback({
@@ -731,8 +760,9 @@ async function recalculateRanking() {
   }
 
   async function handleJobChange(event) {
+    if (rankingActionBusy) return;
     const nextJob = event.target.value;
-    setSelectedJob(nextJob);
+    selectJob(nextJob);
     setPage(1);
     setRankingMessage("");
     setActionFeedback(null);
@@ -896,6 +926,9 @@ async function recalculateRanking() {
             className="ranking-job-select"
             value={selectedJob}
             onChange={handleJobChange}
+            disabled={rankingActionBusy}
+            aria-label="Vacante para el ranking"
+            title={rankingActionBusy ? "Espera a que termine la evaluación en curso para cambiar de vacante." : undefined}
           >
             <option value="">Seleccione vacante</option>
             {jobs.map((job) => {
