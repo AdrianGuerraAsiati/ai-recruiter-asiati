@@ -248,24 +248,7 @@ function Jobs() {
     setIndeedError("");
   }, []);
 
-  useEffect(() => {
-    function handleEscape(e) {
-      if (e.key !== "Escape") return;
-      if (hireTarget && !hiring) {
-        setHireTarget(null);
-        setHireError("");
-      } else if (deleteJobTarget && !deletingJob) {
-        setDeleteJobTarget(null);
-        setDeleteError("");
-      } else if (viewJob) {
-        closeJobDetails();
-      } else if (showForm && !saving) {
-        cancelForm();
-      }
-    }
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [closeJobDetails, deleteJobTarget, deletingJob, hireTarget, hiring, saving, showForm, viewJob]);
+
 
   async function refreshIndeedJobStatus(job = viewJob, requestId = null) {
     if (!job || !indeedIntegration?.enabled || !indeedIntegration?.configured) return;
@@ -766,7 +749,7 @@ function Jobs() {
     setShowForm(true);
   }
 
-  function resetJobFields() {
+  const resetJobFields = useCallback(() => {
     setTitle("");
     setIndeedDescription("");
     setAiDescription("");
@@ -786,15 +769,33 @@ function Jobs() {
     setEvaluationProfile(null);
     setEnrichmentProposal(null);
     setEnrichmentError("");
-  }
+  }, []);
 
-  function cancelForm() {
+  const cancelForm = useCallback(() => {
     resetJobFields();
     setEditingJob(null);
     setShowForm(false);
     setError("");
-  }
+  }, [resetJobFields]);
 
+  useEffect(() => {
+    function handleEscape(e) {
+      if (e.key !== "Escape") return;
+      if (hireTarget && !hiring) {
+        setHireTarget(null);
+        setHireError("");
+      } else if (deleteJobTarget && !deletingJob) {
+        setDeleteJobTarget(null);
+        setDeleteError("");
+      } else if (viewJob) {
+        closeJobDetails();
+      } else if (showForm && !saving) {
+        cancelForm();
+      }
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [cancelForm, closeJobDetails, deleteJobTarget, deletingJob, hireTarget, hiring, saving, showForm, viewJob]);
   const description = descriptionTab === "ai" ? aiDescription : indeedDescription;
   const activeDescription = activeDescriptionSource === "ai" ? aiDescription : indeedDescription;
 

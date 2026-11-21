@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "../../api/client";
 import { getApiErrorMessage } from "../../utils/errors";
 import "../../pages/Jobs.css";
@@ -25,6 +25,11 @@ export default function RecruitmentFlow({ jobId, candidateId, onContractSigned, 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Mantiene el callback más reciente sin re-suscribir el efecto de carga.
+  const onProcessChangeRef = useRef(onProcessChange);
+  useEffect(() => {
+    onProcessChangeRef.current = onProcessChange;
+  });
 
   useEffect(() => {
     if (!jobId || !candidateId) return;
@@ -36,13 +41,13 @@ export default function RecruitmentFlow({ jobId, candidateId, onContractSigned, 
           ? (LEGACY_STAGE[data.status] || data.status || "APPLIED")
           : null;
         setStatus(next);
-        onProcessChange?.(Boolean(data.has_process));
+        onProcessChangeRef.current?.(Boolean(data.has_process));
       })
       .catch((err) => {
         if (!cancelled) {
           setError(getApiErrorMessage(err, { fallback: "No fue posible consultar el proceso de selección." }));
           setStatus(null);
-          onProcessChange?.(false);
+          onProcessChangeRef.current?.(false);
         }
       })
       .finally(() => { if (!cancelled) setLoading(false); });
