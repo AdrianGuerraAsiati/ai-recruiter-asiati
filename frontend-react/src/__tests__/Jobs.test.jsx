@@ -612,8 +612,8 @@ describe("Jobs page", () => {
       await screen.findByText(/Ana Pérez fue contratado\. Acceso creado y onboarding asignado \(0%\)\./i),
     ).toBeInTheDocument();
     expect(await screen.findByText("Credenciales temporales")).toBeInTheDocument();
-    expect(screen.getByText("ana.perez")).toBeInTheDocument();
-    expect(screen.getByText("TempPass123")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("ana.perez")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("TempPass123")).toBeInTheDocument();
   });
 
   it("reports when an existing employee is reused during hiring", async () => {

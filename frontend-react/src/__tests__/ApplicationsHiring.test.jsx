@@ -168,7 +168,7 @@ describe("Applications: document access and employee creation", () => {
       "/jobs/job-1/candidates/candidate-1/start-application",
       expect.objectContaining({ username: "aperez", email: "ana@example.com" }),
     ));
-    expect(await screen.findByText("TemporaryPass123")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("TemporaryPass123")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Crear empleado" })).not.toBeInTheDocument();
   });
 

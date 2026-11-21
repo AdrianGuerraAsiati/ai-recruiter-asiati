@@ -84,6 +84,6 @@ describe("Ranking application initiation", () => {
         email: "ana@example.com",
       }),
     ));
-    expect(await screen.findByText("Temporary123A")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("Temporary123A")).toBeInTheDocument();
   });
 });
