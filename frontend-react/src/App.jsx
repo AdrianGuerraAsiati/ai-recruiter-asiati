@@ -1,5 +1,5 @@
 // eslint-disable-next-line no-unused-vars
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import Login from "./auth/Login";
@@ -9,28 +9,30 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { SessionProvider, useSession } from "./context/SessionContext";
 import { NoticeProvider } from "./context/NoticeContext";
 
-import Dashboard from "./pages/Dashboard";
-import Jobs from "./pages/Jobs";
-import Candidates from "./pages/Candidates";
-import RecruitmentCalendar from "./pages/RecruitmentCalendar";
-import Ranking from "./pages/Ranking";
-import CandidateDetail from "./pages/CandidateDetail";
-import Integrations from "./pages/Integrations";
-import Employees from "./pages/Employees";
-import AccessManagement from "./pages/AccessManagement";
-import AttendanceSettings from "./pages/TalentId";
-import Attendance from "./pages/Attendance";
-import Training from "./pages/Training";
-import EmployeeScores from "./pages/EmployeeScores";
-import Applications from "./pages/Applications";
-import Progress from "./pages/Progress";
-import Profile from "./pages/Profile";
-import Documents from "./pages/Documents";
-import Psychotechnical from "./pages/Psychotechnical";
-import PsychotechnicalTake from "./pages/PsychotechnicalTake";
-import MyPsychotechnical from "./pages/MyPsychotechnical";
-import Forbidden from "./pages/Forbidden";
-import NotFound from "./pages/NotFound";
+// Carga diferida por ruta: la página pública de la prueba psicotécnica y las
+// pantallas de administración no deben descargarse en el primer render.
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Jobs = lazy(() => import("./pages/Jobs"));
+const Candidates = lazy(() => import("./pages/Candidates"));
+const RecruitmentCalendar = lazy(() => import("./pages/RecruitmentCalendar"));
+const Ranking = lazy(() => import("./pages/Ranking"));
+const CandidateDetail = lazy(() => import("./pages/CandidateDetail"));
+const Integrations = lazy(() => import("./pages/Integrations"));
+const Employees = lazy(() => import("./pages/Employees"));
+const AccessManagement = lazy(() => import("./pages/AccessManagement"));
+const AttendanceSettings = lazy(() => import("./pages/TalentId"));
+const Attendance = lazy(() => import("./pages/Attendance"));
+const Training = lazy(() => import("./pages/Training"));
+const EmployeeScores = lazy(() => import("./pages/EmployeeScores"));
+const Applications = lazy(() => import("./pages/Applications"));
+const Progress = lazy(() => import("./pages/Progress"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Documents = lazy(() => import("./pages/Documents"));
+const Psychotechnical = lazy(() => import("./pages/Psychotechnical"));
+const PsychotechnicalTake = lazy(() => import("./pages/PsychotechnicalTake"));
+const MyPsychotechnical = lazy(() => import("./pages/MyPsychotechnical"));
+const Forbidden = lazy(() => import("./pages/Forbidden"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 import "./ui-system.css";
 
 
@@ -80,9 +82,20 @@ function LandingPage() {
   return <Dashboard />;
 }
 
+function PageLoading() {
+  return (
+    <div className="session-loading" role="status" aria-live="polite">
+      <span aria-hidden="true" />
+      Cargando…
+    </div>
+  );
+}
+
+
 function AppRoutes() {
   return (
-    <Routes>
+    <Suspense fallback={<PageLoading />}>
+      <Routes>
       <Route path="/login" element={<Login />} />
 
       <Route path="/dashboard" element={<ProtectedPage><LandingPage /></ProtectedPage>} />
@@ -134,7 +147,8 @@ function AppRoutes() {
 
       <Route path="/register" element={<Navigate to="/login" replace />} />
       <Route path="*" element={<ProtectedPage><NotFound /></ProtectedPage>} />
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }
 
