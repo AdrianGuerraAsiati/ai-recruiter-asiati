@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../api/client";
 import DocumentReviewQueue from "../components/DocumentReviewQueue";
 import { useSession } from "../context/SessionContext";
+import useLatestRequest from "../hooks/useLatestRequest";
 import { getApiErrorMessage } from "../utils/errors";
 import PageHeader from "../components/ui/PageHeader";
 import "../talent-workspaces.css";
@@ -121,6 +122,7 @@ function Documents() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [idCopyStatus, setIdCopyStatus] = useState("");
+  const portfolioRequest = useLatestRequest();
 
   const viewingOwn = selectedEmployeeId === ownEmployeeId;
   const selectedApplication = useMemo(
@@ -155,6 +157,7 @@ function Documents() {
   }, [canReadAll, applicationQuery]);
 
   const loadPortfolio = useCallback(async () => {
+    const isCurrent = portfolioRequest.begin();
     if (!selectedEmployeeId) {
       setPortfolio(null);
       setLoading(false);
@@ -167,6 +170,8 @@ function Documents() {
         ? "/employee-documents/me"
         : `/employee-documents/employees/${selectedEmployeeId}`;
       const { data } = await api.get(endpoint);
+      // Descarta respuestas de un empleado seleccionado antes (cambio rápido).
+      if (!isCurrent()) return;
       const items = Array.isArray(data?.items) ? data.items : [];
       setPortfolio({ ...data, items });
       setValuesByType(Object.fromEntries(
@@ -180,6 +185,7 @@ function Documents() {
           .map((item) => [item.id, item.review_comment || ""]),
       ));
     } catch (err) {
+      if (!isCurrent()) return;
       setPortfolio(null);
       setError(getApiErrorMessage(err, {
         action: "cargar el expediente de ingreso",
@@ -187,9 +193,9 @@ function Documents() {
         fallback: "No se pudo actualizar el expediente del empleado.",
       }));
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [selectedEmployeeId, viewingOwn]);
+  }, [portfolioRequest, selectedEmployeeId, viewingOwn]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
