@@ -64,7 +64,11 @@ export default function AccessManagement() {
       setUsernameTarget(null);
       await loadEmployees();
     } catch (err) {
-      setUsernameError(err.response?.data?.detail || "No fue posible cambiar el usuario.");
+      setUsernameError(getApiErrorMessage(err, {
+        action: "cambiar el usuario",
+        resource: "acceso",
+        fallback: "No fue posible cambiar el usuario.",
+      }));
     } finally {
       setBusyId("");
     }

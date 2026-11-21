@@ -483,8 +483,7 @@ function Jobs() {
       setTimeout(() => setSuccessMessage(""), 6000);
     } catch (requestError) {
       setHireError(
-        requestError.response?.data?.detail
-        || getApiErrorMessage(requestError, {
+        getApiErrorMessage(requestError, {
             action: "contratar al candidato y preparar su onboarding",
             resource: "contratación",
             fallback: "La contratación no quedó confirmada completamente. Revisa el estado del candidato y del empleado antes de repetir la acción.",

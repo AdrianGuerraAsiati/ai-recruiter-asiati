@@ -328,8 +328,7 @@ function Documents() {
       await loadPortfolio();
     } catch (err) {
       setError(
-        err.response?.data?.detail
-        || getApiErrorMessage(err, {
+        getApiErrorMessage(err, {
           action: "subir el documento",
           resource: "documentos",
           fallback: "El documento no quedó guardado. Vuelve a seleccionarlo e inténtalo nuevamente.",

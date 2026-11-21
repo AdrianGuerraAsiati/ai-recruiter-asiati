@@ -566,8 +566,7 @@ function Training() {
       await loadHome();
     } catch (err) {
       setError(
-        err.response?.data?.detail
-          || getApiErrorMessage(err, {
+        getApiErrorMessage(err, {
             action: "subir el video",
             resource: "lección",
             fallback: "El video no quedó asociado a la lección. Conserva el archivo local y vuelve a iniciar la carga.",

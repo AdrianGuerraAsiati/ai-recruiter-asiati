@@ -29,6 +29,19 @@ describe("Gmail corporate integration", () => {
     vi.clearAllMocks();
   });
 
+  it("renders FastAPI 422 validation arrays as text instead of crashing", async () => {
+    api.get.mockRejectedValueOnce({
+      response: {
+        status: 422,
+        data: { detail: [{ loc: ["query", "limit"], msg: "Input should be a valid integer", type: "int_parsing" }] },
+      },
+    });
+
+    renderPage();
+
+    expect(await screen.findByText(/query.*limit: Input should be a valid integer/)).toBeInTheDocument();
+  });
+
   it("shows setup state and callback URI when OAuth client is not configured", async () => {
     api.get.mockResolvedValueOnce({
       data: {
