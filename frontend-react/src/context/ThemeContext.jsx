@@ -2,16 +2,29 @@ import { createContext, useContext, useState, useEffect } from "react";
 
 const ThemeContext = createContext();
 
+function readStoredTheme() {
+  try {
+    return window.localStorage.getItem("theme");
+  } catch {
+    // Almacenamiento bloqueado (modo privado, políticas del navegador).
+    return null;
+  }
+}
+
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
-    const saved = localStorage.getItem("theme");
-    if (saved) return saved;
+    const saved = readStoredTheme();
+    if (saved === "light" || saved === "dark") return saved;
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   });
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("theme", theme);
+    try {
+      localStorage.setItem("theme", theme);
+    } catch {
+      // Persistir el tema es opcional; no debe tumbar la app.
+    }
   }, [theme]);
 
   function toggleTheme() {
