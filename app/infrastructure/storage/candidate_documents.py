@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+from pathlib import Path
 
 from app.evaluation import _bedrock_session
 
@@ -30,18 +31,26 @@ def index_candidate_document(candidate, file_content: bytes, filename: str) -> d
     Returns dict with ingestion_status and optional error.
     """
     candidate_id = str(candidate.id)
-    s3_key = f"{S3_PREFIX}/cv-{candidate_id}.pdf"
-    metadata_key = f"{S3_PREFIX}/cv-{candidate_id}.pdf.metadata.json"
+    suffix = Path(filename or "").suffix.casefold()
+    if suffix not in {".pdf", ".docx"}:
+        suffix = ".pdf"
+    content_type = (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        if suffix == ".docx"
+        else "application/pdf"
+    )
+    s3_key = f"{S3_PREFIX}/cv-{candidate_id}{suffix}"
+    metadata_key = f"{s3_key}.metadata.json"
 
     s3, bedrock_agent = _get_bedrock_s3_clients()
 
-    # 1. Upload CV PDF to S3
+    # 1. Upload the original supported CV format to S3.
     try:
         s3.put_object(
             Bucket=S3_BUCKET,
             Key=s3_key,
             Body=file_content,
-            ContentType="application/pdf",
+            ContentType=content_type,
         )
         logger.info("S3 upload OK: %s", s3_key)
     except Exception as exc:

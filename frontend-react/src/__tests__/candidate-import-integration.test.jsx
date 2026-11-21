@@ -66,7 +66,7 @@ describe("candidate import page integration", () => {
     });
   });
 
-  it("opens the durable PDF DOCX ZIP import modal from Candidates", async () => {
+  it("opens the manual candidate form from Candidates", async () => {
     render(
       <MemoryRouter initialEntries={["/candidates"]}>
         <Candidates />
@@ -78,6 +78,8 @@ describe("candidate import page integration", () => {
 
     expect(await screen.findByText(/importación inteligente/i)).toBeInTheDocument();
     expect(screen.getByText(/PDF, DOCX o ZIP/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Nombre completo")).toBeInTheDocument();
+    expect(screen.getByLabelText("CV (PDF o DOCX)")).toBeInTheDocument();
     expect(screen.queryByText(/seleccionar carpeta/i)).not.toBeInTheDocument();
   });
 

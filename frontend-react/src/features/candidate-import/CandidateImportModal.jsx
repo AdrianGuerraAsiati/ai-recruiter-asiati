@@ -5,6 +5,7 @@ import ImportProgress from "./ImportProgress.jsx";
 import ImportSummary from "./ImportSummary.jsx";
 import { useCandidateImport } from "./useCandidateImport.js";
 import { validateSelectedFiles } from "./validation.js";
+import { createManualCandidate } from "./api.js";
 import "./candidate-import.css";
 
 function displaySize(bytes) {
@@ -45,6 +46,10 @@ export default function CandidateImportModal({
   const [files, setFiles] = useState([]);
   const [localError, setLocalError] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [mode, setMode] = useState("manual");
+  const [candidateName, setCandidateName] = useState("");
+  const [manualCv, setManualCv] = useState(null);
+  const [manualSaving, setManualSaving] = useState(false);
   const inputRef = useRef(null);
 
   const {
@@ -62,7 +67,7 @@ export default function CandidateImportModal({
   const uploading = phase === "uploading";
   const processing = phase === "processing";
   const terminal = phase === "completed" || phase === "failed";
-  const locked = uploading || processing;
+  const locked = uploading || processing || manualSaving;
 
   const close = () => {
     if (uploading) return;
@@ -93,6 +98,43 @@ export default function CandidateImportModal({
     event.preventDefault();
     if (!selectedJobId) {
       setLocalError("Selecciona la vacante que recibirá estos candidatos.");
+      return;
+    }
+    if (mode === "manual") {
+      if (!candidateName.trim()) {
+        setLocalError("Escribe el nombre del candidato.");
+        return;
+      }
+      if (!manualCv) {
+        setLocalError("Selecciona el CV del candidato.");
+        return;
+      }
+      const manualValidationError = validateSelectedFiles([manualCv]);
+      if (manualValidationError) {
+        setLocalError(manualValidationError);
+        return;
+      }
+      if (manualCv.name.toLowerCase().endsWith(".zip")) {
+        setLocalError("Para crear un candidato individual, selecciona un CV PDF o DOCX.");
+        return;
+      }
+      setLocalError("");
+      setManualSaving(true);
+      try {
+        await createManualCandidate({
+          name: candidateName.trim(),
+          jobId: selectedJobId,
+          file: manualCv,
+        });
+        onClose?.();
+      } catch (requestError) {
+        setLocalError(
+          requestError?.response?.data?.detail
+            || "No fue posible crear el candidato. Intenta nuevamente.",
+        );
+      } finally {
+        setManualSaving(false);
+      }
       return;
     }
     const validationError = validateSelectedFiles(files);
@@ -140,8 +182,7 @@ export default function CandidateImportModal({
             <span className="candidate-import-kicker">Importación inteligente</span>
             <h2 id="candidate-import-title">Agregar candidatos</h2>
             <p className="muted" style={{ marginTop: 6 }}>
-              Sube PDF, DOCX o ZIP. AI Recruiter identifica duplicados, actualiza el conocimiento,
-              evalúa y recalcula el ranking automáticamente.
+              Registra un candidato con su nombre y CV, o importa varios archivos PDF, DOCX o ZIP en lote.
             </p>
           </div>
           <button
@@ -157,6 +198,24 @@ export default function CandidateImportModal({
 
         {!terminal && !processing && (
           <form onSubmit={handleSubmit}>
+            <div className="candidate-import-mode" role="group" aria-label="Modo de agregado">
+              <button
+                type="button"
+                className={`btn ${mode === "manual" ? "btn-primary" : "btn-close"}`}
+                onClick={() => setMode("manual")}
+                disabled={locked}
+              >
+                Un candidato
+              </button>
+              <button
+                type="button"
+                className={`btn ${mode === "batch" ? "btn-primary" : "btn-close"}`}
+                onClick={() => setMode("batch")}
+                disabled={locked}
+              >
+                Importar varios
+              </button>
+            </div>
             <div className="form-group" style={{ marginTop: 18 }}>
               <label htmlFor="candidate-import-job">Vacante de destino</label>
               <select
@@ -164,7 +223,7 @@ export default function CandidateImportModal({
                 className="select"
                 value={selectedJobId}
                 onChange={(event) => setSelectedJobId(event.target.value)}
-                disabled={uploading}
+                disabled={locked}
               >
                 <option value="">Selecciona una vacante</option>
                 {jobs.map((job) => (
@@ -173,7 +232,36 @@ export default function CandidateImportModal({
               </select>
             </div>
 
-            {!uploading && (
+            {mode === "manual" && !manualSaving && (
+              <>
+                <div className="form-group">
+                  <label htmlFor="manual-candidate-name">Nombre completo</label>
+                  <input
+                    id="manual-candidate-name"
+                    className="input"
+                    value={candidateName}
+                    onChange={(event) => setCandidateName(event.target.value)}
+                    placeholder="Nombre del candidato"
+                    autoComplete="name"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="manual-candidate-cv">CV (PDF o DOCX)</label>
+                  <input
+                    id="manual-candidate-cv"
+                    className="input"
+                    type="file"
+                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={(event) => setManualCv(event.target.files?.[0] || null)}
+                    required
+                  />
+                  {manualCv && <small className="muted">{manualCv.name} · {displaySize(manualCv.size)}</small>}
+                </div>
+              </>
+            )}
+
+            {mode === "batch" && !uploading && (
               <div
                 className={`candidate-import-dropzone ${dragging ? "is-dragging" : ""}`}
                 role="button"
@@ -215,7 +303,7 @@ export default function CandidateImportModal({
               </div>
             )}
 
-            {!uploading && files.length > 0 && (
+            {mode === "batch" && !uploading && files.length > 0 && (
               <div className="candidate-import-file-list">
                 <strong>{files.length} {files.length === 1 ? "archivo seleccionado" : "archivos seleccionados"}</strong>
                 {files.slice(0, 12).map((file, index) => (
@@ -243,11 +331,19 @@ export default function CandidateImportModal({
             {uploading && <ImportProgress batch={batch} uploadProgress={uploadProgress} />}
 
             <div className="candidate-import-actions">
-              <button type="button" className="btn btn-close" onClick={close} disabled={uploading}>
+              <button type="button" className="btn btn-close" onClick={close} disabled={locked}>
                 Cancelar
               </button>
-              <button type="submit" className="btn btn-primary" disabled={uploading || !files.length}>
-                {uploading ? "Subiendo CVs..." : `Importar ${files.length || ""} ${files.length === 1 ? "candidato" : "candidatos"}`}
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={locked || (mode === "manual" ? !candidateName.trim() || !manualCv : !files.length)}
+              >
+                {manualSaving
+                  ? "Creando candidato..."
+                  : mode === "manual"
+                    ? "Crear candidato"
+                    : uploading ? "Subiendo CVs..." : `Importar ${files.length || ""} ${files.length === 1 ? "candidato" : "candidatos"}`}
               </button>
             </div>
           </form>

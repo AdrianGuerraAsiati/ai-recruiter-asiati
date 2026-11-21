@@ -3,7 +3,7 @@
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_permission
@@ -68,6 +68,44 @@ def _get_job_candidate_evaluation(
 # ============================================================
 # JOB-CANDIDATE ASSIGNMENT (under /api/jobs/{job_id}/candidates)
 # ============================================================
+
+
+@router.post("/manual", status_code=201)
+async def create_manual_candidate(
+    name: str = Form(...),
+    job_id: str = Form(...),
+    cv: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _user: dict = Depends(require_permission("candidates.manage")),
+):
+    """Create a candidate with an explicit human-provided name and one CV."""
+    public_filename = str(cv.filename or "").replace("\\", "/").rsplit("/", 1)[-1]
+    try:
+        file_content = await cv.read(MAX_DOCUMENT_BYTES + 1)
+        candidate, indexing = service.create_manual_candidate(
+            db,
+            name=name,
+            owner_sub=_user["sub"],
+            original_filename=public_filename,
+            file_content=file_content,
+            job_id=job_id,
+        )
+    except JobNotFound:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada.")
+    except service.LegacyCandidateUploadError as exc:
+        messages = {
+            "MANUAL_CANDIDATE_NAME_REQUIRED": "El nombre del candidato es obligatorio.",
+            "LEGACY_UPLOAD_EMPTY": "El CV está vacío.",
+            "LEGACY_UPLOAD_TOO_LARGE": "El CV supera el límite de 15 MB.",
+            "MANUAL_CANDIDATE_UNSUPPORTED_DOCUMENT": "El CV debe estar en formato PDF o DOCX.",
+            "MANUAL_CANDIDATE_INVALID_DOCUMENT": "El CV debe ser un PDF o DOCX válido.",
+        }
+        raise HTTPException(status_code=422, detail=messages.get(str(exc), "El CV no es válido."))
+
+    return {
+        "candidate": presenter.candidate_to_dict(candidate),
+        "indexing": indexing,
+    }
 
 
 @assign_router.post("/{job_id}/candidates")

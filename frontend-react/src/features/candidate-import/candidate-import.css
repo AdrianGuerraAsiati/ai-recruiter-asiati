@@ -8,6 +8,12 @@
   gap: 20px;
 }
 
+.candidate-import-mode {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
 .candidate-import-kicker {
   display: inline-block;
   color: #0f4e63;
