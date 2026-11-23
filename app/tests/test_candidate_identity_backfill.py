@@ -93,6 +93,36 @@ def test_backfill_is_idempotent(db_session, monkeypatch):
     ]
 
 
+def test_backfill_does_not_redownload_documents_already_seeded(db_session, monkeypatch):
+    backfill = _backfill_module()
+    seeded = Candidate(name="Seeded", owner_sub="owner-a")
+    pending = Candidate(name="Pending", owner_sub="owner-a")
+    db_session.add_all([seeded, pending])
+    db_session.commit()
+    db_session.add(
+        CandidateIdentity(
+            owner_sub="owner-a",
+            candidate_id=seeded.id,
+            kind="DOCUMENT_SHA256",
+            value="existing-hash",
+        )
+    )
+    db_session.commit()
+    downloaded = []
+
+    def fake_read(candidate_id):
+        downloaded.append(candidate_id)
+        return b"pending-cv"
+
+    monkeypatch.setattr(backfill, "read_existing_canonical_document", fake_read)
+
+    result = backfill.backfill_candidate_identities(db_session)
+
+    assert downloaded == [pending.id]
+    assert result["documents_already_seeded"] == 1
+    assert result["document_identities_seeded"] == 1
+
+
 def test_backfill_skips_ownerless_candidate(db_session, monkeypatch):
     backfill = _backfill_module()
     candidate = Candidate(name="Legacy", email="legacy@example.com", owner_sub=None)
