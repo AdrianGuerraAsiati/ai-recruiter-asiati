@@ -5,6 +5,7 @@ import EmployeeCredentialsModal from "../components/EmployeeCredentialsModal";
 import PageHeader from "../components/ui/PageHeader";
 import { EmptyState, FeedbackMessage, LoadingState } from "../components/ui/StatePanel";
 import { getApiErrorMessage } from "../utils/errors";
+import { useNotice } from "../context/noticeStore";
 
 function displayName(employee) {
   return [employee.first_name, employee.last_name].filter(Boolean).join(" ")
@@ -21,6 +22,7 @@ export default function AccessManagement() {
   const [usernameValue, setUsernameValue] = useState("");
   const [usernameError, setUsernameError] = useState("");
   const [credentialResult, setCredentialResult] = useState(null);
+  const { notify } = useNotice();
 
   const loadEmployees = useCallback(async () => {
     setLoading(true);
@@ -88,12 +90,16 @@ export default function AccessManagement() {
         employeeName: displayName(employee),
         credentials: data?.credentials,
       });
+      await loadEmployees();
     } catch (err) {
-      setError(getApiErrorMessage(err, {
+      const message = getApiErrorMessage(err, {
         action: "restablecer la contraseña",
         resource: "acceso",
         fallback: "No fue posible generar una nueva contraseña temporal.",
-      }));
+      });
+      setError(message);
+      // El aviso de la página queda arriba y fuera de vista en listas largas.
+      notify({ tone: "error", title: "No se generó la contraseña", message });
     } finally {
       setBusyId("");
     }

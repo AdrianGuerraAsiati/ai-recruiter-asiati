@@ -98,6 +98,8 @@ def _translate_service_error(exc: Exception):
         raise HTTPException(status_code=409, detail="Ese usuario ya existe.")
     if isinstance(exc, service.EmployeeUsernameInvalid):
         raise HTTPException(status_code=422, detail="El usuario no tiene un formato valido.")
+    if isinstance(exc, service.EmployeeCredentialsUnavailable):
+        raise HTTPException(status_code=422, detail=str(exc))
     if isinstance(exc, service.EmployeeStateError):
         raise HTTPException(status_code=422, detail="Estado de empleado no valido.")
     if isinstance(exc, service.EmployeeIdentityError):
