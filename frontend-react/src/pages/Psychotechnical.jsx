@@ -374,22 +374,24 @@ export default function Psychotechnical() {
 
                 {item.status === "COMPLETED" && <ResultSummary item={item} />}
 
-                {["PENDING", "IN_PROGRESS"].includes(item.status) && (
+                {["PENDING", "IN_PROGRESS", "EXPIRED"].includes(item.status) && (
                   <div className="psychotechnical-assignment-actions">
                     <button
                       className="btn btn-secondary"
                       type="button"
                       onClick={() => regenerateLink(item)}
                     >
-                      Renovar acceso
+                      {item.status === "EXPIRED" ? "Reemitir prueba" : "Renovar acceso"}
                     </button>
-                    <button
-                      className="btn btn-secondary"
-                      type="button"
-                      onClick={() => cancelAssignment(item)}
-                    >
-                      Cancelar prueba
-                    </button>
+                    {item.status !== "EXPIRED" && (
+                      <button
+                        className="btn btn-secondary"
+                        type="button"
+                        onClick={() => cancelAssignment(item)}
+                      >
+                        Cancelar prueba
+                      </button>
+                    )}
                   </div>
                 )}
               </article>

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.access_control import ADMIN, APPLICANT, EMPLOYEE, assign_role, normalize_email
 from app.domains.candidates import repository as candidates_repository
 from app.domains.candidates import service as candidates_service
+from app.domains.candidates import stages
 from app.domains.employees import service as employees_service
 from app.domains.employee_documents import notifications as document_notifications
 from app.domains.employee_documents.models import ApplicationContract, EmployeeDocument
@@ -211,7 +212,9 @@ def start_candidate_application(
     # A recruiter may issue document-access credentials without hiring.
     # Promotion to EMPLOYEE occurs only inside hire_candidate().
     link.employee_id = employee.id
-    if link.application_status != "SELECTED":
+    # Only promote earlier stages; never move an application that is already in
+    # a later stage (second interview, contract proposal, ...) back to SELECTED.
+    if not stages.is_at_or_beyond(link.application_status, "SELECTED"):
         candidates_repository.set_job_candidate_status(db, link, status="SELECTED")
         indeed_service.queue_candidate_status(
             db,

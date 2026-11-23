@@ -13,9 +13,15 @@ from app.domains.indeed.exceptions import IndeedValidationError
 LOCAL_TO_INDEED_STATUS = {
     "APPLIED": "NEW",
     "SCREENING": "POSITIVELY_SCREENED",
+    "INITIAL_QUALIFICATION": "POSITIVELY_SCREENED",
     "SELECTED": "POSITIVELY_SCREENED",
     "INTERVIEW": "INTERVIEW",
+    "FIRST_INTERVIEW": "INTERVIEW",
+    "SECOND_INTERVIEW": "INTERVIEW",
     "OFFER": "OFFER_MADE",
+    "CONTRACT_PROPOSAL": "OFFER_MADE",
+    # The hire step itself reports HIRED; a signed contract adds nothing new.
+    "CONTRACT_SIGNED": None,
     "HIRED": "HIRED",
     "REJECTED": "NOT_SELECTED",
     "WITHDRAWN": "WITHDRAWN",
