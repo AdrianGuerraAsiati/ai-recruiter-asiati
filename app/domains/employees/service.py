@@ -44,6 +44,10 @@ class EmployeeStateError(Exception):
     pass
 
 
+class EmployeeCredentialsUnavailable(Exception):
+    """Credentials cannot be generated; the message is safe to show to admins."""
+
+
 def normalize_login_username(value: str | None) -> str:
     normalized = str(value or "").strip().casefold()
     allowed = set("abcdefghijklmnopqrstuvwxyz0123456789._-")
@@ -551,10 +555,51 @@ def reset_employee_temporary_password(
     cognito_client=None,
 ) -> tuple[UserProfile, str]:
     profile = require_employee(db, employee_id)
-    if not profile.login_username or not profile.cognito_sub or not profile.email:
-        raise EmployeeUsernameInvalid()
-    temporary_password = generate_temporary_password()
+    if not profile.email:
+        raise EmployeeCredentialsUnavailable("El perfil no tiene correo; agrégalo antes de generar acceso.")
+    if not profile.login_username:
+        raise EmployeeCredentialsUnavailable("Asigna primero un usuario de Talent con «Editar usuario».")
+    if profile.status != "ACTIVE":
+        raise EmployeeCredentialsUnavailable("El empleado está deshabilitado.")
     client = cognito_client or get_admin_cognito_client()
+    if not profile.cognito_sub:
+        # Perfiles importados de Odoo: aún no tienen cuenta enlazada en Cognito.
+        try:
+            user = client.admin_get_user(UserPoolId=_user_pool_id(), Username=profile.email)
+        except ClientError as exc:
+            code = str(exc.response.get("Error", {}).get("Code") or "")
+            if code != "UserNotFoundException":
+                raise EmployeeProvisioningError(code or "Cognito error") from exc
+            fallback_name = profile.email.split("@", 1)[0]
+            provisioned, temporary_password = provision_existing_profile_access(
+                db,
+                profile.id,
+                username=profile.login_username,
+                first_name=profile.first_name or fallback_name,
+                last_name=profile.last_name or fallback_name,
+                role_code=EMPLOYEE,
+                cognito_client=client,
+            )
+            if temporary_password:
+                return provisioned, temporary_password
+            profile = provisioned
+        else:
+            sub = _cognito_sub_from_user(user)
+            if not sub:
+                raise EmployeeIdentityError("Cognito did not return a stable subject")
+            owner = (
+                db.query(UserProfile)
+                .filter(UserProfile.cognito_sub == sub, UserProfile.id != profile.id)
+                .first()
+            )
+            if owner is not None:
+                raise EmployeeCredentialsUnavailable(
+                    "La cuenta de Cognito de este correo ya pertenece a otro perfil."
+                )
+            profile.cognito_sub = sub
+            db.commit()
+            db.refresh(profile)
+    temporary_password = generate_temporary_password()
     try:
         client.admin_set_user_password(
             UserPoolId=_user_pool_id(),

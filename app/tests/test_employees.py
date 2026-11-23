@@ -350,6 +350,91 @@ def test_reset_employee_password_returns_temporary_password_without_storing_it(d
     assert cognito.passwords[0]["Password"] == temporary_password
 
 
+def _imported_profile(db, *, email: str, username: str | None = "importado") -> UserProfile:
+    profile = UserProfile(
+        cognito_sub=None,
+        email=email,
+        login_username=username,
+        odoo_employee_id="77",
+        first_name="Importado",
+        last_name="Odoo",
+        status="ACTIVE",
+    )
+    db.add(profile)
+    db.flush()
+    assign_role(db, profile, EMPLOYEE)
+    db.commit()
+    db.refresh(profile)
+    return profile
+
+
+class _MissingUserCognito(FakeCognitoClient):
+    def admin_get_user(self, **kwargs):
+        from botocore.exceptions import ClientError
+
+        raise ClientError(
+            {"Error": {"Code": "UserNotFoundException", "Message": "missing"}},
+            "AdminGetUser",
+        )
+
+
+def test_reset_password_creates_cognito_access_for_imported_profile(db):
+    employee = _imported_profile(db, email="sin-cuenta@asiati.com.co")
+    cognito = _MissingUserCognito()
+
+    profile, temporary_password = service.reset_employee_temporary_password(
+        db,
+        employee.id,
+        cognito_client=cognito,
+    )
+
+    assert profile.cognito_sub == "sub-sin-cuenta@asiati.com.co"
+    assert cognito.created[0]["TemporaryPassword"] == temporary_password
+    assert cognito.passwords == []
+
+
+def test_reset_password_links_existing_cognito_user_by_email(db):
+    employee = _imported_profile(db, email="con-cuenta@asiati.com.co")
+    cognito = FakeCognitoClient()
+
+    profile, temporary_password = service.reset_employee_temporary_password(
+        db,
+        employee.id,
+        cognito_client=cognito,
+    )
+
+    assert profile.cognito_sub == "sub-con-cuenta@asiati.com.co"
+    assert cognito.created == []
+    assert cognito.passwords[0]["Password"] == temporary_password
+    assert cognito.passwords[0]["Permanent"] is False
+
+
+def test_reset_password_requires_talent_username(db):
+    employee = _imported_profile(db, email="sin-usuario@asiati.com.co", username=None)
+
+    with pytest.raises(service.EmployeeCredentialsUnavailable, match="usuario de Talent"):
+        service.reset_employee_temporary_password(
+            db,
+            employee.id,
+            cognito_client=FakeCognitoClient(),
+        )
+
+
+def test_reset_password_refuses_cognito_account_owned_by_another_profile(db):
+    _profile(db, email="duplicado@asiati.com.co", role=EMPLOYEE)
+    other = _imported_profile(db, email="otro@asiati.com.co")
+
+    class _SharedSub(FakeCognitoClient):
+        def admin_get_user(self, **kwargs):
+            return {"UserAttributes": [{"Name": "sub", "Value": "sub-duplicado@asiati.com.co"}]}
+
+    with pytest.raises(service.EmployeeCredentialsUnavailable, match="otro perfil"):
+        service.reset_employee_temporary_password(
+            db,
+            other.id,
+            cognito_client=_SharedSub(),
+        )
+
 
 def test_existing_imported_employee_is_linked_to_cognito_profile(db):
     imported = UserProfile(
