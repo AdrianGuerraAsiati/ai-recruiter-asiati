@@ -368,19 +368,31 @@ def _imported_profile(db, *, email: str, username: str | None = "importado") -> 
     return profile
 
 
-class _MissingUserCognito(FakeCognitoClient):
+class _NoAdminGetUserCognito(FakeCognitoClient):
+    """Production's role may not allow AdminGetUser; the reset must not need it."""
+
     def admin_get_user(self, **kwargs):
         from botocore.exceptions import ClientError
 
         raise ClientError(
-            {"Error": {"Code": "UserNotFoundException", "Message": "missing"}},
+            {"Error": {"Code": "AccessDeniedException", "Message": "denied"}},
             "AdminGetUser",
+        )
+
+
+class _ExistingAccountCognito(_NoAdminGetUserCognito):
+    def admin_create_user(self, **kwargs):
+        from botocore.exceptions import ClientError
+
+        raise ClientError(
+            {"Error": {"Code": "UsernameExistsException", "Message": "exists"}},
+            "AdminCreateUser",
         )
 
 
 def test_reset_password_creates_cognito_access_for_imported_profile(db):
     employee = _imported_profile(db, email="sin-cuenta@asiati.com.co")
-    cognito = _MissingUserCognito()
+    cognito = _NoAdminGetUserCognito()
 
     profile, temporary_password = service.reset_employee_temporary_password(
         db,
@@ -393,9 +405,9 @@ def test_reset_password_creates_cognito_access_for_imported_profile(db):
     assert cognito.passwords == []
 
 
-def test_reset_password_links_existing_cognito_user_by_email(db):
+def test_reset_password_sets_password_on_existing_cognito_account(db):
     employee = _imported_profile(db, email="con-cuenta@asiati.com.co")
-    cognito = FakeCognitoClient()
+    cognito = _ExistingAccountCognito()
 
     profile, temporary_password = service.reset_employee_temporary_password(
         db,
@@ -403,8 +415,10 @@ def test_reset_password_links_existing_cognito_user_by_email(db):
         cognito_client=cognito,
     )
 
-    assert profile.cognito_sub == "sub-con-cuenta@asiati.com.co"
-    assert cognito.created == []
+    # The profile is linked by email on the person's first login.
+    assert profile.cognito_sub is None
+    assert profile.login_username == "importado"
+    assert cognito.passwords[0]["Username"] == "con-cuenta@asiati.com.co"
     assert cognito.passwords[0]["Password"] == temporary_password
     assert cognito.passwords[0]["Permanent"] is False
 
@@ -420,20 +434,15 @@ def test_reset_password_requires_talent_username(db):
         )
 
 
-def test_reset_password_refuses_cognito_account_owned_by_another_profile(db):
-    _profile(db, email="duplicado@asiati.com.co", role=EMPLOYEE)
-    other = _imported_profile(db, email="otro@asiati.com.co")
+def test_cognito_errors_expose_the_code_to_admins():
+    from app.domains.employees.router import _translate_service_error
 
-    class _SharedSub(FakeCognitoClient):
-        def admin_get_user(self, **kwargs):
-            return {"UserAttributes": [{"Name": "sub", "Value": "sub-duplicado@asiati.com.co"}]}
+    with pytest.raises(HTTPException) as caught:
+        _translate_service_error(service.EmployeeProvisioningError("AccessDeniedException"))
 
-    with pytest.raises(service.EmployeeCredentialsUnavailable, match="otro perfil"):
-        service.reset_employee_temporary_password(
-            db,
-            other.id,
-            cognito_client=_SharedSub(),
-        )
+    assert caught.value.status_code == 502
+    assert "permiso" in caught.value.detail
+    assert "AccessDeniedException" in caught.value.detail
 
 
 def test_existing_imported_employee_is_linked_to_cognito_profile(db):

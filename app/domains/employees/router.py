@@ -108,9 +108,24 @@ def _translate_service_error(exc: Exception):
             detail="Cognito no devolvio una identidad valida para el empleado.",
         )
     if isinstance(exc, service.EmployeeProvisioningError):
+        code = str(exc) or "Cognito error"
+        logger.warning("Cognito employee operation failed: %s", code)
+        messages = {
+            "AccessDeniedException": (
+                "El servidor no tiene permiso en Cognito para esta operación."
+            ),
+            "UsernameExistsException": "Ya existe una cuenta de Cognito con este correo.",
+            "AliasExistsException": "Otra cuenta de Cognito ya usa este correo.",
+            "InvalidParameterException": "Cognito rechazó los datos del empleado (revisa el correo).",
+            "InvalidPasswordException": "La contraseña temporal no cumple la política de Cognito.",
+            "UserNotFoundException": "No existe una cuenta de Cognito para este correo.",
+        }
         raise HTTPException(
             status_code=502,
-            detail="No fue posible sincronizar el empleado con Cognito.",
+            detail=(
+                messages.get(code, "No fue posible sincronizar el empleado con Cognito.")
+                + f" (código: {code})"
+            ),
         )
     raise exc
 

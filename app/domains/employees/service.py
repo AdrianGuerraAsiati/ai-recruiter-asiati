@@ -564,13 +564,11 @@ def reset_employee_temporary_password(
     client = cognito_client or get_admin_cognito_client()
     if not profile.cognito_sub:
         # Perfiles importados de Odoo: aún no tienen cuenta enlazada en Cognito.
+        # Se intenta crear la cuenta; si ya existe una con ese correo, solo se le
+        # asigna la contraseña temporal y el perfil se enlaza por correo en el
+        # primer inicio de sesión (ensure_user_profile).
+        fallback_name = profile.email.split("@", 1)[0]
         try:
-            user = client.admin_get_user(UserPoolId=_user_pool_id(), Username=profile.email)
-        except ClientError as exc:
-            code = str(exc.response.get("Error", {}).get("Code") or "")
-            if code != "UserNotFoundException":
-                raise EmployeeProvisioningError(code or "Cognito error") from exc
-            fallback_name = profile.email.split("@", 1)[0]
             provisioned, temporary_password = provision_existing_profile_access(
                 db,
                 profile.id,
@@ -580,25 +578,14 @@ def reset_employee_temporary_password(
                 role_code=EMPLOYEE,
                 cognito_client=client,
             )
+        except EmployeeProvisioningError as exc:
+            if str(exc) != "UsernameExistsException":
+                raise
+            profile = require_employee(db, employee_id)
+        else:
             if temporary_password:
                 return provisioned, temporary_password
             profile = provisioned
-        else:
-            sub = _cognito_sub_from_user(user)
-            if not sub:
-                raise EmployeeIdentityError("Cognito did not return a stable subject")
-            owner = (
-                db.query(UserProfile)
-                .filter(UserProfile.cognito_sub == sub, UserProfile.id != profile.id)
-                .first()
-            )
-            if owner is not None:
-                raise EmployeeCredentialsUnavailable(
-                    "La cuenta de Cognito de este correo ya pertenece a otro perfil."
-                )
-            profile.cognito_sub = sub
-            db.commit()
-            db.refresh(profile)
     temporary_password = generate_temporary_password()
     try:
         client.admin_set_user_password(
