@@ -12,7 +12,7 @@ from app.domains.candidate_imports import repository
 from app.domains.candidate_imports.exceptions import IdentityConflict
 from app.domains.candidate_imports.rules import document_sha256, normalize_email
 from app.infrastructure.imports import storage
-from app.models import Candidate
+from app.models import Candidate, CandidateIdentity
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,22 @@ def backfill_candidate_identities(db: Session) -> dict[str, int]:
                 candidate.id,
             )
 
+    # Downloading every canonical CV from S3 on each deploy took minutes even
+    # when nothing changed. Candidates that already carry a document identity
+    # were seeded by a previous run or by the import pipeline: skip them.
+    candidates_with_document_identity = {
+        candidate_id
+        for (candidate_id,) in db.query(CandidateIdentity.candidate_id)
+        .filter(CandidateIdentity.kind == "DOCUMENT_SHA256")
+        .distinct()
+        .all()
+    }
+    result["documents_already_seeded"] = 0
+
     for candidate in owned_candidates:
+        if candidate.id in candidates_with_document_identity:
+            result["documents_already_seeded"] += 1
+            continue
         document = read_existing_canonical_document(candidate.id)
         if document is None:
             result["documents_missing"] += 1
