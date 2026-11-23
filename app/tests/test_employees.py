@@ -434,6 +434,62 @@ def test_reset_password_requires_talent_username(db):
         )
 
 
+def test_generate_credentials_assigns_username_and_creates_access(db):
+    employee = _imported_profile(db, email="nuevo@asiati.com.co", username=None)
+    cognito = _NoAdminGetUserCognito()
+
+    profile, temporary_password = service.generate_employee_credentials(
+        db,
+        employee.id,
+        username="Nuevo.Usuario",
+        cognito_client=cognito,
+    )
+
+    assert profile.login_username == "nuevo.usuario"
+    assert profile.cognito_sub == "sub-nuevo@asiati.com.co"
+    assert cognito.created[0]["TemporaryPassword"] == temporary_password
+
+
+def test_generate_credentials_keeps_username_when_account_already_exists(db):
+    employee = _imported_profile(db, email="existe@asiati.com.co", username=None)
+    cognito = _ExistingAccountCognito()
+
+    profile, temporary_password = service.generate_employee_credentials(
+        db,
+        employee.id,
+        username="existe",
+        cognito_client=cognito,
+    )
+
+    db.expire_all()
+    assert db.get(UserProfile, profile.id).login_username == "existe"
+    assert cognito.passwords[0]["Password"] == temporary_password
+
+
+def test_generate_credentials_leaves_profile_unchanged_when_cognito_fails(db):
+    employee = _imported_profile(db, email="denegado@asiati.com.co", username=None)
+
+    class _Denied(_NoAdminGetUserCognito):
+        def admin_create_user(self, **kwargs):
+            from botocore.exceptions import ClientError
+
+            raise ClientError(
+                {"Error": {"Code": "AccessDeniedException", "Message": "denied"}},
+                "AdminCreateUser",
+            )
+
+    with pytest.raises(service.EmployeeProvisioningError):
+        service.generate_employee_credentials(
+            db,
+            employee.id,
+            username="denegado",
+            cognito_client=_Denied(),
+        )
+
+    db.expire_all()
+    assert db.get(UserProfile, employee.id).login_username is None
+
+
 def test_cognito_errors_expose_the_code_to_admins():
     from app.domains.employees.router import _translate_service_error
 
