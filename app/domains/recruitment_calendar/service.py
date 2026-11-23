@@ -10,10 +10,11 @@ from app.domains.recruitment_calendar.exceptions import (
     RecruitmentEventNotFound,
     RecruitmentEventValidationError,
 )
+from app.domains.candidates.stages import CALENDAR_ELIGIBLE_STATUSES
 from app.models import RecruitmentEvent
 
 
-ELIGIBLE_APPLICATION_STATUSES = {"SELECTED", "INTERVIEW", "OFFER", "HIRED"}
+ELIGIBLE_APPLICATION_STATUSES = CALENDAR_ELIGIBLE_STATUSES
 EVENT_KINDS = {"PHONE_CALL", "ONSITE_INTERVIEW"}
 EVENT_STATUSES = {"SCHEDULED", "COMPLETED", "CANCELED"}
 

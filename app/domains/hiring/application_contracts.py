@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.domains.candidates import repository as candidates_repository
 from app.domains.candidates import service as candidates_service
+from app.domains.candidates import stages
 from app.domains.employee_documents.models import ApplicationContract, EmployeeDocument
 from app.domains.employees import service as employees_service
 from app.domains.odoo_sync import company_catalog, integration as odoo_integration
@@ -52,7 +53,7 @@ def bind(
     )
     if link is None:
         raise candidates_service.JobCandidateNotFound(candidate_id)
-    if link.application_status not in {"SELECTED", "OFFER"}:
+    if not stages.is_contract_ready(link.application_status):
         raise ContractBindingConflict("Selecciona la postulación antes de vincular el contrato.")
     if not link.employee_id:
         raise ContractBindingConflict("Primero crea el expediente del postulante.")
@@ -203,11 +204,11 @@ def binding_status(
             "status": "APPLICANT_PROFILE_REQUIRED",
             "message": "Primero prepara el expediente del postulante desde Postulaciones.",
         }
-    if link.application_status not in {"SELECTED", "OFFER"}:
+    if not stages.is_contract_ready(link.application_status):
         return {
             **base,
             "status": "APPLICATION_NOT_ELIGIBLE",
-            "message": "Solo puedes vincular el contrato cuando la postulación esté seleccionada o en oferta.",
+            "message": "Solo puedes vincular el contrato cuando la postulación esté seleccionada, en oferta o en propuesta contractual.",
         }
 
     document = db.query(EmployeeDocument).filter(

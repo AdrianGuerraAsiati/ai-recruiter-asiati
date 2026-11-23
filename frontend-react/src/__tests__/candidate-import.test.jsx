@@ -90,7 +90,7 @@ describe("candidate import API", () => {
     const result = await actualApi.createImportBatch("job-1", [pdf, docx]);
 
     expect(result.batch_id).toBe("batch-1");
-    expect(post).toHaveBeenCalledWith("/api/import-batches", {
+    expect(post).toHaveBeenCalledWith("/import-batches", {
       job_id: "job-1",
       uploads: [
         {
@@ -116,12 +116,12 @@ describe("candidate import API", () => {
     await actualApi.getImportItems("batch-1", 2, 50);
     await actualApi.getRecentImports("job-1");
 
-    expect(post).toHaveBeenCalledWith("/api/import-batches/batch-1/complete");
-    expect(get).toHaveBeenNthCalledWith(1, "/api/import-batches/batch-1");
-    expect(get).toHaveBeenNthCalledWith(2, "/api/import-batches/batch-1/items", {
+    expect(post).toHaveBeenCalledWith("/import-batches/batch-1/complete");
+    expect(get).toHaveBeenNthCalledWith(1, "/import-batches/batch-1");
+    expect(get).toHaveBeenNthCalledWith(2, "/import-batches/batch-1/items", {
       params: { page: 2, page_size: 50 },
     });
-    expect(get).toHaveBeenNthCalledWith(3, "/api/import-batches", {
+    expect(get).toHaveBeenNthCalledWith(3, "/import-batches", {
       params: { job_id: "job-1", limit: 10 },
     });
   });

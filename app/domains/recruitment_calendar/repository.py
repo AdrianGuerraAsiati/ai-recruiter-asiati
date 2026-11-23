@@ -4,6 +4,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app.domains.candidates.stages import CALENDAR_ELIGIBLE_STATUSES
 from app.models import Candidate, Job, JobCandidate, RecruitmentEvent
 
 
@@ -48,9 +49,7 @@ def list_eligible_applications(db: Session):
         .join(Candidate, Candidate.id == JobCandidate.candidate_id)
         .join(Job, Job.id == JobCandidate.job_id)
         .filter(
-            JobCandidate.application_status.in_(
-                ("SELECTED", "INTERVIEW", "OFFER", "HIRED")
-            )
+            JobCandidate.application_status.in_(sorted(CALENDAR_ELIGIBLE_STATUSES))
         )
         .order_by(Job.title.asc(), Candidate.name.asc(), JobCandidate.id.asc())
         .all()

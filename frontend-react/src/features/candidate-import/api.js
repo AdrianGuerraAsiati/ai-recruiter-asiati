@@ -9,7 +9,7 @@ export async function createImportBatch(jobId, files) {
     content_type: file.type || FALLBACK_CONTENT_TYPE,
   }));
 
-  const { data } = await api.post("/api/import-batches", {
+  const { data } = await api.post("/import-batches", {
     job_id: jobId,
     uploads,
   });
@@ -56,24 +56,24 @@ export function uploadToPresignedPost(file, descriptor, onProgress = () => {}) {
 }
 
 export async function completeImportBatch(batchId) {
-  const { data } = await api.post(`/api/import-batches/${batchId}/complete`);
+  const { data } = await api.post(`/import-batches/${batchId}/complete`);
   return data;
 }
 
 export async function getImportBatch(batchId) {
-  const { data } = await api.get(`/api/import-batches/${batchId}`);
+  const { data } = await api.get(`/import-batches/${batchId}`);
   return data;
 }
 
 export async function getImportItems(batchId, page = 1, pageSize = 100) {
-  const { data } = await api.get(`/api/import-batches/${batchId}/items`, {
+  const { data } = await api.get(`/import-batches/${batchId}/items`, {
     params: { page, page_size: pageSize },
   });
   return data;
 }
 
 export async function getRecentImports(jobId, limit = 10) {
-  const { data } = await api.get("/api/import-batches", {
+  const { data } = await api.get("/import-batches", {
     params: { job_id: jobId, limit },
   });
   return data;

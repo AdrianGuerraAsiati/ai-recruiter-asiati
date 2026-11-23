@@ -336,6 +336,19 @@ def save_value(
     return document
 
 
+def _contract_is_locked(db: Session, document: EmployeeDocument) -> bool:
+    if document.odoo_sign_request_id is not None:
+        return True
+    if document.odoo_sign_status in ("PREPARING", "PREPARED"):
+        return True
+    return (
+        db.query(ApplicationContract)
+        .filter(ApplicationContract.document_id == document.id)
+        .first()
+        is not None
+    )
+
+
 def review_document(
     db: Session,
     *,
@@ -351,6 +364,17 @@ def review_document(
         raise ValueError("Estado de revisión inválido.")
     if normalized_status == "CHANGES_REQUESTED" and not normalized_comment:
         raise ValueError("Escribe un comentario indicando qué debe corregir el empleado.")
+    if (
+        normalized_status == "CHANGES_REQUESTED"
+        and document.document_type == "EMPLOYMENT_CONTRACT"
+        and _contract_is_locked(db, document)
+    ):
+        # A locked contract cannot be replaced, so asking for changes would
+        # leave the dossier with no way forward.
+        raise ValueError(
+            "Este contrato ya está vinculado a la postulación o en firma en Odoo; "
+            "no se pueden solicitar cambios sobre él."
+        )
 
     document.review_status = normalized_status
     document.review_comment = normalized_comment

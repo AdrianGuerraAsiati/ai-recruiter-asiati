@@ -22,17 +22,38 @@ import {
 
 const PAGE_SIZE = 25;
 
+// Etapas vigentes: coinciden con el pipeline de la ficha del candidato y con
+// las etapas de hr.applicant en Odoo.
 const STATUS_OPTIONS = [
-  ["APPLIED", "Aplicó"],
-  ["SCREENING", "En filtro"],
-  ["SELECTED", "Seleccionado"],
-  ["INTERVIEW", "Entrevista"],
-  ["OFFER", "Oferta"],
+  ["APPLIED", "Nuevo"],
+  ["INITIAL_QUALIFICATION", "Calificación inicial"],
+  ["FIRST_INTERVIEW", "Primera entrevista"],
+  ["SECOND_INTERVIEW", "Segunda entrevista"],
+  ["CONTRACT_PROPOSAL", "Propuesta contractual"],
+  ["CONTRACT_SIGNED", "Contrato firmado"],
   ["HIRED", "Contratado"],
   ["ON_HOLD", "En espera"],
   ["REJECTED", "Rechazado"],
   ["WITHDRAWN", "Retirado"],
 ];
+
+// Estados del vocabulario anterior que aún pueden existir en postulaciones viejas.
+const LEGACY_STATUS_OPTIONS = [
+  ["SCREENING", "En filtro (anterior)"],
+  ["INTERVIEW", "Entrevista (anterior)"],
+  ["SELECTED", "Seleccionado (anterior)"],
+  ["OFFER", "Oferta (anterior)"],
+];
+
+const FILTER_STATUS_OPTIONS = [...STATUS_OPTIONS, ...LEGACY_STATUS_OPTIONS];
+
+// Debe coincidir con CONTRACT_READY_STATUSES en app/domains/candidates/stages.py.
+const CONTRACT_READY_STATUSES = ["SELECTED", "OFFER", "CONTRACT_PROPOSAL"];
+
+function rowStatusOptions(current) {
+  const legacy = LEGACY_STATUS_OPTIONS.find(([value]) => value === current);
+  return legacy ? [legacy, ...STATUS_OPTIONS] : STATUS_OPTIONS;
+}
 
 
 function Applications() {
@@ -118,7 +139,7 @@ function Applications() {
   }, [items]);
 
   async function prepareContractDossier(application) {
-    if ((!signatureFlowEnabled && !contractBindingEnabled) || !canCreateEmployees || !canReviewDocuments || !["SELECTED", "OFFER"].includes(application.application_status)) return;
+    if ((!signatureFlowEnabled && !contractBindingEnabled) || !canCreateEmployees || !canReviewDocuments || !CONTRACT_READY_STATUSES.includes(application.application_status)) return;
     setSavingId(application.id);
     setError("");
     try {
@@ -211,7 +232,7 @@ function Applications() {
               }}
             >
               <option value="">Todos los estados</option>
-              {STATUS_OPTIONS.map(([value, label]) => (
+              {FILTER_STATUS_OPTIONS.map(([value, label]) => (
                 <option key={value} value={value}>{label}</option>
               ))}
             </select>
@@ -254,7 +275,7 @@ function Applications() {
                         disabled={savingId === application.id}
                         onChange={(event) => void updateStatus(application, event.target.value)}
                       >
-                        {STATUS_OPTIONS.map(([value, label]) => (
+                        {rowStatusOptions(application.application_status).map(([value, label]) => (
                           <option key={value} value={value} disabled={value === "HIRED" && application.application_status !== "HIRED"}>{label}</option>
                         ))}
                       </select>
@@ -270,7 +291,7 @@ function Applications() {
                           Ver candidato
                         </Link>
                         {(signatureFlowEnabled || contractBindingEnabled) && canCreateEmployees && canReviewDocuments
-                          && ["SELECTED", "OFFER"].includes(application.application_status)
+                          && CONTRACT_READY_STATUSES.includes(application.application_status)
                           && !application.access?.profile_id && (
                             <button className="btn btn-secondary" type="button"
                               disabled={savingId === application.id}
@@ -280,7 +301,7 @@ function Applications() {
                           )}
                         {contractBindingEnabled && canCreateEmployees && canReviewDocuments
                           && application.access?.profile_id
-                          && ["SELECTED", "OFFER"].includes(application.application_status) && (
+                          && CONTRACT_READY_STATUSES.includes(application.application_status) && (
                             <button
                               className="btn btn-secondary"
                               type="button"
