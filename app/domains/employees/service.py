@@ -599,6 +599,41 @@ def reset_employee_temporary_password(
         raise EmployeeProvisioningError(code or "Cognito error") from exc
     return profile, temporary_password
 
+def generate_employee_credentials(
+    db: Session,
+    employee_id: str,
+    *,
+    username: str,
+    cognito_client=None,
+) -> tuple[UserProfile, str]:
+    """Assign a Talent username and return a fresh temporary password.
+
+    The username is only persisted when Cognito accepted the credentials, so a
+    failed attempt leaves the profile unchanged.
+    """
+    profile = require_employee(db, employee_id)
+    normalized = normalize_login_username(username)
+    previous_username = profile.login_username
+    if previous_username != normalized:
+        set_employee_username(db, employee_id, username=normalized, commit=False)
+    try:
+        profile, temporary_password = reset_employee_temporary_password(
+            db,
+            employee_id,
+            cognito_client=cognito_client,
+        )
+    except Exception:
+        db.rollback()
+        raise
+    # Provisioning may have rolled back the pending username on a recoverable
+    # Cognito error (existing account); persist it now that the password is set.
+    if profile.login_username != normalized:
+        profile.login_username = normalized
+    db.commit()
+    db.refresh(profile)
+    return profile, temporary_password
+
+
 def update_employee(
     db: Session,
     employee_id: str,

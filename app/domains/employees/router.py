@@ -263,6 +263,34 @@ def update_employee_username(
         _translate_service_error(exc)
 
 
+@router.post("/{employee_id}/credentials/generate")
+def generate_employee_credentials(
+    employee_id: str,
+    body: SetEmployeeUsernameRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+    _principal: dict = Depends(require_permission("employees.credentials.manage")),
+):
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    try:
+        employee, temporary_password = service.generate_employee_credentials(
+            db,
+            employee_id,
+            username=body.username,
+        )
+        return {
+            "employee": service.employee_payload(db, employee),
+            "credentials": {
+                "username": employee.login_username,
+                "temporary_password": temporary_password,
+                "must_change_password": True,
+            },
+        }
+    except Exception as exc:
+        _translate_service_error(exc)
+
+
 @router.post("/{employee_id}/credentials/reset-password")
 def reset_employee_password(
     employee_id: str,

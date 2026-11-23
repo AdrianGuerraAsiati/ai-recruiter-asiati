@@ -6,11 +6,16 @@ import PageHeader from "../components/ui/PageHeader";
 import { EmptyState, FeedbackMessage, LoadingState } from "../components/ui/StatePanel";
 import { getApiErrorMessage } from "../utils/errors";
 import { useNotice } from "../context/noticeStore";
+import { suggestUsername } from "../utils/username";
 
 function displayName(employee) {
   return [employee.first_name, employee.last_name].filter(Boolean).join(" ")
     || employee.email
     || "Empleado";
+}
+
+function needsCredentials(employee) {
+  return !employee.username || !employee.access_provisioned;
 }
 
 export default function AccessManagement() {
@@ -22,7 +27,44 @@ export default function AccessManagement() {
   const [usernameValue, setUsernameValue] = useState("");
   const [usernameError, setUsernameError] = useState("");
   const [credentialResult, setCredentialResult] = useState(null);
+  const [generateTarget, setGenerateTarget] = useState(null);
+  const [generateUsername, setGenerateUsername] = useState("");
+  const [generateError, setGenerateError] = useState("");
   const { notify } = useNotice();
+
+  function openGenerator(employee) {
+    setGenerateTarget(employee);
+    setGenerateUsername(employee.username || suggestUsername(employee));
+    setGenerateError("");
+  }
+
+  async function generateCredentials(event) {
+    event.preventDefault();
+    if (!generateTarget) return;
+    const target = generateTarget;
+    setBusyId(target.id);
+    setGenerateError("");
+    try {
+      const { data } = await api.post(
+        "/employees/" + encodeURIComponent(target.id) + "/credentials/generate",
+        { username: generateUsername },
+      );
+      setGenerateTarget(null);
+      setCredentialResult({
+        employeeName: displayName(target),
+        credentials: data?.credentials,
+      });
+      await loadEmployees();
+    } catch (err) {
+      setGenerateError(getApiErrorMessage(err, {
+        action: "generar las credenciales",
+        resource: "acceso",
+        fallback: "No fue posible generar las credenciales.",
+      }));
+    } finally {
+      setBusyId("");
+    }
+  }
 
   const loadEmployees = useCallback(async () => {
     setLoading(true);
@@ -177,14 +219,26 @@ export default function AccessManagement() {
                         >
                           Editar usuario
                         </button>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          type="button"
-                          disabled={busyId === employee.id || !employee.username}
-                          onClick={() => resetPassword(employee)}
-                        >
-                          {busyId === employee.id ? "Procesando…" : "Nueva contraseña"}
-                        </button>
+                        {needsCredentials(employee) ? (
+                          <button
+                            className="btn btn-primary btn-sm"
+                            type="button"
+                            disabled={busyId === employee.id || !employee.email}
+                            title={employee.email ? undefined : "El perfil no tiene correo"}
+                            onClick={() => openGenerator(employee)}
+                          >
+                            {busyId === employee.id ? "Procesando…" : "Generar credenciales"}
+                          </button>
+                        ) : (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            type="button"
+                            disabled={busyId === employee.id}
+                            onClick={() => resetPassword(employee)}
+                          >
+                            {busyId === employee.id ? "Procesando…" : "Nueva contraseña"}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -233,6 +287,52 @@ export default function AccessManagement() {
                 </button>
                 <button className="btn btn-primary" type="submit" disabled={busyId === usernameTarget.id}>
                   {busyId === usernameTarget.id ? "Guardando…" : "Guardar usuario"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {generateTarget && (
+        <div className="modal-overlay" role="presentation" onMouseDown={() => setGenerateTarget(null)}>
+          <section
+            className="modal employee-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="access-generate-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <span className="eyebrow">Credenciales</span>
+                <h2 id="access-generate-title">Generar credenciales</h2>
+                <p>{displayName(generateTarget)}</p>
+                {generateTarget.email && <small>{generateTarget.email}</small>}
+              </div>
+              <button className="btn-close" type="button" aria-label="Cerrar" onClick={() => setGenerateTarget(null)}>×</button>
+            </div>
+            {generateError && <FeedbackMessage title="No se generaron las credenciales">{generateError}</FeedbackMessage>}
+            <form className="employee-form" onSubmit={generateCredentials}>
+              <div className="form-group">
+                <label htmlFor="access-generate-username">Usuario de Talent</label>
+                <input
+                  id="access-generate-username"
+                  value={generateUsername}
+                  onChange={(event) => setGenerateUsername(event.target.value.toLowerCase())}
+                  minLength={3}
+                  maxLength={40}
+                  autoComplete="off"
+                  required
+                />
+                <small>Se creará el acceso y una contraseña temporal que la persona deberá cambiar al ingresar.</small>
+              </div>
+              <div className="form-actions">
+                <button className="btn btn-secondary" type="button" onClick={() => setGenerateTarget(null)}>
+                  Cancelar
+                </button>
+                <button className="btn btn-primary" type="submit" disabled={busyId === generateTarget.id}>
+                  {busyId === generateTarget.id ? "Generando." : "Generar credenciales"}
                 </button>
               </div>
             </form>
